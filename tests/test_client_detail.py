@@ -20,6 +20,8 @@ class ClientDetailTests(unittest.TestCase):
 
     def test_maps_client_ref_to_fixed_detail_request_and_redacts_identity(self) -> None:
         ref = self._list_clients(self.site_ref)
+        self.client._device_macs_by_site_ref[self.site_ref] = {
+            "b" * 24: "00:11:22:33:44:66"}
         raw = {"id": "private-id", "mac": "00:11:22:33:44:55", "name": "private name",
                "hostName": "private host", "ip": "192.0.2.1", "ssid": "Private WiFi",
                "apName": "Private AP", "apMac": "00:11:22:33:44:66", "rssi": -57,
@@ -40,6 +42,7 @@ class ClientDetailTests(unittest.TestCase):
         self.assertEqual(result["client_ref"], ref)
         self.assertEqual(result["rssi"], -57)
         self.assertEqual(result["signal_level"], 87)
+        self.assertEqual(result["access_point_ref"], "b" * 24)
         self.assertEqual(result["connection_device_type"], "ap")
         self.assertEqual(result["active"], True)
         for forbidden in ("private-id", "private name", "private host", "192.0.2.1",

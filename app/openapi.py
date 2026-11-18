@@ -4033,6 +4033,15 @@ class OmadaOpenApiClient:
                 raise OpenApiError("openapi_response_invalid")
             category = raw_connect_type.casefold()
             item["connection_device_type"] = category if category in {"ap", "switch", "gateway"} else "other"
+        if detail.get("wireless") is True and detail.get("apMac") is not None:
+            ap_mac = detail["apMac"]
+            if not isinstance(ap_mac, str) or not self._MAC.fullmatch(ap_mac):
+                raise OpenApiError("openapi_response_invalid")
+            normalized_ap_mac = ap_mac.replace(":", "").replace("-", "").lower()
+            for ap_ref, inventory_mac in self._device_macs_by_site_ref.get(site_ref, {}).items():
+                if inventory_mac.replace(":", "").replace("-", "").lower() == normalized_ap_mac:
+                    item["access_point_ref"] = ap_ref
+                    break
         return item
 
     @_track_capability("client_connection_history")
