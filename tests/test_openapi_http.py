@@ -2732,6 +2732,9 @@ class OpenApiHttpTests(unittest.TestCase):
                 "status": "ok", "resource": "ssid_configuration", "data": {
                     "ssid_ref": ssid,
                     **({"network_binding_ref": network_ref} if ssid == ssid_a else {})}}
+        http_status, http_summary = self.request(
+            f"/v1/sites/{site_ref}/ssid-network-summary", self.token)
+        self.assertEqual(http_status, 200)
         request = {"jsonrpc": "2.0", "id": 41, "method": "tools/call",
                    "params": {"name": "omada_ssid_network_summary",
                               "arguments": {"site_ref": site_ref}}}
@@ -2742,13 +2745,17 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(summary["matched_count"], 1)
         self.assertEqual(summary["unbound_count"], 1)
         self.assertEqual(summary["stale_binding_count"], 0)
+        self.assertEqual(http_summary, summary)
+        self.assertNotIn("site_ref", summary)
         self.assertNotIn(ssid_a, repr(summary))
         self.assertNotIn(network_ref, repr(summary))
         self.assertNotIn("private-wlan", repr(summary))
-        self.assertEqual(self.fake.calls, [("sites", None), ("ssids", site_ref),
-                                           ("networks", site_ref),
-                                           ("ssid_configuration", ssid_a),
-                                           ("ssid_configuration", ssid_b)])
+        one_run = [("sites", None), ("ssids", site_ref), ("networks", site_ref),
+                   ("devices", site_ref), ("ssid_configuration", ssid_a),
+                   ("ssid_configuration", ssid_b),
+                   ("site_lan_network_detail_summary", site_ref + ":" + network_ref),
+                   ("network_dhcp_server_info", site_ref + ":" + network_ref)]
+        self.assertEqual(self.fake.calls, one_run * 2)
 
     def test_mcp_network_overview_uses_fixed_http_reads_and_inventory_first(self) -> None:
         site_ref, device_ref = "a" * 24, "b" * 24

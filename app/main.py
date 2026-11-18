@@ -127,6 +127,10 @@ try:
 except ImportError:  # direct execution in the image
     from mcp import handle_mcp_request, McpRequestError
 try:
+    from .diagnostic_capability_report import project_diagnostic_capability_report
+except ImportError:  # direct execution in the image
+    from diagnostic_capability_report import project_diagnostic_capability_report
+try:
     from .operator_approval import OperatorApprovalError, load_operator_key, verify_approval
     from .approval_plans import ApprovalPlanError, build_approval_summary
 except ImportError:  # direct execution in the image
@@ -774,6 +778,15 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(encoded)
 
     def do_GET(self) -> None:  # noqa: N802
+        ssid_network_match = re.fullmatch(
+            r"/v1/sites/([0-9a-f]{24})/ssid-network-summary", self.path)
+        if ssid_network_match:
+            if not self._authorized():
+                return
+            result = self._mcp_ssid_network_summary({"site_ref": ssid_network_match.group(1)})
+            status = HTTPStatus.OK if result.get("status") == "ok" else HTTPStatus.BAD_GATEWAY
+            self._send(status, result)
+            return
         if self.path == "/healthz":
             self._send(HTTPStatus.OK, {"status": "ok"})
             return
@@ -897,6 +910,9 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/v1/capabilities":
             self._capabilities_get()
             return
+        if self.path == "/v1/diagnostic-capabilities":
+            self._diagnostic_capabilities_get()
+            return
         cable_status_match = re.fullmatch(
             r"/v1/switch-cable-test-plans/([0-9a-f]{48})/status", self.path)
         if cable_status_match:
@@ -939,6 +955,16 @@ class Handler(BaseHTTPRequestHandler):
         except OpenApiError:
             result = OmadaOpenApiClient.capability_catalog()
         self._send(HTTPStatus.OK, result)
+
+    def _diagnostic_capabilities_get(self) -> None:
+        if not self._authorized():
+            return
+        try:
+            with _OPENAPI_LOCK:
+                catalog = _openapi_client().capabilities()
+        except OpenApiError:
+            catalog = OmadaOpenApiClient.capability_catalog()
+        self._send(HTTPStatus.OK, project_diagnostic_capability_report(catalog))
 
     def do_POST(self) -> None:  # noqa: N802
         if self.path == "/mcp":
@@ -1581,6 +1607,13 @@ class Handler(BaseHTTPRequestHandler):
         self._send(HTTPStatus.OK, response)
 
     def _mcp_read(self, operation_id: str, arguments: dict[str, str]) -> dict[str, object]:
+        if operation_id == "diagnostic_capability_summary":
+            try:
+                with _OPENAPI_LOCK:
+                    catalog = _openapi_client().capabilities()
+            except OpenApiError:
+                catalog = OmadaOpenApiClient.capability_catalog()
+            return project_diagnostic_capability_report(catalog)
         if operation_id == "capability_catalog":
             try:
                 with _OPENAPI_LOCK:
@@ -2011,11 +2044,17 @@ class Handler(BaseHTTPRequestHandler):
             return {"status": "error", "error": "diagnostic_unavailable"}
         site_ref = arguments["site_ref"]
         root = f"/v1/sites/{site_ref}"
-        allowed_paths = {"/v1/sites", root + "/ssids", root + "/networks"}
+        allowed_paths = {"/v1/sites", root + "/ssids", root + "/networks",
+                         root + "/devices", root + "/dns/cache", root + "/dns/proxy"}
 
         def fixed_read(path: str) -> object:
-            if path not in allowed_paths and not re.fullmatch(
-                    rf"{re.escape(root)}/ssids/[0-9a-f]{{24}}", path):
+            patterns = (
+                rf"{re.escape(root)}/ssids/[0-9a-f]{{24}}",
+                rf"{re.escape(root)}/lan-networks/[0-9a-f]{{24}}/summary",
+                rf"{re.escape(root)}/networks/[0-9a-f]{{24}}/dhcp-server/info",
+                rf"{re.escape(root)}/gateways/[0-9a-f]{{24}}/internet-info",
+            )
+            if path not in allowed_paths and not any(re.fullmatch(pattern, path) for pattern in patterns):
                 raise ssid_network_diagnose.SsidNetworkDiagnoseError("connector_unavailable")
             connection = http.client.HTTPConnection(
                 "127.0.0.1", self.server.server_port, timeout=15)

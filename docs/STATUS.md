@@ -2,6 +2,17 @@
 
 This page summarizes the connector's current capabilities and the evidence behind them. Catalog entries and offline tests alone do not establish live support; operation-specific limits are recorded in the [capability evidence](CAPABILITIES.md), [roadmap](ROADMAP.md), and [operation evidence index](OPERATION_EVIDENCE.json).
 
+## Follow-on read workflows
+
+The current local development branch also contains these read-only workflows:
+
+- Setup check: separates configuration, controller TLS, authentication, site-inventory permission and MCP initialization checks. Fixture tests pass; no live setup check was run.
+- Diagnostic capability report: available over authenticated HTTP and MCP, reusing existing evidence without probing routes.
+- Configuration snapshots: captures selected radio, SSID, LAN and DNS projection fields in versioned owner-only files; comparisons mark incomplete data as not comparable. No live snapshot was captured.
+- WLAN network mapping: available over authenticated HTTP and MCP; checks up to 64 SSIDs, 32 matched networks and four gateway records. DNS-to-WLAN and gateway-to-network links remain unknown when the source does not expose them. No live controller workflow was run.
+
+The final local check for this code and its API-contract evidence ran 302 offline tests successfully. The synthetic four-SSID token comparison is recorded below. There is no hosted CI result or live controller evidence for these follow-on workflows.
+
 ## Core functions
 
 Fourteen of the fifteen agreed core functions meet their documented acceptance scope. The remaining function covers active diagnostics.

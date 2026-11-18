@@ -74,6 +74,14 @@ python3 tools/wifi_diagnose.py \
 
 The default connector URL is the local Compose listener. The CLI can also select an AP or client from the selected site's inventory; see `python3 tools/wifi_diagnose.py --help` for its bounded options. It does not contact Omada directly or start active scans.
 
+### Guided setup check
+
+With the runtime settings available to the local user, run `python3 tools/setup_check.py` to check controller TLS, Omada authentication, site-inventory read access, and one authenticated MCP handshake separately. See the [setup-check details](docs/OPERATIONS.md#guided-setup-check); this explicit command makes bounded read requests and never starts a scan or changes settings.
+
+### Compare configuration snapshots
+
+Use `python3 tools/config_snapshot.py capture` to save selected AP radio, SSID, LAN-network and site DNS settings with a schema version. Give selected objects short neutral labels rather than their device or network names; the snapshot omits controller references, addresses and secret values and is created with owner-only permissions. The comparison marks partial or missing fields as not comparable. See the [snapshot procedure](docs/OPERATIONS.md#configuration-snapshots).
+
 ### WLAN walk session
 
 For a deliberately started walk test, the separate session tool polls one wireless client's current read-only detail through the local connector and writes JSON Lines to a new file with owner-only permissions:

@@ -182,6 +182,31 @@ infer fixture coverage or documentation presence; those facts are not part of
 this runtime catalog. Controller-export comparisons remain a separate,
 documentation-only source.
 
+`GET /v1/diagnostic-capabilities` and the MCP tool
+`omada_diagnostic_capability_summary` group those same in-process records into
+the complete WLAN, client, AP, gateway, switch and site-network read workflows.
+Each required operation is labelled `documented`, `observed`, `unknown` or
+`failed`. `observed` requires a successful controller response and a supported
+projected shape; a fixture is not live evidence. A workflow with any recorded
+required-read failure is labelled `failed` and also reports per-operation
+counts. The report reuses the current catalog and makes zero network requests.
+
+Documented-source counts refer to the three checked-in API exports. They do
+not identify the controller connected to this process, and a route documented
+for an export is not evidence of permission or live support on the user's
+controller. Unknown or mixed evidence stays unknown; the workflow report never
+probes missing operations.
+
+The bounded WLAN/network mapping workflow is available through
+`GET /v1/sites/{site_ref}/ssid-network-summary` and
+`omada_ssid_network_summary`. It reconciles up to 64 SSID bindings, then checks
+VLAN/LAN detail and DHCP pool counts for at most 32 matched networks, site DNS
+settings, and internet metadata for at most four known gateways. It returns
+only aggregate counts and redacted settings. A site DNS setting is not proof
+of an SSID-specific resolver path, and gateway inventory is not proof of a
+network-to-gateway attachment; both relationships remain unknown. Partial
+inventories and unavailable reads remain visible in the result.
+
 ### Controller threat severity counts
 
 `GET /v1/controller/threat-severity-summary?start_ms=...&end_ms=...` and
