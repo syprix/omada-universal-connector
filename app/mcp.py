@@ -45,6 +45,19 @@ _CAPABILITY_SUMMARY_TOOL = {
                     "idempotentHint": True, "openWorldHint": False},
 }
 _CAPABILITY_SUMMARY_NAME = str(_CAPABILITY_SUMMARY_TOOL["name"])
+_DIAGNOSTIC_CAPABILITY_SUMMARY_TOOL = {
+    "name": "omada_diagnostic_capability_summary",
+    "description": (
+        "Summarize existing evidence for complete WLAN and network diagnostic workflows. "
+        "Separates source documentation, observed successes, unknown coverage and recorded failures. "
+        "Reads the local capability catalog only; it does not contact the controller or probe routes."
+    ),
+    "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                    "idempotentHint": True, "openWorldHint": False},
+}
+_DIAGNOSTIC_CAPABILITY_SUMMARY_NAME = str(
+    _DIAGNOSTIC_CAPABILITY_SUMMARY_TOOL["name"])
 _WIFI_DIAGNOSE_TOOL = {
     "name": "omada_wifi_diagnose_site",
     "description": (
@@ -468,6 +481,7 @@ def _tools_page(registry: Any, cursor: object) -> dict[str, object]:
     tools.append(_NETWORK_DIAGNOSE_SWITCH_TOOL)
     tools.append(_NETWORK_OVERVIEW_TOOL)
     tools.append(_SSID_NETWORK_SUMMARY_TOOL)
+    tools.append(_DIAGNOSTIC_CAPABILITY_SUMMARY_TOOL)
     tools.append(_SWITCH_CABLE_TEST_TOOL)
     tools.append(_CONTROLLER_RADIUS_PROXY_CHANGE_TOOL)
     tools.append(_CAPABILITY_SUMMARY_TOOL)
@@ -485,6 +499,11 @@ def _invoke_tool(registry: Any, name: object, arguments: object,
                  invoke_action: Callable[[str, dict[str, object]], dict[str, object]] | None = None) -> dict[str, object]:
     if not isinstance(name, str) or not name.startswith("omada_"):
         raise McpRequestError("tool_unknown")
+    if name == _DIAGNOSTIC_CAPABILITY_SUMMARY_NAME:
+        if not isinstance(arguments, dict) or arguments:
+            raise McpRequestError("arguments_invalid")
+        value = invoke_read("diagnostic_capability_summary", {})
+        return _tool_result(value)
     if name == _CAPABILITY_SUMMARY_NAME:
         if (not isinstance(arguments, dict) or
                 set(arguments) - {"operation_id"} or

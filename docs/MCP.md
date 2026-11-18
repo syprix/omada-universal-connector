@@ -14,6 +14,8 @@ The connector exposes a stateless MCP Streamable HTTP endpoint at `POST /mcp`, o
 
 `omada_capability_summary` reports the process-local capability-catalog counts and can return a compact view of one exact `operation_id`. It never contacts the controller and omits runtime target references. Runtime evidence separates the projected response shape from a response received through a TLS-verified controller connection; fixture or mocked responses do not count as live permission or support evidence. `catalog_complete` remains false; this tool does not assert that every controller/API capability has been implemented or verified.
 
+`omada_diagnostic_capability_summary` groups the current catalog into the complete WLAN, client, AP, gateway, switch and site-network read workflows. For each required read it distinguishes source documentation, an observed successful controller response with a supported shape, unknown evidence and recorded failures. It makes no controller requests and omits runtime target references. Documentation counts refer to the bundled source exports, not necessarily the controller currently connected to the process; the catalog remains explicitly incomplete.
+
 `omada_ap_uplink_config` exposes the distinct read-only AP auto-uplink and port configuration. It is separate from the wired-link status reader and is not called automatically by a diagnostic workflow.
 
 `omada_site_rogue_ap_results` summarizes stored rogue-AP scan results for a site. It removes SSIDs, BSSIDs, AP identities, record identifiers and timestamps; scan freshness is unknown. `omada_wifi_diagnose_site` includes this summary. Both paths read saved results only and never start a scan.

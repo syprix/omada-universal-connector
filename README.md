@@ -74,6 +74,10 @@ python3 tools/wifi_diagnose.py \
 
 The default connector URL is the local Compose listener. The CLI can also select an AP or client from the selected site's inventory; see `python3 tools/wifi_diagnose.py --help` for its bounded options. It does not contact Omada directly or start active scans.
 
+### Guided setup check
+
+With the runtime settings available to the local user, run `python3 tools/setup_check.py` to check controller TLS, Omada authentication, site-inventory read access, and one authenticated MCP handshake separately. See the [setup-check details](docs/OPERATIONS.md#guided-setup-check); this explicit command makes bounded read requests and never starts a scan or changes settings.
+
 ## Project documents
 
 - [Current architecture](docs/CURRENT_ARCHITECTURE.md)

@@ -127,6 +127,10 @@ try:
 except ImportError:  # direct execution in the image
     from mcp import handle_mcp_request, McpRequestError
 try:
+    from .diagnostic_capability_report import project_diagnostic_capability_report
+except ImportError:  # direct execution in the image
+    from diagnostic_capability_report import project_diagnostic_capability_report
+try:
     from .operator_approval import OperatorApprovalError, load_operator_key, verify_approval
     from .approval_plans import ApprovalPlanError, build_approval_summary
 except ImportError:  # direct execution in the image
@@ -897,6 +901,9 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/v1/capabilities":
             self._capabilities_get()
             return
+        if self.path == "/v1/diagnostic-capabilities":
+            self._diagnostic_capabilities_get()
+            return
         cable_status_match = re.fullmatch(
             r"/v1/switch-cable-test-plans/([0-9a-f]{48})/status", self.path)
         if cable_status_match:
@@ -939,6 +946,16 @@ class Handler(BaseHTTPRequestHandler):
         except OpenApiError:
             result = OmadaOpenApiClient.capability_catalog()
         self._send(HTTPStatus.OK, result)
+
+    def _diagnostic_capabilities_get(self) -> None:
+        if not self._authorized():
+            return
+        try:
+            with _OPENAPI_LOCK:
+                catalog = _openapi_client().capabilities()
+        except OpenApiError:
+            catalog = OmadaOpenApiClient.capability_catalog()
+        self._send(HTTPStatus.OK, project_diagnostic_capability_report(catalog))
 
     def do_POST(self) -> None:  # noqa: N802
         if self.path == "/mcp":
@@ -1581,6 +1598,13 @@ class Handler(BaseHTTPRequestHandler):
         self._send(HTTPStatus.OK, response)
 
     def _mcp_read(self, operation_id: str, arguments: dict[str, str]) -> dict[str, object]:
+        if operation_id == "diagnostic_capability_summary":
+            try:
+                with _OPENAPI_LOCK:
+                    catalog = _openapi_client().capabilities()
+            except OpenApiError:
+                catalog = OmadaOpenApiClient.capability_catalog()
+            return project_diagnostic_capability_report(catalog)
         if operation_id == "capability_catalog":
             try:
                 with _OPENAPI_LOCK:

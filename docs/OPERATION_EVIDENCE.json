@@ -6864,6 +6864,7 @@
         "test_rrm_incompatible_integration.py",
         "test_rrm_integration.py",
         "test_rrm_mode_integration.py",
+        "test_setup_check.py",
         "test_site_acl_config_mode.py",
         "test_site_active_ap_v2_summary_integration.py",
         "test_site_active_application_summary_integration.py",
@@ -10021,6 +10022,7 @@
       "source_map_label": "implemented_read",
       "static_test_references": [
         "test_channel_dashboard_integration.py",
+        "test_diagnostic_capability_report.py",
         "test_openapi_http.py",
         "test_operation_registry.py",
         "test_wifi_diagnose_text.py"
@@ -21380,6 +21382,7 @@
       ],
       "source_map_label": "implemented_read",
       "static_test_references": [
+        "test_diagnostic_capability_report.py",
         "test_openapi_http.py",
         "test_operation_registry.py",
         "test_wifi_diagnose.py",
