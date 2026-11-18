@@ -3393,6 +3393,37 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(response["result"]["structuredContent"]["resource"],
                          "site_events_window_summary")
 
+        def local_events(ref, kind, start_local, end_local, time_zone):
+            self.fake.calls.append(("site_events_window_local", ref, kind,
+                                   start_local, end_local, time_zone))
+            return {"status": "ok", "resource": f"site_{kind}_window_summary",
+                    "time_zone": time_zone, "window_start_local": start_local,
+                    "window_end_local": end_local, "partial": False}
+
+        self.fake.read_site_log_local_window_summary = local_events
+        local_args = {"start_local": "2026-11-18T09:20",
+                      "end_local": "2026-11-18T09:30", "time_zone": "Europe/Berlin"}
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/alerts/window?" + urlencode(local_args), self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(self.fake.calls[-1], (
+            "site_events_window_local", site_ref, "alerts", "2026-11-18T09:20",
+            "2026-11-18T09:30", "Europe/Berlin"))
+        request = {"jsonrpc": "2.0", "id": 40, "method": "tools/call",
+                   "params": {"name": "omada_site_alerts_window_summary",
+                              "arguments": {"site_ref": site_ref, **local_args}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"]["time_zone"],
+                         "Europe/Berlin")
+        invalid_args = {"start_local": "2026-10-25T02:30",
+                        "end_local": "2026-10-25T03:00",
+                        "time_zone": "Europe/Berlin"}
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/events/window?" + urlencode(invalid_args), self.token)
+        self.assertNotEqual(status, 200)
+        self.assertEqual(self.fake.calls[-1][0], "site_events_window_local")
+
     def test_http_and_mcp_expose_dhcp_and_dns_reads(self) -> None:
         operations = (
             ("dhcp_leases", "dhcp/leases", "list_dhcp_leases"),

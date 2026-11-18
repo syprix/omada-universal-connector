@@ -704,9 +704,9 @@
             "operation_id": "getAlertLogsForSite",
             "tag": "Log",
             "permission": "Site Log & Audit Log Manager View Only",
-            "query": "Required page, pageSize, filters.timeStart and filters.timeEnd. The connector fixes page/pageSize and accepts a bounded UTC millisecond window of at most 24 hours.",
+            "query": "Required page, pageSize, filters.timeStart and filters.timeEnd (int64). Export examples are Unix-millisecond-shaped, but the schema does not name the unit. The connector fixes page/pageSize and accepts UTC milliseconds or converts an explicit IANA local-time window of at most 24 hours before forwarding the documented filters.",
             "response": "Paginated rows document id, key, module, content, time and level.",
-            "projection": "Returns counts by module and severity and observed time bounds without alert IDs, keys or content. If configured pages do not cover totalRows, partial=true."
+            "projection": "Returns counts by module and severity and observed time bounds without alert IDs, keys or content. Reports pages fetched, configured page size and page limit; if the configured limit does not cover totalRows, partial=true."
           }
         },
         "site_alg_config": {
@@ -1246,9 +1246,9 @@
             "operation_id": "getEventLogsForSite",
             "tag": "Log",
             "permission": "Site Log & Audit Log Manager View Only",
-            "query": "Required page, pageSize, filters.timeStart and filters.timeEnd. The connector fixes page/pageSize and accepts a bounded UTC millisecond window of at most 24 hours.",
+            "query": "Required page, pageSize, filters.timeStart and filters.timeEnd (int64). Export examples are Unix-millisecond-shaped, but the schema does not name the unit. The connector fixes page/pageSize and accepts UTC milliseconds or converts an explicit IANA local-time window of at most 24 hours before forwarding the documented filters.",
             "response": "Paginated rows document id, key, module, content and time. The first-page eventLogStat may report totalLogNum and systemLogNum/deviceLogNum/clientLogNum.",
-            "projection": "Continues pagination after eventLogStat; returns row/module counts and time bounds without log IDs, keys or content. If configured pages do not cover totalRows, partial=true; controller totals are retained when supplied."
+            "projection": "Continues pagination after eventLogStat; returns row/module counts and time bounds without log IDs, keys or content. Reports pages fetched, configured page size and page limit; if the configured limit does not cover totalRows, partial=true. Controller totals are retained when supplied."
           }
         },
         "site_firewall_defaults": {
@@ -2737,9 +2737,9 @@
             "operation_id": "getAlertLogsForSite",
             "tag": "Log",
             "permission": "Site Log & Audit Log Manager View Only",
-            "query": "Required page, pageSize, filters.timeStart and filters.timeEnd. The connector fixes page/pageSize and accepts a bounded UTC millisecond window of at most 24 hours.",
+            "query": "Required page, pageSize, filters.timeStart and filters.timeEnd (int64). Export examples are Unix-millisecond-shaped, but the schema does not name the unit. The connector fixes page/pageSize and accepts UTC milliseconds or converts an explicit IANA local-time window of at most 24 hours before forwarding the documented filters.",
             "response": "Paginated rows document id, key, module, content, time and level.",
-            "projection": "Returns counts by module and severity and observed time bounds without alert IDs, keys or content. If configured pages do not cover totalRows, partial=true."
+            "projection": "Returns counts by module and severity and observed time bounds without alert IDs, keys or content. Reports pages fetched, configured page size and page limit; if the configured limit does not cover totalRows, partial=true."
           }
         },
         "site_alg_config": {
@@ -3279,9 +3279,9 @@
             "operation_id": "getEventLogsForSite",
             "tag": "Log",
             "permission": "Site Log & Audit Log Manager View Only",
-            "query": "Required page, pageSize, filters.timeStart and filters.timeEnd. The connector fixes page/pageSize and accepts a bounded UTC millisecond window of at most 24 hours.",
+            "query": "Required page, pageSize, filters.timeStart and filters.timeEnd (int64). Export examples are Unix-millisecond-shaped, but the schema does not name the unit. The connector fixes page/pageSize and accepts UTC milliseconds or converts an explicit IANA local-time window of at most 24 hours before forwarding the documented filters.",
             "response": "Paginated rows document id, key, module, content and time. The first-page eventLogStat may report totalLogNum and systemLogNum/deviceLogNum/clientLogNum.",
-            "projection": "Continues pagination after eventLogStat; returns row/module counts and time bounds without log IDs, keys or content. If configured pages do not cover totalRows, partial=true; controller totals are retained when supplied."
+            "projection": "Continues pagination after eventLogStat; returns row/module counts and time bounds without log IDs, keys or content. Reports pages fetched, configured page size and page limit; if the configured limit does not cover totalRows, partial=true. Controller totals are retained when supplied."
           }
         },
         "site_firewall_defaults": {
@@ -4761,9 +4761,9 @@
             "operation_id": "getAlertLogsForSite",
             "tag": "Log",
             "permission": "Site Log & Audit Log Manager View Only",
-            "query": "Required page, pageSize, filters.timeStart and filters.timeEnd. The connector fixes page/pageSize and accepts a bounded UTC millisecond window of at most 24 hours.",
+            "query": "Required page, pageSize, filters.timeStart and filters.timeEnd (int64). Export examples are Unix-millisecond-shaped, but the schema does not name the unit. The connector fixes page/pageSize and accepts UTC milliseconds or converts an explicit IANA local-time window of at most 24 hours before forwarding the documented filters.",
             "response": "Paginated rows document id, key, module, content, time and level.",
-            "projection": "Returns counts by module and severity and observed time bounds without alert IDs, keys or content. If configured pages do not cover totalRows, partial=true."
+            "projection": "Returns counts by module and severity and observed time bounds without alert IDs, keys or content. Reports pages fetched, configured page size and page limit; if the configured limit does not cover totalRows, partial=true."
           }
         },
         "site_alg_config": {
@@ -5294,9 +5294,9 @@
             "operation_id": "getEventLogsForSite",
             "tag": "Log",
             "permission": "Site Log & Audit Log Manager View Only",
-            "query": "Required page, pageSize, filters.timeStart and filters.timeEnd. The connector fixes page/pageSize and accepts a bounded UTC millisecond window of at most 24 hours.",
+            "query": "Required page, pageSize, filters.timeStart and filters.timeEnd (int64). Export examples are Unix-millisecond-shaped, but the schema does not name the unit. The connector fixes page/pageSize and accepts UTC milliseconds or converts an explicit IANA local-time window of at most 24 hours before forwarding the documented filters.",
             "response": "Paginated rows document id, key, module, content and time. The first-page eventLogStat may report totalLogNum and systemLogNum/deviceLogNum/clientLogNum.",
-            "projection": "Continues pagination after eventLogStat; returns row/module counts and time bounds without log IDs, keys or content. If configured pages do not cover totalRows, partial=true; controller totals are retained when supplied."
+            "projection": "Continues pagination after eventLogStat; returns row/module counts and time bounds without log IDs, keys or content. Reports pages fetched, configured page size and page limit; if the configured limit does not cover totalRows, partial=true. Controller totals are retained when supplied."
           }
         },
         "site_firewall_defaults": {

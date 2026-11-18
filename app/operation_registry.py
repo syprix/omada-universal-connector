@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import re
 
-SCHEMA_REVISION = 1
+SCHEMA_REVISION = 2
 _REF = re.compile(r"[0-9a-f]{24}")
 _MSP_REF = re.compile(r"[A-Za-z0-9_-]{1,128}")
 _VAR = re.compile(r"\{([a-z][a-z0-9_]*)\}")
@@ -31,6 +31,8 @@ class Operation:
     evidence: str = "unknown"
     max_response_bytes: int = 1_048_576
     max_items: int = 500
+    # Alternative connector-only query groups. Exactly one group is accepted.
+    local_argument_alternatives: tuple[tuple[str, ...], ...] = ()
 
 
 def _vars(template: str) -> tuple[str, ...]:
@@ -110,12 +112,27 @@ class OperationRegistry:
                 ("type",): {"site_mac_auth_ssid_inventory"},
                 ("vlan_id",): {"site_vlan_ssid_usage_summary", "site_vlan_device_usage_summary"},
             }
+            supported_local_alternatives = {
+                ("start_local", "end_local", "time_zone"): {
+                    "site_events_window_summary", "site_alerts_window_summary"},
+            }
             if (not isinstance(item.local_arguments, tuple) or
                     (item.local_arguments and
                      (item.local_arguments not in supported_local or
                       item.operation_id not in supported_local[item.local_arguments])) or
                     set(item.local_arguments) & (set(public_vars) | set(item.extra_arguments))):
                 raise RegistryError("invalid local arguments")
+            if (not isinstance(item.local_argument_alternatives, tuple) or
+                    any(not isinstance(group, tuple) or not group or
+                        group not in supported_local_alternatives or
+                        item.operation_id not in supported_local_alternatives[group] or
+                        len(set(group)) != len(group) or
+                        set(group) & (set(public_vars) | set(item.extra_arguments) |
+                                      set(item.local_arguments))
+                        for group in item.local_argument_alternatives) or
+                    len(set(item.local_argument_alternatives)) !=
+                    len(item.local_argument_alternatives)):
+                raise RegistryError("invalid local argument alternatives")
             if any(source not in {"$config", "$incident_context_mac"} and
                    source not in (set(public_vars) | set(item.extra_arguments) | set(item.local_arguments))
                    for source in bindings.values()):
@@ -143,6 +160,10 @@ class OperationRegistry:
             if item.operation_id == operation_id:
                 return item
         raise RegistryError("unknown operation")
+
+    @staticmethod
+    def local_argument_sets(item: Operation) -> tuple[tuple[str, ...], ...]:
+        return (item.local_arguments, *item.local_argument_alternatives)
 
     def match(self, method: str, path: str) -> tuple[Operation, tuple[tuple[str, str], ...]]:
         if not isinstance(method, str) or not isinstance(path, str) or "?" in path:
@@ -1503,7 +1524,8 @@ REGISTRY = OperationRegistry((
               "/v1/sites/{site_ref}/events/window", "GET",
               "/openapi/v1/{controller_id}/sites/{site_id}/logs/events",
               (("controller_id", "$config"), ("site_id", "site_ref")),
-              local_arguments=("start_ms", "end_ms"), max_items=2_000),
+              local_arguments=("start_ms", "end_ms"), max_items=2_000,
+              local_argument_alternatives=(("start_local", "end_local", "time_zone"),)),
     Operation("site_alerts", "GET",
               "/v1/sites/{site_ref}/alerts", "GET",
               "/openapi/v1/{controller_id}/sites/{site_id}/logs/alerts",
@@ -1512,7 +1534,8 @@ REGISTRY = OperationRegistry((
               "/v1/sites/{site_ref}/alerts/window", "GET",
               "/openapi/v1/{controller_id}/sites/{site_id}/logs/alerts",
               (("controller_id", "$config"), ("site_id", "site_ref")),
-              local_arguments=("start_ms", "end_ms"), max_items=2_000),
+              local_arguments=("start_ms", "end_ms"), max_items=2_000,
+              local_argument_alternatives=(("start_local", "end_local", "time_zone"),)),
     Operation("site_rogue_ap_results", "GET",
               "/v1/sites/{site_ref}/wifi/rogue-ap-results", "GET",
               "/openapi/v1/{controller_id}/sites/{site_id}/insight/rogueaps",

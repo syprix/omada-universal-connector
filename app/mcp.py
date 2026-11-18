@@ -14,6 +14,10 @@ try:
     from .olt_onu_inventory_summary import OltOnuInventoryError, validate_pon_port_selector
 except ImportError:
     from olt_onu_inventory_summary import OltOnuInventoryError, validate_pon_port_selector
+try:
+    from .site_log_window_summary import SiteLogWindowError, resolve_local_site_log_window
+except ImportError:
+    from site_log_window_summary import SiteLogWindowError, resolve_local_site_log_window
 
 PROTOCOL_VERSION = "2025-06-18"
 SUPPORTED_PROTOCOL_VERSIONS = {"2024-11-05", "2025-03-26", PROTOCOL_VERSION}
@@ -375,7 +379,10 @@ def _tool(operation: Any) -> dict[str, object]:
             properties[name] = {"type": "integer", "enum": [0, 1],
                                 "description": "VPN type: 0 server or 1 client."}
             required.append(name)
-    for name in getattr(operation, "local_arguments", ()):
+    base_local = tuple(getattr(operation, "local_arguments", ()))
+    alternatives = tuple(getattr(operation, "local_argument_alternatives", ()))
+    local_names = set(base_local).union(*(set(group) for group in alternatives))
+    for name in local_names:
         if name in {"client_name", "ssid_name"}:
             properties[name] = {
                 "type": "string", "minLength": 1, "maxLength": 128,
@@ -387,6 +394,18 @@ def _tool(operation: Any) -> dict[str, object]:
             properties[name] = {
                 "type": "integer", "minimum": 946684800000, "maximum": 4102444800000,
                 "description": "UTC epoch milliseconds; both bounds are required and the window is capped at 24 hours.",
+            }
+        elif name in {"start_local", "end_local"}:
+            properties[name] = {
+                "type": "string", "minLength": 16, "maxLength": 23,
+                "pattern": r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}(?::[0-9]{2}(?:\.[0-9]{1,3})?)?$",
+                "description": "Local wall time in the supplied IANA time_zone, without an offset.",
+            }
+        elif name == "time_zone":
+            properties[name] = {
+                "type": "string", "minLength": 1, "maxLength": 64,
+                "pattern": r"^[A-Za-z0-9_+-]+(?:/[A-Za-z0-9_+-]+)*$",
+                "description": "IANA time zone used to convert the local bounds to UTC.",
             }
         elif name == "archived":
             properties[name] = {
@@ -403,16 +422,28 @@ def _tool(operation: Any) -> dict[str, object]:
                 "type": "integer", "enum": [1, 2, 3],
                 "description": "Device type: 1 access points, 2 wireless routers, 3 both.",
             }
-        required.append(name)
+        if not alternatives:
+            required.append(name)
+    input_schema: dict[str, object] = {
+        "type": "object",
+        "properties": properties,
+        "required": required,
+        "additionalProperties": False,
+    }
+    if alternatives:
+        groups = (base_local, *alternatives)
+        branches = []
+        for group in groups:
+            other_groups = [other for other in groups if other != group]
+            branch: dict[str, object] = {"required": list(group)}
+            if other_groups:
+                branch["not"] = {"anyOf": [{"required": list(other)} for other in other_groups]}
+            branches.append(branch)
+        input_schema["oneOf"] = branches
     return {
         "name": f"omada_{operation.operation_id}",
         "description": f"Read-only connector operation: {operation.operation_id}.",
-        "inputSchema": {
-            "type": "object",
-            "properties": properties,
-            "required": required,
-            "additionalProperties": False,
-        },
+        "inputSchema": input_schema,
         "annotations": {
             "readOnlyHint": True,
             "destructiveHint": False,
@@ -718,7 +749,13 @@ def _invoke_tool(registry: Any, name: object, arguments: object,
     expected = set(re.findall(r"\{([a-z][a-z0-9_]*)\}", operation.public_template))
     extra = set(getattr(operation, "extra_arguments", ()))
     local = set(getattr(operation, "local_arguments", ()))
-    if set(arguments) != expected | extra | local:
+    alternatives = tuple(getattr(operation, "local_argument_alternatives", ()))
+    local_sets = (local, *(set(group) for group in alternatives))
+    local_names = set().union(*local_sets)
+    allowed_argument_sets = {
+        frozenset(expected | extra | set(group)) for group in local_sets
+    }
+    if frozenset(arguments) not in allowed_argument_sets:
         raise McpRequestError("arguments_invalid")
     safe_arguments: dict[str, str] = {}
     for key in expected:
@@ -769,7 +806,7 @@ def _invoke_tool(registry: Any, name: object, arguments: object,
             if type(value) is not int or value not in (0, 1):
                 raise McpRequestError("arguments_invalid")
             safe_arguments[key] = str(value)
-    for key in local:
+    for key in set(arguments) & local_names:
         value = arguments.get(key)
         if key in {"client_name", "ssid_name"}:
             if (not isinstance(value, str) or not 1 <= len(value) <= 128 or
@@ -780,6 +817,18 @@ def _invoke_tool(registry: Any, name: object, arguments: object,
             if type(value) is not int or not 946684800000 <= value <= 4102444800000:
                 raise McpRequestError("arguments_invalid")
             safe_arguments[key] = str(value)
+        elif key in {"start_local", "end_local"}:
+            if (not isinstance(value, str) or not 16 <= len(value) <= 23 or
+                    not re.fullmatch(
+                        r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}"
+                        r"(?::[0-9]{2}(?:\.[0-9]{1,3})?)?", value)):
+                raise McpRequestError("arguments_invalid")
+            safe_arguments[key] = value
+        elif key == "time_zone":
+            if (not isinstance(value, str) or not 1 <= len(value) <= 64 or
+                    not re.fullmatch(r"[A-Za-z0-9_+-]+(?:/[A-Za-z0-9_+-]+)*", value)):
+                raise McpRequestError("arguments_invalid")
+            safe_arguments[key] = value
         elif key == "archived":
             if type(value) is not bool:
                 raise McpRequestError("arguments_invalid")
@@ -792,6 +841,13 @@ def _invoke_tool(registry: Any, name: object, arguments: object,
             if type(value) is not int or value not in (1, 2, 3):
                 raise McpRequestError("arguments_invalid")
             safe_arguments[key] = str(value)
+    if {"start_local", "end_local", "time_zone"} <= set(safe_arguments):
+        try:
+            resolve_local_site_log_window(
+                safe_arguments["start_local"], safe_arguments["end_local"],
+                safe_arguments["time_zone"])
+        except SiteLogWindowError as exc:
+            raise McpRequestError("arguments_invalid") from exc
     value = invoke_read(operation_id, safe_arguments)
     return _tool_result(value)
 

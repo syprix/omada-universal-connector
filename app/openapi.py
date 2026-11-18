@@ -51,11 +51,13 @@ except ImportError:  # direct execution in the image
     from device_adoption_summary import DeviceAdoptionSummaryError, summarize_adoption_devices
 try:
     from .site_log_window_summary import (
-        SiteLogWindowError, summarize_site_log_window, validate_site_log_window,
+        SiteLogWindowError, resolve_local_site_log_window, summarize_site_log_window,
+        validate_site_log_window,
     )
 except ImportError:  # direct execution in the image
     from site_log_window_summary import (
-        SiteLogWindowError, summarize_site_log_window, validate_site_log_window,
+        SiteLogWindowError, resolve_local_site_log_window, summarize_site_log_window,
+        validate_site_log_window,
     )
 try:
     from .controller_threat_window_summary import (
@@ -12261,7 +12263,7 @@ class OmadaOpenApiClient:
             raise OpenApiError("site_ref_unknown")
         template = self._SITE_EVENT_PATH if kind == "events" else self._SITE_ALERT_PATH
         base = template.format(controller_id=self.config.controller_id, site_id=site_id)
-        rows, total_count, module_totals = self._read_site_log_pages(
+        rows, total_count, module_totals, pages_fetched = self._read_site_log_pages(
             base, self._access_token(), start_ms, end_ms,
             use_event_summary=(kind == "events"), allow_partial=True)
         try:
@@ -12269,7 +12271,29 @@ class OmadaOpenApiClient:
                 rows, kind, start_ms, end_ms, total_count, module_totals)
         except SiteLogWindowError:
             raise OpenApiError("openapi_response_invalid") from None
+        result["pagination"] = {
+            "pages_fetched": pages_fetched,
+            "page_size": self.config.page_size,
+            "page_limit": self.config.max_pages,
+            "page_limit_reached": result["partial"],
+        }
         return {**result, "site_ref": site_ref}
+
+    def read_site_log_local_window_summary(self, site_ref: str, kind: str,
+                                           start_local: str, end_local: str,
+                                           time_zone: str) -> dict[str, object]:
+        try:
+            start_ms, end_ms, zone_name, local_start, local_end = (
+                resolve_local_site_log_window(start_local, end_local, time_zone))
+        except SiteLogWindowError:
+            raise OpenApiError("time_window_invalid") from None
+        result = self.read_site_log_window_summary(site_ref, kind, start_ms, end_ms)
+        result.update({
+            "time_zone": zone_name,
+            "window_start_local": local_start.isoformat(),
+            "window_end_local": local_end.isoformat(),
+        })
+        return result
 
     def _list_site_log(self, site_ref: str, kind: str) -> dict[str, object]:
         if kind not in {"events", "alerts"}:
@@ -12285,7 +12309,7 @@ class OmadaOpenApiClient:
         start_ms = end_ms - int(timedelta(days=30).total_seconds() * 1000)
         template = self._SITE_EVENT_PATH if kind == "events" else self._SITE_ALERT_PATH
         base = template.format(controller_id=self.config.controller_id, site_id=site_id)
-        rows, total_count, module_totals = self._read_site_log_pages(
+        rows, total_count, module_totals, _pages_fetched = self._read_site_log_pages(
             base, self._access_token(), start_ms, end_ms,
             use_event_summary=(kind == "events"))
         items = []
@@ -12331,7 +12355,7 @@ class OmadaOpenApiClient:
                              start_ms: int, end_ms: int, *,
                              use_event_summary: bool = False,
                              allow_partial: bool = False
-                             ) -> tuple[list[object], int, dict[str, int] | None]:
+                             ) -> tuple[list[object], int, dict[str, int] | None, int]:
         rows: list[object] = []
         expected_total: int | None = None
         module_totals: dict[str, int] | None = None
@@ -12382,9 +12406,9 @@ class OmadaOpenApiClient:
                         for source, target in fields.items() if target != "total"
                     }
             if len(rows) >= expected_total:
-                return rows, expected_total, module_totals
+                return rows, expected_total, module_totals, page
         if allow_partial and expected_total is not None:
-            return rows, expected_total, module_totals
+            return rows, expected_total, module_totals, self.config.max_pages
         raise OpenApiError("openapi_page_limit_reached")
 
     def patch_ap_radio_power(self, site_ref: str, device_ref: str,

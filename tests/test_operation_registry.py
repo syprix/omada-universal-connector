@@ -1,9 +1,18 @@
 import unittest
 
 from app.operation_registry import Operation, OperationRegistry, RegistryError, REGISTRY
+from app.mcp import _tool
 
 
 class OperationRegistryTests(unittest.TestCase):
+    def test_event_window_mcp_schema_requires_one_complete_time_format(self):
+        operation = REGISTRY.get("site_events_window_summary")
+        schema = _tool(operation)["inputSchema"]
+        self.assertEqual(schema["required"], ["site_ref"])
+        self.assertEqual(len(schema["oneOf"]), 2)
+        self.assertEqual(set(schema["properties"]), {
+            "site_ref", "start_ms", "end_ms", "start_local", "end_local", "time_zone"})
+
     def test_msp_client_detail_setting_route_binds_bounded_reference(self):
         op, bindings = REGISTRY.match(
             "GET", "/v1/msp/msp-id_safe/client-detail-information")
