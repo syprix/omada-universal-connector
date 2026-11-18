@@ -39,6 +39,7 @@ After function 15 meets its acceptance criteria, continue the overall API covera
 | 15 | DHCP pool utilization | Implemented as a bounded HTTP/MCP report of documented per-network pool capacity, available addresses, and dynamic/static lease counts. Lease-to-pool membership is unspecified, so address occupancy is not inferred. Fixture-tested offline; live support remains unverified. |
 | 16 | DNS incident diagnosis | Implemented as an offline CLI joining bounded imported device observations with optional redacted DNS settings and WLAN/network context. Cross-source disagreements and missing evidence remain explicit; it makes no probes and infers no cause. Fixture-tested. |
 | 17 | AP quality history | Implemented as a shared-window HTTP/MCP report of hourly health-score and retry/drop summaries plus current per-band radio settings; saved passive sessions can be joined offline by opaque AP reference. Unspecified scales, absent rows and site-binding gaps remain explicit. Fixture-tested; no live request or scan. |
+| 18 | Site firmware summary | Implemented as a bounded HTTP/MCP grouping of inventory and documented current/latest firmware reads by device type and model. Version ordering and update availability are not inferred; no upgrade is started. Fixture-tested offline; live firmware support remains unknown. |
 
 The agreed coverage families are:
 

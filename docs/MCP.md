@@ -415,6 +415,20 @@ AP used 11,527 `o200k_base` tokens for the serialized source responses and
 10,196 tokens for the bundled report (1,331 fewer; 11.55%). Counts use
 `js-tiktoken` 1.0.21. This payload comparison excludes request/tool schemas,
 MCP framing and billed agent usage; it is not a live-agent measurement.
+
+`GET /v1/sites/{site_ref}/firmware-summary` and the read-only
+`omada_site_firmware_summary` tool group the selected site's inventory with no
+more than 64 documented firmware-info reads. Groups include device type, model,
+inventory version, current version, and source-labeled latest version. Exact
+matches and differences are shown without ordering version strings or claiming
+that a safe update is available. Missing versions, conflicting inventory data,
+read failures and excess devices remain partial. Fixture-backed HTTP/MCP
+dispatch is tested; no live firmware query or upgrade was made.
+
+A synthetic 40-device site with repeated models measured 3,871 tokens for the
+inventory and individual firmware responses versus 725 for the grouped report
+(3,146 fewer; 81.27%), using `js-tiktoken` 1.0.21 / `o200k_base`. This is a
+serialized-payload comparison only, not billed agent usage or live data.
 `omada_msp_device_link_topology` is documented by CBC Standard with
 `Site Settings Manager View Only` or `MSP Device Manager View Only`. The
 connector resolves the selected site and device from inventory and returns

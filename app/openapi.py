@@ -5142,6 +5142,37 @@ class OmadaOpenApiClient:
         except ValueError:
             raise OpenApiError("openapi_response_invalid") from None
 
+    def read_site_firmware_summary(self, site_ref: str) -> dict[str, object]:
+        """Group bounded current/latest firmware reads for an inventoried site."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        if site_ref not in self._site_ids_by_ref:
+            raise OpenApiError("site_ref_unknown")
+        try:
+            from .device_firmware_summary import project_site_firmware_summary
+        except ImportError:  # direct execution in the image
+            from device_firmware_summary import project_site_firmware_summary
+
+        inventory = self.list_devices(site_ref)
+        items = inventory.get("items")
+        if not isinstance(items, list):
+            raise OpenApiError("openapi_response_invalid")
+        readings: dict[str, object] = {}
+        for item in items[:64]:
+            if not isinstance(item, Mapping):
+                raise OpenApiError("openapi_response_invalid")
+            device_ref = item.get("device_ref")
+            if not isinstance(device_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", device_ref):
+                raise OpenApiError("openapi_response_invalid")
+            try:
+                readings[device_ref] = self.read_device_firmware(site_ref, device_ref)
+            except OpenApiError as exc:
+                readings[device_ref] = {"status": "error", "error": exc.code}
+        try:
+            return project_site_firmware_summary(site_ref, inventory, readings)
+        except ValueError:
+            raise OpenApiError("openapi_response_invalid") from None
+
     @staticmethod
     def _valid_rrm_mode_state(value: object) -> bool:
         return (isinstance(value, dict) and

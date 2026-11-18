@@ -11093,6 +11093,7 @@
         "test_controller_roles.py",
         "test_descriptive_names.py",
         "test_device_adoption_summary.py",
+        "test_device_firmware_summary.py",
         "test_device_inventory_summary.py",
         "test_device_system_reads.py",
         "test_device_tag_summary.py",
@@ -11337,6 +11338,7 @@
       ],
       "source_map_label": "implemented_read",
       "static_test_references": [
+        "test_device_firmware_summary.py",
         "test_firmware_read.py",
         "test_openapi_http.py",
         "test_operation_registry.py"

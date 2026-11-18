@@ -59,6 +59,22 @@ source-response JSON used 11,527 tokens and the combined report used 10,196
 (1,331 fewer; 11.55%), measured with `js-tiktoken` 1.0.21 and `o200k_base`.
 This compares serialized data only, not billed agent usage or live responses.
 
+## Site firmware summary
+
+`GET /v1/sites/{site_ref}/firmware-summary` and `omada_site_firmware_summary`
+combine the selected site's current device inventory with at most 64 existing
+firmware-info reads. Results group device counts by known device type, model,
+inventory firmware, current version and the source's `lastFwVer` latest version.
+Statuses distinguish an exact version match, differing strings, missing
+versions, inventory disagreement and failed reads. Version strings are not
+ordered, and a difference is not called an available update. Excess inventory
+and missing source data remain partial. The workflow does not start an update.
+
+A synthetic 40-device site with repeated models used 3,871 `o200k_base` tokens
+for inventory plus individual firmware responses, and 725 for the grouped
+report (3,146 fewer; 81.27%). Measured with `js-tiktoken` 1.0.21, this compares
+serialized payloads only, not billed agent usage or live responses.
+
 ## Site outage context
 
 `GET /v1/sites/{site_ref}/outage-summary?start_ms=…&end_ms=…` and `omada_site_outage_summary` combine the current site reachability counters with bounded event and alert summaries for one UTC window of at most 24 hours. The current counters are timestamped separately from the requested log period. The workflow omits event details and identifiers, reports partial log pagination, and leaves site-wide scope indeterminate when sources cannot establish device correlation or cause. Fixture-backed HTTP and MCP dispatch are tested; no controller was queried.
