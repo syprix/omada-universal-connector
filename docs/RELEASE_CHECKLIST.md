@@ -4,6 +4,10 @@ This checklist tracks evidence and remaining work before public contributions or
 
 ## Verified
 
+- [x] The reviewed development source is publicly accessible; GitHub recognizes the bug-report and feature-request forms.
+- [x] The main branch requires pull requests and resolved conversations, with force pushes and deletion disabled. Actions use read-only default permissions and full-length commit SHA pinning.
+- [x] Private vulnerability reporting, the dependency graph, Dependabot alerts, secret scanning, and push protection are enabled.
+
 - [x] Fourteen of the fifteen agreed core functions meet their documented acceptance scope. Active diagnostics remain in progress and are described accurately in [status](STATUS.md).
 - [x] The application, tests, and tooling prepared for the 2026-11-18 launch match the source that passed 2,980 offline tests and the runtime smoke check.
 - [x] The exact source built with Docker using networking disabled. A read-only, credential-free container reached healthy status and was removed after the check.
@@ -15,8 +19,6 @@ This checklist tracks evidence and remaining work before public contributions or
 
 - [ ] Complete the active-diagnostics acceptance scope. The cable-test hardware check awaits a compatible switch; other active starts remain disabled while upstream API lifecycle and result-correlation guarantees are unavailable.
 - [ ] A GitHub account restriction prevented hosted CI from starting; no hosted test result is available. Confirm a successful hosted CI run before relying on hosted checks for a release.
-- [ ] Configure and verify branch protection and the intended least-privilege Actions settings on the release repository before accepting public contributions.
-- [ ] Enable and verify the appropriate vulnerability-reporting and security-contact path before inviting public contributors.
 - [ ] Before distributing a container image, record its base digest and architecture, inventory bundled components, and preserve the applicable source and notices.
 
 The current evidence is limited to the specific offline suite, smoke checks, controller operations, and client flows described in the project documentation. It does not establish universal API, device, firmware, or client compatibility.
