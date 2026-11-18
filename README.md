@@ -91,6 +91,16 @@ python3 tools/wifi_measurement_session.py \
 
 Client references are short-lived and must come from the current site inventory. The session makes repeated GET requests via the local connector; it does not send probes, start scans or change controller settings. The duration, interval and sample count are capped, and Ctrl+C or SIGTERM closes the file with a stop record. Existing files are never overwritten. Samples contain signal metrics and a site-bound AP reference when the local inventory resolves it; they omit site/client references, raw MAC addresses and credentials. Run it only during an authorized measurement.
 
+Two saved sessions can be compared without a connector or network connection:
+
+```sh
+python3 tools/wifi_compare_sessions.py \
+  --first ./walk-session-a.jsonl \
+  --second ./walk-session-b.jsonl
+```
+
+The comparison aligns samples only when their duration, interval and sample limits match. It reports raw signal differences, per-session AP change counts and missing/non-wireless samples; it does not match AP references across separate files or infer an outage cause.
+
 ## Project documents
 
 - [Current architecture](docs/CURRENT_ARCHITECTURE.md)

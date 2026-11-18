@@ -114,6 +114,37 @@ class WifiMeasurementSessionTests(unittest.TestCase):
         self.assertEqual(records[-1]["sample_count"], 1)
         self.assertEqual(records[-1]["stop_reason"], "user_stopped")
 
+    def test_not_wireless_state_is_recorded_without_claiming_an_outage(self) -> None:
+        def fetch(path):
+            if path.endswith("/devices"):
+                return {"status": "ok", "resource": "devices", "items": []}
+            return {"status": "ok", "resource": "client_detail", "client_ref": CLIENT_REF,
+                    "wireless": False, "active": False}
+
+        self._run(fetch, max_samples=1)
+        sample = json.loads(Path(self.output).read_text(encoding="utf-8").splitlines()[1])
+        self.assertEqual(sample["sample_status"], "not_wireless")
+        self.assertTrue(sample["partial"])
+        self.assertNotIn("outage", sample)
+
+    def test_read_failure_is_saved_as_one_unavailable_sample_and_stops(self) -> None:
+        calls = []
+
+        def fetch(path):
+            calls.append(path)
+            if path.endswith("/devices"):
+                return {"status": "ok", "resource": "devices", "items": []}
+            raise RuntimeError("must not be serialized")
+
+        result = self._run(fetch, max_samples=10)
+        records = [json.loads(line) for line in Path(self.output).read_text(
+            encoding="utf-8").splitlines()]
+        self.assertEqual(result["status"], "partial")
+        self.assertEqual(records[-2]["sample_status"], "read_unavailable")
+        self.assertEqual(records[-1]["stop_reason"], "source_error")
+        self.assertNotIn("must not be serialized", Path(self.output).read_text(encoding="utf-8"))
+        self.assertEqual(calls.count(f"/v1/sites/{SITE_REF}/clients/{CLIENT_REF}"), 1)
+
     def test_invalid_limits_and_existing_output_fail_closed(self) -> None:
         def fetch(_path):
             return {"status": "ok", "resource": "devices", "items": []}

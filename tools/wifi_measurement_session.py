@@ -97,7 +97,9 @@ def _project_detail(payload: object, client_ref: str) -> dict[str, object]:
             payload.get("client_ref") != client_ref or type(payload.get("wireless")) is not bool):
         raise MeasurementSessionError("client_detail_unavailable")
     if payload["wireless"] is not True:
-        raise MeasurementSessionError("client_not_wireless")
+        return {"metrics": {}, "access_point_ref": None,
+                "ap_assignment_status": "not_applicable",
+                "sample_status": "not_wireless", "partial": True}
     metrics: dict[str, int] = {}
     for field, (minimum, maximum) in _METRIC_FIELDS.items():
         if field not in payload:
@@ -106,14 +108,13 @@ def _project_detail(payload: object, client_ref: str) -> dict[str, object]:
         if type(value) is not int or not minimum <= value <= maximum:
             raise MeasurementSessionError("client_detail_invalid")
         metrics[field] = value
-    if not metrics:
-        raise MeasurementSessionError("client_detail_invalid")
     ap_ref = payload.get("access_point_ref")
     if ap_ref is not None and (not isinstance(ap_ref, str) or
                                not CLIENT_REF_PATTERN.fullmatch(ap_ref)):
         raise MeasurementSessionError("client_detail_invalid")
     return {"metrics": metrics, "access_point_ref": ap_ref,
             "ap_assignment_status": "mapped" if ap_ref else "unavailable",
+            "sample_status": "ok" if metrics else "incomplete",
             "partial": (not {"rssi", "snr", "channel"}.issubset(metrics) or ap_ref is None)}
 
 
@@ -171,15 +172,23 @@ def run_session(*, site_ref: str, client_ref: str, output_path: str,
             if monotonic() >= deadline:
                 reason = "duration_limit"
                 break
+            sample_time_ms = start_ms + max(0, int((monotonic() - started) * 1000))
             try:
                 observation = _project_detail(fetch(detail_path), client_ref)
             except Exception:
+                count += 1
+                _write_record(stream, {
+                    "record_type": "sample", "sample_index": count,
+                    "timestamp_ms": sample_time_ms, "metrics": {},
+                    "access_point_ref": None, "ap_assignment_status": "unavailable",
+                    "sample_status": "read_unavailable", "partial": True,
+                })
                 reason = "source_error"
                 break
             count += 1
             _write_record(stream, {
                 "record_type": "sample", "sample_index": count,
-                "timestamp_ms": now_ms(), **observation,
+                "timestamp_ms": sample_time_ms, **observation,
             })
             next_tick = started + count * interval_seconds
             if count == max_samples:
@@ -188,7 +197,7 @@ def run_session(*, site_ref: str, client_ref: str, output_path: str,
             if monotonic() >= deadline:
                 reason = "duration_limit"
                 break
-        finished_ms = now_ms()
+        finished_ms = start_ms + max(0, int((monotonic() - started) * 1000))
         _write_record(stream, {"record_type": "session_end", "finished_at_ms": finished_ms,
                                "sample_count": count, "stop_reason": reason})
     finally:
