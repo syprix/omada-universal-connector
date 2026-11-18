@@ -552,6 +552,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_remember_setting_summary",
             "site_client_connection_summary",
             "site_poe_usage_summary",
+            "site_poe_schedule_summary",
             "site_device_counts_summary",
             "site_ipsec_tunnel_summary",
             "site_client_association_time_summary",

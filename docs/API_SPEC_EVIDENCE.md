@@ -128,3 +128,17 @@ support for nonblocking and no-follow opens; directory synchronization after
 replacement is best effort. The older `tools/full_api_matrix.py` produces a
 broader report that may include source text and server URLs; review and redact
 its output before sharing it.
+
+## PoE budget and schedule source review
+
+The three local OpenAPI exports contain GET operations `getPoeUsage`,
+`getPoePortsList`, `getGridSwitchesPortsPoe`, `getPoeScheduleList` and
+`getTimeRangeList` at the documented site paths used by the composite read.
+Hardware Controller 6.3.0 and Omada CBC 6.3.0 provide generic/empty response
+contracts for these operations. ER7212PC 6.2.14 supplies operation-specific
+schemas and examples. That schema documents `PoeUsage.totalPowerUsed` and
+`PoeUsage.totalPower` in watts, schedule status and target port mapping, and
+time-range profile IDs. The schedule's `nextExecute` unit is unspecified, as
+are port measurement units. No source export establishes live support on a
+particular controller; these are source-contract observations, not hardware
+or runtime confirmation.

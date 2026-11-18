@@ -1,5 +1,19 @@
 # Core read workflows
 
+## PoE budget and schedule overview
+
+`GET /v1/sites/{site_ref}/poe/schedule-summary` and
+`omada_site_poe_schedule_summary` combine a fresh switch inventory with the
+fixed PoE-capability, usage, port-info, schedule and time-range reads. The
+response exposes per-switch same-row usage and rated capacity in watts only
+where that unit is specified, available budget, PoE-capable port numbers,
+compact counts by raw current port state, and scheduled port numbers matched
+through an internal unique MAC join. Port readings retain no numeric values;
+their units are not documented. Schedule/profile identities and labels are
+omitted, and next execution is presence-only because its timestamp unit is
+unspecified. Missing sources, ambiguous inventory, unmatched targets and
+bounded omissions stay partial. No network change is made.
+
 ## Client identity matching
 
 `GET /v1/sites/{site_ref}/clients/identity-match` and the matching MCP tool accept `client_name` and `ssid_name`. The connector reads every client inventory page within its configured page limit and matches case-insensitively against the documented client `name`, `hostName` or `model`, plus `ssid`, with `wireless=true`. It returns a fresh opaque `client_ref` only for exactly one match and only when no row with missing identity fields could also match. The response includes per-field presence counts and complete/incomplete row counts, without returning input labels, SSIDs, MAC addresses or controller identifiers. A definite zero-match with complete candidate coverage returns `unmatched`; missing fields that could hide a match return `incomplete` with `partial=true`. Multiple definite matches return `ambiguous`. An incomplete inventory raises a bounded-read error instead of returning any match state.

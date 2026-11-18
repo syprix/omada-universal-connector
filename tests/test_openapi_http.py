@@ -1547,6 +1547,11 @@ class FakeOpenApiClient:
                          "total_power_used_watts": 92,
                          "rated_poe_capacity_watts": 490}, "partial": False}
 
+    def read_site_poe_schedule_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_poe_schedule_summary", site_ref))
+        return {"status": "ok", "resource": "site_poe_schedule_summary",
+                "site_ref": site_ref, "data": {"switches": []}, "partial": False}
+
     def read_site_device_counts_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_device_counts_summary", site_ref))
         return {"status": "ok", "resource": "site_device_counts_summary",
@@ -5797,6 +5802,21 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(rpc["result"]["structuredContent"]["resource"],
                          "site_poe_usage_summary")
         self.assertEqual(self.fake.calls, [("site_poe_usage_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_site_poe_schedule_summary(self) -> None:
+        site_ref = "a" * 24
+        status, response = self.request(f"/v1/sites/{site_ref}/poe/schedule-summary", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_poe_schedule_summary")
+        request = {"jsonrpc": "2.0", "id": 139, "method": "tools/call",
+                   "params": {"name": "omada_site_poe_schedule_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"]["resource"],
+                         "site_poe_schedule_summary")
+        self.assertEqual(self.fake.calls,
+                         [("site_poe_schedule_summary", site_ref)] * 2)
 
     def test_http_and_mcp_expose_site_device_counts_summary(self) -> None:
         site_ref = "a" * 24

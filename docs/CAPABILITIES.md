@@ -579,6 +579,18 @@ conservative connector bound of 0–4096. The ER7212PC schema has ambiguous PoE
 measurement types. Test coverage uses simulated fixtures only, with no live
 verification or support conclusion.
 
+`site_poe_schedule_summary` reads a fresh switch inventory, PoE-port inventory,
+documented per-switch usage/capacity, current port PoE fields, schedule targets
+and time-range profile IDs. It joins MAC addresses only inside the projection
+and returns opaque switch references. Same-row usage and capacity values are
+reported as watts only when the ER7212PC contract documents both fields.
+Current port readings are reduced to counts by raw status code and measurement
+presence; numeric measurements and port identities are omitted. Schedule names,
+profile names, IDs and timestamps are omitted; the
+next-execution field is reduced to presence because its unit is undocumented.
+The other two exports have generic response schemas. Fixtures cover the
+projection and route, but no controller or live support was tested.
+
 
 Gateway health timeline is a redacted read using an opaque inventoried
 `gateway_ref` and a fixed 24-hour interval. It returns millisecond timestamps
