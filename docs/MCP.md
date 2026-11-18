@@ -155,6 +155,8 @@ These are exact tokenizer counts for synthetic fixture JSON only. The switch-das
 
 This is an MCP interface to registered connector reads. It does not make undocumented API operations executable, and it does not expose write previews/applies, scan starts or arbitrary controller requests. The AP workflow reads the controller's existing RF scan result; it never starts a measurement.
 
+`omada_site_switch_health_history` uses the fresh switch inventory and the documented batch timeline read for one fixed 24-hour window, bounded to 64 switches. MAC rows are mapped back to opaque site-bound switch references; missing rows, invalid fields and switches beyond the limit are marked partial. Scores retain the documented int32 values; their scale is unspecified and is not interpreted. Live controller support remains unverified.
+
 ## Local request example
 
 Use the read-only Compose example and a locally mounted caller-token file. The Compose host binding is `127.0.0.1:18080`; the container listens on port `8080`. A direct host-process run uses its configured `LISTEN_PORT` (default `8080`). Do not put a real token in shell history or a client config committed to a repository.

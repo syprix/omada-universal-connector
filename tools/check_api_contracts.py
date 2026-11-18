@@ -217,6 +217,7 @@ OPERATIONS = {
     'msp_ap_health_timeline': ('GET', '/openapi/v1/msp/{mspId}/customers/{customerId}/sites/{siteId}/eaps/{apMac}/health/timeline'),
     'msp_gateway_health_timeline': ('GET', '/openapi/v1/msp/{mspId}/customers/{customerId}/sites/{siteId}/gateways/{gatewayMac}/health/timeline'),
     'msp_switch_health_timeline': ('GET', '/openapi/v1/msp/{mspId}/customers/{customerId}/sites/{siteId}/switches/{switchMac}/health/timeline'),
+    'site_switch_health_history': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/switches/health/timeline'),
     'olt_management_interfaces': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/olts/{deviceMac}/system/management-system-interface/get'),
     'device_health_incidents': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/health/incident/{mac}'),
     'client_health_incidents': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/health/incident/{mac}'),

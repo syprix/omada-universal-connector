@@ -301,6 +301,14 @@ try:
 except ImportError:  # direct execution in the image
     from switch_health_timeline import SwitchHealthTimelineError, project_switch_health_timeline
 try:
+    from .site_switch_health_history import (
+        SiteSwitchHealthHistoryError, project_site_switch_health_history,
+    )
+except ImportError:  # direct execution in the image
+    from site_switch_health_history import (
+        SiteSwitchHealthHistoryError, project_site_switch_health_history,
+    )
+try:
     from .switch_sdm_usage import SwitchSdmUsageError, project_switch_sdm_usage
 except ImportError:  # direct execution in the image
     from switch_sdm_usage import SwitchSdmUsageError, project_switch_sdm_usage
@@ -1222,6 +1230,7 @@ class OmadaOpenApiClient:
     _MSP_SWITCH_HEALTH_PATH = (
         "/openapi/v1/msp/{msp_id}/customers/{customer_id}/sites/{site_id}/switches/{switch_mac}/health/detail")
     _SWITCH_HEALTH_TIMELINE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switches/{switch_mac}/health/timeline"
+    _SITE_SWITCH_HEALTH_TIMELINE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switches/health/timeline"
     _MSP_SWITCH_HEALTH_TIMELINE_PATH = (
         "/openapi/v1/msp/{msp_id}/customers/{customer_id}/sites/{site_id}/switches/{switch_mac}/health/timeline")
     _GATEWAY_ACL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/acls/osg-acls"
@@ -2608,6 +2617,7 @@ class OmadaOpenApiClient:
         ("switch_lldp_neighbors", "GET /v1/sites/{site_ref}/switches/{switch_ref}/lldp-neighbors"),
         ("switch_health", "GET /v1/sites/{site_ref}/switches/{switch_ref}/health"),
         ("switch_health_timeline", "GET /v1/sites/{site_ref}/switches/{switch_ref}/health/timeline"),
+        ("site_switch_health_history", "GET /v1/sites/{site_ref}/switches/health-history"),
         ("switch_sdm_usage", "GET /v1/sites/{site_ref}/switches/{switch_ref}/sdm-usage"),
         ("switch_cable_test_logs", "GET /v1/sites/{site_ref}/switches/{switch_ref}/cable-test/logs"),
         ("switch_cable_test_full_results", "GET /v1/sites/{site_ref}/switches/{switch_ref}/cable-test/full-results"),
@@ -8268,6 +8278,64 @@ class OmadaOpenApiClient:
                 "omitted_field_count": data["omitted_field_count"],
                 "omitted_fields": data["omitted_fields"]}
 
+    @_track_capability("site_switch_health_history")
+    def read_site_switch_health_history(self, site_ref: str) -> dict[str, object]:
+        """Read one bounded 24-hour switch score timeline for an inventoried site."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        inventory = self.list_devices(site_ref)
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        items = inventory.get("items")
+        if not isinstance(items, list):
+            raise OpenApiError("openapi_response_invalid")
+        switch_macs = self._switch_macs_by_site_ref.get(site_ref, {})
+        switch_refs = sorted(
+            item["device_ref"] for item in items
+            if isinstance(item, Mapping) and
+            isinstance(item.get("device_ref"), str) and
+            item.get("device_ref") in switch_macs)
+        queried_refs = switch_refs[:64]
+        refs_by_mac: dict[str, list[str]] = {}
+        mac_by_ref: dict[str, str] = {}
+        for switch_ref in queried_refs:
+            mac = switch_macs.get(switch_ref)
+            if not isinstance(mac, str) or not self._MAC.fullmatch(mac):
+                raise OpenApiError("openapi_response_invalid")
+            key = re.sub(r"[:-]", "", mac).casefold()
+            refs_by_mac.setdefault(key, []).append(switch_ref)
+            mac_by_ref[switch_ref] = mac
+
+        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        start_ms = end_ms - 86_400_000
+        if not queried_refs:
+            raw_result: object = {"timeline": []}
+        else:
+            unique_macs: list[str] = []
+            seen_macs: set[str] = set()
+            for switch_ref in queried_refs:
+                mac = mac_by_ref[switch_ref]
+                key = re.sub(r"[:-]", "", mac).casefold()
+                if key not in seen_macs:
+                    seen_macs.add(key)
+                    unique_macs.append(mac)
+            query = urlencode({
+                "macs": ",".join(unique_macs),
+                "start": start_ms, "end": end_ms,
+            })
+            path = (self._SITE_SWITCH_HEALTH_TIMELINE_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id) + "?" + query)
+            raw_result = self._request_json(
+                "GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_site_switch_health_history(
+                raw_result, refs_by_mac, switch_refs, start_ms, end_ms)
+        except SiteSwitchHealthHistoryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_switch_health_history",
+                "site_ref": site_ref, **projected}
+
     @_track_capability("switch_sdm_usage")
     def read_switch_sdm_usage(self, site_ref: str, switch_ref: str) -> dict[str, object]:
         """Read documented switch SDM category and capacity values."""
@@ -13368,6 +13436,7 @@ class OmadaOpenApiClient:
                                   self._switch_port_counters_request_valid(path) or
                                   self._switch_port_poe_info_request_valid(path) or
                                   self._switch_health_request_valid(path) or
+                                  self._site_switch_health_history_request_valid(path) or
                                   re.fullmatch(
                                       rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
                                       rf"[A-Za-z0-9_-]{{1,128}}/switches/{self._MAC.pattern}/sdm-used", path) or
@@ -15415,6 +15484,28 @@ class OmadaOpenApiClient:
         if not match or match.group(1) != self.config.controller_id:
             return False
         return int(match.group(3)) - int(match.group(2)) == 86_400_000
+
+    def _site_switch_health_history_request_valid(self, path: str) -> bool:
+        try:
+            parsed = urlsplit(path)
+            if not re.fullmatch(
+                    rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                    r"[A-Za-z0-9_-]{1,128}/switches/health/timeline", parsed.path):
+                return False
+            query = parse_qs(parsed.query, keep_blank_values=True, strict_parsing=True)
+            if set(query) != {"macs", "start", "end"} or any(
+                    len(values) != 1 for values in query.values()):
+                return False
+            macs = query["macs"][0].split(",")
+            if (not 1 <= len(macs) <= 64 or
+                    any(not self._MAC.fullmatch(mac) for mac in macs) or
+                    len({re.sub(r"[:-]", "", mac).casefold() for mac in macs}) != len(macs)):
+                return False
+            start_ms, end_ms = int(query["start"][0]), int(query["end"][0])
+            return (0 <= start_ms <= end_ms <= 2**63 - 1 and
+                    end_ms - start_ms == 86_400_000)
+        except (KeyError, TypeError, ValueError, OverflowError):
+            return False
 
     def _switch_port_counters_request_valid(self, path: str) -> bool:
         match = self._SWITCH_PORT_COUNTERS_REQUEST.fullmatch(path)

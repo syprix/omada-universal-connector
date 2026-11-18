@@ -735,6 +735,7 @@ class OperationRegistryTests(unittest.TestCase):
             "msp_switch_health_detail",
             "msp_switch_health_timeline",
             "switch_health_timeline",
+            "site_switch_health_history",
             "switch_sdm_usage",
             "switch_cable_test_logs",
             "switch_cable_test_full_results",
