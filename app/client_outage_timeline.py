@@ -32,7 +32,8 @@ def _gap_indicators(*, partial: bool, missing: int, omitted: int,
 def project_client_outage_timeline(client_ref: str, start_ms: int, end_ms: int,
                                    client_timeline_results: dict[str, object],
                                    health_result: object, event_result: object,
-                                   alert_result: object, now_ms: int
+                                   alert_result: object, now_ms: int,
+                                   ap_assignment_available: bool = True
                                    ) -> dict[str, object]:
     """Join only validated millisecond points and bounded aggregate site context.
 
@@ -43,7 +44,9 @@ def project_client_outage_timeline(client_ref: str, start_ms: int, end_ms: int,
     if (not isinstance(client_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", client_ref) or
             type(start_ms) is not int or type(end_ms) is not int or
             type(now_ms) is not int or not 0 <= start_ms <= end_ms <= now_ms + 60_000 or
-            end_ms - start_ms > 86_400_000 or not isinstance(client_timeline_results, dict)):
+            end_ms - start_ms > 86_400_000 or
+            type(ap_assignment_available) is not bool or
+            not isinstance(client_timeline_results, dict)):
         raise ClientOutageTimelineError("client_outage_timeline_invalid")
 
     events: list[dict[str, int]] = []
@@ -71,6 +74,10 @@ def project_client_outage_timeline(client_ref: str, start_ms: int, end_ms: int,
                     if (isinstance(item, dict) and type(item.get("time_ms")) is int and
                             type(item.get("event_type")) is int):
                         sample = {"time_ms": item["time_ms"], "event_type": item["event_type"]}
+                        for field in ("access_point_ref", "previous_access_point_ref"):
+                            if (isinstance(item.get(field), str) and
+                                    re.fullmatch(r"[0-9a-f]{24}", item[field])):
+                                sample[field] = item[field]
                         samples.append(sample)
         samples.sort(key=lambda item: (item["time_ms"], item["event_type"]))
         missing = value.get("missing_fields")
@@ -94,10 +101,17 @@ def project_client_outage_timeline(client_ref: str, start_ms: int, end_ms: int,
         events.extend(samples)
 
     # The four upstream type filters can overlap. Preserve one copy of each
-    # documented timestamp/type pair without retaining session or AP identity.
-    events = sorted({(item["time_ms"], item["event_type"]) for item in events})
-    projected_events = [{"time_ms": time_ms, "event_type": event_type}
-                        for time_ms, event_type in events]
+    # documented timestamp/type pair and its optional opaque AP references.
+    unique_events: dict[tuple[int, int], dict[str, object]] = {}
+    for item in events:
+        identity = (item["time_ms"], item["event_type"])
+        current = unique_events.setdefault(identity, {
+            "time_ms": item["time_ms"], "event_type": item["event_type"]})
+        for field in ("access_point_ref", "previous_access_point_ref"):
+            if field in item:
+                current[field] = item[field]
+    projected_events = sorted(unique_events.values(), key=lambda item: (
+        item["time_ms"], item["event_type"]))
     roaming = [item for item in projected_events if item["event_type"] == 2]
 
     if not isinstance(health_result, dict) or health_result.get("status") != "ok":
@@ -166,6 +180,7 @@ def project_client_outage_timeline(client_ref: str, start_ms: int, end_ms: int,
                     "site_event_context": sites},
         "site_wide_event_context_only": True,
         "connection_cause": "not_inferred",
+        "ap_assignment_available": ap_assignment_available,
         "partial": all_partial,
         "gap_indicators": _gap_indicators(
             partial=all_partial, missing=event_missing, omitted=event_omitted,

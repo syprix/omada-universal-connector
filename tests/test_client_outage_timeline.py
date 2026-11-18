@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlsplit
 
-from app.openapi import OmadaOpenApiClient, OpenApiConfig
+from app.openapi import OmadaOpenApiClient, OpenApiConfig, OpenApiError
 
 
 class ClientOutageTimelineTests(unittest.TestCase):
@@ -17,6 +17,9 @@ class ClientOutageTimelineTests(unittest.TestCase):
         self.client._site_ids_by_ref[self.site_ref] = "site-internal"
         self.client._client_macs_by_site_ref[self.site_ref] = {
             self.client_ref: "00-11-22-33-44-55"}
+        self.client._device_macs_by_site_ref[self.site_ref] = {
+            "c" * 24: "00-11-22-33-44-66",
+            "d" * 24: "00-11-22-33-44-77"}
         self.start_ms = 1_789_372_800_000
         self.end_ms = self.start_ms + 60 * 60 * 1000
 
@@ -51,6 +54,7 @@ class ClientOutageTimelineTests(unittest.TestCase):
         with patch.object(self.client, "read_client_timeline", side_effect=client_timeline), \
                 patch.object(self.client, "read_client_health_timeline", side_effect=health), \
                 patch.object(self.client, "read_site_log_window_summary", side_effect=site_logs), \
+                patch.object(self.client, "list_devices", return_value={"status": "ok"}), \
                 patch("app.openapi.datetime") as dt:
             dt.now.return_value.timestamp.return_value = now_ms / 1000
             result = self.client.read_client_outage_timeline(
@@ -66,6 +70,7 @@ class ClientOutageTimelineTests(unittest.TestCase):
             "timestamp_age_ms"])
         self.assertTrue(result["site_wide_event_context_only"])
         self.assertEqual(result["connection_cause"], "not_inferred")
+        self.assertTrue(result["ap_assignment_available"])
         self.assertNotIn("private detail", str(result))
         self.assertNotIn("00-11-22-33-44-55", str(result))
 
@@ -78,7 +83,10 @@ class ClientOutageTimelineTests(unittest.TestCase):
                 return {"result": [{"mac": "00-11-22-33-44-55",
                                     "start": self.start_ms, "end": self.end_ms,
                                     "events": [{"time": self.start_ms + 1000,
-                                                "eventType": 2}]}]}
+                                                "eventType": 2,
+                                                "attributes": {
+                                                    "old_dev_mac": "00-11-22-33-44-77",
+                                                    "dev_mac": "00-11-22-33-44-66"}}]}]}
             return {"result": {"scores": [{"time": self.start_ms + 2000,
                                              "score": 71}]}}
 
@@ -94,8 +102,29 @@ class ClientOutageTimelineTests(unittest.TestCase):
                                       "end": [str(self.end_ms)], "type": ["2"]})
         self.assertEqual(health_query, {"start": [str(self.start_ms)],
                                        "end": [str(self.end_ms)]})
-        self.assertEqual(event["data"]["sessions"][0]["events"][0]["event_type"], 2)
+        projected_event = event["data"]["sessions"][0]["events"][0]
+        self.assertEqual(projected_event["event_type"], 2)
+        self.assertEqual(projected_event["access_point_ref"], "c" * 24)
+        self.assertEqual(projected_event["previous_access_point_ref"], "d" * 24)
+        self.assertNotIn("00-11-22-33-44-66", repr(event))
         self.assertEqual(health["data"]["scores"][0]["time_ms"], self.start_ms + 2000)
+
+    def test_failed_inventory_does_not_reuse_stale_ap_mapping(self):
+        with patch.object(self.client, "list_devices",
+                          side_effect=OpenApiError("source_unavailable")), \
+                patch.object(self.client, "read_client_timeline",
+                             side_effect=OpenApiError("source_unavailable")), \
+                patch.object(self.client, "read_client_health_timeline",
+                             side_effect=OpenApiError("source_unavailable")), \
+                patch.object(self.client, "read_site_log_window_summary",
+                             side_effect=OpenApiError("source_unavailable")), \
+                patch("app.openapi.datetime") as dt:
+            dt.now.return_value.timestamp.return_value = (self.end_ms + 1000) / 1000
+            result = self.client.read_client_outage_timeline(
+                self.site_ref, self.client_ref, self.start_ms, self.end_ms)
+
+        self.assertFalse(result["ap_assignment_available"])
+        self.assertNotIn(self.site_ref, self.client._device_macs_by_site_ref)
 
 
 if __name__ == "__main__":

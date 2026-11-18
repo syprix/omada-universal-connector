@@ -31,7 +31,9 @@ def _mac_key(value: object) -> str | None:
 
 
 def project_client_timeline(raw: object, start_ms: int, end_ms: int,
-                            expected_client_mac: str) -> dict[str, object]:
+                            expected_client_mac: str,
+                            device_ref_by_mac: dict[str, str] | None = None
+                            ) -> dict[str, object]:
     """Project bounded session/event timestamps and documented numeric codes.
 
     Known private fields (session MAC, event content and attributes) are
@@ -135,6 +137,7 @@ def project_client_timeline(raw: object, start_ms: int, end_ms: int,
                     if len(event) > _MAX_FIELDS:
                         raise ClientTimelineError()
                     projected_event: dict[str, object] = {}
+                    event_type: int | None = None
                     for field in ("time", "eventType"):
                         path = f"sessions[{session_index}].events[{event_index}].{field}"
                         if field not in event:
@@ -155,9 +158,31 @@ def project_client_timeline(raw: object, start_ms: int, end_ms: int,
                                 omitted_count += 1
                         elif type(value) is int and value in _EVENT_TYPES:
                             projected_event["event_type"] = value
+                            event_type = value
                         else:
                             omitted.add(path)
                             omitted_count += 1
+
+                    if device_ref_by_mac is not None and event_type in {0, 2}:
+                        attributes = event.get("attributes")
+                        attribute_names = (("dev_mac", "access_point_ref"),)
+                        if event_type == 2:
+                            attribute_names = (("old_dev_mac", "previous_access_point_ref"),
+                                               ("dev_mac", "access_point_ref"))
+                        if not isinstance(attributes, dict) or len(attributes) > _MAX_FIELDS:
+                            omitted.add("ap_assignment_unavailable")
+                            omitted_count += 1
+                        else:
+                            for source_name, output_name in attribute_names:
+                                mac_key = _mac_key(attributes.get(source_name))
+                                device_ref = (device_ref_by_mac.get(mac_key)
+                                              if mac_key is not None else None)
+                                if isinstance(device_ref, str) and re.fullmatch(
+                                        r"[0-9a-f]{24}", device_ref):
+                                    projected_event[output_name] = device_ref
+                                else:
+                                    omitted.add("ap_assignment_unavailable")
+                                    omitted_count += 1
 
                     unknown = sum(1 for key in event
                                   if key not in {"time", "eventType"} | _EVENT_PRIVATE_FIELDS)

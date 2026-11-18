@@ -8,7 +8,7 @@
         {
           "operation_id": "getClientTimeline",
           "route": "GET /openapi/v1/{omadacId}/sites/{siteId}/clients/{clientMac}/client-timeline",
-          "time_fields": "start/end query and event/session timestamps are documented in milliseconds; event identity text and attributes are omitted"
+          "time_fields": "start/end query and event/session timestamps are documented in milliseconds; event identity text and MAC attributes are omitted, while documented roaming AP MACs map to opaque same-site AP references when inventory binding is available"
         },
         {
           "operation_id": "getClientHealthTimeList",

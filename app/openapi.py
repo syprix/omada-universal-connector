@@ -4134,7 +4134,12 @@ class OmadaOpenApiClient:
         ) + "?" + query
         result = self._request_json("GET", path, token=self._access_token()).get("result")
         try:
-            data = project_client_timeline(result, start_ms, end_ms, mac)
+            device_inventory = self._device_macs_by_site_ref.get(site_ref)
+            device_ref_by_mac = ({
+                device_mac.replace(":", "").replace("-", "").lower(): device_ref
+                for device_ref, device_mac in device_inventory.items()
+            } if device_inventory is not None else None)
+            data = project_client_timeline(result, start_ms, end_ms, mac, device_ref_by_mac)
         except ClientTimelineError:
             raise OpenApiError("openapi_response_invalid") from None
         return {**data, "site_ref": site_ref, "client_ref": client_ref,
@@ -4278,6 +4283,13 @@ class OmadaOpenApiClient:
         if client_ref not in self._client_macs_by_site_ref.get(site_ref, {}):
             raise OpenApiError("client_ref_unknown")
 
+        device_inventory_available = True
+        try:
+            self.list_devices(site_ref)
+        except OpenApiError:
+            device_inventory_available = False
+            self._device_macs_by_site_ref.pop(site_ref, None)
+
         client_sources: dict[str, object] = {}
         for kind in ("connect", "association", "roaming", "disconnect"):
             try:
@@ -4300,7 +4312,8 @@ class OmadaOpenApiClient:
             return project_client_outage_timeline(
                 client_ref, start_ms, end_ms, client_sources, health,
                 site_logs.get("events"), site_logs.get("alerts"),
-                int(datetime.now(timezone.utc).timestamp() * 1000))
+                int(datetime.now(timezone.utc).timestamp() * 1000),
+                ap_assignment_available=device_inventory_available)
         except ClientOutageTimelineError:
             raise OpenApiError("openapi_response_invalid") from None
 

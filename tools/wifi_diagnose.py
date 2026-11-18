@@ -1818,7 +1818,8 @@ def _client_timeline_response(payload: object, site_ref: str, client_ref: str,
                         if not isinstance(event, dict):
                             partial = True
                             continue
-                        if set(event) - {"time_ms", "event_type"}:
+                        ref_fields = {"access_point_ref", "previous_access_point_ref"}
+                        if set(event) - {"time_ms", "event_type"} - ref_fields:
                             partial = True
                         projected_event: dict[str, object] = {}
                         if "time_ms" not in event:
@@ -1835,6 +1836,13 @@ def _client_timeline_response(payload: object, site_ref: str, client_ref: str,
                             projected_event["event_type"] = event_type
                         else:
                             partial = True
+                        for field in ref_fields:
+                            if field in event:
+                                if (isinstance(event[field], str) and
+                                        SITE_REF_PATTERN.fullmatch(event[field])):
+                                    projected_event[field] = event[field]
+                                else:
+                                    partial = True
                         events.append(projected_event)
                     projected_session["events"] = events
             sessions.append(projected_session)

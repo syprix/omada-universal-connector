@@ -164,7 +164,7 @@ device and client inventory have not been rechecked in the current image.
 | `GET /v1/sites/{site_ref}/wifi/optimization/history/records` | `GET /openapi/v1/{omadacId}/sites/{siteId}/planningHistory?page=1&pageSize=100` | First bounded page of stored optimization history; raw IDs become short-lived site-bound references, while messages and MAC lists are redacted; truncation is explicit |
 | `GET /v1/sites/{site_ref}/wifi/optimization/history/records/{history_ref}` | `GET /openapi/v1/{omadacId}/sites/{siteId}/planningHistory/{id}` | Detail for a reference returned by a recent history-list call; requires the in-memory site-bound reference map; AP identities and messages are redacted |
 | `GET /v1/sites/{site_ref}/wifi/optimization/history/recent` | `GET /openapi/v1/{omadacId}/sites/{siteId}/planningHistoryByTime?currentPage=1&currentPageSize=100&start=<ms>&end=<ms>` | Fixed last-30-day window and first bounded page; same redacted projection; fixture-tested, no live verification |
-| `GET /v1/sites/{site_ref}/clients/{client_ref}/timeline/{connect\|association\|roaming\|disconnect}` | `GET /openapi/v1/{omadacId}/sites/{siteId}/clients/{clientMac}/client-timeline?start=<...>&end=<...>&type=<0..3>` | Four type-specific reads; each is bounded to 24 hours and has separate capability evidence |
+| `GET /v1/sites/{site_ref}/clients/{client_ref}/timeline/{connect\|association\|roaming\|disconnect}` | `GET /openapi/v1/{omadacId}/sites/{siteId}/clients/{clientMac}/client-timeline?start=<...>&end=<...>&type=<0..3>` | Four type-specific reads; each is bounded to 24 hours and has separate capability evidence. Documented roaming AP MACs map to opaque same-site AP references when the current device inventory binds them. |
 | `GET /v1/sites/{site_ref}/aps/{device_ref}/radio-config` | `GET /openapi/v1/{omadacId}/sites/{siteId}/aps/{apMac}/radio-config` | AP radio channel, width, power and enabled state when present |
 | `GET /v1/sites/{site_ref}/aps/{device_ref}/radios` | `GET /openapi/v1/{omadacId}/sites/{siteId}/aps/{apMac}/radios` | Channel utilization and packet counters when present |
 | `GET /v1/sites/{site_ref}/aps/{device_ref}/scan-status` | AP interference detection status | Status and last detection time when present; reads existing status and does not initiate detection |
@@ -459,7 +459,9 @@ type-specific query: `connect` uses type `0`, `association` `1`, `roaming` `2`,
 and `disconnect` `3`; each public route requests at most 24 hours. The
 documented `event_type` values are preserved as numeric codes (`0`, `1`, `2`,
 `3`, `100`, `101`, `102`, `200`, `201`, `202`) without adding meanings. The
-projection omits free text, attributes and MAC addresses. It requires a known
+projection omits free text and MAC addresses. Documented AP MACs map to opaque
+same-site AP references only when the current device inventory binds them; raw
+attributes are never returned. It requires a known
 client reference; a session is included only if it has a valid MAC matching
 that selected client. Sessions with missing, invalid or different MACs are
 omitted and mark the result partial; their data is never implicitly attributed
