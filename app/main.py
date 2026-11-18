@@ -1641,6 +1641,15 @@ class Handler(BaseHTTPRequestHandler):
             except (KeyError, ValueError, OpenApiError) as exc:
                 code = str(exc) if isinstance(exc, OpenApiError) else "arguments_invalid"
                 return {"status": "error", "error": code}
+        if operation_id == "gateway_wan_incident_window":
+            try:
+                with _OPENAPI_LOCK:
+                    return _openapi_client().read_gateway_wan_incident_window(
+                        arguments["site_ref"], arguments["gateway_ref"],
+                        int(arguments["start_ms"]), int(arguments["end_ms"]))
+            except (KeyError, ValueError, OpenApiError) as exc:
+                code = str(exc) if isinstance(exc, OpenApiError) else "arguments_invalid"
+                return {"status": "error", "error": code}
         if operation_id == "ssid_network_summary":
             return self._mcp_ssid_network_summary(arguments)
         try:
@@ -2130,6 +2139,34 @@ class Handler(BaseHTTPRequestHandler):
                 else HTTPStatus.BAD_GATEWAY)
             self._send(status, {"status": "error", "error": str(exc)})
 
+    def _serve_gateway_wan_incident_window(self, parsed_request: object,
+                                           match: object) -> None:
+        if not self._authorized():
+            return
+        try:
+            query_values = parse_qs(parsed_request.query, keep_blank_values=True,
+                                    strict_parsing=True)
+            if (set(query_values) != {"start_ms", "end_ms"} or
+                    any(len(values) != 1 for values in query_values.values())):
+                raise RegistryError("window arguments invalid")
+            start_text, end_text = query_values["start_ms"][0], query_values["end_ms"][0]
+            if (not re.fullmatch(r"[0-9]{12,13}", start_text) or
+                    not re.fullmatch(r"[0-9]{12,13}", end_text)):
+                raise RegistryError("window arguments invalid")
+            with _OPENAPI_LOCK:
+                result = _openapi_client().read_gateway_wan_incident_window(
+                    match.group(1), match.group(2), int(start_text), int(end_text))
+            self._send(HTTPStatus.OK, result)
+        except RegistryError:
+            self._send(HTTPStatus.BAD_REQUEST,
+                       {"status": "error", "error": "query_invalid"})
+        except OpenApiError as exc:
+            status = (HTTPStatus.BAD_REQUEST if exc.code in {
+                "site_ref_invalid", "site_ref_unknown", "device_ref_invalid",
+                "device_ref_unknown", "gateway_health_time_window_invalid"}
+                else HTTPStatus.BAD_GATEWAY)
+            self._send(status, {"status": "error", "error": exc.code})
+
     def _openapi_get(self) -> None:
         registry_match = None
         try:
@@ -2138,6 +2175,12 @@ class Handler(BaseHTTPRequestHandler):
                 r"/v1/sites/([0-9a-f]{24})/outage-summary", parsed_request.path)
             if outage_match is not None:
                 self._serve_site_outage_summary(parsed_request, outage_match)
+                return
+            wan_window_match = re.fullmatch(
+                r"/v1/sites/([0-9a-f]{24})/gateways/([0-9a-f]{24})/wan-incident-window",
+                parsed_request.path)
+            if wan_window_match is not None:
+                self._serve_gateway_wan_incident_window(parsed_request, wan_window_match)
                 return
             registry_match = REGISTRY.match("GET", parsed_request.path)
             operation = registry_match[0]

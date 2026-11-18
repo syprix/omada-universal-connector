@@ -12033,7 +12033,8 @@
         "test_mcp.py",
         "test_network_diagnose.py",
         "test_openapi_http.py",
-        "test_operation_registry.py"
+        "test_operation_registry.py",
+        "test_wan_incident_window.py"
       ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
@@ -12061,7 +12062,8 @@
         "test_gateway_health_timeline_integration.py",
         "test_network_diagnose.py",
         "test_openapi_http.py",
-        "test_operation_registry.py"
+        "test_operation_registry.py",
+        "test_wan_incident_window.py"
       ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
@@ -12431,7 +12433,8 @@
         "test_gateway_speed_test.py",
         "test_network_diagnose.py",
         "test_openapi_http.py",
-        "test_operation_registry.py"
+        "test_operation_registry.py",
+        "test_wan_incident_window.py"
       ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
@@ -12459,7 +12462,8 @@
         "test_gateway_wan.py",
         "test_network_diagnose.py",
         "test_openapi_http.py",
-        "test_operation_registry.py"
+        "test_operation_registry.py",
+        "test_wan_incident_window.py"
       ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",

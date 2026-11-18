@@ -277,6 +277,10 @@ try:
 except ImportError:  # direct execution in the image
     from gateway_health_timeline import GatewayHealthTimelineError, project_gateway_health_timeline
 try:
+    from .wan_incident_window import WanIncidentWindowError, build_wan_incident_window
+except ImportError:  # direct execution in the image
+    from wan_incident_window import WanIncidentWindowError, build_wan_incident_window
+try:
     from .wifi_health import WifiHealthProjectionError, project_wifi_health
 except ImportError:  # direct execution in the image
     from wifi_health import WifiHealthProjectionError, project_wifi_health
@@ -7635,11 +7639,18 @@ class OmadaOpenApiClient:
                 "device_ref": device_ref, **data}
 
     @_track_capability("gateway_health")
-    def read_gateway_health(self, site_ref: str, gateway_ref: str) -> dict[str, object]:
-        """Read fixed 24-hour redacted health details for an inventoried gateway."""
+    def read_gateway_health(self, site_ref: str, gateway_ref: str,
+                            start_ms: int | None = None,
+                            end_ms: int | None = None) -> dict[str, object]:
+        """Read redacted health details for a bounded window on an inventoried gateway."""
         site_id, gateway_mac = self._known_gateway_mac(site_ref, gateway_ref)
-        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
-        start_ms = end_ms - 86_400_000
+        if start_ms is None and end_ms is None:
+            end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+            start_ms = end_ms - 86_400_000
+        if (type(start_ms) is not int or type(end_ms) is not int or start_ms < 0 or
+                end_ms < start_ms or end_ms - start_ms > 86_400_000 or
+                end_ms > int(datetime.now(timezone.utc).timestamp() * 1000) + 60_000):
+            raise OpenApiError("gateway_health_time_window_invalid")
         query = urlencode({"start": start_ms, "end": end_ms})
         path = self._GATEWAY_HEALTH_PATH.format(
             controller_id=self.config.controller_id, site_id=site_id,
@@ -7697,16 +7708,23 @@ class OmadaOpenApiClient:
                 "gateway_ref": gateway_ref, "window_start_ms": start_ms, "window_end_ms": end_ms}
 
     @_track_capability("gateway_health_timeline")
-    def read_gateway_health_timeline(self, site_ref: str, gateway_ref: str) -> dict[str, object]:
-        """Read a fixed 24-hour, redacted health-score timeline for an inventoried gateway."""
+    def read_gateway_health_timeline(self, site_ref: str, gateway_ref: str,
+                                     start_ms: int | None = None,
+                                     end_ms: int | None = None) -> dict[str, object]:
+        """Read a redacted health-score timeline for a bounded window."""
         site_id, gateway_mac = self._known_gateway_mac(site_ref, gateway_ref)
         normalized_mac = re.sub(r"[:-]", "", gateway_mac).casefold()
         matching_refs = [ref for ref, value in self._gateway_macs_by_site_ref.get(site_ref, {}).items()
                          if isinstance(value, str) and re.sub(r"[:-]", "", value).casefold() == normalized_mac]
         if matching_refs != [gateway_ref]:
             raise OpenApiError("gateway_ref_ambiguous")
-        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
-        start_ms = end_ms - 86_400_000
+        if start_ms is None and end_ms is None:
+            end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+            start_ms = end_ms - 86_400_000
+        if (type(start_ms) is not int or type(end_ms) is not int or start_ms < 0 or
+                end_ms < start_ms or end_ms - start_ms > 86_400_000 or
+                end_ms > int(datetime.now(timezone.utc).timestamp() * 1000) + 60_000):
+            raise OpenApiError("gateway_health_time_window_invalid")
         query = urlencode({"start": start_ms, "end": end_ms})
         path = self._GATEWAY_HEALTH_TIMELINE_PATH.format(
             controller_id=self.config.controller_id, site_id=site_id,
@@ -7718,6 +7736,30 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {**data, "site_ref": site_ref, "gateway_ref": gateway_ref,
                 "window_start_ms": start_ms, "window_end_ms": end_ms}
+
+    def read_gateway_wan_incident_window(self, site_ref: str, gateway_ref: str,
+                                         start_ms: int, end_ms: int
+                                         ) -> dict[str, object]:
+        """Bundle current WAN codes and time-bounded gateway health reads."""
+        if (type(start_ms) is not int or type(end_ms) is not int or
+                not 946684800000 <= start_ms <= end_ms <= 4102444800000 or
+                end_ms - start_ms > 86_400_000 or
+                end_ms > int(datetime.now(timezone.utc).timestamp() * 1000) + 60_000):
+            raise OpenApiError("gateway_health_time_window_invalid")
+        as_of_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        current = self.read_gateway_wan_status(site_ref, gateway_ref)
+        health = self.read_gateway_health(site_ref, gateway_ref, start_ms, end_ms)
+        timeline = self.read_gateway_health_timeline(site_ref, gateway_ref, start_ms, end_ms)
+        saved_test = self.read_gateway_speed_test_results(site_ref, gateway_ref)
+        try:
+            result = build_wan_incident_window(
+                site_ref=site_ref, gateway_ref=gateway_ref,
+                start_ms=start_ms, end_ms=end_ms, as_of_ms=as_of_ms,
+                current_status=current, health=health,
+                health_timeline=timeline, saved_speed_test=saved_test)
+        except WanIncidentWindowError as exc:
+            raise OpenApiError(str(exc)) from None
+        return result
 
     @_track_capability("switch_ports")
     def read_switch_ports(self, site_ref: str, switch_ref: str) -> dict[str, object]:
