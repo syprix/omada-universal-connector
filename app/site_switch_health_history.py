@@ -4,9 +4,14 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 
-from .switch_health_timeline import (
-    SwitchHealthTimelineError, project_switch_health_timeline,
-)
+try:
+    from .switch_health_timeline import (
+        SwitchHealthTimelineError, project_switch_health_timeline,
+    )
+except ImportError:  # direct execution in the image
+    from switch_health_timeline import (
+        SwitchHealthTimelineError, project_switch_health_timeline,
+    )
 
 
 _MAX_SWITCHES = 64
