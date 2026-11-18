@@ -2060,6 +2060,24 @@
         "site_switch_dot1x_candidates_summary": {
           "documented": true,
           "live_support": "unknown"
+        },
+        "client_detail": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getClientDetail",
+            "permission": "Site Clients Manager View Only or Site Device Manager View Only",
+            "path_parameters": [
+              "omadacId required",
+              "siteId required",
+              "clientMac required"
+            ],
+            "query": {},
+            "request_body": false,
+            "response": "Client Detail defines wireless, optional apMac and apName wireless fields, and optional int32 rssi (dBm), snr, channel, radioId, rxRate and txRate. The AP MAC field is described as the wireless AP MAC address.",
+            "connector_projection": "Bounded client-detail GET preserves validated documented counters and connection scalars. A documented wireless apMac maps to an opaque AP reference only when the current same-site device inventory binds it; raw client/AP identifiers and descriptive fields are omitted.",
+            "live_support": "unknown"
+          }
         }
       }
     },
@@ -4093,6 +4111,24 @@
         "site_switch_dot1x_candidates_summary": {
           "documented": true,
           "live_support": "unknown"
+        },
+        "client_detail": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getClientDetail",
+            "permission": "Site Clients Manager View Only or Site Device Manager View Only",
+            "path_parameters": [
+              "omadacId required",
+              "siteId required",
+              "clientMac required"
+            ],
+            "query": {},
+            "request_body": false,
+            "response": "Client Detail defines wireless, optional apMac and apName wireless fields, and optional int32 rssi (dBm), snr, channel, radioId, rxRate and txRate. The AP MAC field is described as the wireless AP MAC address.",
+            "connector_projection": "Bounded client-detail GET preserves validated documented counters and connection scalars. A documented wireless apMac maps to an opaque AP reference only when the current same-site device inventory binds it; raw client/AP identifiers and descriptive fields are omitted.",
+            "live_support": "unknown"
+          }
         }
       }
     },
@@ -6108,6 +6144,24 @@
         "site_switch_dot1x_candidates_summary": {
           "documented": true,
           "live_support": "unknown"
+        },
+        "client_detail": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getClientDetail",
+            "permission": "Site Clients Manager View Only or Site Device Manager View Only",
+            "path_parameters": [
+              "omadacId required",
+              "siteId required",
+              "clientMac required"
+            ],
+            "query": {},
+            "request_body": false,
+            "response": "Client Detail defines wireless, optional apMac and apName wireless fields, and optional int32 rssi (dBm), snr, channel, radioId, rxRate and txRate. The AP MAC field is described as the wireless AP MAC address.",
+            "connector_projection": "Bounded client-detail GET preserves validated documented counters and connection scalars. A documented wireless apMac maps to an opaque AP reference only when the current same-site device inventory binds it; raw client/AP identifiers and descriptive fields are omitted.",
+            "live_support": "unknown"
+          }
         }
       }
     }
