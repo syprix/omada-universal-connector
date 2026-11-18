@@ -7798,6 +7798,32 @@ class OpenApiHttpTests(unittest.TestCase):
                          "site_ap_quality_window")
         self.assertEqual(calls, [site_ref, site_ref])
 
+    def test_site_switch_health_history_is_available_over_http_and_mcp(self) -> None:
+        site_ref = "d" * 24
+        calls = []
+
+        def report(ref):
+            calls.append(ref)
+            return {"status": "ok", "resource": "site_switch_health_history",
+                    "partial": True, "devices_queried": 1, "data": []}
+
+        self.fake.read_site_switch_health_history = report
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/switches/health-history", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_switch_health_history")
+        self.assertEqual(calls, [site_ref])
+
+        status, response = self.request_post("/mcp", {
+            "jsonrpc": "2.0", "id": 194, "method": "tools/call",
+            "params": {"name": "omada_site_switch_health_history",
+                       "arguments": {"site_ref": site_ref}},
+        }, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"]["resource"],
+                         "site_switch_health_history")
+        self.assertEqual(calls, [site_ref, site_ref])
+
 
 
 if __name__ == "__main__":

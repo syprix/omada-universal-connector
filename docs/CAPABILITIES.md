@@ -452,6 +452,14 @@ their support remains unknown until a successful operation is observed for
 the relevant target. The health views use a fixed 24-hour window. LLDP output
 contains local port numbers and counts of returned neighbor rows only.
 
+The site switch-health history report also uses the documented batch timeline
+GET from all three exports. It refreshes the site's switch inventory, requests
+at most 64 unique switch MACs in one fixed 24-hour window, and maps documented
+timeline rows back to opaque references. Missing, ambiguous and excess devices
+remain visible as partial data. The source gives integer scores but no scale;
+the report does not rank switches or infer severity. This is fixture-tested;
+live support remains unknown.
+
 The AP health-score timeline is a separate, read-only AP route. All three
 supplied exports document its endpoint. The connector fixes the window at 24
 hours and projects redacted timestamps and int32 score values without
