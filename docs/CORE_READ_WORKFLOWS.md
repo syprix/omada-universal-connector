@@ -40,6 +40,14 @@ The comparison tool reads all inputs locally, uses only bounded existing file pa
 
 For a synthetic 30-sample walk session, the two JSONL inputs used 2,622 and 2,631 tokens; the comparison JSON used 741 tokens. That is 4,512 fewer tokens (85.90%) than passing both input files onward with the result. Counts use `js-tiktoken` 1.0.21 and `o200k_base`. This fixture measure covers serialized payloads only; it excludes tool schemas, requests, host framing and billed agent usage.
 
+## Offline DNS incident diagnosis
+
+`python3 tools/diagnose_dns_incident.py --measurements ./measurements.json --format json` uses the bounded device-measurement importer and makes no controller request, DNS lookup or network probe. Optional `--dns-snapshot` accepts a redacted local configuration snapshot, and `--network-summary` accepts a saved `ssid_network_summary` response. Both context files are validated and remain site-wide; they cannot be tied to a particular imported device because the input format deliberately carries no network identifier. Use `--start-ms` and `--end-ms` together to narrow the incident to a maximum 24-hour window; without them the imported sample window is used.
+
+The report defaults to aggregate counts for lower token use. `--include-observations` adds the bounded allow-listed sample detail when needed. It counts declared DNS failures, resolutions and missing samples alongside separately imported Wi-Fi, local-reachability and IP availability states. It marks cross-source disagreement and co-occurring failures without deciding cause. Imported checks remain `imported_unverified`; configuration snapshots are historical context, and a site DNS setting does not prove which resolver a device used. Missing context and data gaps remain unknown or partial. The tool does not change configuration.
+
+A synthetic 48-sample file measured 3,370 `o200k_base` tokens before summarization and 339 in the default aggregate report (3,031 fewer; 89.94%) using `js-tiktoken` 1.0.21. This is serialized fixture size only, not billed agent use; optional context and per-sample detail are excluded.
+
 ## Site outage context
 
 `GET /v1/sites/{site_ref}/outage-summary?start_ms=…&end_ms=…` and `omada_site_outage_summary` combine the current site reachability counters with bounded event and alert summaries for one UTC window of at most 24 hours. The current counters are timestamped separately from the requested log period. The workflow omits event details and identifiers, reports partial log pagination, and leaves site-wide scope indeterminate when sources cannot establish device correlation or cause. Fixture-backed HTTP and MCP dispatch are tested; no controller was queried.

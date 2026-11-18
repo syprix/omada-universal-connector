@@ -116,6 +116,8 @@ Import an explicitly documented CSV or JSON export offline with `python3 tools/i
 
 Compare those observations with a saved `wifi_diagnose.py --client-timeline` JSON report and a passive WLAN session using an explicit UTC-millisecond window and tolerance: `python3 tools/compare_device_measurements.py --device-input ./measurements.json --device-format json --client-timeline ./client-timeline.json --session ./walk-session.jsonl --start-ms 1800000000000 --end-ms 1800000300000 --tolerance-ms 5000`. This offline comparison reports source coverage and age, and only compares device Wi-Fi state with an explicit passive wireless/not-wireless sample; it does not infer a cause.
 
+For an offline DNS incident summary, run `python3 tools/diagnose_dns_incident.py --measurements ./measurements.json --format json` and optionally provide a redacted settings snapshot and saved WLAN/network summary. It defaults to compact aggregate counts; use `--include-observations` for allow-listed sample detail. It keeps site-wide settings separate and does not claim an unverified cause. It makes no DNS probes or controller changes; see [the DNS workflow notes](docs/CORE_READ_WORKFLOWS.md#offline-dns-incident-diagnosis).
+
 For a gateway incident review, call `GET /v1/sites/{site_ref}/gateways/{gateway_ref}/wan-incident-window?start_ms=...&end_ms=...` or MCP tool `omada_gateway_wan_incident_window`. It bundles current WAN codes, the gateway's timestamped health history and score timeline, and saved speed-test counts. Unknown codes remain undecoded; undated incident counts and saved tests are not placed on the timeline. Load-balancing participation and outage cause remain unknown where the API response does not define them.
 
 ## Project documents

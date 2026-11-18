@@ -37,6 +37,7 @@ After function 15 meets its acceptance criteria, continue the overall API covera
 | 13 | WAN load-balance status | Open: the source response has no documented status fields, so line availability, participation, and failover are not labeled. |
 | 14 | WAN incident window | Implemented as a compact HTTP/MCP report combining current status codes, time-bounded gateway health, score history, and saved test counts. Untimed observations remain separate; no cause or load-balance participation is inferred. |
 | 15 | DHCP pool utilization | Implemented as a bounded HTTP/MCP report of documented per-network pool capacity, available addresses, and dynamic/static lease counts. Lease-to-pool membership is unspecified, so address occupancy is not inferred. Fixture-tested offline; live support remains unverified. |
+| 16 | DNS incident diagnosis | Implemented as an offline CLI joining bounded imported device observations with optional redacted DNS settings and WLAN/network context. Cross-source disagreements and missing evidence remain explicit; it makes no probes and infers no cause. Fixture-tested. |
 
 The agreed coverage families are:
 
