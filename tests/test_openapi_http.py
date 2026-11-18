@@ -7635,6 +7635,7 @@ class OpenApiHttpTests(unittest.TestCase):
                 self.assertEqual(status, 200)
                 self.assertEqual(body["resource"], operation)
         self.assertEqual([name for name, _ in self.fake.calls], [name for name, _ in cases])
+
         self.fake.calls.clear()
 
         cursor = None
@@ -7664,6 +7665,39 @@ class OpenApiHttpTests(unittest.TestCase):
                 self.assertEqual(status, 200)
                 self.assertEqual(response["result"]["structuredContent"]["resource"], operation)
         self.assertEqual([name for name, _ in self.fake.calls], [name for name, _ in cases])
+
+    def test_site_outage_summary_is_available_over_http_and_mcp(self) -> None:
+        site_ref = "a" * 24
+        start_ms, end_ms = 1_790_000_000_000, 1_790_000_030_000
+        calls = []
+
+        def outage(ref, start, end):
+            calls.append((ref, start, end))
+            return {"status": "ok", "resource": "site_outage_summary",
+                    "site_ref": ref, "partial": False}
+
+        self.fake.read_site_outage_summary = outage
+        route = f"/v1/sites/{site_ref}/outage-summary?" + urlencode(
+            {"start_ms": str(start_ms), "end_ms": str(end_ms)})
+        status, response = self.request(route, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_outage_summary")
+        self.assertEqual(calls, [(site_ref, start_ms, end_ms)])
+
+        status, _ = self.request(f"/v1/sites/{site_ref}/outage-summary?start_ms={start_ms}",
+                                 self.token)
+        self.assertEqual(status, 400)
+        self.assertEqual(len(calls), 1)
+
+        status, response = self.request_post("/mcp", {
+            "jsonrpc": "2.0", "id": 190, "method": "tools/call",
+            "params": {"name": "omada_site_outage_summary", "arguments": {
+                "site_ref": site_ref, "start_ms": start_ms, "end_ms": end_ms}},
+        }, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"]["resource"],
+                         "site_outage_summary")
+        self.assertEqual(calls, [(site_ref, start_ms, end_ms)] * 2)
 
 
 
