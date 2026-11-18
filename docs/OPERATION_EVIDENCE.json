@@ -10656,6 +10656,7 @@
       ],
       "source_map_label": "implemented_read",
       "static_test_references": [
+        "test_ap_quality_window.py",
         "test_ap_retry_drop.py",
         "test_ap_retry_drop_integration.py",
         "test_full_api_matrix.py",
@@ -11081,6 +11082,7 @@
       "source_map_label": "implemented_read",
       "static_test_references": [
         "test_ap_lan_traffic_integration.py",
+        "test_ap_quality_window.py",
         "test_build_openapi_catalog.py",
         "test_capabilities.py",
         "test_capability_completeness.py",
@@ -11645,6 +11647,7 @@
       "static_test_references": [
         "test_ap_health_timeline.py",
         "test_ap_health_timeline_integration.py",
+        "test_ap_quality_window.py",
         "test_openapi_http.py",
         "test_operation_registry.py",
         "test_wifi_diagnose_ap.py"

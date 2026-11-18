@@ -118,6 +118,8 @@ Compare those observations with a saved `wifi_diagnose.py --client-timeline` JSO
 
 For an offline DNS incident summary, run `python3 tools/diagnose_dns_incident.py --measurements ./measurements.json --format json` and optionally provide a redacted settings snapshot and saved WLAN/network summary. It defaults to compact aggregate counts; use `--include-observations` for allow-listed sample detail. It keeps site-wide settings separate and does not claim an unverified cause. It makes no DNS probes or controller changes; see [the DNS workflow notes](docs/CORE_READ_WORKFLOWS.md#offline-dns-incident-diagnosis).
 
+Compare site AP quality in one read with `GET /v1/sites/{site_ref}/aps/quality-window` or `omada_site_ap_quality_window`. It combines a shared 24-hour AP health-score and retry/drop window with current per-band radio settings. Missing dashboard rows are not treated as zero, retry/drop has no band mapping, and undocumented rate/score scales remain unclassified. To line it up with a saved passive walk session, save the response and run `python3 tools/compare_ap_quality_session.py --quality-report ./ap-quality.json --session ./walk-session.jsonl`; this comparison is offline and does not probe or scan.
+
 For a gateway incident review, call `GET /v1/sites/{site_ref}/gateways/{gateway_ref}/wan-incident-window?start_ms=...&end_ms=...` or MCP tool `omada_gateway_wan_incident_window`. It bundles current WAN codes, the gateway's timestamped health history and score timeline, and saved speed-test counts. Unknown codes remain undecoded; undated incident counts and saved tests are not placed on the timeline. Load-balancing participation and outage cause remain unknown where the API response does not define them.
 
 ## Project documents

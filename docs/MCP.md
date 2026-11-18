@@ -399,6 +399,22 @@ counts are not used to estimate pool occupancy. Missing, overlapping,
 inconsistent or unclassified data remains partial or unknown. The route is a
 read-only HTTP/MCP workflow; fixture dispatch and projection are tested, while
 live support remains unknown.
+
+`GET /v1/sites/{site_ref}/aps/quality-window` and
+`omada_site_ap_quality_window` compare up to 32 inventoried APs using one shared
+24-hour window for health-score history and the bounded site retry/drop lists,
+plus current radio settings by band. The sources do not provide retry/drop
+band mapping; their numeric scale and the health-score scale remain unspecified.
+An AP absent from the dashboard list is marked `not_listed`, not zero. Radio
+configuration is current state, not historical state. The report is read-only
+and does not start a scan. Fixture-backed HTTP/MCP dispatch and AP reference
+binding are tested; live support is unknown.
+
+A synthetic eight-AP fixture with 24 hourly health, retry and drop samples per
+AP used 11,527 `o200k_base` tokens for the serialized source responses and
+10,196 tokens for the bundled report (1,331 fewer; 11.55%). Counts use
+`js-tiktoken` 1.0.21. This payload comparison excludes request/tool schemas,
+MCP framing and billed agent usage; it is not a live-agent measurement.
 `omada_msp_device_link_topology` is documented by CBC Standard with
 `Site Settings Manager View Only` or `MSP Device Manager View Only`. The
 connector resolves the selected site and device from inventory and returns

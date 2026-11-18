@@ -7772,6 +7772,32 @@ class OpenApiHttpTests(unittest.TestCase):
                          "site_dhcp_pool_utilization")
         self.assertEqual(calls, [site_ref, site_ref])
 
+    def test_site_ap_quality_window_is_available_over_http_and_mcp(self) -> None:
+        site_ref = "a" * 24
+        calls = []
+
+        def report(ref):
+            calls.append(ref)
+            return {"status": "ok", "resource": "site_ap_quality_window",
+                    "partial": False, "summary": {"checked_ap_count": 2}}
+
+        self.fake.read_site_ap_quality_window = report
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/aps/quality-window", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_ap_quality_window")
+        self.assertEqual(calls, [site_ref])
+
+        status, response = self.request_post("/mcp", {
+            "jsonrpc": "2.0", "id": 193, "method": "tools/call",
+            "params": {"name": "omada_site_ap_quality_window",
+                       "arguments": {"site_ref": site_ref}},
+        }, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"]["resource"],
+                         "site_ap_quality_window")
+        self.assertEqual(calls, [site_ref, site_ref])
+
 
 
 if __name__ == "__main__":
