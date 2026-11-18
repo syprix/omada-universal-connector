@@ -12,6 +12,7 @@ The current development build includes:
 - A stateless MCP Streamable HTTP endpoint at `POST /mcp`, with fixed reads and bounded diagnostic workflows.
 - Reusable WLAN and network summaries that combine selected existing controller data and omit many raw identifiers. These workflows do not start scans or change settings.
 - A DHCP pool utilization workflow that reports documented pool capacity, available addresses and dynamic/static lease counts by opaque network reference, without returning address ranges or estimating lease-to-pool occupancy.
+- A reproducible local demo that runs the existing WLAN report UI against labeled synthetic responses without credentials or network access.
 - Selected, narrowly scoped configuration previews and separately approved changes. Writes are disabled by default. Each operation has its own implementation and evidence status; see [controlled changes](docs/CONTROLLED_CHANGES.md).
 - An offline reader for user-supplied OpenAPI exports. Its catalog is reference metadata, not a list of implemented or live-tested connector features.
 
@@ -78,6 +79,10 @@ The default connector URL is the local Compose listener. The CLI can also select
 ### Guided setup check
 
 With the runtime settings available to the local user, run `python3 tools/setup_check.py` to check controller TLS, Omada authentication, site-inventory read access, and one authenticated MCP handshake separately. See the [setup-check details](docs/OPERATIONS.md#guided-setup-check); this explicit command makes bounded read requests and never starts a scan or changes settings.
+
+### Offline WLAN demo
+
+Run `python3 tools/demo_mode.py --workflow wifi-site` to view the existing WLAN text report with fixed synthetic values. The report is labeled as demo data; this command needs no caller token or controller settings and executes no controller, network, or probe requests.
 
 ### Compare configuration snapshots
 

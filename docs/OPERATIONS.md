@@ -4,6 +4,15 @@ The service is still under development. Read [security](../SECURITY.md) and
 verify the exact controller support before use. No deployment or action is
 performed by these instructions.
 
+## Offline WLAN demo
+
+`python3 tools/demo_mode.py --workflow wifi-site` prints the existing
+`wifi_diagnose.py` text report using fixed synthetic responses. The first line
+labels the data as synthetic. The demo uses an in-process request provider, does
+not read caller credentials or controller settings, and does not open a network
+connection. It demonstrates report layout only; it does not test controller
+compatibility or live support.
+
 ## Read-only preparation
 
 1. Configure an Omada Open API application with the minimum required rights;
