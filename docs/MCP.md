@@ -769,3 +769,9 @@ A synthetic page of eight gateways, each with one WAN status record, measured 1,
 
 
 `omada_site_client_filter_options_summary` reports only counts from the selected site's client filter catalog, including whether listed devices include stack membership. Option strings, MAC addresses, names and stack names are omitted. This is a fixed read-only request; live support remains unknown.
+
+# Site outage context
+
+`omada_site_outage_summary` takes a site reference and UTC epoch-millisecond bounds for a window of at most 24 hours. It combines the site overview's AP, gateway and switch reachability counters with redacted event and alert counts. The reachability snapshot includes its own observation time and is not represented as a historical measurement for the requested window. Event counts are not assigned to individual devices; the workflow does not infer an outage cause. Fixture-backed HTTP and MCP dispatch are tested; live support remains unknown.
+
+To create a shareable local report from the HTTP JSON response, use `python3 tools/site_outage_report.py --input ./outage-summary.json --output ./outage-report.md`. It is offline, omits site/device references, requires an owner-only input and creates a new mode-`0600` report without replacing an existing file.

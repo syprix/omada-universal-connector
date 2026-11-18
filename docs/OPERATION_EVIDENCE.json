@@ -7011,6 +7011,7 @@
         "test_wifi_diagnose_site_auto.py",
         "test_wifi_diagnose_text.py",
         "test_wifi_health_integration.py",
+        "test_wifi_measurement_session.py",
         "test_wifi_subhealth_integration.py",
         "test_wlan_configuration.py"
       ],
@@ -9499,7 +9500,8 @@
         "test_wifi_diagnose_client_history.py",
         "test_wifi_diagnose_client_timeline.py",
         "test_wifi_diagnose_site_auto.py",
-        "test_wifi_diagnose_text.py"
+        "test_wifi_diagnose_text.py",
+        "test_wifi_measurement_session.py"
       ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
@@ -9551,8 +9553,10 @@
       "source_map_label": "implemented_read",
       "static_test_references": [
         "test_client_detail.py",
+        "test_full_api_matrix.py",
         "test_openapi_http.py",
-        "test_operation_registry.py"
+        "test_operation_registry.py",
+        "test_wifi_measurement_session.py"
       ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
@@ -10572,7 +10576,8 @@
         "test_network_overview.py",
         "test_openapi_http.py",
         "test_operation_registry.py",
-        "test_registry_shadow.py"
+        "test_registry_shadow.py",
+        "test_site_outage_summary.py"
       ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
@@ -11117,7 +11122,8 @@
         "test_wifi_diagnose_ap_select.py",
         "test_wifi_diagnose_rf.py",
         "test_wifi_diagnose_site_auto.py",
-        "test_wifi_diagnose_text.py"
+        "test_wifi_diagnose_text.py",
+        "test_wifi_measurement_session.py"
       ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
@@ -13935,7 +13941,8 @@
         "test_network_overview.py",
         "test_openapi_http.py",
         "test_operation_registry.py",
-        "test_site_identity_log_window.py"
+        "test_site_identity_log_window.py",
+        "test_site_outage_summary.py"
       ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
@@ -13965,7 +13972,8 @@
         "test_network_overview.py",
         "test_openapi_http.py",
         "test_operation_registry.py",
-        "test_site_identity_log_window.py"
+        "test_site_identity_log_window.py",
+        "test_site_outage_summary.py"
       ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",

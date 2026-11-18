@@ -223,6 +223,30 @@ _NETWORK_OVERVIEW_TOOL = {
                      "idempotentHint": True, "openWorldHint": False},
 }
 _NETWORK_OVERVIEW_NAME = str(_NETWORK_OVERVIEW_TOOL["name"])
+_SITE_OUTAGE_SUMMARY_TOOL = {
+    "name": "omada_site_outage_summary",
+    "description": (
+        "Summarize event and alert counts for one UTC time window alongside the current AP, "
+        "gateway and switch reachability snapshot. The snapshot is timestamped separately; "
+        "events are not assigned to individual devices and no outage cause is inferred."
+    ),
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "site_ref": {"type": "string", "pattern": "^[0-9a-f]{24}$",
+                          "description": "Opaque site reference returned by the connector."},
+            "start_ms": {"type": "integer", "minimum": 946684800000,
+                         "maximum": 4102444800000},
+            "end_ms": {"type": "integer", "minimum": 946684800000,
+                       "maximum": 4102444800000},
+        },
+        "required": ["site_ref", "start_ms", "end_ms"],
+        "additionalProperties": False,
+    },
+    "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                     "idempotentHint": True, "openWorldHint": False},
+}
+_SITE_OUTAGE_SUMMARY_NAME = str(_SITE_OUTAGE_SUMMARY_TOOL["name"])
 _SSID_NETWORK_SUMMARY_TOOL = {
     "name": "omada_ssid_network_summary",
     "description": (
@@ -481,6 +505,7 @@ def _tools_page(registry: Any, cursor: object) -> dict[str, object]:
     tools.append(_NETWORK_DIAGNOSE_GATEWAY_TOOL)
     tools.append(_NETWORK_DIAGNOSE_SWITCH_TOOL)
     tools.append(_NETWORK_OVERVIEW_TOOL)
+    tools.append(_SITE_OUTAGE_SUMMARY_TOOL)
     tools.append(_SSID_NETWORK_SUMMARY_TOOL)
     tools.append(_DIAGNOSTIC_CAPABILITY_SUMMARY_TOOL)
     tools.append(_SWITCH_CABLE_TEST_TOOL)
@@ -741,6 +766,20 @@ def _invoke_tool(registry: Any, name: object, arguments: object,
             "structuredContent": value,
             "isError": value.get("status") == "error",
         }
+    if name == _SITE_OUTAGE_SUMMARY_NAME:
+        keys = ("site_ref", "start_ms", "end_ms")
+        if (not isinstance(arguments, dict) or set(arguments) != set(keys) or
+                not isinstance(arguments.get("site_ref"), str) or
+                not _SAFE_REF.fullmatch(arguments["site_ref"]) or
+                type(arguments.get("start_ms")) is not int or
+                type(arguments.get("end_ms")) is not int):
+            raise McpRequestError("arguments_invalid")
+        value = invoke_read("site_outage_summary", {
+            "site_ref": arguments["site_ref"],
+            "start_ms": str(arguments["start_ms"]),
+            "end_ms": str(arguments["end_ms"]),
+        })
+        return _tool_result(value)
     if name == _SSID_NETWORK_SUMMARY_NAME:
         keys = ("site_ref",)
         if (not isinstance(arguments, dict) or set(arguments) != set(keys) or

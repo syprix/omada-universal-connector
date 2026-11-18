@@ -127,6 +127,19 @@ class FullApiMatrixTests(unittest.TestCase):
             self.assertTrue(row["documented"])
             self.assertEqual(row["live_support"], "unknown")
 
+    def test_client_detail_contract_records_wireless_ap_mapping_fields(self) -> None:
+        matrix = json.loads((Path(__file__).resolve().parents[1] /
+                             "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
+        self.assertEqual({source["label"] for source in matrix["sources"]}, {
+            "Hardware Controller 6.3.0", "CBC Standard 6.3.0", "ER7212PC 6.2.14"})
+        for source in matrix["sources"]:
+            contract = source["operations"]["client_detail"]["contract_review"]
+            self.assertEqual(contract["operation_id"], "getClientDetail")
+            self.assertIn("apMac", contract["response"])
+            self.assertIn("rssi", contract["response"])
+            self.assertIn("same-site device inventory", contract["connector_projection"])
+            self.assertEqual(contract["live_support"], "unknown")
+
     def test_eap_dot1x_candidates_contract_is_common_and_live_unknown(self) -> None:
         matrix = json.loads((Path(__file__).resolve().parents[1] /
                              "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
