@@ -328,6 +328,23 @@ _SITE_AP_QUALITY_WINDOW_TOOL = {
                     "idempotentHint": True, "openWorldHint": False},
 }
 _SITE_AP_QUALITY_WINDOW_NAME = str(_SITE_AP_QUALITY_WINDOW_TOOL["name"])
+_SITE_FIRMWARE_SUMMARY_TOOL = {
+    "name": "omada_site_firmware_summary",
+    "description": (
+        "Group current and latest firmware versions for up to 64 devices in one site by type and model. "
+        "A differing version string is not ordered or treated as proof that an update is available. "
+        "This read-only tool never starts a firmware upgrade."
+    ),
+    "inputSchema": {
+        "type": "object",
+        "properties": {"site_ref": {"type": "string", "pattern": "^[0-9a-f]{24}$"}},
+        "required": ["site_ref"],
+        "additionalProperties": False,
+    },
+    "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                    "idempotentHint": True, "openWorldHint": False},
+}
+_SITE_FIRMWARE_SUMMARY_NAME = str(_SITE_FIRMWARE_SUMMARY_TOOL["name"])
 _SWITCH_CABLE_TEST_TOOL = {
     "name": "omada_switch_cable_test",
     "description": (
@@ -572,6 +589,7 @@ def _tools_page(registry: Any, cursor: object) -> dict[str, object]:
     tools.append(_GATEWAY_WAN_INCIDENT_WINDOW_TOOL)
     tools.append(_SITE_DHCP_POOL_UTILIZATION_TOOL)
     tools.append(_SITE_AP_QUALITY_WINDOW_TOOL)
+    tools.append(_SITE_FIRMWARE_SUMMARY_TOOL)
     tools.append(_DIAGNOSTIC_CAPABILITY_SUMMARY_TOOL)
     tools.append(_SWITCH_CABLE_TEST_TOOL)
     tools.append(_CONTROLLER_RADIUS_PROXY_CHANGE_TOOL)
@@ -893,6 +911,18 @@ def _invoke_tool(registry: Any, name: object, arguments: object,
                 not _SAFE_REF.fullmatch(arguments["site_ref"])):
             raise McpRequestError("arguments_invalid")
         value = invoke_read("site_ap_quality_window", {"site_ref": arguments["site_ref"]})
+        return {
+            "content": [{"type": "text", "text": json.dumps(value, ensure_ascii=False,
+                                                                separators=(",", ":"))}],
+            "structuredContent": value,
+            "isError": value.get("status") == "error",
+        }
+    if name == _SITE_FIRMWARE_SUMMARY_NAME:
+        if (not isinstance(arguments, dict) or set(arguments) != {"site_ref"} or
+                not isinstance(arguments["site_ref"], str) or
+                not _SAFE_REF.fullmatch(arguments["site_ref"])):
+            raise McpRequestError("arguments_invalid")
+        value = invoke_read("site_firmware_summary", {"site_ref": arguments["site_ref"]})
         return {
             "content": [{"type": "text", "text": json.dumps(value, ensure_ascii=False,
                                                                 separators=(",", ":"))}],

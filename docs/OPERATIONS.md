@@ -4,6 +4,15 @@ The service is still under development. Read [security](../SECURITY.md) and
 verify the exact controller support before use. No deployment or action is
 performed by these instructions.
 
+## Offline WLAN demo
+
+`python3 tools/demo_mode.py --workflow wifi-site` prints the existing
+`wifi_diagnose.py` text report using fixed synthetic responses. The first line
+labels the data as synthetic. The demo uses an in-process request provider, does
+not read caller credentials or controller settings, and does not open a network
+connection. It demonstrates report layout only; it does not test controller
+compatibility or live support.
+
 ## Read-only preparation
 
 1. Configure an Omada Open API application with the minimum required rights;
@@ -31,10 +40,13 @@ After the connector is running, invoke `python3 tools/setup_check.py` on a
 machine that can reach it. The command checks five steps independently:
 controller configuration, the configured TLS certificate/CA policy, Omada
 client authentication, read access to the site inventory, and an authenticated
-MCP `initialize` handshake. The inventory check returns only a site count; it
-does not print site names or references. Failures include a stable error code
-and a short explanation, while later independent checks still run when
-possible.
+MCP flow. The MCP check sends `initialize`, paginates `tools/list`, confirms
+`omada_sites` is advertised as read-only, calls that inventory tool once, and
+checks the connector's standard unknown-tool error response. It reports only
+the protocol version and tool count, not site names or references. Failures
+include a stable error code and a short explanation, while later independent
+checks still run when possible. This checks the connector's protocol behavior;
+it does not configure or test a third-party agent application.
 
 The default MCP address is `http://127.0.0.1:18080`. Set
 `OMADA_CONNECTOR_URL` to another connector address when needed; unencrypted

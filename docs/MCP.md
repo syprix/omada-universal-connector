@@ -168,7 +168,7 @@ curl --silent --show-error http://127.0.0.1:18080/mcp \
   --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"local-check","version":"0"}}}'
 ```
 
-For discovery, send `tools/list`; for use, send `tools/call` with the exact advertised tool name and arguments.
+For discovery, send `tools/list`; for use, send `tools/call` with the exact advertised tool name and arguments. The local `tools/setup_check.py` command validates an authenticated initialize response, all paged tool-list responses, the advertised read-only hint for `omada_sites`, one safe site-inventory call, and the expected `tool_unknown` JSON-RPC error. It reports counts and protocol status only. This is a connector-side protocol check and does not prove compatibility with a specific agent application; see [client evidence](INTEGRATIONS.md).
 
 ## Agent connection settings
 
@@ -234,19 +234,19 @@ The user-level server entry has this shape:
 ```
 
 These settings prepare the connection; they do not establish client
-compatibility. No Hermes, Codex or Claude Code connection has been tested.
-Only a successful end-to-end handshake and tool call from the named client will
-change its status. Local protocol and HTTP tests use a fake controller client
-to verify JSON-RPC handling, bearer authentication, direct WLAN reads, all six
-bundled workflows, topology dispatch and Origin rejection. They do not launch
-an agent runtime. The connector does not manage agent credentials.
+compatibility. Codex completed a separate end-to-end handshake and three tool
+calls in a temporary loopback-only setup; Hermes and Claude Code remain
+untested. Local protocol and HTTP tests use a fake controller client to verify
+JSON-RPC handling, bearer authentication, direct WLAN reads, bundled workflows,
+topology dispatch and Origin rejection. They do not launch an agent runtime.
+The connector does not manage agent credentials.
 
 Manufacturer setup references: [Hermes MCP](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp), [Codex MCP](https://developers.openai.com/codex/mcp), [Claude Code MCP](https://code.claude.com/docs/en/mcp).
 
 The setup snippets use the Compose host binding `127.0.0.1:18080` (container
 port `8080`). On 2026-11-13, the connector's focused local regressions passed:
-18 MCP tests and 65 HTTP tests. These checks use a fake controller and are not
-tests of Hermes, Codex or Claude Code.
+18 MCP tests and 65 HTTP tests. These fixture checks use a fake controller and
+are separate from the Codex client run described in [client evidence](INTEGRATIONS.md).
 
 ## Security and limits
 
@@ -417,6 +417,20 @@ AP used 11,527 `o200k_base` tokens for the serialized source responses and
 10,196 tokens for the bundled report (1,331 fewer; 11.55%). Counts use
 `js-tiktoken` 1.0.21. This payload comparison excludes request/tool schemas,
 MCP framing and billed agent usage; it is not a live-agent measurement.
+
+`GET /v1/sites/{site_ref}/firmware-summary` and the read-only
+`omada_site_firmware_summary` tool group the selected site's inventory with no
+more than 64 documented firmware-info reads. Groups include device type, model,
+inventory version, current version, and source-labeled latest version. Exact
+matches and differences are shown without ordering version strings or claiming
+that a safe update is available. Missing versions, conflicting inventory data,
+read failures and excess devices remain partial. Fixture-backed HTTP/MCP
+dispatch is tested; no live firmware query or upgrade was made.
+
+A synthetic 40-device site with repeated models measured 3,871 tokens for the
+inventory and individual firmware responses versus 725 for the grouped report
+(3,146 fewer; 81.27%), using `js-tiktoken` 1.0.21 / `o200k_base`. This is a
+serialized-payload comparison only, not billed agent usage or live data.
 `omada_msp_device_link_topology` is documented by CBC Standard with
 `Site Settings Manager View Only` or `MSP Device Manager View Only`. The
 connector resolves the selected site and device from inventory and returns

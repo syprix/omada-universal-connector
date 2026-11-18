@@ -12,6 +12,7 @@ The current development build includes:
 - A stateless MCP Streamable HTTP endpoint at `POST /mcp`, with fixed reads and bounded diagnostic workflows.
 - Reusable WLAN and network summaries that combine selected existing controller data and omit many raw identifiers. These workflows do not start scans or change settings.
 - A DHCP pool utilization workflow that reports documented pool capacity, available addresses and dynamic/static lease counts by opaque network reference, without returning address ranges or estimating lease-to-pool occupancy.
+- A reproducible local demo that runs the existing WLAN report UI against labeled synthetic responses without credentials or network access.
 - Selected, narrowly scoped configuration previews and separately approved changes. Writes are disabled by default. Each operation has its own implementation and evidence status; see [controlled changes](docs/CONTROLLED_CHANGES.md).
 - An offline reader for user-supplied OpenAPI exports. Its catalog is reference metadata, not a list of implemented or live-tested connector features.
 
@@ -79,6 +80,10 @@ The default connector URL is the local Compose listener. The CLI can also select
 
 With the runtime settings available to the local user, run `python3 tools/setup_check.py` to check controller TLS, Omada authentication, site-inventory read access, and one authenticated MCP handshake separately. See the [setup-check details](docs/OPERATIONS.md#guided-setup-check); this explicit command makes bounded read requests and never starts a scan or changes settings.
 
+### Offline WLAN demo
+
+Run `python3 tools/demo_mode.py --workflow wifi-site` to view the existing WLAN text report with fixed synthetic values. The report is labeled as demo data; this command needs no caller token or controller settings and executes no controller, network, or probe requests.
+
 ### Compare configuration snapshots
 
 Use `python3 tools/config_snapshot.py capture` to save selected AP radio, SSID, LAN-network and site DNS settings with a schema version. Give selected objects short neutral labels rather than their device or network names; the snapshot omits controller references, addresses and secret values and is created with owner-only permissions. The comparison marks partial or missing fields as not comparable. See the [snapshot procedure](docs/OPERATIONS.md#configuration-snapshots).
@@ -119,6 +124,8 @@ Compare those observations with a saved `wifi_diagnose.py --client-timeline` JSO
 For an offline DNS incident summary, run `python3 tools/diagnose_dns_incident.py --measurements ./measurements.json --format json` and optionally provide a redacted settings snapshot and saved WLAN/network summary. It defaults to compact aggregate counts; use `--include-observations` for allow-listed sample detail. It keeps site-wide settings separate and does not claim an unverified cause. It makes no DNS probes or controller changes; see [the DNS workflow notes](docs/CORE_READ_WORKFLOWS.md#offline-dns-incident-diagnosis).
 
 Compare site AP quality in one read with `GET /v1/sites/{site_ref}/aps/quality-window` or `omada_site_ap_quality_window`. It combines a shared 24-hour AP health-score and retry/drop window with current per-band radio settings. Missing dashboard rows are not treated as zero, retry/drop has no band mapping, and undocumented rate/score scales remain unclassified. To line it up with a saved passive walk session, save the response and run `python3 tools/compare_ap_quality_session.py --quality-report ./ap-quality.json --session ./walk-session.jsonl`; this comparison is offline and does not probe or scan.
+
+Summarize device firmware with `GET /v1/sites/{site_ref}/firmware-summary` or `omada_site_firmware_summary`. It groups up to 64 inventoried devices by type, model, and the documented current/latest version fields. Differences are reported without guessing version order or claiming an upgrade is available; this read never starts an update.
 
 For a gateway incident review, call `GET /v1/sites/{site_ref}/gateways/{gateway_ref}/wan-incident-window?start_ms=...&end_ms=...` or MCP tool `omada_gateway_wan_incident_window`. It bundles current WAN codes, the gateway's timestamped health history and score timeline, and saved speed-test counts. Unknown codes remain undecoded; undated incident counts and saved tests are not placed on the timeline. Load-balancing participation and outage cause remain unknown where the API response does not define them.
 

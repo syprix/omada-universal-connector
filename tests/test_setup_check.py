@@ -66,8 +66,8 @@ class _McpResponse:
 
 
 class _McpConnection:
-    def __init__(self, response: _McpResponse) -> None:
-        self.response = response
+    def __init__(self, responses: _McpResponse | list[_McpResponse]) -> None:
+        self.responses = responses if isinstance(responses, list) else [responses]
         self.requests: list[tuple[str, str, bytes, dict[str, str]]] = []
         self.closed = False
 
@@ -76,7 +76,7 @@ class _McpConnection:
         self.requests.append((method, path, body, headers))
 
     def getresponse(self) -> _McpResponse:
-        return self.response
+        return self.responses.pop(0)
 
     def close(self) -> None:
         self.closed = True
@@ -134,22 +134,90 @@ class SetupCheckTests(unittest.TestCase):
             token_path = Path(directory) / "connector-token"
             token_path.write_text("c" * 48, encoding="ascii")
             token_path.chmod(0o600)
-            response = _McpResponse({
-                "jsonrpc": "2.0", "id": setup_check._MCP_REQUEST_ID,
-                "result": {"protocolVersion": "2025-06-18",
-                           "serverInfo": {"name": "omada-universal-connector",
-                                          "version": "0.3.0"}},
-            })
-            connection = _McpConnection(response)
+            connection = _McpConnection([
+                _McpResponse({
+                    "jsonrpc": "2.0", "id": "setup-check-initialize",
+                    "result": {"protocolVersion": "2025-06-18",
+                               "serverInfo": {"name": "omada-universal-connector",
+                                              "version": "0.3.0"}},
+                }),
+                _McpResponse({"jsonrpc": "2.0", "id": "setup-check-tools-0",
+                              "result": {"tools": [{"name": "omada_health"}],
+                                         "nextCursor": "25"}}),
+                _McpResponse({"jsonrpc": "2.0", "id": "setup-check-tools-1",
+                              "result": {"tools": [{"name": "omada_sites",
+                                                     "annotations": {"readOnlyHint": True}}]}}),
+                _McpResponse({"jsonrpc": "2.0", "id": "setup-check-read",
+                              "result": {"isError": False, "structuredContent": {
+                                  "status": "ok", "resource": "sites", "items": []}}}),
+                _McpResponse({"jsonrpc": "2.0", "id": "setup-check-error",
+                              "error": {"code": -32601, "message": "tool_unknown"}}),
+            ])
             with patch.object(setup_check.http.client, "HTTPConnection", return_value=connection):
                 result = setup_check._mcp_check("http://127.0.0.1:8080", str(token_path))
             self.assertEqual(result["status"], "ok")
             self.assertEqual(result["protocol_version"], "2025-06-18")
+            self.assertEqual(result["tool_count"], 2)
+            self.assertEqual(result["safe_read_tool"], "omada_sites")
+            self.assertEqual(result["error_path"], "tool_unknown")
+            self.assertEqual(len(connection.requests), 5)
+            self.assertEqual(json.loads(connection.requests[2][2])["params"], {"cursor": "25"})
             method, path, _body, headers = connection.requests[0]
             self.assertEqual((method, path), ("POST", "/mcp"))
             self.assertEqual(headers["Authorization"], "Bearer " + "c" * 48)
             self.assertNotIn("c" * 48, repr(result))
             self.assertTrue(connection.closed)
+
+    def test_mcp_smoke_checks_safe_read_and_expected_error(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            token_path = Path(directory) / "connector-token"
+            token_path.write_text("c" * 48, encoding="ascii")
+            token_path.chmod(0o600)
+            initialized = _McpResponse({
+                "jsonrpc": "2.0", "id": "setup-check-initialize",
+                "result": {"protocolVersion": "2025-06-18",
+                           "serverInfo": {"name": "omada-universal-connector",
+                                          "version": "0.3.0"}},
+            })
+            listed = _McpResponse({"jsonrpc": "2.0", "id": "setup-check-tools-0",
+                                    "result": {"tools": [{"name": "omada_sites",
+                                                           "annotations": {"readOnlyHint": True}}]}})
+            for safe_read_result, error_result, expected in (
+                ({"isError": True, "structuredContent": {"status": "error"}},
+                 {"code": -32601, "message": "tool_unknown"}, "mcp_safe_read_failed"),
+                ({"isError": False, "structuredContent": {"status": "ok", "resource": "sites",
+                                                             "items": []}},
+                 {"code": -32602, "message": "arguments_invalid"}, "mcp_error_handling_failed"),
+            ):
+                connection = _McpConnection([
+                    initialized, listed,
+                    _McpResponse({"jsonrpc": "2.0", "id": "setup-check-read",
+                                  "result": safe_read_result}),
+                    _McpResponse({"jsonrpc": "2.0", "id": "setup-check-error",
+                                  "error": error_result}),
+                ])
+                with patch.object(setup_check.http.client, "HTTPConnection", return_value=connection):
+                    result = setup_check._mcp_check("http://127.0.0.1:8080", str(token_path))
+                self.assertEqual(result["code"], expected)
+
+    def test_mcp_safe_read_must_be_advertised_read_only(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            token_path = Path(directory) / "connector-token"
+            token_path.write_text("c" * 48, encoding="ascii")
+            token_path.chmod(0o600)
+            connection = _McpConnection([
+                _McpResponse({"jsonrpc": "2.0", "id": "setup-check-initialize",
+                              "result": {"protocolVersion": "2025-06-18",
+                                         "serverInfo": {"name": "omada-universal-connector",
+                                                        "version": "0.3.0"}}}),
+                _McpResponse({"jsonrpc": "2.0", "id": "setup-check-tools-0",
+                              "result": {"tools": [{"name": "omada_sites",
+                                                     "annotations": {"readOnlyHint": False}}]}}),
+            ])
+            with patch.object(setup_check.http.client, "HTTPConnection", return_value=connection):
+                result = setup_check._mcp_check("http://127.0.0.1:8080", str(token_path))
+            self.assertEqual(result["code"], "mcp_tools_list_invalid")
+            self.assertEqual(len(connection.requests), 2)
 
     def test_bad_mcp_response_and_bad_token_file_have_specific_results(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
