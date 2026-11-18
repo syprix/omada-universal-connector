@@ -19,6 +19,6 @@ Some diagnostic operations may interrupt service or generate traffic. Obtain exp
 
 ## Reporting a vulnerability
 
-Please do not disclose suspected vulnerabilities or exposed credentials in a public issue. Use GitHub's private vulnerability reporting for this repository when it is enabled. If that option is unavailable, open an issue that only asks maintainers to establish a private reporting channel; do not include vulnerability details. Continue only after maintainers provide a private channel. Never attach credentials, controller addresses, packet captures or personal device data.
+Please do not disclose suspected vulnerabilities or exposed credentials in a public issue. [Report a vulnerability privately through GitHub](https://github.com/syprix/omada-universal-connector/security/advisories/new); private vulnerability reporting is enabled for this repository.
 
-Private vulnerability reporting is not available while this repository is private. Immediately after a separately authorized public visibility change, maintainers should enable and verify a private reporting channel in repository settings. Until then, do not publish vulnerability details.
+If you cannot access that form, open an issue that only asks maintainers to establish a private reporting channel, without vulnerability details. Continue only after maintainers provide a private channel. Never attach credentials, controller addresses, packet captures, or personal device data.
