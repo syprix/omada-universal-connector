@@ -778,6 +778,15 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(encoded)
 
     def do_GET(self) -> None:  # noqa: N802
+        ssid_network_match = re.fullmatch(
+            r"/v1/sites/([0-9a-f]{24})/ssid-network-summary", self.path)
+        if ssid_network_match:
+            if not self._authorized():
+                return
+            result = self._mcp_ssid_network_summary({"site_ref": ssid_network_match.group(1)})
+            status = HTTPStatus.OK if result.get("status") == "ok" else HTTPStatus.BAD_GATEWAY
+            self._send(status, result)
+            return
         if self.path == "/healthz":
             self._send(HTTPStatus.OK, {"status": "ok"})
             return
@@ -2026,11 +2035,17 @@ class Handler(BaseHTTPRequestHandler):
             return {"status": "error", "error": "diagnostic_unavailable"}
         site_ref = arguments["site_ref"]
         root = f"/v1/sites/{site_ref}"
-        allowed_paths = {"/v1/sites", root + "/ssids", root + "/networks"}
+        allowed_paths = {"/v1/sites", root + "/ssids", root + "/networks",
+                         root + "/devices", root + "/dns/cache", root + "/dns/proxy"}
 
         def fixed_read(path: str) -> object:
-            if path not in allowed_paths and not re.fullmatch(
-                    rf"{re.escape(root)}/ssids/[0-9a-f]{{24}}", path):
+            patterns = (
+                rf"{re.escape(root)}/ssids/[0-9a-f]{{24}}",
+                rf"{re.escape(root)}/lan-networks/[0-9a-f]{{24}}/summary",
+                rf"{re.escape(root)}/networks/[0-9a-f]{{24}}/dhcp-server/info",
+                rf"{re.escape(root)}/gateways/[0-9a-f]{{24}}/internet-info",
+            )
+            if path not in allowed_paths and not any(re.fullmatch(pattern, path) for pattern in patterns):
                 raise ssid_network_diagnose.SsidNetworkDiagnoseError("connector_unavailable")
             connection = http.client.HTTPConnection(
                 "127.0.0.1", self.server.server_port, timeout=15)

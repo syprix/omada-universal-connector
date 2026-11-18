@@ -4,7 +4,13 @@ The connector exposes a stateless MCP Streamable HTTP endpoint at `POST /mcp`, o
 
 ## Available tools
 
-`omada_ssid_network_summary` compares at most 64 SSID configuration reads with the selected site's current network inventory. It returns only counts for matched, unbound, stale and unreadable bindings, plus the number omitted by the limit. SSID/network names and references are not returned. It does not change WLAN or network settings.
+`omada_ssid_network_summary` compares at most 64 SSID configuration reads with the selected site's current network inventory, then summarizes available per-network VLAN and DHCP-pool evidence, site-wide DNS settings and bounded gateway inventory details. It returns counts and safe setting flags without names or references. DNS-to-WLAN and gateway-to-network associations remain explicitly unknown where the source projections do not expose a link. This read-only workflow does not modify WLAN or network settings.
+
+For a synthetic four-SSID, four-network and one-gateway fixture, `js-tiktoken`
+1.0.21 with `o200k_base` counted 1,063 tokens across the 19 compact connector
+JSON responses used by the workflow and 313 tokens in its final JSON result
+(750 fewer, 70.56%). This compares response bodies only: it excludes HTTP/MCP
+framing, the agent's request and billed usage. No live network data was used.
 
 `omada_site_wlan_group_summary` reads the legacy v1 WLAN-group list, which the source API marks deprecated in favor of the AP-group list. It returns only group, primary/clone and resource-code counts; group names, IDs and site IDs are omitted. Live support is unknown.
 

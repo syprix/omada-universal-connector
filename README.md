@@ -78,6 +78,10 @@ The default connector URL is the local Compose listener. The CLI can also select
 
 With the runtime settings available to the local user, run `python3 tools/setup_check.py` to check controller TLS, Omada authentication, site-inventory read access, and one authenticated MCP handshake separately. See the [setup-check details](docs/OPERATIONS.md#guided-setup-check); this explicit command makes bounded read requests and never starts a scan or changes settings.
 
+### Compare configuration snapshots
+
+Use `python3 tools/config_snapshot.py capture` to save selected AP radio, SSID, LAN-network and site DNS settings with a schema version. Give selected objects short neutral labels rather than their device or network names; the snapshot omits controller references, addresses and secret values and is created with owner-only permissions. The comparison marks partial or missing fields as not comparable. See the [snapshot procedure](docs/OPERATIONS.md#configuration-snapshots).
+
 ## Project documents
 
 - [Current architecture](docs/CURRENT_ARCHITECTURE.md)

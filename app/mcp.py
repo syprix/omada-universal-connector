@@ -226,9 +226,10 @@ _NETWORK_OVERVIEW_NAME = str(_NETWORK_OVERVIEW_TOOL["name"])
 _SSID_NETWORK_SUMMARY_TOOL = {
     "name": "omada_ssid_network_summary",
     "description": (
-        "Reconcile a bounded set of site SSID network bindings against the current LAN network inventory. "
-        "Returns only counts for matched, unbound, stale and unreadable configurations; names and references "
-        "are omitted. This is read-only and makes no WLAN or network changes."
+        "Reconcile bounded site SSID bindings with the LAN inventory and summarize available per-network VLAN "
+        "and DHCP-pool evidence, site-wide DNS settings and bounded gateway inventory details. Returns safe "
+        "counts without names or references; DNS-to-WLAN and gateway-to-network associations stay unknown "
+        "where the source projections do not expose a link. Read-only; makes no network changes."
     ),
     "inputSchema": {
         "type": "object",

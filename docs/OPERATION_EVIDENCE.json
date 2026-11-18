@@ -6796,6 +6796,7 @@
         "test_client_signal_distribution_integration.py",
         "test_client_timeline_integration.py",
         "test_client_timeline_summary.py",
+        "test_config_snapshots.py",
         "test_controller_health.py",
         "test_controller_probe.py",
         "test_descriptive_names.py",
@@ -11078,6 +11079,7 @@
         "test_build_openapi_catalog.py",
         "test_capabilities.py",
         "test_capability_completeness.py",
+        "test_config_snapshots.py",
         "test_controller_device_statistics_integration.py",
         "test_controller_global_devices.py",
         "test_controller_health.py",
@@ -11107,6 +11109,7 @@
         "test_site_dhcp_server_candidates.py",
         "test_site_incident_influences.py",
         "test_site_vlan_device_usage_summary.py",
+        "test_ssid_network_diagnose.py",
         "test_switch_health_integration.py",
         "test_wifi_compare_aps.py",
         "test_wifi_diagnose_ap.py",
@@ -12079,7 +12082,8 @@
         "test_gateway_internet.py",
         "test_network_diagnose.py",
         "test_openapi_http.py",
-        "test_operation_registry.py"
+        "test_operation_registry.py",
+        "test_ssid_network_diagnose.py"
       ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
@@ -13794,9 +13798,11 @@
       ],
       "source_map_label": "implemented_read",
       "static_test_references": [
+        "test_config_snapshots.py",
         "test_openapi_http.py",
         "test_operation_registry.py",
-        "test_site_lan_network_detail_summary.py"
+        "test_site_lan_network_detail_summary.py",
+        "test_ssid_network_diagnose.py"
       ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
@@ -14635,7 +14641,8 @@
         "test_network_dhcp_server_info.py",
         "test_network_dhcp_server_info_integration.py",
         "test_openapi_http.py",
-        "test_operation_registry.py"
+        "test_operation_registry.py",
+        "test_ssid_network_diagnose.py"
       ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
@@ -17806,10 +17813,12 @@
       ],
       "source_map_label": "implemented_read",
       "static_test_references": [
+        "test_config_snapshots.py",
         "test_dns_read.py",
         "test_network_overview.py",
         "test_openapi_http.py",
-        "test_operation_registry.py"
+        "test_operation_registry.py",
+        "test_ssid_network_diagnose.py"
       ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
@@ -17833,10 +17842,12 @@
       ],
       "source_map_label": "implemented_read",
       "static_test_references": [
+        "test_config_snapshots.py",
         "test_dns_read.py",
         "test_network_overview.py",
         "test_openapi_http.py",
-        "test_operation_registry.py"
+        "test_operation_registry.py",
+        "test_ssid_network_diagnose.py"
       ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
@@ -21559,6 +21570,7 @@
       ],
       "source_map_label": "implemented_read",
       "static_test_references": [
+        "test_config_snapshots.py",
         "test_openapi_http.py",
         "test_operation_registry.py",
         "test_ssid_network_diagnose.py",
@@ -25353,6 +25365,7 @@
       ],
       "source_map_label": "implemented_read",
       "static_test_references": [
+        "test_config_snapshots.py",
         "test_full_api_matrix.py",
         "test_network_dhcp_capabilities_integration.py",
         "test_network_dhcp_server_info_integration.py",
@@ -25899,6 +25912,7 @@
       "source_map_label": "implemented_read",
       "static_test_references": [
         "test_capabilities.py",
+        "test_config_snapshots.py",
         "test_descriptive_names.py",
         "test_full_api_matrix.py",
         "test_journal_http.py",
