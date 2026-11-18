@@ -278,6 +278,25 @@ class McpTests(unittest.TestCase):
                                              "arguments": invalid}})
             self.assertEqual(rejected["error"]["message"], "arguments_invalid")
 
+    def test_site_outage_summary_dispatch_requires_integer_window(self):
+        seen = []
+        args = {"site_ref": "a" * 24, "start_ms": 1_790_000_000_000,
+                "end_ms": 1_790_000_030_000}
+        result = self.call({"jsonrpc": "2.0", "id": 91, "method": "tools/call",
+                            "params": {"name": "omada_site_outage_summary",
+                                       "arguments": args}},
+                           lambda op, values: seen.append((op, values)) or {"status": "ok"})
+        self.assertEqual(seen, [("site_outage_summary", {
+            "site_ref": args["site_ref"], "start_ms": str(args["start_ms"]),
+            "end_ms": str(args["end_ms"]),
+        })])
+        self.assertFalse(result["result"]["isError"])
+        for invalid in ({**args, "end_ms": True}, {**args, "extra": "no"}):
+            rejected = self.call({"jsonrpc": "2.0", "id": 92, "method": "tools/call",
+                                  "params": {"name": "omada_site_outage_summary",
+                                             "arguments": invalid}})
+            self.assertEqual(rejected["error"]["message"], "arguments_invalid")
+
     def test_ap_scan_status_tool_accepts_only_opaque_inventory_refs(self):
         seen = []
         args = {"site_ref": "a" * 24, "device_ref": "b" * 24}

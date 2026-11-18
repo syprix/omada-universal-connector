@@ -60,6 +60,14 @@ except ImportError:  # direct execution in the image
         validate_site_log_window,
     )
 try:
+    from .site_outage_summary import (
+        SiteOutageSummaryError, project_site_outage_summary,
+    )
+except ImportError:  # direct execution in the image
+    from site_outage_summary import (
+        SiteOutageSummaryError, project_site_outage_summary,
+    )
+try:
     from .controller_threat_window_summary import (
         ThreatWindowError, summarize_threat_rows,
     )
@@ -11909,6 +11917,39 @@ class OmadaOpenApiClient:
                     raise OpenApiError("openapi_response_invalid")
                 data[target] = value
         return {"status": "ok", "resource": "site_overview", "site_ref": site_ref, "data": data}
+
+    def read_site_outage_summary(self, site_ref: str, start_ms: int,
+                                 end_ms: int) -> dict[str, object]:
+        """Combine a selected log window with the current site reachability snapshot."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        try:
+            start_ms, end_ms = validate_site_log_window(start_ms, end_ms)
+        except SiteLogWindowError:
+            raise OpenApiError("time_window_invalid") from None
+
+        try:
+            overview: object = self.read_site_overview(site_ref)
+        except OpenApiError:
+            overview = None
+        observed_at_ms = (int(time.time() * 1000)
+                          if isinstance(overview, dict) and overview.get("status") == "ok"
+                          else None)
+        try:
+            events: object = self.read_site_log_window_summary(
+                site_ref, "events", start_ms, end_ms)
+        except OpenApiError:
+            events = None
+        try:
+            alerts: object = self.read_site_log_window_summary(
+                site_ref, "alerts", start_ms, end_ms)
+        except OpenApiError:
+            alerts = None
+        try:
+            return project_site_outage_summary(
+                site_ref, start_ms, end_ms, overview, events, alerts, observed_at_ms)
+        except SiteOutageSummaryError as exc:
+            raise OpenApiError(exc.code) from None
 
     @_track_capability("site_topology")
     def read_site_topology(self, site_ref: str) -> dict[str, object]:

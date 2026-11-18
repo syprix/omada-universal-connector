@@ -1599,6 +1599,15 @@ class Handler(BaseHTTPRequestHandler):
             return self._mcp_network_diagnose_switch(arguments)
         if operation_id == "network_overview":
             return self._mcp_network_overview(arguments)
+        if operation_id == "site_outage_summary":
+            try:
+                with _OPENAPI_LOCK:
+                    return _openapi_client().read_site_outage_summary(
+                        arguments["site_ref"], int(arguments["start_ms"]),
+                        int(arguments["end_ms"]))
+            except (KeyError, ValueError, OpenApiError) as exc:
+                code = str(exc) if isinstance(exc, OpenApiError) else "arguments_invalid"
+                return {"status": "error", "error": code}
         if operation_id == "ssid_network_summary":
             return self._mcp_ssid_network_summary(arguments)
         try:
@@ -2056,10 +2065,41 @@ class Handler(BaseHTTPRequestHandler):
             return False
         return True
 
+    def _serve_site_outage_summary(self, parsed_request: object, match: object) -> None:
+        if not self._authorized():
+            return
+        try:
+            query_values = parse_qs(parsed_request.query, keep_blank_values=True,
+                                    strict_parsing=True)
+            if (set(query_values) != {"start_ms", "end_ms"} or
+                    any(len(values) != 1 for values in query_values.values())):
+                raise RegistryError("outage summary requires one start_ms and end_ms")
+            start_text, end_text = query_values["start_ms"][0], query_values["end_ms"][0]
+            if (not re.fullmatch(r"[0-9]{12,13}", start_text) or
+                    not re.fullmatch(r"[0-9]{12,13}", end_text)):
+                raise RegistryError("outage summary time bounds invalid")
+            with _OPENAPI_LOCK:
+                result = _openapi_client().read_site_outage_summary(
+                    match.group(1), int(start_text), int(end_text))
+            self._send(HTTPStatus.OK, result)
+        except RegistryError:
+            self._send(HTTPStatus.BAD_REQUEST,
+                       {"status": "error", "error": "query_invalid"})
+        except OpenApiError as exc:
+            status = (HTTPStatus.BAD_REQUEST if exc.args and exc.args[0] in {
+                "site_ref_invalid", "site_ref_unknown", "time_window_invalid"}
+                else HTTPStatus.BAD_GATEWAY)
+            self._send(status, {"status": "error", "error": str(exc)})
+
     def _openapi_get(self) -> None:
         registry_match = None
         try:
             parsed_request = urlsplit(self.path)
+            outage_match = re.fullmatch(
+                r"/v1/sites/([0-9a-f]{24})/outage-summary", parsed_request.path)
+            if outage_match is not None:
+                self._serve_site_outage_summary(parsed_request, outage_match)
+                return
             registry_match = REGISTRY.match("GET", parsed_request.path)
             operation = registry_match[0]
             query_values = parse_qs(parsed_request.query, keep_blank_values=True, strict_parsing=True)

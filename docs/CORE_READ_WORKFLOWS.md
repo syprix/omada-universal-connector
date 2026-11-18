@@ -16,6 +16,12 @@ The event and alert window endpoints accept UTC epoch milliseconds with a maximu
 
 For a synthetic 30-sample walk session, the two JSONL inputs used 2,622 and 2,631 tokens; the comparison JSON used 741 tokens. That is 4,512 fewer tokens (85.90%) than passing both input files onward with the result. Counts use `js-tiktoken` 1.0.21 and `o200k_base`. This fixture measure covers serialized payloads only; it excludes tool schemas, requests, host framing and billed agent usage.
 
+## Site outage context
+
+`GET /v1/sites/{site_ref}/outage-summary?start_ms=…&end_ms=…` and `omada_site_outage_summary` combine the current site reachability counters with bounded event and alert summaries for one UTC window of at most 24 hours. The current counters are timestamped separately from the requested log period. The workflow omits event details and identifiers, reports partial log pagination, and leaves site-wide scope indeterminate when sources cannot establish device correlation or cause. Fixture-backed HTTP and MCP dispatch are tested; no controller was queried.
+
+To export that JSON response locally, save it to a private file and run `python3 tools/site_outage_report.py --input ./outage-summary.json --output ./outage-report.md`. The exporter does not connect to the controller, rejects symlinks and non-private input files, creates a new owner-only output file without overwriting, and omits site/device references from the report.
+
 ## Verification scope
 
 These workflows have fixture and HTTP/MCP dispatch tests and are cross-checked against all three supplied API exports. No controller was queried for this change. Live support remains unknown.

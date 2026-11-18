@@ -10573,7 +10573,8 @@
         "test_network_overview.py",
         "test_openapi_http.py",
         "test_operation_registry.py",
-        "test_registry_shadow.py"
+        "test_registry_shadow.py",
+        "test_site_outage_summary.py"
       ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
@@ -13932,7 +13933,8 @@
         "test_network_overview.py",
         "test_openapi_http.py",
         "test_operation_registry.py",
-        "test_site_identity_log_window.py"
+        "test_site_identity_log_window.py",
+        "test_site_outage_summary.py"
       ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
@@ -13962,7 +13964,8 @@
         "test_network_overview.py",
         "test_openapi_http.py",
         "test_operation_registry.py",
-        "test_site_identity_log_window.py"
+        "test_site_identity_log_window.py",
+        "test_site_outage_summary.py"
       ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
