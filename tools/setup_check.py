@@ -22,13 +22,13 @@ from app.openapi import OmadaOpenApiClient, OpenApiConfig, OpenApiError  # noqa:
 
 
 _MCP_REQUEST_ID = "setup-check"
-_MAX_MCP_RESPONSE_BYTES = 16_384
+_MAX_MCP_RESPONSE_BYTES = 131_072
 _MESSAGES = {
     "configuration": "Connector-Konfiguration und Zugangsdatenpfade",
     "tls": "TLS-Verbindung und Zertifikatsprüfung zum Controller",
     "authentication": "Omada-Anmeldung per Client-Zugang",
     "read_permission": "Leserecht auf das Standortinventar",
-    "mcp": "MCP-Initialize-Handshake zum Connector",
+    "mcp": "MCP-Handshake, Werkzeugliste, sicherer Leseaufruf und Fehlerpfad",
 }
 _EXPLANATIONS = {
     "openapi_configuration_missing": "Erforderliche Controller-Einstellungen fehlen.",
@@ -52,6 +52,9 @@ _EXPLANATIONS = {
     "connector_authentication_failed": "Der Connector hat den MCP-Aufruf abgelehnt; Zugang und Token prüfen.",
     "mcp_handshake_invalid": "Der Connector hat keine gültige MCP-Initialize-Antwort geliefert.",
     "mcp_handshake_rejected": "Der Connector hat den MCP-Handshake abgelehnt.",
+    "mcp_tools_list_invalid": "Die MCP-Werkzeugliste fehlt oder ist ungültig.",
+    "mcp_safe_read_failed": "Der harmlose MCP-Leseaufruf ist fehlgeschlagen.",
+    "mcp_error_handling_failed": "Der erwartete MCP-Fehler wurde nicht sicher zurückgegeben.",
 }
 
 
@@ -165,6 +168,12 @@ def _connector_address(value: str) -> tuple[str, str, int]:
     return parsed.scheme, host, port or (443 if parsed.scheme == "https" else 80)
 
 
+class _McpCheckError(Exception):
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+
+
 def _mcp_check(connector_url: str, token_file: str | None) -> dict[str, object]:
     try:
         token = _read_connector_token(token_file)
@@ -180,44 +189,99 @@ def _mcp_check(connector_url: str, token_file: str | None) -> dict[str, object]:
                 host, port, timeout=3, context=ssl.create_default_context())
         else:
             connection = http.client.HTTPConnection(host, port, timeout=3)
-        body = json.dumps({
-            "jsonrpc": "2.0", "id": _MCP_REQUEST_ID, "method": "initialize",
-            "params": {
-                "protocolVersion": "2025-06-18", "capabilities": {},
-                "clientInfo": {"name": "omada-setup-check", "version": "1"},
-            },
-        }, separators=(",", ":")).encode("utf-8")
-        connection.request("POST", "/mcp", body=body, headers={
-            "Authorization": "Bearer " + token.decode("ascii"),
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "Connection": "close",
+        def exchange(request_id: str, method: str, params: dict[str, object]) -> dict[str, object]:
+            body = json.dumps({"jsonrpc": "2.0", "id": request_id, "method": method,
+                               "params": params}, separators=(",", ":")).encode("utf-8")
+            connection.request("POST", "/mcp", body=body, headers={
+                "Authorization": "Bearer " + token.decode("ascii"),
+                "Content-Type": "application/json", "Accept": "application/json",
+                "Connection": "close",
+            })
+            response = connection.getresponse()
+            status = response.status
+            content_type = response.getheader("Content-Type", "").split(";", 1)[0].strip().lower()
+            raw = response.read(_MAX_MCP_RESPONSE_BYTES + 1)
+            if status == 401:
+                raise _McpCheckError("connector_authentication_failed")
+            if status != 200:
+                raise _McpCheckError("mcp_handshake_rejected")
+            if content_type != "application/json" or len(raw) > _MAX_MCP_RESPONSE_BYTES:
+                raise _McpCheckError("mcp_handshake_invalid")
+            try:
+                payload = json.loads(raw.decode("utf-8"))
+            except (UnicodeError, json.JSONDecodeError, RecursionError):
+                raise _McpCheckError("mcp_handshake_invalid") from None
+            if (not isinstance(payload, dict) or payload.get("jsonrpc") != "2.0" or
+                    payload.get("id") != request_id):
+                raise _McpCheckError("mcp_handshake_invalid")
+            return payload
+
+        initialized = exchange(f"{_MCP_REQUEST_ID}-initialize", "initialize", {
+            "protocolVersion": "2025-06-18", "capabilities": {},
+            "clientInfo": {"name": "omada-setup-check", "version": "1"},
         })
-        response = connection.getresponse()
-        status = response.status
-        content_type = response.getheader("Content-Type", "").split(";", 1)[0].strip().lower()
-        raw = response.read(_MAX_MCP_RESPONSE_BYTES + 1)
-        if status == 401:
-            return _check("mcp", "error", "connector_authentication_failed")
-        if status != 200:
-            return _check("mcp", "error", "mcp_handshake_rejected",
-                          http_status=status)
-        if (content_type != "application/json" or len(raw) > _MAX_MCP_RESPONSE_BYTES):
-            return _check("mcp", "error", "mcp_handshake_invalid")
-        try:
-            payload = json.loads(raw.decode("utf-8"))
-        except (UnicodeError, json.JSONDecodeError, RecursionError):
-            return _check("mcp", "error", "mcp_handshake_invalid")
-        result = payload.get("result") if isinstance(payload, dict) else None
-        if (not isinstance(payload, dict) or payload.get("jsonrpc") != "2.0" or
-                payload.get("id") != _MCP_REQUEST_ID or not isinstance(result, dict) or
-                result.get("protocolVersion") != "2025-06-18" or
+        result = initialized.get("result")
+        if (not isinstance(result, dict) or result.get("protocolVersion") != "2025-06-18" or
                 not isinstance(result.get("serverInfo"), dict) or
                 result["serverInfo"].get("name") != "omada-universal-connector" or
                 not isinstance(result["serverInfo"].get("version"), str)):
             return _check("mcp", "error", "mcp_handshake_invalid")
-        return _check("mcp", "ok", detail="Der authentifizierte MCP-Initialize-Handshake war erfolgreich.",
-                      protocol_version=result["protocolVersion"])
+
+        tool_names: set[str] = set()
+        safe_read_advertised = False
+        cursor: str | None = None
+        seen_cursors: set[str] = set()
+        for page_number in range(64):
+            params = {"cursor": cursor} if cursor is not None else {}
+            page_payload = exchange(f"{_MCP_REQUEST_ID}-tools-{page_number}", "tools/list", params)
+            page = page_payload.get("result")
+            tools = page.get("tools") if isinstance(page, dict) else None
+            if (not isinstance(tools, list) or len(tools) > 25 or
+                    any(not isinstance(item, dict) or not isinstance(item.get("name"), str)
+                        for item in tools)):
+                return _check("mcp", "error", "mcp_tools_list_invalid")
+            for item in tools:
+                name = item["name"]
+                tool_names.add(name)
+                annotations = item.get("annotations")
+                if name == "omada_sites" and isinstance(annotations, dict):
+                    safe_read_advertised = annotations.get("readOnlyHint") is True
+            next_cursor = page.get("nextCursor")
+            if next_cursor is None:
+                break
+            if (not isinstance(next_cursor, str) or not next_cursor.isdigit() or
+                    next_cursor in seen_cursors):
+                return _check("mcp", "error", "mcp_tools_list_invalid")
+            seen_cursors.add(next_cursor)
+            cursor = next_cursor
+        else:
+            return _check("mcp", "error", "mcp_tools_list_invalid")
+        if "omada_sites" not in tool_names or not safe_read_advertised:
+            return _check("mcp", "error", "mcp_tools_list_invalid")
+
+        safe_read = exchange(f"{_MCP_REQUEST_ID}-read", "tools/call", {
+            "name": "omada_sites", "arguments": {},
+        })
+        read_result = safe_read.get("result")
+        read_data = read_result.get("structuredContent") if isinstance(read_result, dict) else None
+        if (not isinstance(read_result, dict) or read_result.get("isError") is True or
+                not isinstance(read_data, dict) or read_data.get("status") != "ok" or
+                read_data.get("resource") != "sites" or
+                not isinstance(read_data.get("items"), list)):
+            return _check("mcp", "error", "mcp_safe_read_failed")
+
+        expected_error = exchange(f"{_MCP_REQUEST_ID}-error", "tools/call", {
+            "name": "omada_setup_check_unknown", "arguments": {},
+        }).get("error")
+        if (not isinstance(expected_error, dict) or expected_error.get("code") != -32601 or
+                expected_error.get("message") != "tool_unknown"):
+            return _check("mcp", "error", "mcp_error_handling_failed")
+        return _check(
+            "mcp", "ok", detail="MCP-Initialisierung, Werkzeugliste, Standort-Leseaufruf und Fehlerantwort bestanden.",
+            protocol_version=result["protocolVersion"], tool_count=len(tool_names),
+            safe_read_tool="omada_sites", error_path="tool_unknown")
+    except _McpCheckError as exc:
+        return _check("mcp", "error", exc.code)
     except ssl.SSLError:
         return _check("mcp", "error", "connector_tls_failed")
     except (OSError, TimeoutError, http.client.HTTPException, ValueError, socket.gaierror):
@@ -277,7 +341,7 @@ def run_setup_check(*, connector_url: str | None = None,
     return {"status": status, "read_only": True, "checks": checks,
             "limitations": [
                 "The read-permission check covers only the site inventory; other routes can require different roles.",
-                "The MCP check validates one authenticated initialize handshake, not an agent application's configuration.",
+                "The MCP check validates protocol steps against this connector, not a third-party agent application's configuration or compatibility.",
                 "No names, addresses, credentials, access tokens, or inventory references are included.",
             ]}
 

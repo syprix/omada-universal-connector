@@ -6,7 +6,7 @@ This page summarizes the connector's current capabilities and the evidence behin
 
 The current local development branch also contains these read-only workflows:
 
-- Setup check: separates configuration, controller TLS, authentication, site-inventory permission and MCP initialization checks. Fixture tests pass; no live setup check was run.
+- Setup check: separates configuration, controller TLS, authentication, site-inventory permission and MCP checks. MCP verifies initialization, paginated discovery, the read-only advertisement, one site-inventory call and the unknown-tool error path. Fixture tests pass; no live setup check was run.
 - Diagnostic capability report: available over authenticated HTTP and MCP, reusing existing evidence without probing routes.
 - Configuration snapshots: captures selected radio, SSID, LAN and DNS projection fields in versioned owner-only files; comparisons mark incomplete data as not comparable. No live snapshot was captured.
 - WLAN network mapping: available over authenticated HTTP and MCP; checks up to 64 SSIDs, 32 matched networks and four gateway records. DNS-to-WLAN and gateway-to-network links remain unknown when the source does not expose them. No live controller workflow was run.
@@ -25,8 +25,9 @@ The #7â€“10 baseline was checked with 302 offline tests and hosted CI. The #11â€
 ## Recent follow-on validation
 
 - Function 17, AP quality history: the exact PR head passed both hosted CI events (push run 44399281194 and pull-request run 44399357670). No controller read or scan was made.
-- Function 18, site firmware summary: draft PR #8 is based on function 17; its exact-head push and pull-request CI runs were still in progress at the last check. Local focused and required gates passed; no live firmware query or upgrade was made.
+- Function 18, site firmware summary: draft PR #8 is based on function 17; its exact-head push and pull-request CI runs passed. Local focused and required gates passed; no live firmware query or upgrade was made.
 - Function 19, local offline demo: two focused tests and the 235-test registry/matrix/evidence gate passed. The demo uses synthetic data and makes no network request; no agent-client compatibility is inferred from it.
+- Function 20, MCP setup protocol check: the guided check now validates initialize, paginated tools/list, the advertised read-only site tool, one site read and the standard unknown-tool error. Ten focused setup-check tests, 23 MCP tests and the 235-test registry/matrix/evidence gate passed. These are mocked/offline connector tests; this change did not run a live setup check or an agent client. Draft PR and hosted CI status are recorded with the next checkpoint.
 
 The DHCP pool workflow was checked against the range and lease schemas in all three supplied API exports. Focused projector and HTTP/MCP fixture tests pass. This confirms implementation behavior for the documented fields only; live support is unverified.
 

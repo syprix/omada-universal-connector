@@ -166,7 +166,7 @@ curl --silent --show-error http://127.0.0.1:18080/mcp \
   --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"local-check","version":"0"}}}'
 ```
 
-For discovery, send `tools/list`; for use, send `tools/call` with the exact advertised tool name and arguments.
+For discovery, send `tools/list`; for use, send `tools/call` with the exact advertised tool name and arguments. The local `tools/setup_check.py` command validates an authenticated initialize response, all paged tool-list responses, the advertised read-only hint for `omada_sites`, one safe site-inventory call, and the expected `tool_unknown` JSON-RPC error. It reports counts and protocol status only. This is a connector-side protocol check and does not prove compatibility with a specific agent application; see [client evidence](INTEGRATIONS.md).
 
 ## Agent connection settings
 
@@ -232,19 +232,19 @@ The user-level server entry has this shape:
 ```
 
 These settings prepare the connection; they do not establish client
-compatibility. No Hermes, Codex or Claude Code connection has been tested.
-Only a successful end-to-end handshake and tool call from the named client will
-change its status. Local protocol and HTTP tests use a fake controller client
-to verify JSON-RPC handling, bearer authentication, direct WLAN reads, all six
-bundled workflows, topology dispatch and Origin rejection. They do not launch
-an agent runtime. The connector does not manage agent credentials.
+compatibility. Codex completed a separate end-to-end handshake and three tool
+calls in a temporary loopback-only setup; Hermes and Claude Code remain
+untested. Local protocol and HTTP tests use a fake controller client to verify
+JSON-RPC handling, bearer authentication, direct WLAN reads, bundled workflows,
+topology dispatch and Origin rejection. They do not launch an agent runtime.
+The connector does not manage agent credentials.
 
 Manufacturer setup references: [Hermes MCP](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp), [Codex MCP](https://developers.openai.com/codex/mcp), [Claude Code MCP](https://code.claude.com/docs/en/mcp).
 
 The setup snippets use the Compose host binding `127.0.0.1:18080` (container
 port `8080`). On 2026-11-13, the connector's focused local regressions passed:
-18 MCP tests and 65 HTTP tests. These checks use a fake controller and are not
-tests of Hermes, Codex or Claude Code.
+18 MCP tests and 65 HTTP tests. These fixture checks use a fake controller and
+are separate from the Codex client run described in [client evidence](INTEGRATIONS.md).
 
 ## Security and limits
 
