@@ -69,7 +69,9 @@ class ClientTimelineSummaryTests(unittest.TestCase):
                 "client_ref": CLIENT_REF, "kind": kind, "window_start_ms": WINDOW_START,
                 "window_end_ms": WINDOW_END, "data": {"sessions": [{
                     "start_ms": WINDOW_START, "end_ms": WINDOW_END,
-                    "events": [{"time_ms": WINDOW_START + 100, "event_type": 2},
+                    "events": [{"time_ms": WINDOW_START + 100, "event_type": 2,
+                                "previous_access_point_ref": "d" * 24,
+                                "access_point_ref": "e" * 24},
                                {"time_ms": WINDOW_START + 200, "event_type": 100}],
                 }]}, "partial": False, "missing_fields": [], "omitted_fields": [],
                 "omitted_field_count": 0,
@@ -94,6 +96,8 @@ class ClientTimelineSummaryTests(unittest.TestCase):
         detail = full["client"]["timelines"]["roaming"]
         summary = compact["client"]["timelines"]["roaming"]
         self.assertIn("sessions", detail["data"])
+        self.assertEqual(detail["data"]["sessions"][0]["events"][0][
+            "previous_access_point_ref"], "d" * 24)
         self.assertNotIn("data", summary)
         self.assertEqual(summary["summary"]["event_count"], 2)
         self.assertEqual(summary["summary"]["by_event_type_code"], {"2": 1, "100": 1})

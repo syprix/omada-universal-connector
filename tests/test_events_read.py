@@ -48,7 +48,7 @@ class SiteEventReadTests(unittest.TestCase):
                  "level": "WARNING", "content": "Name private 10.0.0.1"}]
         with patch.object(self.client, "_access_token", return_value="token"), \
                 patch.object(self.client, "_read_site_log_pages",
-                             return_value=(rows, len(rows), None)), \
+                             return_value=(rows, len(rows), None, 1)), \
                 patch("app.openapi.datetime") as dt:
             dt.now.return_value = __import__("datetime").datetime.fromtimestamp(now / 1000,
                                                                __import__("datetime").timezone.utc)
@@ -66,7 +66,7 @@ class SiteEventReadTests(unittest.TestCase):
         with patch.object(self.client, "_access_token", return_value="token"), \
                 patch.object(self.client, "_read_site_log_pages", return_value=([
                     {"id": "e1", "module": "System", "time": now + 40 * 24 * 60 * 60 * 1000}],
-                    1, None)), \
+                    1, None, 1)), \
                 patch("app.openapi.datetime") as dt:
             dt.now.return_value = __import__("datetime").datetime.fromtimestamp(now / 1000,
                                                                __import__("datetime").timezone.utc)

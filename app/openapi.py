@@ -51,11 +51,13 @@ except ImportError:  # direct execution in the image
     from device_adoption_summary import DeviceAdoptionSummaryError, summarize_adoption_devices
 try:
     from .site_log_window_summary import (
-        SiteLogWindowError, summarize_site_log_window, validate_site_log_window,
+        SiteLogWindowError, resolve_local_site_log_window, summarize_site_log_window,
+        validate_site_log_window,
     )
 except ImportError:  # direct execution in the image
     from site_log_window_summary import (
-        SiteLogWindowError, summarize_site_log_window, validate_site_log_window,
+        SiteLogWindowError, resolve_local_site_log_window, summarize_site_log_window,
+        validate_site_log_window,
     )
 try:
     from .controller_threat_window_summary import (
@@ -236,6 +238,12 @@ try:
     from .client_history import ClientHistoryError, project_client_history
 except ImportError:  # direct execution in the image
     from client_history import ClientHistoryError, project_client_history
+try:
+    from .client_outage_timeline import (
+        ClientOutageTimelineError, project_client_outage_timeline,
+    )
+except ImportError:  # direct execution in the image
+    from client_outage_timeline import ClientOutageTimelineError, project_client_outage_timeline
 try:
     from .mesh_statistics import MeshStatisticsProjectionError, project_mesh_statistics
 except ImportError:  # direct execution in the image
@@ -2505,6 +2513,8 @@ class OmadaOpenApiClient:
         ("client_timeline_disconnect", "GET /v1/sites/{site_ref}/clients/{client_ref}/timeline/disconnect"),
         ("client_health", "GET /v1/sites/{site_ref}/clients/{client_ref}/health"),
         ("client_health_timeline", "GET /v1/sites/{site_ref}/clients/{client_ref}/health/timeline"),
+        ("client_outage_timeline",
+         "GET /v1/sites/{site_ref}/clients/{client_ref}/outage-timeline"),
         ("networks", "GET /v1/sites/{site_ref}/networks"),
         ("network_dhcp_server_capabilities",
          "GET /v1/sites/{site_ref}/networks/{network_ref}/dhcp-server/capabilities"),
@@ -4096,8 +4106,10 @@ class OmadaOpenApiClient:
         return {**data, "site_ref": site_ref, "client_ref": client_ref}
 
     @_track_capability("client_timeline")
-    def read_client_timeline(self, site_ref: str, client_ref: str, kind: str) -> dict[str, object]:
-        """Read a redacted fixed 24-hour client event timeline from inventory."""
+    def read_client_timeline(self, site_ref: str, client_ref: str, kind: str,
+                             start_ms: int | None = None,
+                             end_ms: int | None = None) -> dict[str, object]:
+        """Read a redacted client event timeline within a bounded time window."""
         type_by_kind = {"connect": 0, "association": 1, "roaming": 2, "disconnect": 3}
         if not isinstance(kind, str) or kind not in type_by_kind:
             raise OpenApiError("client_timeline_kind_invalid")
@@ -4111,15 +4123,25 @@ class OmadaOpenApiClient:
         mac = self._client_macs_by_site_ref.get(site_ref, {}).get(client_ref)
         if not mac:
             raise OpenApiError("client_ref_unknown")
-        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
-        start_ms = end_ms - 24 * 60 * 60 * 1000
+        if start_ms is None and end_ms is None:
+            end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+            start_ms = end_ms - 24 * 60 * 60 * 1000
+        try:
+            start_ms, end_ms = validate_site_log_window(start_ms, end_ms)
+        except SiteLogWindowError:
+            raise OpenApiError("time_window_invalid") from None
         query = urlencode({"start": start_ms, "end": end_ms, "type": type_by_kind[kind]})
         path = self._CLIENT_TIMELINE_PATH.format(
             controller_id=self.config.controller_id, site_id=site_id, client_mac=mac
         ) + "?" + query
         result = self._request_json("GET", path, token=self._access_token()).get("result")
         try:
-            data = project_client_timeline(result, start_ms, end_ms, mac)
+            device_inventory = self._device_macs_by_site_ref.get(site_ref)
+            device_ref_by_mac = ({
+                device_mac.replace(":", "").replace("-", "").lower(): device_ref
+                for device_ref, device_mac in device_inventory.items()
+            } if device_inventory is not None else None)
+            data = project_client_timeline(result, start_ms, end_ms, mac, device_ref_by_mac)
         except ClientTimelineError:
             raise OpenApiError("openapi_response_invalid") from None
         return {**data, "site_ref": site_ref, "client_ref": client_ref,
@@ -4214,8 +4236,10 @@ class OmadaOpenApiClient:
                 "window_start_ms": start_ms, "window_end_ms": end_ms, "data": out}
 
     @_track_capability("client_health_timeline")
-    def read_client_health_timeline(self, site_ref: str, client_ref: str) -> dict[str, object]:
-        """Read a redacted client-health score timeline for the fixed last 24 hours."""
+    def read_client_health_timeline(self, site_ref: str, client_ref: str,
+                                    start_ms: int | None = None,
+                                    end_ms: int | None = None) -> dict[str, object]:
+        """Read a redacted client-health score timeline within a bounded window."""
         if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
             raise OpenApiError("site_ref_invalid")
         site_id = self._site_ids_by_ref.get(site_ref, "")
@@ -4226,8 +4250,13 @@ class OmadaOpenApiClient:
         mac = self._client_macs_by_site_ref.get(site_ref, {}).get(client_ref)
         if not mac:
             raise OpenApiError("client_ref_unknown")
-        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
-        start_ms = end_ms - 24 * 60 * 60 * 1000
+        if start_ms is None and end_ms is None:
+            end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+            start_ms = end_ms - 24 * 60 * 60 * 1000
+        try:
+            start_ms, end_ms = validate_site_log_window(start_ms, end_ms)
+        except SiteLogWindowError:
+            raise OpenApiError("time_window_invalid") from None
         query = urlencode({"start": start_ms, "end": end_ms})
         path = self._CLIENT_HEALTH_TIMELINE_PATH.format(
             controller_id=self.config.controller_id, site_id=site_id, client_mac=mac
@@ -4239,6 +4268,56 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {**data, "site_ref": site_ref, "client_ref": client_ref,
                 "window_start_ms": start_ms, "window_end_ms": end_ms}
+
+    def read_client_outage_timeline(self, site_ref: str, client_ref: str,
+                                    start_ms: int, end_ms: int) -> dict[str, object]:
+        """Join client event/health samples with bounded, site-wide log context."""
+        try:
+            start_ms, end_ms = validate_site_log_window(start_ms, end_ms)
+        except SiteLogWindowError:
+            raise OpenApiError("time_window_invalid") from None
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        if not isinstance(client_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", client_ref):
+            raise OpenApiError("client_ref_invalid")
+        if site_ref not in self._site_ids_by_ref:
+            raise OpenApiError("site_ref_unknown")
+        if client_ref not in self._client_macs_by_site_ref.get(site_ref, {}):
+            raise OpenApiError("client_ref_unknown")
+
+        device_inventory_available = True
+        try:
+            self.list_devices(site_ref)
+        except OpenApiError:
+            device_inventory_available = False
+            self._device_macs_by_site_ref.pop(site_ref, None)
+
+        client_sources: dict[str, object] = {}
+        for kind in ("connect", "association", "roaming", "disconnect"):
+            try:
+                client_sources[kind] = self.read_client_timeline(
+                    site_ref, client_ref, kind, start_ms, end_ms)
+            except OpenApiError as exc:
+                client_sources[kind] = {"status": "error", "error": exc.code}
+        try:
+            health = self.read_client_health_timeline(site_ref, client_ref, start_ms, end_ms)
+        except OpenApiError as exc:
+            health = {"status": "error", "error": exc.code}
+        site_logs = {}
+        for kind in ("events", "alerts"):
+            try:
+                site_logs[kind] = self.read_site_log_window_summary(
+                    site_ref, kind, start_ms, end_ms)
+            except OpenApiError as exc:
+                site_logs[kind] = {"status": "error", "error": exc.code}
+        try:
+            return project_client_outage_timeline(
+                client_ref, start_ms, end_ms, client_sources, health,
+                site_logs.get("events"), site_logs.get("alerts"),
+                int(datetime.now(timezone.utc).timestamp() * 1000),
+                ap_assignment_available=device_inventory_available)
+        except ClientOutageTimelineError:
+            raise OpenApiError("openapi_response_invalid") from None
 
     @_track_capability("networks")
     def list_networks(self, site_ref: str) -> dict[str, object]:
@@ -12261,7 +12340,7 @@ class OmadaOpenApiClient:
             raise OpenApiError("site_ref_unknown")
         template = self._SITE_EVENT_PATH if kind == "events" else self._SITE_ALERT_PATH
         base = template.format(controller_id=self.config.controller_id, site_id=site_id)
-        rows, total_count, module_totals = self._read_site_log_pages(
+        rows, total_count, module_totals, pages_fetched = self._read_site_log_pages(
             base, self._access_token(), start_ms, end_ms,
             use_event_summary=(kind == "events"), allow_partial=True)
         try:
@@ -12269,7 +12348,29 @@ class OmadaOpenApiClient:
                 rows, kind, start_ms, end_ms, total_count, module_totals)
         except SiteLogWindowError:
             raise OpenApiError("openapi_response_invalid") from None
+        result["pagination"] = {
+            "pages_fetched": pages_fetched,
+            "page_size": self.config.page_size,
+            "page_limit": self.config.max_pages,
+            "page_limit_reached": result["partial"],
+        }
         return {**result, "site_ref": site_ref}
+
+    def read_site_log_local_window_summary(self, site_ref: str, kind: str,
+                                           start_local: str, end_local: str,
+                                           time_zone: str) -> dict[str, object]:
+        try:
+            start_ms, end_ms, zone_name, local_start, local_end = (
+                resolve_local_site_log_window(start_local, end_local, time_zone))
+        except SiteLogWindowError:
+            raise OpenApiError("time_window_invalid") from None
+        result = self.read_site_log_window_summary(site_ref, kind, start_ms, end_ms)
+        result.update({
+            "time_zone": zone_name,
+            "window_start_local": local_start.isoformat(),
+            "window_end_local": local_end.isoformat(),
+        })
+        return result
 
     def _list_site_log(self, site_ref: str, kind: str) -> dict[str, object]:
         if kind not in {"events", "alerts"}:
@@ -12285,7 +12386,7 @@ class OmadaOpenApiClient:
         start_ms = end_ms - int(timedelta(days=30).total_seconds() * 1000)
         template = self._SITE_EVENT_PATH if kind == "events" else self._SITE_ALERT_PATH
         base = template.format(controller_id=self.config.controller_id, site_id=site_id)
-        rows, total_count, module_totals = self._read_site_log_pages(
+        rows, total_count, module_totals, _pages_fetched = self._read_site_log_pages(
             base, self._access_token(), start_ms, end_ms,
             use_event_summary=(kind == "events"))
         items = []
@@ -12331,7 +12432,7 @@ class OmadaOpenApiClient:
                              start_ms: int, end_ms: int, *,
                              use_event_summary: bool = False,
                              allow_partial: bool = False
-                             ) -> tuple[list[object], int, dict[str, int] | None]:
+                             ) -> tuple[list[object], int, dict[str, int] | None, int]:
         rows: list[object] = []
         expected_total: int | None = None
         module_totals: dict[str, int] | None = None
@@ -12382,9 +12483,9 @@ class OmadaOpenApiClient:
                         for source, target in fields.items() if target != "total"
                     }
             if len(rows) >= expected_total:
-                return rows, expected_total, module_totals
+                return rows, expected_total, module_totals, page
         if allow_partial and expected_total is not None:
-            return rows, expected_total, module_totals
+            return rows, expected_total, module_totals, self.config.max_pages
         raise OpenApiError("openapi_page_limit_reached")
 
     def patch_ap_radio_power(self, site_ref: str, device_ref: str,

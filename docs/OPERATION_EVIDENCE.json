@@ -9629,12 +9629,14 @@
       ],
       "connector_evidence": "fixed_get_registry_route",
       "operation_ids": [
+        "client_outage_timeline",
         "client_timeline_association",
         "client_timeline_connect",
         "client_timeline_disconnect",
         "client_timeline_roaming"
       ],
       "public_templates": [
+        "/v1/sites/{site_ref}/clients/{client_ref}/outage-timeline",
         "/v1/sites/{site_ref}/clients/{client_ref}/timeline/association",
         "/v1/sites/{site_ref}/clients/{client_ref}/timeline/connect",
         "/v1/sites/{site_ref}/clients/{client_ref}/timeline/disconnect",
@@ -9642,8 +9644,10 @@
       ],
       "source_map_label": "implemented_read",
       "static_test_references": [
+        "test_client_outage_timeline.py",
         "test_openapi_http.py",
-        "test_operation_registry.py"
+        "test_operation_registry.py",
+        "test_site_identity_log_window.py"
       ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
@@ -9695,6 +9699,7 @@
       "static_test_references": [
         "test_client_health_timeline.py",
         "test_client_health_timeline_integration.py",
+        "test_client_outage_timeline.py",
         "test_client_timeline_summary.py",
         "test_openapi_http.py",
         "test_operation_registry.py",

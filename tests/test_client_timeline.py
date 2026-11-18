@@ -40,6 +40,21 @@ class ClientTimelineProjectionTests(unittest.TestCase):
         for secret in ("aa:bb:cc:dd:ee:ff", "private text", "attributes", "private-mac"):
             self.assertNotIn(secret, rendered)
 
+    def test_roaming_event_maps_only_same_site_ap_references(self) -> None:
+        result = project_client_timeline([{
+            "mac": TARGET_MAC, "start": START, "end": END,
+            "events": [{"time": START + 1, "eventType": 2,
+                        "content": "private AP details",
+                        "attributes": {"old_dev_mac": "00-11-22-33-44-66",
+                                       "dev_mac": "00-11-22-33-44-77"}}],
+        }], START, END, TARGET_MAC,
+           {"001122334466": "a" * 24, "001122334477": "b" * 24})
+        event = result["data"]["sessions"][0]["events"][0]
+        self.assertEqual(event["previous_access_point_ref"], "a" * 24)
+        self.assertEqual(event["access_point_ref"], "b" * 24)
+        for private in ("00-11-22-33-44-66", "00-11-22-33-44-77", "private AP details"):
+            self.assertNotIn(private, repr(result))
+
     def test_unknown_fields_redacted_and_partial(self) -> None:
         result = project_client_timeline([{
             "mac": TARGET_MAC, "start": START, "end": END, "secretField": "private",

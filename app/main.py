@@ -115,6 +115,10 @@ try:
 except ImportError:  # direct execution in the image
     from olt_onu_inventory_summary import OltOnuInventoryError, validate_pon_port_selector
 try:
+    from .site_log_window_summary import SiteLogWindowError, resolve_local_site_log_window
+except ImportError:  # direct execution in the image
+    from site_log_window_summary import SiteLogWindowError, resolve_local_site_log_window
+try:
     from .journal_runtime import JournalRuntime, initialize_journal_runtime
 except ImportError:  # direct execution in the image
     from journal_runtime import JournalRuntime, initialize_journal_runtime
@@ -1607,9 +1611,10 @@ class Handler(BaseHTTPRequestHandler):
                       operation.upstream_method == "POST"))):
             raise McpRequestError("tool_not_read_only")
         route = operation.public_template
+        path_arguments = set(re.findall(r"\{([a-z][a-z0-9_]*)\}", operation.public_template))
         for key, value in arguments.items():
             route = route.replace("{" + key + "}", value)
-        query_arguments = set(operation.extra_arguments) | set(operation.local_arguments)
+        query_arguments = set(arguments) - path_arguments
         if query_arguments:
             route += "?" + urlencode({key: arguments[key] for key in query_arguments})
         if "{" in route or "}" in route or not route.startswith("/v1/"):
@@ -2058,10 +2063,15 @@ class Handler(BaseHTTPRequestHandler):
             registry_match = REGISTRY.match("GET", parsed_request.path)
             operation = registry_match[0]
             query_values = parse_qs(parsed_request.query, keep_blank_values=True, strict_parsing=True)
-            local_arguments = set(operation.local_arguments)
-            expected_query = set(operation.extra_arguments) | local_arguments
-            if set(query_values) != expected_query or any(len(values) != 1 for values in query_values.values()):
+            local_argument_sets = REGISTRY.local_argument_sets(operation)
+            allowed_query_sets = {
+                frozenset(operation.extra_arguments) | frozenset(group)
+                for group in local_argument_sets
+            }
+            if (frozenset(query_values) not in allowed_query_sets or
+                    any(len(values) != 1 for values in query_values.values())):
                 raise RegistryError("query not allowed")
+            local_arguments = set(query_values) - set(operation.extra_arguments)
             registry_bindings = dict(registry_match[1])
             registry_bindings.update({name: values[0] for name, values in query_values.items()})
             for name in {"client_name", "ssid_name"} & local_arguments:
@@ -2079,6 +2089,13 @@ class Handler(BaseHTTPRequestHandler):
                 if (not 946684800000 <= start_ms <= end_ms <= 4102444800000 or
                         end_ms - start_ms > 86_400_000 or end_ms > now_ms + 60_000):
                     raise RegistryError("log time window invalid")
+            if {"start_local", "end_local", "time_zone"} == local_arguments:
+                try:
+                    resolve_local_site_log_window(
+                        registry_bindings["start_local"], registry_bindings["end_local"],
+                        registry_bindings["time_zone"], int(time.time() * 1000))
+                except SiteLogWindowError as exc:
+                    raise RegistryError("local log time window invalid") from exc
             if "archived" in local_arguments and registry_bindings.get("archived") not in {"true", "false"}:
                 raise RegistryError("archived selector invalid")
             if "vlan_id" in local_arguments:
@@ -2361,14 +2378,43 @@ class Handler(BaseHTTPRequestHandler):
                     result = client.resolve_site_client_identity(
                         registry_bindings["site_ref"], registry_bindings["client_name"],
                         registry_bindings["ssid_name"])
+                elif registry_operation == "client_outage_timeline":
+                    if "start_local" in registry_bindings:
+                        start_ms, end_ms, zone_name, local_start, local_end = (
+                            resolve_local_site_log_window(
+                                registry_bindings["start_local"], registry_bindings["end_local"],
+                                registry_bindings["time_zone"]))
+                        result = client.read_client_outage_timeline(
+                            registry_bindings["site_ref"], registry_bindings["client_ref"],
+                            start_ms, end_ms)
+                        result.update({"time_zone": zone_name,
+                                       "window_start_local": local_start.isoformat(),
+                                       "window_end_local": local_end.isoformat()})
+                    else:
+                        result = client.read_client_outage_timeline(
+                            registry_bindings["site_ref"], registry_bindings["client_ref"],
+                            int(registry_bindings["start_ms"]),
+                            int(registry_bindings["end_ms"]))
                 elif registry_operation == "site_events_window_summary":
-                    result = client.read_site_log_window_summary(
-                        registry_bindings["site_ref"], "events",
-                        int(registry_bindings["start_ms"]), int(registry_bindings["end_ms"]))
+                    if "start_local" in registry_bindings:
+                        result = client.read_site_log_local_window_summary(
+                            registry_bindings["site_ref"], "events",
+                            registry_bindings["start_local"], registry_bindings["end_local"],
+                            registry_bindings["time_zone"])
+                    else:
+                        result = client.read_site_log_window_summary(
+                            registry_bindings["site_ref"], "events",
+                            int(registry_bindings["start_ms"]), int(registry_bindings["end_ms"]))
                 elif registry_operation == "site_alerts_window_summary":
-                    result = client.read_site_log_window_summary(
-                        registry_bindings["site_ref"], "alerts",
-                        int(registry_bindings["start_ms"]), int(registry_bindings["end_ms"]))
+                    if "start_local" in registry_bindings:
+                        result = client.read_site_log_local_window_summary(
+                            registry_bindings["site_ref"], "alerts",
+                            registry_bindings["start_local"], registry_bindings["end_local"],
+                            registry_bindings["time_zone"])
+                    else:
+                        result = client.read_site_log_window_summary(
+                            registry_bindings["site_ref"], "alerts",
+                            int(registry_bindings["start_ms"]), int(registry_bindings["end_ms"]))
                 elif registry_operation == "networks":
                     result = client.list_networks(registry_bindings["site_ref"])
                 elif registry_operation == "network_dhcp_server_capabilities":

@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 import unittest
 from unittest.mock import patch
 
 from app.openapi import OmadaOpenApiClient, OpenApiConfig, OpenApiError
-from app.site_log_window_summary import summarize_site_log_window
+from app.site_log_window_summary import (
+    SiteLogWindowError, resolve_local_site_log_window, summarize_site_log_window,
+)
 
 
 class SiteIdentityAndLogWindowTests(unittest.TestCase):
@@ -145,6 +148,53 @@ class SiteIdentityAndLogWindowTests(unittest.TestCase):
         self.assertEqual(result["total_count"], 6)
         self.assertEqual(result["returned_count"], 4)
 
+    def test_local_window_resolves_timezone_and_rejects_dst_edges(self):
+        start, end, zone, local_start, local_end = resolve_local_site_log_window(
+            "2026-11-18T09:20", "2026-11-18T09:30", "Europe/Berlin",
+            now_ms=1_800_000_000_000)
+        self.assertEqual((end - start), 10 * 60 * 1000)
+        self.assertEqual(zone, "Europe/Berlin")
+        self.assertEqual(local_start.isoformat(), "2026-11-18T09:20:00+01:00")
+        self.assertEqual(local_end.isoformat(), "2026-11-18T09:30:00+01:00")
+        for value in ("2026-03-29T02:30", "2026-10-25T02:30"):
+            with self.assertRaises(SiteLogWindowError):
+                resolve_local_site_log_window(value, "2026-10-25T03:30",
+                                              "Europe/Berlin", now_ms=1_800_000_000_000)
+
+    def test_window_summary_reports_observed_pagination(self):
+        first = {"result": {"data": [{"time": 1_700_000_000_001,
+                                       "module": "system"}], "totalRows": 3,
+                            "currentPage": 1, "currentSize": 2}}
+        second = {"result": {"data": [{"time": 1_700_000_000_002,
+                                        "module": "device"}], "totalRows": 3,
+                             "currentPage": 2, "currentSize": 2}}
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", side_effect=[first, second]):
+            result = self.client.read_site_log_window_summary(
+                self.site_ref, "events", 1_700_000_000_000, 1_700_000_000_100)
+        self.assertEqual(result["pagination"], {
+            "pages_fetched": 2, "page_size": 2, "page_limit": 2,
+            "page_limit_reached": True,
+        })
+
+    def test_local_window_is_converted_before_documented_upstream_filters(self):
+        requests = []
+
+        def request(method, path, **kwargs):
+            requests.append((method, path))
+            return {"result": {"data": [], "totalRows": 0,
+                               "currentPage": 1, "currentSize": 0}}
+
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", side_effect=request):
+            result = self.client.read_site_log_local_window_summary(
+                self.site_ref, "events", "2026-11-18T09:20", "2026-11-18T09:30",
+                "Europe/Berlin")
+        query = parse_qs(urlsplit(requests[0][1]).query)
+        self.assertEqual(query["filters.timeStart"], ["1794990000000"])
+        self.assertEqual(query["filters.timeEnd"], ["1794990600000"])
+        self.assertEqual(result["time_zone"], "Europe/Berlin")
+
     def test_summary_rejects_out_of_window_rows(self):
         with self.assertRaises(ValueError):
             summarize_site_log_window([{"time": 12, "module": "system"}],
@@ -154,6 +204,11 @@ class SiteIdentityAndLogWindowTests(unittest.TestCase):
         path = Path(__file__).resolve().parents[1] / "docs/CONTRACT_MATRIX.json"
         matrix = json.loads(path.read_text(encoding="utf-8"))
         self.assertEqual(len(matrix["sources"]), 3)
+        flow = matrix["derived_read_flows"][0]
+        self.assertEqual(flow["connector_operation_id"], "client_outage_timeline")
+        self.assertEqual({item["operation_id"] for item in flow["source_operations"]}, {
+            "getClientTimeline", "getClientHealthTimeList",
+            "getEventLogsForSite", "getAlertLogsForSite"})
         expected = {
             "site_client_identity_match": "getGridActiveClients",
             "site_events_window_summary": "getEventLogsForSite",

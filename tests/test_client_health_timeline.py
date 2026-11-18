@@ -102,12 +102,16 @@ class ClientHealthTimelineProjectionTests(unittest.TestCase):
                            **{f"x{i}": i for i in range(32)}}]}, START, END),
             ({"scores": []}, True, END),
             ({"scores": []}, END, START),
-            ({"scores": []}, START, START + 1),
             ({"scores": []}, 0, 2**63),
         )
         for raw, start, end in invalid_inputs:
             with self.subTest(raw=type(raw).__name__), self.assertRaises(ClientHealthTimelineError):
                 project_client_health_timeline(raw, start, end)
+
+    def test_bounded_subday_window_is_valid(self) -> None:
+        result = project_client_health_timeline(
+            {"scores": [{"time": START + 1, "score": 7}]}, START, START + 10_000)
+        self.assertEqual(result["data"]["scores"], [{"time_ms": START + 1, "score": 7}])
 
 
 if __name__ == "__main__":

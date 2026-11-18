@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import re
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
 class SiteLogWindowError(ValueError):
@@ -10,6 +12,11 @@ class SiteLogWindowError(ValueError):
 MIN_TIME_MS = 946684800000  # 2000-01-01 UTC
 MAX_TIME_MS = 4102444800000  # 2100-01-01 UTC
 MAX_WINDOW_MS = 24 * 60 * 60 * 1000
+_LOCAL_DATETIME = re.compile(
+    r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}"
+    r"(?::[0-9]{2}(?:\.[0-9]{1,3})?)?"
+)
+_TIME_ZONE = re.compile(r"[A-Za-z0-9_+-]+(?:/[A-Za-z0-9_+-]+)*")
 
 
 def validate_site_log_window(start_ms: object, end_ms: object,
@@ -24,6 +31,46 @@ def validate_site_log_window(start_ms: object, end_ms: object,
     if type(now_ms) is not int or end_ms > now_ms + 60_000:
         raise SiteLogWindowError("time_window_invalid")
     return start_ms, end_ms
+
+
+def resolve_local_site_log_window(start_local: object, end_local: object,
+                                  time_zone: object, now_ms: int | None = None
+                                  ) -> tuple[int, int, str, datetime, datetime]:
+    """Resolve naive local wall times through an explicit IANA timezone.
+
+    Ambiguous and nonexistent wall times are rejected so DST transitions never
+    silently select an offset. The upstream API receives only UTC epoch ms.
+    """
+    if (not isinstance(start_local, str) or not isinstance(end_local, str) or
+            not _LOCAL_DATETIME.fullmatch(start_local) or
+            not _LOCAL_DATETIME.fullmatch(end_local) or
+            not isinstance(time_zone, str) or len(time_zone) > 64 or
+            not _TIME_ZONE.fullmatch(time_zone)):
+        raise SiteLogWindowError("time_window_invalid")
+    try:
+        zone = ZoneInfo(time_zone)
+        start_wall = datetime.fromisoformat(start_local)
+        end_wall = datetime.fromisoformat(end_local)
+    except (ValueError, ZoneInfoNotFoundError):
+        raise SiteLogWindowError("time_window_invalid") from None
+    if start_wall.tzinfo is not None or end_wall.tzinfo is not None:
+        raise SiteLogWindowError("time_window_invalid")
+
+    def resolve(wall: datetime) -> datetime:
+        first = wall.replace(tzinfo=zone, fold=0)
+        second = wall.replace(tzinfo=zone, fold=1)
+        if first.utcoffset() != second.utcoffset():
+            raise SiteLogWindowError("time_window_invalid")
+        utc_value = first.astimezone(timezone.utc)
+        if utc_value.astimezone(zone).replace(tzinfo=None) != wall:
+            raise SiteLogWindowError("time_window_invalid")
+        return first
+
+    start_aware, end_aware = resolve(start_wall), resolve(end_wall)
+    start_ms = int(start_aware.astimezone(timezone.utc).timestamp() * 1000)
+    end_ms = int(end_aware.astimezone(timezone.utc).timestamp() * 1000)
+    start_ms, end_ms = validate_site_log_window(start_ms, end_ms, now_ms)
+    return start_ms, end_ms, time_zone, start_aware, end_aware
 
 
 def summarize_site_log_window(rows: object, kind: str, start_ms: int, end_ms: int,
