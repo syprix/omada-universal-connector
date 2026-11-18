@@ -1,0 +1,38 @@
+services:
+  omada-connector:
+    build: .
+    image: omada-universal-connector:dev
+    container_name: omada-universal-connector-dev
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: "no"
+    ports:
+      - "127.0.0.1:18080:8080"
+    environment:
+      LISTEN_HOST: 0.0.0.0
+      LISTEN_PORT: "8080"
+      # Supply only through an approved runtime configuration; never commit it.
+      OMADA_BASE_URL: https://192.0.2.1
+      OMADA_TIMEOUT_SECONDS: "5"
+      OMADA_ENABLE_WRITES: "false"
+      OMADA_CERT_SHA256: ""
+      # Optional change-apply gates. Keep commented for the default read-only
+      # deployment. Operators must provide a caller token plus separate
+      # reference/operator keys and approve each preview interactively.
+      # No example secret is included.
+      # OMADA_REFERENCE_KEY_FILE: /run/secrets/omada_reference_key
+      # OMADA_OPERATOR_APPROVAL_KEY_FILE: /run/secrets/omada_operator_approval_key
+      # OMADA_CHANGE_JOURNAL_DIR: /state/change-journal
+      # Open API inventory routes remain disabled without private secret mounts
+      # and OMADA_CONNECTOR_TOKEN_FILE in a deployment override.
+    # Optional named-volume mount; the root filesystem remains read-only and
+    # this is the only additional writable mount. No host path or Docker socket.
+    # Uncomment together with OMADA_CHANGE_JOURNAL_DIR above only when opting in.
+    # volumes:
+    #   - change-journal:/state/change-journal
+
+volumes:
+  change-journal:

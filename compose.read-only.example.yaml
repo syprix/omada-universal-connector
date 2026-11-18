@@ -1,0 +1,59 @@
+# Example override for the existing compose.yaml service.
+#
+# Before use, set the host-side *_HOST_FILE variables to existing regular files.
+# Client ID, client secret and the container caller-token copy should be owned
+# by UID:GID 10001:10001 (the image process), mode 0400. Do not use symlinks;
+# parent directories must allow UID 10001 to traverse them.
+#
+# If using tools/wifi_diagnose.py on the host, keep a SEPARATE caller-token file
+# with the same token bytes, owned by the invoking host user, mode 0400 or 0600,
+# and no symlink/hardlink path. The CLI rejects the container-owned token copy.
+# Both token files need at least 32 printable ASCII bytes and must be rotated
+# together. Provision them from the same protected secret source; do not put
+# secret contents in this file or Compose environment values.
+#
+# Example invocation after preparing the files and non-secret settings:
+#   docker compose -f compose.yaml -f compose.read-only.example.yaml config
+# This file intentionally leaves write, operator-approval, reference-key and
+# journal settings unset. The base compose file keeps writes disabled.
+
+services:
+  omada-connector:
+    read_only: true
+    environment:
+      LISTEN_HOST: 0.0.0.0
+      LISTEN_PORT: "8080"
+      OMADA_BASE_URL: "${OMADA_BASE_URL:?set the HTTPS controller base URL}"
+      OMADA_CONTROLLER_ID: "${OMADA_CONTROLLER_ID:?set the controller ID}"
+      OMADA_CLIENT_ID_FILE: /run/secrets/omada_client_id
+      OMADA_CLIENT_SECRET_FILE: /run/secrets/omada_client_secret
+      OMADA_CONNECTOR_TOKEN_FILE: /run/secrets/connector_caller_token
+      OMADA_TLS_TRUST: pin_sha256
+      OMADA_CERT_SHA256: "${OMADA_CERT_SHA256:?set the controller certificate SHA-256 pin}"
+      OMADA_TIMEOUT_SECONDS: "5"
+      OMADA_OPENAPI_PAGE_SIZE: "100"
+      OMADA_OPENAPI_MAX_PAGES: "10"
+      OMADA_ENABLE_WRITES: "false"
+      OMADA_EXPOSE_DESCRIPTIVE_NAMES: "false"
+    ports:
+      # Keep the connector reachable only through the host loopback interface.
+      - "127.0.0.1:18080:8080"
+    volumes:
+      - type: bind
+        source: "${OMADA_CLIENT_ID_HOST_FILE:?set path to the client ID file}"
+        target: /run/secrets/omada_client_id
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: "${OMADA_CLIENT_SECRET_HOST_FILE:?set path to the client secret file}"
+        target: /run/secrets/omada_client_secret
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: "${OMADA_CONNECTOR_TOKEN_HOST_FILE:?set path to the caller token file}"
+        target: /run/secrets/connector_caller_token
+        read_only: true
+        bind:
+          create_host_path: false

@@ -1,0 +1,26 @@
+name: Feature request
+description: Suggest a bounded connector capability
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: Requests should identify the user need and relevant documented API operation. Do not include credentials or private network data.
+  - type: textarea
+    id: need
+    attributes:
+      label: Problem to solve
+    validations:
+      required: true
+  - type: textarea
+    id: operation
+    attributes:
+      label: Relevant Omada API operation or source
+      description: Method/path and source release, if known. A catalog entry alone does not establish implementation or safe behavior.
+    validations:
+      required: false
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired bounded outcome
+    validations:
+      required: true

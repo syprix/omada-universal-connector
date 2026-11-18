@@ -1,0 +1,15166 @@
+"""Fixed, read-only Omada Open API client (client-credentials OAuth).
+
+This module deliberately has no caller-selected path or HTTP route. Credentials
+are supplied as file paths and are never included in errors or result objects.
+Route shapes and token header follow TP-Link's Omada OpenAPI Cookbook; the
+controller's installed Online API Document remains the deployment authority.
+"""
+from __future__ import annotations
+
+import hashlib
+import hmac
+import http.client
+import ipaddress
+import json
+import math
+import os
+import re
+import secrets
+import stat
+import ssl
+import threading
+import time
+import unicodedata
+from collections.abc import Callable, Mapping
+from datetime import datetime, timezone, timedelta
+from functools import wraps
+from dataclasses import dataclass
+from urllib.parse import parse_qs, quote, urlencode, urlsplit
+
+try:
+    from .finite_values import is_finite_number
+except ImportError:  # direct execution in the image
+    from finite_values import is_finite_number
+try:
+    from .radius_user_summary import RadiusUserSummaryError, summarize_radius_users
+except ImportError:  # direct execution in the image
+    from radius_user_summary import RadiusUserSummaryError, summarize_radius_users
+try:
+    from .device_tag_summary import DeviceTagSummaryError, summarize_device_tags
+except ImportError:  # direct execution in the image
+    from device_tag_summary import DeviceTagSummaryError, summarize_device_tags
+try:
+    from .global_device_summary import (
+        GlobalDeviceSummaryError, project_global_device_summary,
+    )
+except ImportError:  # direct execution in the image
+    from global_device_summary import GlobalDeviceSummaryError, project_global_device_summary
+try:
+    from .device_adoption_summary import DeviceAdoptionSummaryError, summarize_adoption_devices
+except ImportError:  # direct execution in the image
+    from device_adoption_summary import DeviceAdoptionSummaryError, summarize_adoption_devices
+try:
+    from .site_log_window_summary import (
+        SiteLogWindowError, summarize_site_log_window, validate_site_log_window,
+    )
+except ImportError:  # direct execution in the image
+    from site_log_window_summary import (
+        SiteLogWindowError, summarize_site_log_window, validate_site_log_window,
+    )
+try:
+    from .controller_threat_window_summary import (
+        ThreatWindowError, summarize_threat_rows,
+    )
+except ImportError:  # direct execution in the image
+    from controller_threat_window_summary import (
+        ThreatWindowError, summarize_threat_rows,
+    )
+try:
+    from .scenario_difference_summary import (
+        ScenarioDifferenceError, summarize_scenario_differences,
+    )
+except ImportError:  # direct execution in the image
+    from scenario_difference_summary import (
+        ScenarioDifferenceError, summarize_scenario_differences,
+    )
+
+try:
+    from .switch_vlan import SwitchVlanProjectionError, project_switch_network_rows
+except ImportError:  # direct execution in the image
+    from switch_vlan import SwitchVlanProjectionError, project_switch_network_rows
+try:
+    from .ap_health import ApHealthProjectionError, DIMENSIONS as AP_HEALTH_DIMENSIONS, project_ap_health_detail
+except ImportError:  # direct execution in the image
+    from ap_health import ApHealthProjectionError, DIMENSIONS as AP_HEALTH_DIMENSIONS, project_ap_health_detail
+try:
+    from .ap_speed_test import ApSpeedTestError, project_ap_speed_test
+except ImportError:  # direct execution in the image
+    from ap_speed_test import ApSpeedTestError, project_ap_speed_test
+try:
+    from .ap_wired_downlink import ApWiredDownlinkError, project_ap_wired_downlink
+except ImportError:  # direct execution in the image
+    from ap_wired_downlink import ApWiredDownlinkError, project_ap_wired_downlink
+try:
+    from .ap_ports import ApPortsError, summarize_ap_ports
+except ImportError:  # direct execution in the image
+    from ap_ports import ApPortsError, summarize_ap_ports
+try:
+    from .ap_port_vlans import ApPortVlansError, summarize_ap_port_vlans
+except ImportError:  # direct execution in the image
+    from ap_port_vlans import ApPortVlansError, summarize_ap_port_vlans
+try:
+    from .ap_bridge_config import ApBridgeConfigError, summarize_ap_bridge_config
+except ImportError:  # direct execution in the image
+    from ap_bridge_config import ApBridgeConfigError, summarize_ap_bridge_config
+try:
+    from .ap_mesh_candidates import ApMeshCandidatesError, summarize_ap_mesh_candidates
+except ImportError:  # direct execution in the image
+    from ap_mesh_candidates import ApMeshCandidatesError, summarize_ap_mesh_candidates
+try:
+    from .ap_general_config import ApGeneralConfigError, summarize_ap_general_config
+except ImportError:  # direct execution in the image
+    from ap_general_config import ApGeneralConfigError, summarize_ap_general_config
+try:
+    from .ap_ip_setting import ApIpSettingError, summarize_ap_ip_setting
+except ImportError:  # direct execution in the image
+    from ap_ip_setting import ApIpSettingError, summarize_ap_ip_setting
+try:
+    from .ap_ipv6_setting import ApIpv6SettingError, summarize_ap_ipv6_setting
+except ImportError:  # direct execution in the image
+    from ap_ipv6_setting import ApIpv6SettingError, summarize_ap_ipv6_setting
+try:
+    from .ap_snmp_config import ApSnmpConfigError, summarize_ap_snmp_config
+except ImportError:  # direct execution in the image
+    from ap_snmp_config import ApSnmpConfigError, summarize_ap_snmp_config
+try:
+    from .ap_vlan_v1 import ApVlanV1Error, summarize_ap_vlan_v1
+except ImportError:  # direct execution in the image
+    from ap_vlan_v1 import ApVlanV1Error, summarize_ap_vlan_v1
+try:
+    from .ap_wlan_overrides import ApWlanOverridesError, summarize_ap_wlan_overrides
+except ImportError:  # direct execution in the image
+    from ap_wlan_overrides import ApWlanOverridesError, summarize_ap_wlan_overrides
+try:
+    from .ap_p2p_info import ApP2pInfoError, summarize_ap_p2p_info
+except ImportError:  # direct execution in the image
+    from ap_p2p_info import ApP2pInfoError, summarize_ap_p2p_info
+try:
+    from .ap_l3_access import ApL3AccessError, summarize_ap_l3_access
+except ImportError:  # direct execution in the image
+    from ap_l3_access import ApL3AccessError, summarize_ap_l3_access
+try:
+    from .ap_paring_window import ApParingWindowError, summarize_ap_paring_window
+except ImportError:  # direct execution in the image
+    from ap_paring_window import ApParingWindowError, summarize_ap_paring_window
+try:
+    from .ap_management_ssid import ApManagementSsidError, summarize_ap_management_ssid
+except ImportError:  # direct execution in the image
+    from ap_management_ssid import ApManagementSsidError, summarize_ap_management_ssid
+try:
+    from .rogue_ap_results import RogueApResultsError, summarize_rogue_ap_results
+except ImportError:  # direct execution in the image
+    from rogue_ap_results import RogueApResultsError, summarize_rogue_ap_results
+try:
+    from .wids_summary import (WidsSummaryError, MAX_PAGE_SIZE as WIDS_MAX_PAGE_SIZE,
+                               summarize_wids_results, summarize_wids_blacklist)
+except ImportError:  # direct execution in the image
+    from wids_summary import (WidsSummaryError, MAX_PAGE_SIZE as WIDS_MAX_PAGE_SIZE,
+                              summarize_wids_results, summarize_wids_blacklist)
+try:
+    from .ap_uplink_config import ApUplinkConfigError, project_ap_uplink_config
+    from .ap_lldp import ApLldpError, project_ap_lldp
+except ImportError:  # direct execution in the image
+    from ap_uplink_config import ApUplinkConfigError, project_ap_uplink_config
+    from ap_lldp import ApLldpError, project_ap_lldp
+try:
+    from .gateway_lan_status import GatewayLanStatusError, project_gateway_lan_status
+except ImportError:  # direct execution in the image
+    from gateway_lan_status import GatewayLanStatusError, project_gateway_lan_status
+try:
+    from .gateway_ports import GatewayPortsError, project_gateway_ports
+except ImportError:  # direct execution in the image
+    from gateway_ports import GatewayPortsError, project_gateway_ports
+try:
+    from .gateway_speed_test import GatewaySpeedTestError, project_gateway_speed_test
+except ImportError:  # direct execution in the image
+    from gateway_speed_test import GatewaySpeedTestError, project_gateway_speed_test
+try:
+    from .speed_test_settings import SpeedTestSettingsError, project_speed_test_settings
+except ImportError:  # direct execution in the image
+    from speed_test_settings import SpeedTestSettingsError, project_speed_test_settings
+try:
+    from .gateway_internet import GatewayInternetError, project_gateway_internet
+except ImportError:  # direct execution in the image
+    from gateway_internet import GatewayInternetError, project_gateway_internet
+try:
+    from .ap_health_timeline import ApHealthTimelineError, project_ap_health_timeline
+except ImportError:  # direct execution in the image
+    from ap_health_timeline import ApHealthTimelineError, project_ap_health_timeline
+try:
+    from .client_timeline import ClientTimelineError, project_client_timeline
+except ImportError:  # direct execution in the image
+    from client_timeline import ClientTimelineError, project_client_timeline
+try:
+    from .client_health_timeline import ClientHealthTimelineError, project_client_health_timeline
+except ImportError:  # direct execution in the image
+    from client_health_timeline import ClientHealthTimelineError, project_client_health_timeline
+try:
+    from .site_client_health_timeline import (
+        SiteClientHealthTimelineError, project_site_client_health_timeline,
+    )
+except ImportError:  # direct execution in the image
+    from site_client_health_timeline import (
+        SiteClientHealthTimelineError, project_site_client_health_timeline,
+    )
+try:
+    from .experience_index import ExperienceIndexError, project_experience_index
+except ImportError:  # direct execution in the image
+    from experience_index import ExperienceIndexError, project_experience_index
+try:
+    from .rf_planning_result import RfPlanningResultError, project_rf_planning_result
+except ImportError:  # direct execution in the image
+    from rf_planning_result import RfPlanningResultError, project_rf_planning_result
+try:
+    from .rf_planning_dashboard import (
+        RfPlanningDashboardError, project_rf_planning_dashboard,
+    )
+except ImportError:  # direct execution in the image
+    from rf_planning_dashboard import RfPlanningDashboardError, project_rf_planning_dashboard
+try:
+    from .rf_planning_detail import RfPlanningDetailError, project_rf_planning_detail
+except ImportError:  # direct execution in the image
+    from rf_planning_detail import RfPlanningDetailError, project_rf_planning_detail
+try:
+    from .rf_planning_history import RfPlanningHistoryError, project_rf_planning_history
+except ImportError:  # direct execution in the image
+    from rf_planning_history import RfPlanningHistoryError, project_rf_planning_history
+try:
+    from .rf_excluded_aps import RfExcludedApsError, project_rf_excluded_aps
+except ImportError:  # direct execution in the image
+    from rf_excluded_aps import RfExcludedApsError, project_rf_excluded_aps
+try:
+    from .rf_deploy_history import RfDeployHistoryError, project_rf_deploy_history
+except ImportError:  # direct execution in the image
+    from rf_deploy_history import RfDeployHistoryError, project_rf_deploy_history
+try:
+    from .client_history import ClientHistoryError, project_client_history
+except ImportError:  # direct execution in the image
+    from client_history import ClientHistoryError, project_client_history
+try:
+    from .mesh_statistics import MeshStatisticsProjectionError, project_mesh_statistics
+except ImportError:  # direct execution in the image
+    from mesh_statistics import MeshStatisticsProjectionError, project_mesh_statistics
+try:
+    from .reference_key import ReferenceKeyError, load_reference_key
+except ImportError:  # direct execution in the image
+    from reference_key import ReferenceKeyError, load_reference_key
+try:
+    from .wan_health import WanHealthProjectionError, project_wan_details
+except ImportError:  # direct execution in the image
+    from wan_health import WanHealthProjectionError, project_wan_details
+try:
+    from .ap_retry_drop import ApRetryDropProjectionError, project_ap_retry_drop
+except ImportError:  # direct execution in the image
+    from ap_retry_drop import ApRetryDropProjectionError, project_ap_retry_drop
+try:
+    from .gateway_health import GatewayHealthProjectionError, project_gateway_health_detail
+except ImportError:  # direct execution in the image
+    from gateway_health import GatewayHealthProjectionError, project_gateway_health_detail
+try:
+    from .gateway_health_timeline import GatewayHealthTimelineError, project_gateway_health_timeline
+except ImportError:  # direct execution in the image
+    from gateway_health_timeline import GatewayHealthTimelineError, project_gateway_health_timeline
+try:
+    from .wifi_health import WifiHealthProjectionError, project_wifi_health
+except ImportError:  # direct execution in the image
+    from wifi_health import WifiHealthProjectionError, project_wifi_health
+try:
+    from .wifi_subhealth import WifiSubhealthError, project_wifi_subhealth
+except ImportError:  # direct execution in the image
+    from wifi_subhealth import WifiSubhealthError, project_wifi_subhealth
+try:
+    from .lldp_neighbors import LldpNeighborProjectionError, project_lldp_neighbor_rows
+except ImportError:  # direct execution in the image
+    from lldp_neighbors import LldpNeighborProjectionError, project_lldp_neighbor_rows
+try:
+    from .switch_health import SwitchHealthProjectionError, project_switch_health_detail
+except ImportError:  # direct execution in the image
+    from switch_health import SwitchHealthProjectionError, project_switch_health_detail
+try:
+    from .switch_health_timeline import SwitchHealthTimelineError, project_switch_health_timeline
+except ImportError:  # direct execution in the image
+    from switch_health_timeline import SwitchHealthTimelineError, project_switch_health_timeline
+try:
+    from .switch_sdm_usage import SwitchSdmUsageError, project_switch_sdm_usage
+except ImportError:  # direct execution in the image
+    from switch_sdm_usage import SwitchSdmUsageError, project_switch_sdm_usage
+try:
+    from .switch_cable_test_logs import SwitchCableTestLogsError, project_switch_cable_test_logs
+except ImportError:  # direct execution in the image
+    from switch_cable_test_logs import SwitchCableTestLogsError, project_switch_cable_test_logs
+try:
+    from .switch_cable_test_results import SwitchCableTestResultsError, project_switch_cable_test_results
+except ImportError:  # direct execution in the image
+    from switch_cable_test_results import SwitchCableTestResultsError, project_switch_cable_test_results
+try:
+    from .switch_cable_test_ports import SwitchCableTestPortsError, project_switch_cable_test_ports
+except ImportError:  # direct execution in the image
+    from switch_cable_test_ports import SwitchCableTestPortsError, project_switch_cable_test_ports
+try:
+    from .switch_ospf_neighbors import SwitchOspfNeighborsError, summarize_switch_ospf_neighbors
+except ImportError:  # direct execution in the image
+    from switch_ospf_neighbors import SwitchOspfNeighborsError, summarize_switch_ospf_neighbors
+try:
+    from .switch_port_networks import SwitchPortNetworksError, summarize_switch_port_networks
+except ImportError:  # direct execution in the image
+    from switch_port_networks import SwitchPortNetworksError, summarize_switch_port_networks
+try:
+    from .switch_network_membership import (
+        SwitchNetworkMembershipError,
+        summarize_switch_network_membership,
+    )
+except ImportError:  # direct execution in the image
+    from switch_network_membership import (
+        SwitchNetworkMembershipError,
+        summarize_switch_network_membership,
+    )
+try:
+    from .switch_exist_networks import SwitchExistNetworksError, summarize_switch_exist_networks
+except ImportError:  # direct execution in the image
+    from switch_exist_networks import SwitchExistNetworksError, summarize_switch_exist_networks
+try:
+    from .switch_networks import SwitchNetworksError, summarize_switch_networks
+except ImportError:  # direct execution in the image
+    from switch_networks import SwitchNetworksError, summarize_switch_networks
+try:
+    from .switch_interfaces import SwitchInterfacesError, summarize_switch_interfaces
+except ImportError:  # direct execution in the image
+    from switch_interfaces import SwitchInterfacesError, summarize_switch_interfaces
+try:
+    from .switch_routing_table import SwitchRoutingTableError, summarize_switch_routing_table
+except ImportError:  # direct execution in the image
+    from switch_routing_table import SwitchRoutingTableError, summarize_switch_routing_table
+try:
+    from .switch_static_routes import SwitchStaticRoutesError, summarize_switch_static_routes
+    from .site_setting_existence import SiteSettingExistenceError, project_site_setting_existence
+    from .site_entity_summary import SiteEntitySummaryError, summarize_site_entity
+    from .site_upnp_summary import SiteUpnpSummaryError, summarize_site_upnp
+    from .site_gre_tunnel_summary import SiteGreTunnelSummaryError, summarize_site_gre_tunnel
+    from .site_ssl_vpn_summary import SiteSslVpnSummaryError, summarize_site_ssl_vpn
+    from .site_ssh_summary import SiteSshSummaryError, summarize_site_ssh
+    from .site_mld_summary import SiteMldSummaryError, summarize_site_mld
+    from .site_igmp_summary import SiteIgmpSummaryError, summarize_site_igmp, summarize_site_template_igmp
+    from .site_template_summary import SiteTemplateSummaryError, summarize_site_template
+    from .site_iptv_summary import SiteIptvSummaryError, summarize_site_iptv
+    from .site_template_iptv_service_summary import (
+        SiteTemplateIptvServiceSummaryError, summarize_site_template_iptv_service)
+    from .site_capabilities import SiteCapabilitiesError, project_site_capabilities
+    from .site_duplicate_ssid_summary import (
+        DuplicateSsidProjectionError, project_duplicate_ssid_summary,
+    )
+    from .site_ssid_ap_groups import SsidApGroupsError, project_ssid_ap_groups
+    from .site_topology_network_summary import (
+        TopologyNetworkSummaryError, project_topology_network_summary,
+    )
+    from .site_topology_vlan_summary import (
+        TopologyVlanSummaryError, project_topology_vlan_summary,
+    )
+    from .site_unresolved_incident_count import (
+        SiteUnresolvedIncidentCountError, project_site_unresolved_incident_count,
+    )
+    from .site_incident_overview import (
+        SiteIncidentOverviewError, WINDOW_MS as INCIDENT_OVERVIEW_WINDOW_MS,
+        project_site_incident_overview,
+    )
+    from .site_incident_distribution import (
+        SiteIncidentDistributionError,
+        WINDOW_MS as INCIDENT_DISTRIBUTION_WINDOW_MS,
+        project_site_incident_distribution,
+    )
+    from .site_incident_category_counts import (
+        SiteIncidentCategoryCountsError, project_site_incident_category_counts,
+    )
+    from .site_incident_list import (
+        SiteIncidentListError, PAGE_SIZE as INCIDENT_PAGE_SIZE,
+        WINDOW_MS as INCIDENT_LIST_WINDOW_MS, project_site_incident_list,
+    )
+    from .site_batch_interference_history import (
+        SiteBatchInterferenceHistoryError,
+        project_site_batch_interference_history,
+    )
+    from .olt_system_reads import (
+        OltSystemReadError, project_olt_management_interfaces, project_olt_system_info,
+    )
+    from .olt_detail import OltDetailError, project_olt_detail
+    from .olt_ports_summary import OltPortsSummaryError, project_olt_ports_summary
+    from .olt_pon_status import (
+        OltPonStatusError, project_olt_onu_global_status,
+        project_olt_onu_isolation_status,
+    )
+    from .olt_eth_config_summary import (
+        OltEthConfigError, project_olt_eth_config_summary,
+        project_olt_lag_config_summary,
+    )
+    from .olt_pon_info_summary import (
+        OltPonInfoError, project_olt_auto_refresh_summary,
+        project_olt_pon_information_summary,
+    )
+    from .olt_onu_registration_summary import (
+        OltOnuRegistrationError, project_olt_onu_auto_auth_status,
+        project_olt_onu_autofind_summary,
+    )
+    from .olt_onu_inventory_summary import (
+        OltOnuInventoryError, project_olt_onu_inventory_summary,
+        project_olt_onu_reboot_status_summary, validate_pon_port_selector,
+    )
+    from .olt_pon_port_config_summary import (
+        OltPonPortConfigError, project_olt_pon_port_config_summary,
+        project_olt_pon_port_config_page_summary,
+    )
+    from .olt_autofind_inventory_summary import (
+        OltAutofindInventoryError, project_olt_autofind_inventory_page,
+    )
+    from .olt_service_port_profiles_summary import (
+        OltServicePortProfilesError, project_olt_service_port_profiles_summary,
+    )
+    from .site_incident_notification import (
+        SiteIncidentNotificationError, project_site_incident_notification,
+    )
+    from .site_anomaly_event_settings import (
+        SiteAnomalyEventSettingsError, project_site_anomaly_event_settings,
+    )
+    from .site_incident_influences import (
+        SiteIncidentInfluencesError, project_site_incident_influences,
+    )
+    from .site_wireless_group_capacity import (
+        SiteWirelessGroupCapacityError, project_site_wireless_group_capacity,
+    )
+    from .site_ap_group_summary import ApGroupSummaryError, project_site_ap_group_summary
+    from .site_ap_oui_vlan_rules_summary import (
+        ApOuiVlanRulesError, project_site_ap_oui_vlan_rules_summary,
+    )
+    from .site_vlan_ssid_usage_summary import (
+        VlanSsidUsageError, project_site_vlan_ssid_usage_summary,
+    )
+    from .site_vlan_device_usage_summary import (
+        VlanDeviceUsageError, project_site_vlan_device_usage_summary,
+    )
+    from .site_wifi_calling_profiles_summary import (
+        WifiCallingProfilesError, project_site_wifi_calling_profiles_summary,
+    )
+    from .site_client_filter_options_summary import (
+        ClientFilterOptionsError, project_site_client_filter_options_summary,
+    )
+    from .site_eap_dot1x_candidates_summary import (
+        EapDot1xCandidatesError, summarize_site_eap_dot1x_candidates,
+        summarize_site_switch_dot1x_candidates,
+    )
+    from .site_health_incidents import (
+        SiteHealthIncidentError, extract_incidents, project_incident_detail,
+    )
+    from .site_switch_support import SiteSwitchSupportError, project_site_switch_support
+    from .network_dhcp_capabilities import (
+        NetworkDhcpCapabilitiesError, project_network_dhcp_capabilities,
+    )
+    from .network_dhcp_server_info import (
+        NetworkDhcpServerInfoError, project_network_dhcp_server_info,
+    )
+    from .controller_client_recognition import (
+        ControllerClientRecognitionError, project_controller_client_recognition,
+    )
+    from .controller_device_statistics import (
+        ControllerDeviceStatisticsError, project_controller_device_statistics,
+    )
+    from .controller_client_active_timeout import (
+        ControllerClientActiveTimeoutError, project_controller_client_active_timeout,
+    )
+    from .controller_client_history_retention import (
+        ControllerClientHistoryRetentionError,
+        project_controller_client_history_retention,
+    )
+    from .controller_audit_notification import (
+        ControllerAuditNotificationError, project_controller_audit_notification,
+    )
+    from .controller_ui_interface import (
+        ControllerUiInterfaceError, project_controller_ui_interface,
+    )
+    from .controller_retention import (
+        ControllerRetentionError, project_controller_retention,
+    )
+    from .controller_dst_info import ControllerDstError, project_controller_dst
+    from .controller_experience_improvement import (
+        ControllerExperienceImprovementError,
+        project_controller_experience_improvement,
+    )
+    from .controller_client_detail_info import (
+        ControllerClientDetailInfoError, project_controller_client_detail_info,
+    )
+    from .controller_general_settings import (
+        ControllerGeneralSettingsError, project_controller_general_settings,
+    )
+    from .controller_device_access import (
+        ControllerDeviceAccessError, project_controller_device_access,
+    )
+    from .controller_remote_logging import (
+        ControllerRemoteLoggingError, project_controller_remote_logging,
+    )
+    from .controller_radius_proxy import (
+        ControllerRadiusProxyError, project_controller_radius_proxy,
+    )
+    from .controller_radius_server import (
+        ControllerRadiusServerError, project_controller_radius_server,
+    )
+    from .controller_system_ports import (
+        ControllerSystemPortsError, project_controller_system_ports,
+    )
+    from .controller_status import ControllerStatusError, project_controller_status
+    from .controller_roles import ControllerRolesError, project_controller_roles
+    from .controller_logging import ControllerLoggingError, project_controller_logging
+    from .controller_certificate import (
+        ControllerCertificateError, project_controller_certificate,
+    )
+    from .device_adopt_result import DeviceAdoptResultError, project_device_adopt_result
+    from .device_mac_type import DeviceMacTypeError, project_device_mac_type
+    from .device_link_topology import DeviceLinkTopologyError, project_device_link_topology
+    from .device_radsec_support import (
+        DeviceRadsecSupportError, project_device_radsec_support,
+    )
+    from .device_upgrade_result import (
+        DeviceUpgradeResultError, project_device_upgrade_result,
+    )
+    from .device_timeline import DeviceTimelineError, project_device_timeline
+    from .device_inventory_summary import (
+        DeviceInventorySummaryError, summarize_device_inventory,
+    )
+    from .switch_vrfs import SwitchVrfsError, summarize_switch_vrfs
+    from .switch_vlan_interfaces import SwitchVlanInterfacesError, summarize_switch_vlan_interfaces
+    from .switch_statistics import SwitchStatisticsError, summarize_switch_statistics
+    from .switch_port_tags import SwitchPortTagsError, summarize_switch_port_tags
+except ImportError:  # direct execution in the image
+    from switch_static_routes import SwitchStaticRoutesError, summarize_switch_static_routes
+    from site_setting_existence import SiteSettingExistenceError, project_site_setting_existence
+    from site_entity_summary import SiteEntitySummaryError, summarize_site_entity
+    from site_upnp_summary import SiteUpnpSummaryError, summarize_site_upnp
+    from site_gre_tunnel_summary import SiteGreTunnelSummaryError, summarize_site_gre_tunnel
+    from site_ssl_vpn_summary import SiteSslVpnSummaryError, summarize_site_ssl_vpn
+    from site_ssh_summary import SiteSshSummaryError, summarize_site_ssh
+    from site_mld_summary import SiteMldSummaryError, summarize_site_mld
+    from site_igmp_summary import SiteIgmpSummaryError, summarize_site_igmp, summarize_site_template_igmp
+    from site_template_summary import SiteTemplateSummaryError, summarize_site_template
+    from site_iptv_summary import SiteIptvSummaryError, summarize_site_iptv
+    from site_template_iptv_service_summary import (
+        SiteTemplateIptvServiceSummaryError, summarize_site_template_iptv_service)
+    from site_capabilities import SiteCapabilitiesError, project_site_capabilities
+    from site_duplicate_ssid_summary import (
+        DuplicateSsidProjectionError, project_duplicate_ssid_summary,
+    )
+    from site_ssid_ap_groups import SsidApGroupsError, project_ssid_ap_groups
+    from site_topology_network_summary import (
+        TopologyNetworkSummaryError, project_topology_network_summary,
+    )
+    from site_topology_vlan_summary import (
+        TopologyVlanSummaryError, project_topology_vlan_summary,
+    )
+    from site_unresolved_incident_count import (
+        SiteUnresolvedIncidentCountError, project_site_unresolved_incident_count,
+    )
+    from site_incident_overview import (
+        SiteIncidentOverviewError, WINDOW_MS as INCIDENT_OVERVIEW_WINDOW_MS,
+        project_site_incident_overview,
+    )
+    from site_incident_distribution import (
+        SiteIncidentDistributionError,
+        WINDOW_MS as INCIDENT_DISTRIBUTION_WINDOW_MS,
+        project_site_incident_distribution,
+    )
+    from site_incident_category_counts import (
+        SiteIncidentCategoryCountsError, project_site_incident_category_counts,
+    )
+    from site_incident_list import (
+        SiteIncidentListError, PAGE_SIZE as INCIDENT_PAGE_SIZE,
+        WINDOW_MS as INCIDENT_LIST_WINDOW_MS, project_site_incident_list,
+    )
+    from site_batch_interference_history import (
+        SiteBatchInterferenceHistoryError,
+        project_site_batch_interference_history,
+    )
+    from olt_system_reads import (
+        OltSystemReadError, project_olt_management_interfaces, project_olt_system_info,
+    )
+    from olt_detail import OltDetailError, project_olt_detail
+    from olt_ports_summary import OltPortsSummaryError, project_olt_ports_summary
+    from olt_pon_status import (
+        OltPonStatusError, project_olt_onu_global_status,
+        project_olt_onu_isolation_status,
+    )
+    from olt_eth_config_summary import (
+        OltEthConfigError, project_olt_eth_config_summary,
+        project_olt_lag_config_summary,
+    )
+    from olt_pon_info_summary import (
+        OltPonInfoError, project_olt_auto_refresh_summary,
+        project_olt_pon_information_summary,
+    )
+    from olt_onu_registration_summary import (
+        OltOnuRegistrationError, project_olt_onu_auto_auth_status,
+        project_olt_onu_autofind_summary,
+    )
+    from olt_onu_inventory_summary import (
+        OltOnuInventoryError, project_olt_onu_inventory_summary,
+        project_olt_onu_reboot_status_summary, validate_pon_port_selector,
+    )
+    from olt_pon_port_config_summary import (
+        OltPonPortConfigError, project_olt_pon_port_config_summary,
+        project_olt_pon_port_config_page_summary,
+    )
+    from olt_autofind_inventory_summary import (
+        OltAutofindInventoryError, project_olt_autofind_inventory_page,
+    )
+    from olt_service_port_profiles_summary import (
+        OltServicePortProfilesError, project_olt_service_port_profiles_summary,
+    )
+    from site_incident_notification import (
+        SiteIncidentNotificationError, project_site_incident_notification,
+    )
+    from site_anomaly_event_settings import (
+        SiteAnomalyEventSettingsError, project_site_anomaly_event_settings,
+    )
+    from site_incident_influences import (
+        SiteIncidentInfluencesError, project_site_incident_influences,
+    )
+    from site_wireless_group_capacity import (
+        SiteWirelessGroupCapacityError, project_site_wireless_group_capacity,
+    )
+    from site_ap_group_summary import ApGroupSummaryError, project_site_ap_group_summary
+    from site_ap_oui_vlan_rules_summary import (
+        ApOuiVlanRulesError, project_site_ap_oui_vlan_rules_summary,
+    )
+    from site_vlan_ssid_usage_summary import (
+        VlanSsidUsageError, project_site_vlan_ssid_usage_summary,
+    )
+    from site_vlan_device_usage_summary import (
+        VlanDeviceUsageError, project_site_vlan_device_usage_summary,
+    )
+    from site_wifi_calling_profiles_summary import (
+        WifiCallingProfilesError, project_site_wifi_calling_profiles_summary,
+    )
+    from site_client_filter_options_summary import (
+        ClientFilterOptionsError, project_site_client_filter_options_summary,
+    )
+    from site_eap_dot1x_candidates_summary import (
+        EapDot1xCandidatesError, summarize_site_eap_dot1x_candidates,
+        summarize_site_switch_dot1x_candidates,
+    )
+    from site_health_incidents import (
+        SiteHealthIncidentError, extract_incidents, project_incident_detail,
+    )
+    from site_switch_support import SiteSwitchSupportError, project_site_switch_support
+    from network_dhcp_capabilities import (
+        NetworkDhcpCapabilitiesError, project_network_dhcp_capabilities,
+    )
+    from network_dhcp_server_info import (
+        NetworkDhcpServerInfoError, project_network_dhcp_server_info,
+    )
+    from controller_client_recognition import (
+        ControllerClientRecognitionError, project_controller_client_recognition,
+    )
+    from controller_device_statistics import (
+        ControllerDeviceStatisticsError, project_controller_device_statistics,
+    )
+    from controller_client_active_timeout import (
+        ControllerClientActiveTimeoutError, project_controller_client_active_timeout,
+    )
+    from controller_client_history_retention import (
+        ControllerClientHistoryRetentionError,
+        project_controller_client_history_retention,
+    )
+    from controller_audit_notification import (
+        ControllerAuditNotificationError, project_controller_audit_notification,
+    )
+    from controller_ui_interface import (
+        ControllerUiInterfaceError, project_controller_ui_interface,
+    )
+    from controller_retention import (
+        ControllerRetentionError, project_controller_retention,
+    )
+    from controller_dst_info import ControllerDstError, project_controller_dst
+    from controller_experience_improvement import (
+        ControllerExperienceImprovementError,
+        project_controller_experience_improvement,
+    )
+    from controller_client_detail_info import (
+        ControllerClientDetailInfoError, project_controller_client_detail_info,
+    )
+    from controller_general_settings import (
+        ControllerGeneralSettingsError, project_controller_general_settings,
+    )
+    from controller_device_access import (
+        ControllerDeviceAccessError, project_controller_device_access,
+    )
+    from controller_remote_logging import (
+        ControllerRemoteLoggingError, project_controller_remote_logging,
+    )
+    from controller_radius_proxy import (
+        ControllerRadiusProxyError, project_controller_radius_proxy,
+    )
+    from controller_radius_server import (
+        ControllerRadiusServerError, project_controller_radius_server,
+    )
+    from controller_system_ports import (
+        ControllerSystemPortsError, project_controller_system_ports,
+    )
+    from controller_status import ControllerStatusError, project_controller_status
+    from controller_roles import ControllerRolesError, project_controller_roles
+    from controller_logging import ControllerLoggingError, project_controller_logging
+    from controller_certificate import (
+        ControllerCertificateError, project_controller_certificate,
+    )
+    from device_adopt_result import DeviceAdoptResultError, project_device_adopt_result
+    from device_mac_type import DeviceMacTypeError, project_device_mac_type
+    from device_link_topology import DeviceLinkTopologyError, project_device_link_topology
+    from device_radsec_support import (
+        DeviceRadsecSupportError, project_device_radsec_support,
+    )
+    from device_upgrade_result import (
+        DeviceUpgradeResultError, project_device_upgrade_result,
+    )
+    from device_timeline import DeviceTimelineError, project_device_timeline
+    from device_inventory_summary import (
+        DeviceInventorySummaryError, summarize_device_inventory,
+    )
+    from switch_vrfs import SwitchVrfsError, summarize_switch_vrfs
+    from switch_vlan_interfaces import SwitchVlanInterfacesError, summarize_switch_vlan_interfaces
+    from switch_statistics import SwitchStatisticsError, summarize_switch_statistics
+    from switch_port_tags import SwitchPortTagsError, summarize_switch_port_tags
+try:
+    from .rrm_settings import RrmSettingsError, project_rrm_settings
+except ImportError:  # direct execution in the image
+    from rrm_settings import RrmSettingsError, project_rrm_settings
+try:
+    from .roaming_settings import RoamingSettingsError, project_roaming_settings
+except ImportError:  # direct execution in the image
+    from roaming_settings import RoamingSettingsError, project_roaming_settings
+try:
+    from .afc_status import AfcStatusError, project_afc_status
+except ImportError:  # direct execution in the image
+    from afc_status import AfcStatusError, project_afc_status
+try:
+    from .channel_limit import ChannelLimitError, project_site_channel_limit, project_ap_channel_limit
+except ImportError:  # direct execution in the image
+    from channel_limit import ChannelLimitError, project_site_channel_limit, project_ap_channel_limit
+try:
+    from .rrm_incompatible import RrmIncompatibleProjectionError, project_rrm_incompatible_rows
+except ImportError:  # direct execution in the image
+    from rrm_incompatible import RrmIncompatibleProjectionError, project_rrm_incompatible_rows
+try:
+    from .channel_dashboard import ChannelDashboardError, project_site_dashboard_channels
+except ImportError:  # direct execution in the image
+    from channel_dashboard import ChannelDashboardError, project_site_dashboard_channels
+try:
+    from .site_wifi_summary import SiteWifiSummaryError, project_site_wifi_summary
+except ImportError:  # direct execution in the image
+    from site_wifi_summary import SiteWifiSummaryError, project_site_wifi_summary
+try:
+    from .ap_ofdma import ApOfdmaError, project_ap_ofdma
+except ImportError:  # direct execution in the image
+    from ap_ofdma import ApOfdmaError, project_ap_ofdma
+try:
+    from .ap_qos import ApQosError, normalize_ap_qos_change_state, project_ap_qos
+except ImportError:  # direct execution in the image
+    from ap_qos import ApQosError, normalize_ap_qos_change_state, project_ap_qos
+try:
+    from .client_signal_distribution import ClientSignalDistributionError, project_client_signal_distribution
+except ImportError:  # direct execution in the image
+    from client_signal_distribution import ClientSignalDistributionError, project_client_signal_distribution
+try:
+    from .ap_lag import ApLagError, project_ap_lag
+except ImportError:  # direct execution in the image
+    from ap_lag import ApLagError, project_ap_lag
+try:
+    from .ap_load_balance import ApLoadBalanceError, project_ap_load_balance
+except ImportError:  # direct execution in the image
+    from ap_load_balance import ApLoadBalanceError, project_ap_load_balance
+try:
+    from .ap_antenna import ApAntennaError, project_ap_antenna
+except ImportError:  # direct execution in the image
+    from ap_antenna import ApAntennaError, project_ap_antenna
+try:
+    from .ap_antenna_gain import ApAntennaGainError, project_ap_antenna_gain
+except ImportError:  # direct execution in the image
+    from ap_antenna_gain import ApAntennaGainError, project_ap_antenna_gain
+try:
+    from .ap_power_saving import ApPowerSavingError, project_ap_power_saving
+except ImportError:  # direct execution in the image
+    from ap_power_saving import ApPowerSavingError, project_ap_power_saving
+try:
+    from .ap_vlan import ApVlanError, project_ap_vlan
+except ImportError:  # direct execution in the image
+    from ap_vlan import ApVlanError, project_ap_vlan
+try:
+    from .ap_wired_uplink import ApWiredUplinkError, project_ap_wired_uplink
+except ImportError:  # direct execution in the image
+    from ap_wired_uplink import ApWiredUplinkError, project_ap_wired_uplink
+try:
+    from .ap_lan_traffic import ApLanTrafficError, project_ap_lan_traffic
+except ImportError:  # direct execution in the image
+    from ap_lan_traffic import ApLanTrafficError, project_ap_lan_traffic
+try:
+    from .switch_port_counters import SwitchPortCountersError, project_switch_port_counters
+except ImportError:  # direct execution in the image
+    from switch_port_counters import SwitchPortCountersError, project_switch_port_counters
+try:
+    from .switch_port_poe_info import SwitchPortPoeInfoError, project_switch_port_poe_info
+except ImportError:  # direct execution in the image
+    from switch_port_poe_info import SwitchPortPoeInfoError, project_switch_port_poe_info
+
+
+class OpenApiError(RuntimeError):
+    """Stable, redacted error suitable for a future API boundary."""
+
+    def __init__(self, code: str, upstream_error_code: int | None = None,
+                 upstream_http_status: int | None = None) -> None:
+        super().__init__(code)
+        self.code = code
+        self.upstream_error_code = upstream_error_code
+        self.upstream_http_status = upstream_http_status
+
+
+def _track_capability(operation: str):
+    def decorate(method):
+        @wraps(method)
+        def wrapped(self, *args, **kwargs):
+            op = operation
+            if operation == "ap_dynamic":
+                op = "ap_" + str(args[2] if len(args) > 2 else kwargs.get("part", ""))
+            elif operation == "client_timeline":
+                kind_arg = args[2] if len(args) > 2 else kwargs.get("kind")
+                if isinstance(kind_arg, str) and kind_arg in {"connect", "association", "roaming", "disconnect"}:
+                    op = "client_timeline_" + kind_arg
+            site_ref = (args[0] if args else kwargs.get("site_ref")) if operation != "sites" else None
+            if site_ref is not None and not re.fullmatch(r"[0-9a-f]{24}", site_ref if isinstance(site_ref, str) else ""):
+                site_ref = None
+            target_ref = site_ref
+            if (operation.startswith("ap_") and operation != "ap_retry_drop") or operation in {"gateway_wan_status", "gateway_wan_health", "gateway_health", "gateway_health_timeline", "gateway_ipv6_ip_passthrough", "client_detail", "client_connection_history", "client_timeline", "client_health", "client_health_timeline", "client_history", "device_firmware", "olt_system_info", "olt_management_interfaces"}:
+                if operation in {"client_detail", "client_connection_history", "client_timeline", "client_health", "client_health_timeline", "client_history"}:
+                    device_arg = args[1] if len(args) > 1 else kwargs.get("client_ref")
+                else:
+                    device_arg = args[1] if len(args) > 1 else kwargs.get("device_ref")
+                device_ref = device_arg if isinstance(device_arg, str) and re.fullmatch(r"[0-9a-f]{24}", device_arg) else None
+                target_ref = (site_ref + ":" + device_ref) if site_ref and device_ref else None
+            if operation in {"switch_ports", "switch_port_counters", "switch_port_poe_info", "switch_lldp_neighbors", "switch_health", "switch_port_status", "switch_port_name"}:
+                device_arg = args[1] if len(args) > 1 else kwargs.get("switch_ref")
+                device_ref = device_arg if isinstance(device_arg, str) and re.fullmatch(r"[0-9a-f]{24}", device_arg) else None
+                target_ref = (site_ref + ":" + device_ref) if site_ref and device_ref else None
+            if operation == "switch_port_poe_mode":
+                switch_arg = args[1] if len(args) > 1 else kwargs.get("switch_ref")
+                switch_ref = switch_arg if isinstance(switch_arg, str) and re.fullmatch(r"[0-9a-f]{24}", switch_arg) else None
+                target_ref = (site_ref + ":" + switch_ref) if site_ref and switch_ref else None
+            if operation == "switch_vlans":
+                switch_arg = args[1] if len(args) > 1 else kwargs.get("switch_ref")
+                switch_ref = switch_arg if isinstance(switch_arg, str) and re.fullmatch(r"[0-9a-f]{24}", switch_arg) else None
+                target_ref = (site_ref + ":" + switch_ref) if site_ref and switch_ref else None
+            response_capture = {"controller_responses": 0}
+            previous_capture = getattr(self._capability_local, "capture", None)
+            self._capability_local.capture = response_capture
+            try:
+                result = method(self, *args, **kwargs)
+            except OpenApiError as exc:
+                self._record_capability(
+                    op, target_ref, exc, None,
+                    controller_response_observed=response_capture["controller_responses"] > 0)
+                raise
+            finally:
+                self._capability_local.capture = previous_capture
+            observation = None
+            if op == "ap_scan_status":
+                data = result.get("data")
+                if isinstance(data, dict) and data.get("channelLoadStatus") == 1:
+                    observation = "scan_status_channel_load_not_available"
+            payload_complete = result.pop("_capability_payload_complete", None)
+            response_shape_state, completeness_observation = _capability_support(
+                op, result, payload_complete)
+            if completeness_observation:
+                observation = completeness_observation
+            self._record_capability(op, target_ref, None, observation,
+                                    response_shape_state=response_shape_state,
+                                    controller_response_observed=response_capture["controller_responses"] > 0)
+            return result
+        return wrapped
+    return decorate
+
+
+def _has_partial_projection(value: object) -> bool:
+    """Find an explicit partial marker anywhere in a projected response."""
+    if isinstance(value, dict):
+        if value.get("partial") is True:
+            return True
+        return any(_has_partial_projection(child) for key, child in value.items()
+                   if key != "partial")
+    if isinstance(value, (list, tuple)):
+        return any(_has_partial_projection(child) for child in value)
+    return False
+
+
+def _capability_support(operation: str, result: dict[str, object],
+                        payload_complete: object) -> tuple[str, str | None]:
+    """Classify support only from a sufficiently complete projected payload.
+
+    Permission is recorded independently by the caller after a successful
+    operation. This state says nothing about hardware or firmware support.
+    """
+    if operation == "rrm_settings":
+        data = result.get("data")
+        if not isinstance(data, dict):
+            return "unknown", "response_incomplete"
+        required = {"mode", "timeRangeEnable", "resource", "timeRangeAction"}
+        valid = (set(data) >= required
+                 and type(data.get("mode")) is int and data["mode"] in (0, 1)
+                 and type(data.get("timeRangeEnable")) is bool
+                 and type(data.get("resource")) is int and data["resource"] in (0, 1, 2)
+                 and type(data.get("timeRangeAction")) is int and data["timeRangeAction"] in (0, 1))
+        omitted = result.get("omitted_fields", [])
+        # timeRangeId is intentionally redacted by project_rrm_settings. Other
+        # omissions still leave the result conservatively unverified.
+        only_redaction = isinstance(omitted, list) and set(omitted) <= {"timeRangeId"}
+        if valid and only_redaction and payload_complete is True:
+            return "response_shape_supported", None
+        return "unknown", "response_partial" if result.get("partial") is True else "response_incomplete"
+
+    if operation == "site_overview":
+        data = result.get("data")
+        if isinstance(data, dict) and data and not _has_partial_projection(result):
+            return "response_shape_supported", None
+        return "unknown", "response_partial" if _has_partial_projection(result) else "response_incomplete"
+
+    if operation == "ap_rf_scan":
+        if payload_complete is True and not _has_partial_projection(result):
+            return "response_shape_supported", None
+        return "unknown", "response_partial" if _has_partial_projection(result) else "response_incomplete"
+
+    if _has_partial_projection(result):
+        return "unknown", "response_partial"
+    data = result.get("data")
+    if isinstance(data, dict) and not data:
+        return "unknown", "response_incomplete"
+    return "response_shape_supported", None
+
+
+@dataclass(frozen=True)
+class OpenApiConfig:
+    base_url: str
+    controller_id: str
+    client_id_file: str
+    client_secret_file: str
+    cert_sha256: str = ""
+    tls_trust: str = "pin_sha256"
+    timeout_seconds: float = 5.0
+    page_size: int = 100
+    max_pages: int = 10
+    max_response_bytes: int = 262_144
+    reference_key_file: str | None = None
+    expose_descriptive_names: bool = False
+
+    def __post_init__(self) -> None:
+        if (not isinstance(self.base_url, str) or self.base_url != self.base_url.strip() or
+                any(ord(char) < 0x21 or ord(char) > 0x7e for char in self.base_url)):
+            raise OpenApiError("controller_url_invalid")
+        try:
+            parsed = urlsplit(self.base_url)
+            port = parsed.port  # Access validates malformed/out-of-range ports.
+        except ValueError as exc:
+            raise OpenApiError("controller_url_invalid") from exc
+        if (parsed.scheme != "https" or not parsed.hostname or parsed.username or
+                parsed.password or parsed.path not in ("", "/") or parsed.query or
+                parsed.fragment or (port is not None and not 1 <= port <= 65535)):
+            raise OpenApiError("controller_url_invalid")
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", self.controller_id):
+            raise OpenApiError("controller_id_invalid")
+        if self.tls_trust not in ("pin_sha256", "system_ca"):
+            raise OpenApiError("tls_trust_mode_invalid")
+        if self.cert_sha256 and not re.fullmatch(r"[0-9a-fA-F]{64}", self.cert_sha256):
+            raise OpenApiError("controller_certificate_pin_invalid")
+        if self.tls_trust == "pin_sha256" and not self.cert_sha256:
+            raise OpenApiError("controller_certificate_pin_required")
+        if not 1 <= self.page_size <= 200 or not 1 <= self.max_pages <= 20:
+            raise OpenApiError("pagination_limit_invalid")
+        if not 1_024 <= self.max_response_bytes <= 1_048_576:
+            raise OpenApiError("response_limit_invalid")
+        if not is_finite_number(self.timeout_seconds) or not 0.5 <= self.timeout_seconds <= 30:
+            raise OpenApiError("timeout_invalid")
+        if not isinstance(self.expose_descriptive_names, bool):
+            raise OpenApiError("descriptive_names_setting_invalid")
+
+    @classmethod
+    def from_env(cls) -> "OpenApiConfig":
+        def required(name: str) -> str:
+            value = os.getenv(name, "").strip()
+            if not value:
+                raise OpenApiError("openapi_configuration_missing")
+            return value
+
+        try:
+            timeout = float(os.getenv("OMADA_TIMEOUT_SECONDS", "5"))
+            page_size = int(os.getenv("OMADA_OPENAPI_PAGE_SIZE", "100"))
+            max_pages = int(os.getenv("OMADA_OPENAPI_MAX_PAGES", "10"))
+        except ValueError as exc:
+            raise OpenApiError("openapi_configuration_invalid") from exc
+        tls_trust = os.getenv("OMADA_TLS_TRUST", "pin_sha256").strip()
+        cert_sha256 = os.getenv("OMADA_CERT_SHA256", "").strip().lower()
+        return cls(
+            base_url=required("OMADA_BASE_URL"),
+            controller_id=required("OMADA_CONTROLLER_ID"),
+            client_id_file=required("OMADA_CLIENT_ID_FILE"),
+            client_secret_file=required("OMADA_CLIENT_SECRET_FILE"),
+            cert_sha256=cert_sha256,
+            tls_trust=tls_trust,
+            timeout_seconds=timeout,
+            page_size=page_size,
+            max_pages=max_pages,
+            reference_key_file=os.getenv("OMADA_REFERENCE_KEY_FILE") or None,
+            expose_descriptive_names=(os.getenv("OMADA_EXPOSE_DESCRIPTIVE_NAMES", "")
+                                      .strip().lower() == "true"),
+        )
+
+
+class OmadaOpenApiClient:
+    """Allow OAuth token issuance and fixed read-only inventory/AP calls."""
+
+    TOKEN_PATH = "/openapi/authorize/token?grant_type=client_credentials"
+    _SITE_PATH = "/openapi/v1/{controller_id}/sites"
+    _SITE_TEMPLATES_PATH = "/openapi/v1/{controller_id}/sitetemplates"
+    _DEVICE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/devices"
+    _AP_OVERVIEW_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{device_mac}"
+    _DEVICE_FIRMWARE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/devices/{device_mac}/latest-firmware-info"
+    _DEVICE_ADOPT_RESULT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/devices/{device_mac}/adopt-result"
+    _DEVICE_MAC_TYPE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/devices/{device_mac}/check-mac-type"
+    _DEVICE_LINK_TOPOLOGY_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/devices/{device_mac}/device-link-topology"
+    _DEVICE_RADSEC_SUPPORT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/devices/un-support-radsec"
+    _DEVICE_UPGRADE_RESULT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/devices/{device_mac}/online-upgrade-result"
+    _DEVICE_TIMELINE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/devices/{device_mac}/timeline"
+    _DEVICE_ALL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/devices/all"
+    _OLT_DETAIL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/olts/{device_mac}"
+    _MSP_OLT_DETAIL_PATH = (
+        "/openapi/v1/msp/{msp_id}/customers/{customer_id}/sites/{site_id}/olts/{device_mac}")
+    _OLT_ETH_PON_LIST_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/olts/{device_mac}/eth-port/and/pon-port/list"
+    _MSP_OLT_ETH_PON_LIST_PATH = (
+        "/openapi/v1/msp/{msp_id}/customers/{customer_id}/sites/{site_id}/eth-port/and/pon-port/list")
+    _OLT_ONU_GLOBAL_STATUS_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/olts/{device_mac}/"
+        "pon/onu-management/global-config/get")
+    _OLT_ONU_ISOLATION_STATUS_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/olts/{device_mac}/"
+        "pon/onu-management/global-config/isolation/get")
+    _OLT_ETH_CONFIG_LIST_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/olts/{device_mac}/"
+        "l2-feature/eth-port/port/unit1/list")
+    _MSP_OLT_ETH_CONFIG_LIST_PATH = (
+        "/openapi/v1/msp/{msp_id}/customers/{customer_id}/sites/{site_id}/olts/{device_mac}/"
+        "l2-feature/eth-port/port/unit1/list")
+    _OLT_LAG_CONFIG_LIST_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/olts/{device_mac}/"
+        "l2-feature/eth-port/port/lags/list")
+    _OLT_AUTO_REFRESH_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/olts/{device_mac}/"
+        "pon/service-port/statistic/configs")
+    _OLT_PON_INFORMATION_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/olts/{device_mac}/"
+        "pon/pon-port/informations/list")
+    _OLT_PON_PORT_CONFIG_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/olts/{device_mac}/"
+        "pon/pon-port/configs/list")
+    _MSP_OLT_PON_PORT_CONFIG_PATH = (
+        "/openapi/v1/msp/{msp_id}/customers/{customer_id}/sites/{site_id}/olts/{device_mac}/"
+        "pon/pon-port/configs/list")
+    _OLT_PON_PORT_CONFIG_PAGE_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/olts/{device_mac}/"
+        "pon/pon-port/configs/page")
+    _OLT_SERVICE_PORT_PROFILES_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/olts/{device_mac}/"
+        "pon/profile/service-port/profiles/list")
+    _OLT_ONU_AUTO_AUTH_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/olts/{device_mac}/"
+        "pon/onu-register/auto-authentication/global/configs/get")
+    _OLT_ONU_AUTOFIND_LIST_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/olts/{device_mac}/"
+        "pon/onu-register/autofinds/list")
+    _OLT_ONU_AUTOFIND_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/olts/{device_mac}/"
+        "pon/onu-register/autofind/configs/get")
+    _OLT_ONU_INVENTORY_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/olts/{device_mac}/"
+        "pon/onu-management/informations/list")
+    _OLT_ONU_REBOOT_STATUS_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/olts/{device_mac}/"
+        "pon/onu-management/informations/reboot-status/list")
+    _OLT_SYSTEM_INFO_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/olts/{device_mac}/system/system-info/configs")
+    _OLT_SYSTEM_INFO_MSP_PATH = (
+        "/openapi/v1/msp/{msp_id}/customers/{customer_id}/sites/{site_id}/"
+        "olts/{device_mac}/system/system-info/configs")
+    _OLT_MANAGEMENT_INTERFACES_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/olts/{device_mac}/system/management-system-interface/get")
+    _CLIENT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/clients"
+    _CLIENT_DETAIL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/clients/{client_mac}"
+    _CLIENT_CONNECTION_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/clients/{client_mac}/client-connection"
+    _CLIENT_HISTORY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/clients/{client_mac}/client-history"
+    _CLIENT_TIMELINE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/clients/{client_mac}/client-timeline"
+    _CLIENT_HEALTH_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/clients/{client_mac}/health/detail"
+    _CLIENT_HEALTH_TIMELINE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/clients/{client_mac}/health/timeline"
+    _NETWORK_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/lan-networks"
+    _NETWORK_DETAIL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/lan-networks/{network_id}"
+    _NETWORK_DHCP_CAPABILITIES_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/networks/{network_id}/dhcp-server/capabilities")
+    _NETWORK_DHCP_SERVER_INFO_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/networks/{network_id}/dhcp-server-info")
+    _SSID_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/wireless-network/ssids"
+    _SITE_MAC_AUTH_SSIDS_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/wireless-network/ssids")
+    _SSID_DETAIL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/wireless-network/ssids/{ssid_id}"
+    _SSID_ENABLE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/wireless-network/ssids/{ssid_id}/enable"
+    _WLAN_GROUP_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/wireless-network/wlans"
+    _SITE_WLAN_GROUP_DETAIL_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/wireless-network/wlans/{wlan_id}"
+    _SITE_LOCK_TO_AP_BRIEF_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/lockToAp/aps"
+    _SITE_INELIGIBLE_INTERFERENCE_AP_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/full-channel-detect/batch/info"
+    _SITE_INTERFERENCE_SCAN_ELIGIBLE_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/grid/full-channel-detect/ap-list"
+        "?page=1&pageSize=500")
+    _SITE_WLAN_GROUP_V1_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/wireless-network/wlans")
+    _SITE_WLAN_GROUP_SSIDS_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/wireless-network/wlans/{wlan_id}/ssids")
+    _AP_READ_PATHS = {
+        "radio_config": "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/radio-config",
+        "radios": "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/radios",
+        "scan_status": "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/full-channel-detect/status",
+        "channel_load": "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/full-channel-detect/channel-load",
+    }
+    _AP_RF_SCAN_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/rf-scan-result"
+    _AP_RF_SCAN_V2_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/aps/{ap_mac}/rf-scan-result"
+    _AP_WIFI_INTERFERENCE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/full-channel-detect/wlan-interference"
+    _AP_SPEED_TEST_RESULT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/speed-test-result"
+    _AP_AVAILABLE_CHANNEL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/available-channel"
+    _AP_HEALTH_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/eaps/{ap_mac}/health/detail"
+    _MSP_AP_HEALTH_PATH = (
+        "/openapi/v1/msp/{msp_id}/customers/{customer_id}/sites/{site_id}/eaps/{ap_mac}/health/detail")
+    _AP_HEALTH_TIMELINE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/eaps/{ap_mac}/health/timeline"
+    _MSP_AP_HEALTH_TIMELINE_PATH = (
+        "/openapi/v1/msp/{msp_id}/customers/{customer_id}/sites/{site_id}/eaps/{ap_mac}/health/timeline")
+    _MSP_AP_MESH_STATISTICS_PATH = (
+        "/openapi/v1/msp/{msp_id}/customers/{customer_id}/sites/{site_id}/aps/{ap_mac}/mesh/statistics")
+    _AP_MESH_STATISTICS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/mesh/statistics"
+    _AP_AFC_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/afc-config"
+    _AP_AFC_STATUS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/afc"
+    _AP_CHANNEL_LIMIT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/channel-limit"
+    _AP_OFDMA_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/ofdma"
+    _AP_QOS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/qos"
+    _AP_LAG_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/trunk-setting"
+    _AP_LAG_CONFIG_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/lag"
+    _AP_LOAD_BALANCE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/load-balance"
+    _AP_ANTENNA_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/ant-switch"
+    _AP_ANTENNA_GAIN_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/antenna-gain"
+    _AP_POWER_SAVING_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/power-saving"
+    _AP_VLAN_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/aps/{ap_mac}/vlan"
+    _AP_VLAN_V1_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/vlan"
+    _AP_WIRED_UPLINK_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/wired-uplink"
+    _AP_UPLINK_CONFIG_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/uplink-config"
+    _AP_LLDP_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/lldp"
+    _AP_WIRED_DOWNLINK_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/wired-downlink"
+    _AP_PORTS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/ports"
+    _AP_PORT_VLANS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/port-vlans"
+    _AP_BRIDGE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/bridge"
+    _AP_MESH_CANDIDATES_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/grid/mesh/candiParents"
+    _AP_GENERAL_CONFIG_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/general-config"
+    _AP_IP_SETTING_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/ip-setting"
+    _AP_IPV6_SETTING_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/ipv6-setting"
+    _AP_P2P_INFO_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/p2pInfo"
+    _AP_L3_ACCESS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/l3access"
+    _AP_PARING_WINDOW_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/paring-window-result"
+    _AP_MANAGEMENT_SSID_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/management-wlan"
+    _AP_WLAN_OVERRIDES_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/aps/{ap_mac}/override"
+    _AP_SNMP_CONFIG_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/snmp"
+    _AP_LAN_TRAFFIC_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/lan-traffic-info"
+    _AP_RETRY_DROP_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/retry-dropped-rate"
+    _GATEWAY_WAN_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/gateways/{gateway_mac}/wan-status"
+    _GATEWAY_LAN_STATUS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/gateways/{gateway_mac}/lan-status"
+    _GATEWAY_PORTS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/gateways/{gateway_mac}/ports"
+    _GATEWAY_SPEED_TEST_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/gateways/{gateway_mac}/speedTestResult"
+    _SITE_SPEED_TEST_SETTINGS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/speedTest"
+    _GATEWAY_INTERNET_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/gateways/{gateway_mac}/internet"
+    _GATEWAY_HEALTH_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/gateways/{gateway_mac}/health/detail"
+    _MSP_GATEWAY_HEALTH_PATH = (
+        "/openapi/v1/msp/{msp_id}/customers/{customer_id}/sites/{site_id}/gateways/{gateway_mac}/health/detail")
+    _GATEWAY_HEALTH_TIMELINE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/gateways/{gateway_mac}/health/timeline"
+    _MSP_GATEWAY_HEALTH_TIMELINE_PATH = (
+        "/openapi/v1/msp/{msp_id}/customers/{customer_id}/sites/{site_id}/gateways/{gateway_mac}/health/timeline")
+    _GATEWAY_IPV6_IP_PASSTHROUGH_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/gateways/{gateway_mac}/network/ipv6"
+    _GATEWAY_WAN_HEALTH_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/health/gateways/{gateway_mac}/wans/details"
+    _SWITCH_PORTS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switches/ports/overview"
+    _SWITCH_PORT_COUNTERS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switches/ports/counters"
+    _SWITCH_PORT_POE_INFO_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switches/ports/poe-info"
+    _SWITCH_PORT_POE_MODE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switches/{switch_mac}/ports/{port}/poe-mode"
+    _SWITCH_PORT_STATUS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switches/{switch_mac}/ports/{port}/status"
+    _SWITCH_PORT_NAME_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switches/{switch_mac}/ports/{port}/name"
+    _SWITCH_NETWORKS_DETAIL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switches/{switch_mac}/networks-detail"
+    _SWITCH_LLDP_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switches/{switch_mac}/lldp-neighbors"
+    _SWITCH_HEALTH_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switches/{switch_mac}/health/detail"
+    _MSP_SWITCH_HEALTH_PATH = (
+        "/openapi/v1/msp/{msp_id}/customers/{customer_id}/sites/{site_id}/switches/{switch_mac}/health/detail")
+    _SWITCH_HEALTH_TIMELINE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switches/{switch_mac}/health/timeline"
+    _MSP_SWITCH_HEALTH_TIMELINE_PATH = (
+        "/openapi/v1/msp/{msp_id}/customers/{customer_id}/sites/{site_id}/switches/{switch_mac}/health/timeline")
+    _GATEWAY_ACL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/acls/osg-acls"
+    _SWITCH_ACL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/acls/osw-acls"
+    _AP_ACL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/acls/eap-acls"
+    _DHCP_USERS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/service/dhcp/user-list"
+    _GATEWAY_DHCP_USERS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/gateways/{gateway_mac}/dhcp/user-list"
+    _DNS_CACHE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/service/dns-cache"
+    _DNS_PROXY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/service/dns-proxy"
+    _LAN_DNS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/lan/dns"
+    _CONTROLLER_HEALTH_PATH = "/openapi/v1/{controller_id}/dashboard/overview-without-client"
+    _CONTROLLER_SCENARIOS_PATH = "/openapi/v1/{controller_id}/scenarios"
+    _CONTROLLER_SCENARIO_DIFFERENCE_PATH = (
+        "/openapi/v1/{controller_id}/scenarios/difference")
+    _CONTROLLER_THREAT_SEVERITY_PATH = (
+        "/openapi/v1/{controller_id}/security/threat-management/severity")
+    _SITE_THREAT_WINDOW_PATH = "/openapi/v1/{controller_id}/security/threat-management"
+    _CONTROLLER_CLIENT_RECOGNITION_PATH = "/openapi/v1/{controller_id}/controller/setting/client-recognition"
+    _CONTROLLER_DEVICE_STATISTICS_PATH = "/openapi/v1/{controller_id}/devices/stat"
+    _CONTROLLER_CLIENT_ACTIVE_TIMEOUT_PATH = "/openapi/v1/{controller_id}/controller/setting/active-timeout"
+    _CONTROLLER_CLIENT_HISTORY_RETENTION_PATH = "/openapi/v1/{controller_id}/controller/client/history-enable"
+    _CONTROLLER_AUDIT_NOTIFICATION_PATH = "/openapi/v1/{controller_id}/audit-notification"
+    _CONTROLLER_UI_INTERFACE_PATH = "/openapi/v1/{controller_id}/controller/setting/ui-interface"
+    _CONTROLLER_RETENTION_PATH = "/openapi/v1/{controller_id}/controller/setting/retention"
+    _CONTROLLER_DST_PATH = "/openapi/v1/{controller_id}/dst-info"
+    _CONTROLLER_EXPERIENCE_PATH = "/openapi/v1/{controller_id}/global/controller/setting/exp-improve"
+    _CONTROLLER_CLIENT_DETAIL_INFO_PATH = "/openapi/v1/{controller_id}/client-detail-information"
+    _CONTROLLER_GENERAL_SETTINGS_PATH = "/openapi/v1/{controller_id}/global/controller/setting/general"
+    _CONTROLLER_DEVICE_ACCESS_PATH = "/openapi/v1/{controller_id}/controller/setting/services/device-access"
+    _CONTROLLER_BACKUP_SCHEDULE_PATH = "/openapi/v1/{controller_id}/backupschedule/task"
+    _CONTROLLER_CLOUD_ACCESS_PATH = "/openapi/v1/{controller_id}/cloud/status"
+    _CONTROLLER_DEVICE_MANAGEMENT_PATH = "/openapi/v1/{controller_id}/device-mgmt"
+    _CONTROLLER_REMOTE_BINDING_PATH = "/openapi/v1/{controller_id}/cloud/remote/bind/status"
+    _CONTROLLER_BACKUP_RESULT_PATH = "/openapi/v1/{controller_id}/maintenance/backup/result"
+    _CONTROLLER_RESTORE_RESULT_PATH = "/openapi/v1/{controller_id}/maintenance/restore/result"
+    _CONTROLLER_PRIVACY_POLICY_PATH = "/openapi/v1/{controller_id}/privacy-policy"
+    _CONTROLLER_MAIL_STATUS_PATH = "/openapi/v1/{controller_id}/mail/status"
+    _CONTROLLER_GLOBAL_MFA_STATUS_PATH = "/openapi/v1/{controller_id}/mfa/status"
+    _MSP_CLOUD_ACCESS_PATH = "/openapi/v1/msp/{msp_id}/cloud/status"
+    _MSP_PRIVACY_POLICY_PATH = "/openapi/v1/msp/{msp_id}/privacy-policy"
+    _MSP_CLIENT_DETAIL_INFO_PATH = "/openapi/v1/msp/{msp_id}/client-detail-information"
+    _MSP_AUDIT_NOTIFICATION_PATH = "/openapi/v1/msp/{msp_id}/audit-notification"
+    _MSP_DEVICE_LINK_TOPOLOGY_PATH = (
+        "/openapi/v2/msp/{msp_id}/customers/{customer_id}/sites/{site_id}/devices/"
+        "{device_mac}/device-link-topology")
+    _MSP_DEVICE_TAGS_PATH = "/openapi/v1/msp/{msp_id}/devices/tag"
+    _MSP_MFA_STATUS_PATH = "/openapi/v1/msp/{msp_id}/mfa/status"
+    _MSP_LICENSE_AUTO_ACTIVE_PATH = "/openapi/v1/msp/{msp_id}/license/auto-active"
+    _MSP_CUSTOMER_ROLES_PATH = "/openapi/v1/msp/{msp_id}/customer-roles"
+    _MSP_DST_INFO_PATH = "/openapi/v1/msp/{msp_id}/dst-info"
+    _MSP_REMOTE_LOGGING_PATH = "/openapi/v1/msp/{msp_id}/remote-logging"
+    _MSP_MAIL_SERVER_PATH = "/openapi/v1/msp/{msp_id}/settings/mail-server"
+    _MSP_GENERAL_SETTINGS_PATH = "/openapi/v1/msp/{msp_id}/general-setting"
+    _MSP_LOG_NOTIFICATION_PATH = "/openapi/v1/msp/{msp_id}/log-notification"
+    _MSP_DATA_RETENTION_PATH = "/openapi/v1/msp/{msp_id}/retention"
+    _MSP_UI_INTERFACE_PATH = "/openapi/v1/msp/{msp_id}/ui-interface"
+    _MSP_USER_INTERFACE_PATH = "/openapi/v1/msp/{msp_id}/settings/user-interface"
+    _MSP_AVAILABLE_ROLES_PATH = "/openapi/v1/msp/{msp_id}/roles/available"
+    _MSP_AVAILABLE_CUSTOMER_ROLES_PATH = "/openapi/v1/msp/{msp_id}/roles/customer/roles/available"
+    _MSP_DASHBOARD_OVERALL_PATH = "/openapi/v1/msp/{msp_id}/dashboard/client/overview-diagram"
+    _MSP_CLUSTER_NODES_PATH = "/openapi/v1/msp/{msp_id}/cluster/nodes/info"
+    _MSP_ADOPT_TIP_PATH = "/openapi/v1/msp/{msp_id}/adopt-tip"
+    _MSP_ROLES_PATH = "/openapi/v1/msp/{msp_id}/roles"
+    _CONTROLLER_REMOTE_LOGGING_PATH = "/openapi/v1/{controller_id}/global/controller/setting/syslog"
+    _CONTROLLER_REMOTE_LOGGING_TIP_PATH = "/openapi/v1/{controller_id}/global/controller/setting/syslog/tip"
+    _CONTROLLER_RADIUS_PROXY_PATH = "/openapi/v1/{controller_id}/global/controller/setting/network/radius-proxy"
+    _CONTROLLER_RADIUS_SERVER_PATH = "/openapi/v1/{controller_id}/global/controller/setting/network/radius-server"
+    _CONTROLLER_UPGRADE_PORT_PATH = "/openapi/v1/{controller_id}/system/setting/upgrade-port"
+    _CONTROLLER_PORTAL_PORT_PATH = "/openapi/v1/{controller_id}/system/setting/portal-port"
+    _CONTROLLER_PORT_SETTINGS_PATH = "/openapi/v1/{controller_id}/system/setting/controller-port"
+    _CONTROLLER_STATUS_PATH = "/openapi/v1/{controller_id}/system/setting/controller-status"
+    _CONTROLLER_LOGGING_PATH = "/openapi/v1/{controller_id}/system/setting/logging"
+    _CONTROLLER_CERTIFICATE_PATH = "/openapi/v1/{controller_id}/system/setting/certificate"
+    _CONTROLLER_ROLES_PATH = "/openapi/v1/{controller_id}/roles"
+    _CONTROLLER_AVAILABLE_ROLES_PATH = "/openapi/v1/{controller_id}/roles/available"
+    _CONTROLLER_KNOWN_DEVICES_PATH = "/openapi/v1/{controller_id}/devices/known-devices"
+    _CONTROLLER_UNKNOWN_DEVICES_PATH = "/openapi/v1/{controller_id}/devices/unknown-devices"
+    _CONTROLLER_BATCH_ADOPT_INFO_PATH = "/openapi/v1/{controller_id}/devices/batch/info"
+    _SITE_RADIUS_USERS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/profiles/radius-server/users"
+    _SITE_ENTITY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}"
+    _SITE_UPNP_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/upnp"
+    _SITE_IOT_AGING_TIME_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/iot/aging-time"
+    _SITE_IOT_RADIO_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/iot/radio"
+    _SITE_MESH_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/mesh"
+    _SITE_MULTICAST_RATE_LIMIT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/multicast-rate-limit"
+    _SITE_BEACON_CONTROL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/beacon-control"
+    _SITE_IOT_TRANSMIT_POWER_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/iot/radio/transmit-power"
+    _SITE_REMEMBER_SETTING_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/remember-device"
+    _SITE_CLIENT_CONNECTION_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/client-ssid-distribution"
+    _SITE_POE_USAGE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/poe-usage"
+    _SITE_DEVICE_COUNTS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/card/overview"
+    _SITE_IPSEC_TUNNEL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/lpset-tunnel-stats"
+    _SITE_CLIENT_ASSOCIATION_TIME_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/client-association-time-distribution"
+    _SITE_NETWORK_ACTIVITY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/allNetworkActivity"
+    _SITE_CLIENT_RSSI_DISTRIBUTION_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/client-rssi-distribution"
+    _SITE_AP_RSSI_DENSITY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/ap-density"
+    _SITE_CLIENT_ATTACHMENT_DISTRIBUTION_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/client-distribution"
+    _SITE_CLIENT_FREQUENCY_DISTRIBUTION_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/client-freq-distribution"
+    _SITE_DEVICE_TRAFFIC_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/traffic-distribution"
+    _SITE_PAST_CLIENT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/past-client-num"
+    _SITE_CURRENT_CLIENT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/current-client-num"
+    _SITE_GATEWAY_ISP_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/gateway/isp/load"
+    _SITE_TOP_AP_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/top-aps"
+    _SITE_ACTIVE_AP_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/most-active-eaps"
+    _SITE_ACTIVE_AP_V2_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/dashboard/most-active-eaps"
+    _SITE_HOTSPOT_STATISTICS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/hotspot/dashboard/statistics"
+    _SITE_APPLICATION_ACCESS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/{operation}"
+    _SITE_DASHBOARD_TABS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/{route}"
+    _SITE_SPECIFIC_APP_INFO_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/specificAppInfo/{application_id}"
+    _SITE_SPECIFIC_CLIENT_INFO_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/specificClientInfo/{client_mac}"
+    _SITE_APPLICATION_TRAFFIC_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/applicationControl/traffics"
+    _SITE_WAN_LAN_STATUS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/wan-lan-status"
+    _SITE_ARP_DETECT_STATUS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/arpDetects/status"
+    _SITE_DISASTER_MODE_STATUS_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/setting/disaster")
+    _SITE_SPECIFICATION_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/specification"
+    _SITE_PORTAL_LOGOUT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/portal-logout"
+    _SITE_WIDS_CONFIG_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/network-security/wireless-ids"
+    _SITE_WIPS_CONFIG_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/network-security/wireless-ips"
+    _SITE_ACL_CONFIG_MODE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/acls/osg-config-mode"
+    _SITE_ATTACK_DEFENSE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/attack-defense"
+    _SITE_ATTACK_DEFENSE_DEFAULTS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/attack-defense/default"
+    _SITE_ALG_CONFIG_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/nat/alg"
+    _SITE_FIREWALL_SETTINGS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/firewall"
+    _SITE_BANDWIDTH_CONTROL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/bandwidth-control"
+    _SITE_WAN_PORTS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/internet/ports-config"
+    _SITE_VLAN_NETWORK_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/networks/vlans"
+    _SITE_LAN_NETWORKS_V3_PATH = (
+        "/openapi/v3/{controller_id}/sites/{site_id}/lan-networks")
+    _SITE_LAN_NETWORK_INVENTORY_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/lan-networks/all")
+    _SITE_INTERNET_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/internet"
+    _SITE_INTERNET_LOAD_BALANCE_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/internet/load-balance")
+    _SITE_INTERNET_BASIC_INFO_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/internet/basic-info")
+    _SITE_VPN_SESSION_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/setting/vpn/stats/tunnel")
+    _SITE_DHCP_CANDIDATES_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/networks/devices"
+    _SITE_NETWORK_RESERVATION_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/networks/server-for-reservation")
+    _SITE_DHCP_RESERVATIONS_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/setting/service/dhcp")
+    _SITE_DHCP_SNOOP_STATUS_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/dhcpSnoops/status")
+    _SITE_DHCP_SNOOPS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dhcpSnoops"
+    _SITE_MDNS_RULES_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/setting/service/mdns")
+    _SITE_DDNS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/service/ddns"
+    _SITE_FIREWALL_DEFAULTS_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/firewall/timeout/default")
+    _SITE_SNMP_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/service/snmp"
+    _CONTROLLER_GATEWAY_WAN_STATUS_PATH = "/openapi/v1/{controller_id}/global/gateways/wan-status"
+    _SITE_ACTIVE_SWITCH_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/most-active-switches"
+    _SITE_DEVICE_MEMORY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/top-device-memory-usage"
+    _SITE_SWITCH_DASHBOARD_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/switch-summary"
+    _SITE_AP_INTERFERENCE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/top-interference"
+    _SITE_APPLICATION_CATEGORY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/categoryInfo"
+    _SITE_CATEGORY_APPLICATION_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/categoryAppInfo/{family_id}"
+    _SITE_CATEGORY_CLIENT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/categoryUserInfo/{family_id}"
+    _SITE_ACTIVE_APPLICATION_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/mostActiveAppTraffic"
+    _SITE_ACTIVE_CLIENT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/active-clients"
+    _SITE_CPU_USAGE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/top-device-cpu-usage"
+    _SITE_CLIENT_BUBBLE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/clients-bubble"
+    _SITE_TRAFFIC_ACTIVITY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/traffic-activities"
+    _SITE_ISP_LOAD_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/isp-load"
+    _SITE_VPN_TUNNEL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/vpn-tunnel-stats"
+    _SITE_OPEN_VPN_TUNNEL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/open-vpn-tunnel-stats"
+    _SITE_CLIENT_ACTIVITY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/client-activity"
+    _SITE_CLIENT_ASSOCIATION_ACTIVITY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/client-association-activities"
+    _SITE_CLIENT_TRAFFIC_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/clientTraffic"
+    _SITE_SWITCH_QOS_MODE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switch-qos/qos-mode"
+    _SITE_SWITCH_QOS_SCHEDULER_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switch-qos/qos-rule/scheduler-mapping"
+    _SITE_SWITCH_QOS_DSCP_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switch-qos/qos-rule/dscp-mapping"
+    _SITE_GRE_TUNNEL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/vpn/gre-tunnel"
+    _SITE_SSL_VPN_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/vpn/ssl-vpn-server/setting"
+    _SITE_SSH_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/ssh"
+    _SITE_MLD_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/service/mld"
+    _SITE_TEMPLATE_IGMP_PATH = "/openapi/v1/{controller_id}/sitetemplates/{site_template_id}/setting/service/iptv/igmp"
+    _SITE_TEMPLATE_UPNP_PATH = "/openapi/v1/{controller_id}/sitetemplates/{site_template_id}/upnp"
+    _SITE_TEMPLATE_SSH_PATH = "/openapi/v1/{controller_id}/sitetemplates/{site_template_id}/ssh"
+    _SITE_TEMPLATE_IPTV_PATH = "/openapi/v1/{controller_id}/sitetemplates/{site_template_id}/setting/service/iptv/iptv"
+    _SITE_TEMPLATE_IPTV_SERVICE_PATH = "/openapi/v1/{controller_id}/sitetemplates/{site_template_id}/setting/service/iptv"
+    _SITE_IGMP_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/service/igmp"
+    _SITE_IPTV_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/service/iptv"
+    _SITE_DEVICE_TAGS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/devices/tag"
+    _SITE_PENDING_DEVICES_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/grid/devices/pending"
+    _SITE_OVERVIEW_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/overview-diagram"
+    _SITE_TOPOLOGY_PATH = "/openapi/v3/{controller_id}/sites/{site_id}/topology"
+    _SITE_HEALTH_TIMELINE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/health/timeline"
+    _SITE_LONGEST_CLIENT_UPTIME_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/longest-uptime")
+    _SITE_CLIENT_HEALTH_TIMELINE_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/health/client/timeline")
+    _EXPERIENCE_INDEX_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/experienceIndex"
+    _RF_PLANNING_RESULT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/rfPlanning/result"
+    _RF_PLANNING_DASHBOARD_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/rfPlanning/dashboard/status"
+    _RF_PLANNING_DASHBOARD_CURRENT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/rfPlanning/dashboard"
+    _RF_PLANNING_DASHBOARD_HISTORY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/rfPlanning/dashboard/history"
+    _RF_PLANNING_DETAIL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/rfPlanning"
+    _RF_PLANNING_HISTORY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/planningHistory"
+    _RF_PLANNING_HISTORY_DETAIL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/planningHistory/{history_id}"
+    _RF_PLANNING_RECENT_HISTORY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/planningHistoryByTime"
+    _RF_EXCLUDED_APS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/rfPlanning/excludeAps"
+    _RF_DEPLOY_HISTORY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/rfplanning/history"
+    _WIFI_HEALTH_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/wifi/health/timeline"
+    _WIFI_SUBHEALTH_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/wifi/sub/health/timeline"
+    _BAND_STEERING_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/band-steering"
+    _RRM_SETTINGS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/rrm/config"
+    _ROAMING_SETTINGS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/roaming"
+    _SITE_LED_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/led"
+    _SITE_LLDP_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/lldp"
+    _SITE_DPI_LOGGING_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/applicationControl/status"
+    _GATEWAY_VOIP_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/qos/gateway/voip-prioritization"
+    _GATEWAY_TAG_QOS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/qos/gateway/tag-outbound-traffic"
+    _SITE_CHANNEL_LIMIT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/channel-limit"
+    _SITE_6GHZ_AP_PRESENCE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/wireless-network/multi-band-6g/exist"
+    _SITE_SETTING_EXISTENCE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/exist"
+    _SITE_CAPABILITIES_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/capacity"
+    _SITE_DUPLICATE_SSID_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/wireless-network/ssids/duplicate-name"
+    _SSID_AP_GROUPS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/wireless-network/ssids/{ssid_id}/ap-groups"
+    _SITE_TOPOLOGY_NETWORKS_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/topology/available-network"
+    _SITE_TOPOLOGY_VLANS_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/topology/available-vlans"
+    _SITE_UNRESOLVED_INCIDENT_COUNT_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/anomaly/unresolved-incidents")
+    _SITE_INCIDENT_OVERVIEW_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/anomaly/overview/statistics")
+    _SITE_INCIDENT_DISTRIBUTION_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/anomaly/overview/incident-distribution")
+    _SITE_INCIDENT_CATEGORY_COUNTS_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/anomaly/category")
+    _SITE_INCIDENT_LIST_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/anomaly/incidents")
+    _SITE_BATCH_INTERFERENCE_HISTORY_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/full-channel-detect/grid/scan-history")
+    _SITE_BATCH_INTERFERENCE_APS_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/full-channel-detect/{history_id}/ap-list")
+    _SITE_BATCH_WIFI_INTERFERENCE_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/full-channel-detect/{history_id}"
+        "/grid/wifi-interference")
+    _SITE_BATCH_CHANNEL_LOAD_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/full-channel-detect/{history_id}"
+        "/channel-load")
+    _SITE_BATCH_INTERFERENCE_RESULT_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/full-channel-detect/{history_id}"
+        "/grid/interference")
+    _SITE_BATCH_INTERFERENCE_STATUS_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/full-channel-detect/status")
+    _AP_FULL_CHANNEL_DETECT_STATUS_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/full-channel-detect/status")
+    _AP_INTERFERENCE_RESULT_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}"
+        "/full-channel-detect/grid/interference")
+    _DEVICE_HEALTH_INCIDENTS_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/health/incident/{mac}")
+    _SITE_INCIDENT_DETAIL_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/anomaly/incident/{incident_id}")
+    _SITE_INCIDENT_NOTIFICATION_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/anomaly/notification")
+    _SITE_ANOMALY_EVENT_SETTINGS_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/anomaly/setting")
+    _SITE_INCIDENT_INFLUENCES_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/anomaly/{mac}/influencing-{kind}")
+    _SITE_WLAN_GROUP_CAPACITY_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/wireless-network/cmd/countWlans")
+    _SITE_AP_GROUP_CAPACITY_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/count-ap-groups")
+    _SITE_AP_GROUPS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/ap-groups"
+    _SITE_AP_OUI_VLAN_RULES_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/ap-oui-rules"
+    _SITE_SWITCH_SUPPORT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switch-support"
+    _RRM_INCOMPATIBLE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/rrm/incompatible"
+    _SITE_DASHBOARD_CHANNELS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/channels"
+    _SITE_WIFI_SUMMARY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/wifi-summary"
+    _SITE_ROGUE_AP_RESULTS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/insight/rogueaps"
+    _SITE_WIDS_SUMMARY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/insight/wids"
+    _SITE_WIDS_BLACKLIST_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/insight/wids/blacklist")
+    _SITE_CLIENT_SIGNAL_DISTRIBUTION_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/client-signal-distribution"
+    _SITE_EVENT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/logs/events"
+    _SITE_ALERT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/logs/alerts"
+    _IDENTIFIER = re.compile(r"[A-Za-z0-9_-]{1,128}")
+    _SITE_REQUEST = re.compile(r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites\?page=[0-9]+&pageSize=[0-9]+")
+    _SITE_IOT_TRANSMIT_POWER_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/setting/iot/radio/transmit-power\?page=1&pageSize=100"
+    )
+    _SITE_CLIENT_ASSOCIATION_TIME_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/client-association-time-distribution\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _SITE_NETWORK_ACTIVITY_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/allNetworkActivity\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _SITE_CLIENT_RSSI_DISTRIBUTION_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/client-rssi-distribution"
+    )
+    _SITE_AP_RSSI_DENSITY_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/ap-density"
+    )
+    _SITE_CLIENT_ATTACHMENT_DISTRIBUTION_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/client-distribution"
+    )
+    _SITE_CLIENT_FREQUENCY_DISTRIBUTION_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/client-freq-distribution"
+    )
+    _SITE_DEVICE_TRAFFIC_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/traffic-distribution\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _SITE_PAST_CLIENT_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/past-client-num\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _SITE_CURRENT_CLIENT_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/current-client-num"
+    )
+    _SITE_GATEWAY_ISP_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/gateway/isp/load"
+    )
+    _SITE_TOP_AP_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/top-aps\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _SITE_ACTIVE_AP_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/most-active-eaps\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _SITE_ACTIVE_SWITCH_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/most-active-switches\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _SITE_DEVICE_MEMORY_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/top-device-memory-usage\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _SITE_SWITCH_DASHBOARD_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/switch-summary\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _SITE_AP_INTERFERENCE_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/top-interference"
+    )
+    _SITE_APPLICATION_CATEGORY_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/categoryInfo\?start=([0-9]{1,16})&end=([0-9]{1,16})&page=1&pageSize=100"
+    )
+    _SITE_CATEGORY_APPLICATION_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/categoryAppInfo/((?:0|[1-9][0-9]{0,9}))\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _SITE_CATEGORY_CLIENT_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/categoryUserInfo/((?:0|[1-9][0-9]{0,9}))\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _SITE_ACTIVE_APPLICATION_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/mostActiveAppTraffic\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _SITE_ACTIVE_CLIENT_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/dashboard/active-clients"
+    )
+    _SITE_ACTIVE_AP_V2_REQUEST = re.compile(
+        r"/openapi/v2/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/most-active-eaps\?deviceNum=10&start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _SITE_SPECIFIC_CLIENT_INFO_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/specificClientInfo/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}"
+        r"\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _SITE_SPECIFIC_APP_INFO_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/specificAppInfo/[A-Za-z0-9_-]{1,64}"
+        r"\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _SITE_DASHBOARD_TABS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/(?:tabs|without-overall-tabs)"
+    )
+    _SITE_APPLICATION_ACCESS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/(?:allowApp|blockApp)\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+        r"&page=(?:[1-9][0-9]{0,3}|1000[01])&pageSize=(?:[1-9][0-9]?|100)"
+    )
+    _SITE_APPLICATION_TRAFFIC_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/applicationControl/traffics\?dateStart=([0-9]{1,16})&dateEnd=([0-9]{1,16})"
+    )
+    _SITE_WAN_LAN_STATUS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/wan-lan-status"
+    )
+    _SITE_ARP_DETECT_STATUS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/arpDetects/status"
+    )
+    _SITE_DISASTER_MODE_STATUS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/setting/disaster"
+    )
+    _SITE_SPECIFICATION_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/specification"
+    )
+    _SITE_PORTAL_LOGOUT_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/portal-logout"
+    )
+    _SITE_WIDS_CONFIG_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/network-security/wireless-ids"
+    )
+    _SITE_WIPS_CONFIG_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/network-security/wireless-ips"
+    )
+    _SITE_ACL_CONFIG_MODE_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/acls/osg-config-mode"
+    )
+    _SITE_ATTACK_DEFENSE_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/attack-defense"
+    )
+    _SITE_ATTACK_DEFENSE_DEFAULTS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/attack-defense/default"
+    )
+    _SITE_ALG_CONFIG_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/nat/alg"
+    )
+    _SITE_FIREWALL_SETTINGS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/firewall"
+    )
+    _SITE_FIREWALL_DEFAULTS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/firewall/timeout/default"
+    )
+    _SITE_BANDWIDTH_CONTROL_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/bandwidth-control"
+    )
+    _SITE_WAN_PORTS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/internet/ports-config"
+    )
+    _SITE_VLAN_NETWORK_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/networks/vlans"
+        r"\?page=([1-5])&pageSize=100"
+    )
+    _SITE_LAN_NETWORKS_V3_REQUEST = re.compile(
+        r"/openapi/v3/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/lan-networks\?page=([1-5])&pageSize=100"
+    )
+    _SITE_LAN_NETWORK_INVENTORY_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/lan-networks/all"
+    )
+    _SITE_INTERNET_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/internet"
+    )
+    _SITE_INTERNET_LOAD_BALANCE_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/internet/load-balance"
+    )
+    _SITE_INTERNET_BASIC_INFO_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/internet/basic-info"
+    )
+    _SITE_VPN_SESSION_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/setting/vpn/stats/tunnel\?page=([1-5])&pageSize=100"
+    )
+    _SITE_DHCP_CANDIDATES_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/networks/devices\?page=([1-5])&pageSize=100"
+    )
+    _SITE_NETWORK_RESERVATION_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/networks/server-for-reservation"
+    )
+    _SITE_DHCP_RESERVATIONS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/setting/service/dhcp\?page=([1-5])&pageSize=100"
+    )
+    _SITE_DHCP_SNOOP_STATUS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/dhcpSnoops/status"
+    )
+    _SITE_DHCP_SNOOPS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dhcpSnoops\?page=([1-5])&pageSize=100"
+    )
+    _SITE_MDNS_RULES_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/setting/service/mdns\?page=([1-5])&pageSize=100"
+    )
+    _SITE_DDNS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/setting/service/ddns\?page=([1-5])&pageSize=100"
+    )
+    _SITE_SNMP_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/setting/service/snmp"
+    )
+    _CONTROLLER_GATEWAY_WAN_STATUS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/global/gateways/wan-status"
+        r"\?page=(?:[1-9][0-9]{0,4}|10000[01])&pageSize=(?:[1-9][0-9]?|100)"
+    )
+    _SITE_HOTSPOT_STATISTICS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/hotspot/dashboard/statistics\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _SITE_CPU_USAGE_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/top-device-cpu-usage\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _SITE_CLIENT_BUBBLE_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/clients-bubble"
+    )
+    _SITE_TRAFFIC_ACTIVITY_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/traffic-activities\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _SITE_ISP_LOAD_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/isp-load\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _SITE_VPN_TUNNEL_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/vpn-tunnel-stats\?type=([01])"
+    )
+    _SITE_OPEN_VPN_TUNNEL_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/open-vpn-tunnel-stats\?type=([01])"
+    )
+    _SITE_CLIENT_ACTIVITY_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/client-activity\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _SITE_CLIENT_ASSOCIATION_ACTIVITY_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/client-association-activities\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _SITE_CLIENT_TRAFFIC_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/clientTraffic\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+        r"&page=(0|[1-9][0-9]{0,4})&pageSize=([1-9][0-9]{0,2})"
+    )
+    _SITE_TEMPLATE_REQUEST = re.compile(r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sitetemplates\?page=[0-9]+&pageSize=[0-9]+")
+    _RRM_INCOMPATIBLE_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/rrm/incompatible"
+        r"\?page=([1-9][0-9]{0,2})&pageSize=([1-9][0-9]{0,2})"
+    )
+    _GATEWAY_WAN_REQUEST = re.compile(
+        r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/gateways/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/wan-status"
+    )
+    _GATEWAY_HEALTH_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/gateways/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/health/detail"
+        r"\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _GATEWAY_HEALTH_TIMELINE_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/gateways/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/health/timeline"
+        r"\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _AP_RF_SCAN_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/aps/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/rf-scan-result"
+    )
+    _AP_RF_SCAN_V2_REQUEST = re.compile(
+        r"/openapi/v2/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/aps/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/rf-scan-result"
+    )
+    _AP_SPEED_TEST_RESULT_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/aps/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/speed-test-result"
+    )
+    _AP_WIFI_INTERFERENCE_REQUEST = re.compile(
+        r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/aps/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/full-channel-detect/wlan-interference"
+        r"\?page=[0-9]+&pageSize=[0-9]+"
+    )
+    _AP_AVAILABLE_CHANNEL_REQUEST = re.compile(
+        r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/aps/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/available-channel"
+    )
+    _AP_UPLINK_CONFIG_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/aps/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/uplink-config"
+    )
+    _AP_HEALTH_REQUEST = re.compile(
+        r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/eaps/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/health/detail"
+        r"\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _AP_HEALTH_TIMELINE_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/eaps/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/health/timeline"
+        r"\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _AP_MESH_STATISTICS_REQUEST = re.compile(
+        r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/aps/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/mesh/statistics"
+    )
+    _MSP_AP_MESH_STATISTICS_REQUEST = re.compile(
+        r"/openapi/v1/msp/[A-Za-z0-9_-]{1,128}/customers/[A-Za-z0-9_-]{1,128}/sites/"
+        r"[A-Za-z0-9_-]{1,128}/aps/(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})"
+        r"[0-9A-Fa-f]{2}/mesh/statistics"
+    )
+    _MSP_OLT_DEVICE_READ_REQUEST = re.compile(
+        r"/openapi/v1/msp/[A-Za-z0-9_-]{1,128}/customers/[A-Za-z0-9_-]{1,128}/sites/"
+        r"[A-Za-z0-9_-]{1,128}/olts/(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})"
+        r"[0-9A-Fa-f]{2}(?:/l2-feature/eth-port/port/unit1/list|/pon/pon-port/configs/list)?"
+    )
+    _MSP_OLT_SITE_PORTS_REQUEST = re.compile(
+        r"/openapi/v1/msp/[A-Za-z0-9_-]{1,128}/customers/[A-Za-z0-9_-]{1,128}/sites/"
+        r"[A-Za-z0-9_-]{1,128}/eth-port/and/pon-port/list"
+    )
+    _SWITCH_PORTS_REQUEST = re.compile(
+        r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/switches/ports/overview\?page=[0-9]+&pageSize=[0-9]+"
+    )
+    _SWITCH_PORT_COUNTERS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/switches/ports/counters"
+        r"\?page=([0-9]{1,3})&pageSize=([0-9]{1,3})"
+    )
+    _SWITCH_PORT_POE_INFO_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/switches/ports/poe-info"
+        r"\?page=([0-9]{1,3})&pageSize=([0-9]{1,3})"
+    )
+    _SWITCH_NETWORKS_DETAIL_REQUEST = re.compile(
+        r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/switches/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/networks-detail"
+        r"\?page=[0-9]+&pageSize=[0-9]+"
+    )
+    _SWITCH_LLDP_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/switches/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/lldp-neighbors"
+        r"\?page=[0-9]+&pageSize=[0-9]+"
+    )
+    _SWITCH_DHCP_USERS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/switches/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/dhcp/user-list"
+        r"\?page=[0-9]+&pageSize=[0-9]+"
+    )
+    _SWITCH_OSPF_NEIGHBORS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/switches/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/ospf-neighbors"
+        r"\?page=[0-9]+&pageSize=[0-9]+"
+    )
+    _SWITCH_PORT_NETWORKS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/switches/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/port-lag-networks"
+        r"\?page=[0-9]+&pageSize=[0-9]+"
+    )
+    _SWITCH_EXIST_NETWORKS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/switches/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/exist-network"
+    )
+    _SWITCH_NETWORKS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/switches/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/networks"
+        r"\?page=[0-9]+&pageSize=[0-9]+"
+    )
+    _SWITCH_INTERFACES_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/switches/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/interfaces/brief"
+    )
+    _SWITCH_ROUTING_TABLE_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/switches/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/routingTable"
+        r"\?page=[0-9]+&pageSize=[0-9]+"
+    )
+    _SWITCH_STATIC_ROUTES_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/switches/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/staticRoutings"
+        r"\?page=[0-9]+&pageSize=[0-9]+"
+    )
+    _SWITCH_VRFS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/switches/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/vrfs"
+        r"(?:\?page=[0-9]+&pageSize=[0-9]+)?"
+    )
+    _SWITCH_VLAN_INTERFACES_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/vlan-interface/switches/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}"
+    )
+    _SWITCH_STATISTICS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/stat/switches/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}"
+    )
+    _SWITCH_PORT_TAGS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/switches/port-tag"
+    )
+    _SWITCH_HEALTH_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/switches/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/health/detail"
+        r"\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _GATEWAY_ACL_REQUEST = re.compile(
+        r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/acls/osg-acls\?page=[0-9]+&pageSize=[0-9]+"
+    )
+    _SWITCH_ACL_REQUEST = re.compile(
+        r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/acls/osw-acls\?page=[0-9]+&pageSize=[0-9]+"
+    )
+    _AP_ACL_REQUEST = re.compile(
+        r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/acls/eap-acls\?page=[0-9]+&pageSize=[0-9]+"
+    )
+    _DHCP_USERS_REQUEST = re.compile(
+        r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/setting/service/dhcp/user-list"
+        r"\?page=[0-9]+&pageSize=[0-9]+"
+    )
+    _GATEWAY_DHCP_USERS_REQUEST = re.compile(
+        r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/gateways/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/dhcp/user-list"
+        r"\?page=[0-9]+&pageSize=[0-9]+"
+    )
+    _DNS_CACHE_REQUEST = re.compile(
+        r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/setting/service/dns-cache"
+    )
+    _DNS_PROXY_REQUEST = re.compile(
+        r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/setting/service/dns-proxy"
+    )
+    _LAN_DNS_REQUEST = re.compile(
+        r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/setting/lan/dns\?page=[0-9]+&pageSize=[0-9]+"
+    )
+    _CONTROLLER_HEALTH_REQUEST = re.compile(
+        r"/openapi/v1/[A-Za-z0-9_-]{1,128}/dashboard/overview-without-client"
+    )
+    _CONTROLLER_SCENARIOS_REQUEST = re.compile(
+        r"/openapi/v1/[A-Za-z0-9_-]{1,128}/scenarios"
+    )
+    _CONTROLLER_SCENARIO_DIFFERENCE_REQUEST = re.compile(
+        r"/openapi/v1/[A-Za-z0-9_-]{1,128}/scenarios/difference"
+    )
+    _CONTROLLER_THREAT_SEVERITY_REQUEST = re.compile(
+        r"/openapi/v1/[A-Za-z0-9_-]{1,128}/security/threat-management/severity"
+        r"\?startTime=[0-9]{12,13}&endTime=[0-9]{12,13}"
+    )
+    _SITE_THREAT_WINDOW_REQUEST = re.compile(
+        r"/openapi/v1/[A-Za-z0-9_-]{1,128}/security/threat-management"
+        r"\?siteList=[A-Za-z0-9_-]{1,128}&archived=(?:true|false)"
+        r"&page=[1-9][0-9]*&pageSize=1000"
+        r"&filters.startTime=[0-9]{10}&filters.endTime=[0-9]{10}"
+    )
+    _CONTROLLER_CLIENT_RECOGNITION_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/controller/setting/client-recognition"
+    )
+    _CONTROLLER_DEVICE_STATISTICS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/devices/stat"
+    )
+    _CONTROLLER_CLIENT_ACTIVE_TIMEOUT_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/controller/setting/active-timeout"
+    )
+    _CONTROLLER_CLIENT_HISTORY_RETENTION_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/controller/client/history-enable"
+    )
+    _CONTROLLER_AUDIT_NOTIFICATION_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/audit-notification"
+    )
+    _CONTROLLER_UI_INTERFACE_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/controller/setting/ui-interface"
+    )
+    _CONTROLLER_RETENTION_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/controller/setting/retention"
+    )
+    _CONTROLLER_DST_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/dst-info"
+    )
+    _CONTROLLER_EXPERIENCE_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/global/controller/setting/exp-improve"
+    )
+    _CONTROLLER_CLIENT_DETAIL_INFO_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/client-detail-information"
+    )
+    _CONTROLLER_GENERAL_SETTINGS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/global/controller/setting/general"
+    )
+    _CONTROLLER_DEVICE_ACCESS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/controller/setting/services/device-access"
+    )
+    _CONTROLLER_BACKUP_SCHEDULE_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/backupschedule/task"
+    )
+    _CONTROLLER_CLOUD_ACCESS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/cloud/status"
+    )
+    _CONTROLLER_DEVICE_MANAGEMENT_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/device-mgmt"
+    )
+    _CONTROLLER_REMOTE_BINDING_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/cloud/remote/bind/status"
+    )
+    _CONTROLLER_BACKUP_RESULT_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/maintenance/backup/result"
+    )
+    _CONTROLLER_RESTORE_RESULT_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/maintenance/restore/result"
+    )
+    _CONTROLLER_PRIVACY_POLICY_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/privacy-policy"
+    )
+    _CONTROLLER_MAIL_STATUS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/mail/status"
+    )
+    _CONTROLLER_GLOBAL_MFA_STATUS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/mfa/status"
+    )
+    _MSP_CLOUD_ACCESS_REQUEST = re.compile(
+        r"/openapi/v1/msp/([A-Za-z0-9_-]{1,128})/cloud/status"
+    )
+    _MSP_PRIVACY_POLICY_REQUEST = re.compile(
+        r"/openapi/v1/msp/([A-Za-z0-9_-]{1,128})/privacy-policy"
+    )
+    _MSP_CLIENT_DETAIL_INFO_REQUEST = re.compile(
+        r"/openapi/v1/msp/([A-Za-z0-9_-]{1,128})/client-detail-information"
+    )
+    _MSP_AUDIT_NOTIFICATION_REQUEST = re.compile(
+        r"/openapi/v1/msp/([A-Za-z0-9_-]{1,128})/audit-notification"
+    )
+    _MSP_DEVICE_LINK_TOPOLOGY_REQUEST = re.compile(
+        r"/openapi/v2/msp/[A-Za-z0-9_-]{1,128}/customers/[A-Za-z0-9_-]{1,128}/sites/"
+        r"[A-Za-z0-9_-]{1,128}/devices/(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})"
+        r"[0-9A-Fa-f]{2}/device-link-topology"
+    )
+    _MSP_DEVICE_TAGS_REQUEST = re.compile(
+        r"/openapi/v1/msp/[A-Za-z0-9_-]{1,128}/devices/tag"
+    )
+    _MSP_MFA_STATUS_REQUEST = re.compile(
+        r"/openapi/v1/msp/[A-Za-z0-9_-]{1,128}/mfa/status"
+    )
+    _MSP_LICENSE_AUTO_ACTIVE_REQUEST = re.compile(
+        r"/openapi/v1/msp/[A-Za-z0-9_-]{1,128}/license/auto-active"
+    )
+    _MSP_CUSTOMER_ROLES_REQUEST = re.compile(
+        r"/openapi/v1/msp/[A-Za-z0-9_-]{1,128}/customer-roles"
+    )
+    _MSP_DST_INFO_REQUEST = re.compile(
+        r"/openapi/v1/msp/([A-Za-z0-9_-]{1,128})/dst-info"
+    )
+    _MSP_REMOTE_LOGGING_REQUEST = re.compile(
+        r"/openapi/v1/msp/([A-Za-z0-9_-]{1,128})/remote-logging"
+    )
+    _MSP_MAIL_SERVER_REQUEST = re.compile(
+        r"/openapi/v1/msp/([A-Za-z0-9_-]{1,128})/settings/mail-server"
+    )
+    _MSP_GENERAL_SETTINGS_REQUEST = re.compile(
+        r"/openapi/v1/msp/([A-Za-z0-9_-]{1,128})/general-setting"
+    )
+    _MSP_LOG_NOTIFICATION_REQUEST = re.compile(
+        r"/openapi/v1/msp/([A-Za-z0-9_-]{1,128})/log-notification"
+    )
+    _MSP_DATA_RETENTION_REQUEST = re.compile(
+        r"/openapi/v1/msp/([A-Za-z0-9_-]{1,128})/retention"
+    )
+    _MSP_UI_INTERFACE_REQUEST = re.compile(
+        r"/openapi/v1/msp/([A-Za-z0-9_-]{1,128})/ui-interface"
+    )
+    _MSP_USER_INTERFACE_REQUEST = re.compile(
+        r"/openapi/v1/msp/([A-Za-z0-9_-]{1,128})/settings/user-interface"
+    )
+    _MSP_AVAILABLE_ROLES_REQUEST = re.compile(
+        r"/openapi/v1/msp/([A-Za-z0-9_-]{1,128})/roles/available"
+    )
+    _MSP_AVAILABLE_CUSTOMER_ROLES_REQUEST = re.compile(
+        r"/openapi/v1/msp/([A-Za-z0-9_-]{1,128})/roles/customer/roles/available"
+    )
+    _MSP_DASHBOARD_OVERALL_REQUEST = re.compile(
+        r"/openapi/v1/msp/([A-Za-z0-9_-]{1,128})/dashboard/client/overview-diagram"
+    )
+    _MSP_CLUSTER_NODES_REQUEST = re.compile(
+        r"/openapi/v1/msp/([A-Za-z0-9_-]{1,128})/cluster/nodes/info"
+    )
+    _MSP_ADOPT_TIP_REQUEST = re.compile(
+        r"/openapi/v1/msp/([A-Za-z0-9_-]{1,128})/adopt-tip"
+    )
+    _MSP_ROLES_REQUEST = re.compile(
+        r"/openapi/v1/msp/([A-Za-z0-9_-]{1,128})/roles"
+    )
+    _CONTROLLER_REMOTE_LOGGING_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/global/controller/setting/syslog"
+    )
+    _CONTROLLER_REMOTE_LOGGING_TIP_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/global/controller/setting/syslog/tip"
+    )
+    _CONTROLLER_RADIUS_PROXY_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/global/controller/setting/network/radius-proxy"
+    )
+    _CONTROLLER_RADIUS_SERVER_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/global/controller/setting/network/radius-server"
+    )
+    _CONTROLLER_UPGRADE_PORT_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/system/setting/upgrade-port"
+    )
+    _CONTROLLER_PORTAL_PORT_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/system/setting/portal-port"
+    )
+    _CONTROLLER_PORT_SETTINGS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/system/setting/controller-port"
+    )
+    _CONTROLLER_STATUS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/system/setting/controller-status"
+    )
+    _CONTROLLER_LOGGING_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/system/setting/logging"
+    )
+    _CONTROLLER_CERTIFICATE_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/system/setting/certificate"
+    )
+    _CONTROLLER_ROLES_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/roles"
+    )
+    _CONTROLLER_AVAILABLE_ROLES_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/roles/available"
+    )
+    _CONTROLLER_KNOWN_DEVICES_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/devices/known-devices\?page=([0-9]+)&pageSize=([0-9]+)"
+    )
+    _CONTROLLER_UNKNOWN_DEVICES_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/devices/unknown-devices\?page=([0-9]+)&pageSize=([0-9]+)"
+    )
+    _CONTROLLER_BATCH_ADOPT_INFO_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/devices/batch/info\?page=([0-9]+)&pageSize=([0-9]+)"
+    )
+    _SITE_OVERVIEW_REQUEST = re.compile(
+        r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/dashboard/overview-diagram"
+    )
+    _SITE_SWITCH_QOS_MODE_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})/switch-qos/qos-mode"
+    )
+    _SITE_SWITCH_QOS_SCHEDULER_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})/switch-qos/qos-rule/scheduler-mapping"
+    )
+    _SITE_SWITCH_QOS_DSCP_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})/switch-qos/qos-rule/dscp-mapping"
+    )
+    _SITE_TOPOLOGY_REQUEST = re.compile(
+        r"/openapi/v3/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/topology\?filters\.deviceStatus=0%2C1"
+    )
+    _SITE_HEALTH_TIMELINE_REQUEST = re.compile(
+        r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/health/timeline"
+        r"\?start=[0-9]{1,16}&end=[0-9]{1,16}"
+    )
+    _SITE_LONGEST_CLIENT_UPTIME_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/dashboard/longest-uptime"
+    )
+    _SITE_WIFI_SUMMARY_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/dashboard/wifi-summary"
+        r"\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _SITE_CLIENT_HEALTH_TIMELINE_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/health/client/timeline"
+        r"\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _EXPERIENCE_INDEX_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/experienceIndex"
+    )
+    _RF_PLANNING_RESULT_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/rfPlanning/result"
+    )
+    _RF_PLANNING_DASHBOARD_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/rfPlanning/dashboard/status"
+    )
+    _RF_PLANNING_DASHBOARD_CURRENT_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/rfPlanning/dashboard"
+    )
+    _RF_PLANNING_DASHBOARD_HISTORY_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/rfPlanning/dashboard/history"
+        r"\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _RF_EXCLUDED_APS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/rfPlanning/excludeAps"
+    )
+    _RF_DEPLOY_HISTORY_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/rfplanning/history"
+    )
+    _RF_PLANNING_DETAIL_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/rfPlanning"
+    )
+    _RF_PLANNING_HISTORY_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/planningHistory"
+        r"\?page=1&pageSize=100"
+    )
+    _RF_PLANNING_HISTORY_DETAIL_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/planningHistory/[A-Za-z0-9_-]{1,128}"
+    )
+    _RF_PLANNING_RECENT_HISTORY_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/planningHistoryByTime"
+        r"\?currentPage=1&currentPageSize=100&start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _WIFI_HEALTH_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/wifi/health/timeline"
+        r"\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _WIFI_SUBHEALTH_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/wifi/sub/health/timeline"
+        r"\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _SITE_LOG_REQUEST = re.compile(
+        r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/logs/(?:events|alerts)"
+        r"\?page=[0-9]+&pageSize=[0-9]+&filters\.timeStart=[0-9]{1,16}&filters\.timeEnd=[0-9]{1,16}"
+    )
+    _SITE_ROGUE_AP_RESULTS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/insight/rogueaps"
+        r"\?page=[0-9]+&pageSize=[0-9]+"
+    )
+    _SITE_WIDS_SUMMARY_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/insight/wids"
+        r"\?page=1&pageSize=1000"
+    )
+    _SITE_WIDS_BLACKLIST_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/insight/wids/blacklist\?page=1&pageSize=1000"
+    )
+    _DEVICE_REQUEST = re.compile(
+        r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/devices\?page=[0-9]+&pageSize=[0-9]+"
+    )
+    _DEVICE_FIRMWARE_REQUEST = re.compile(
+        r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/devices/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/latest-firmware-info"
+    )
+    _DEVICE_ADOPT_RESULT_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/devices/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/adopt-result"
+    )
+    _DEVICE_MAC_TYPE_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/devices/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/check-mac-type"
+    )
+    _DEVICE_LINK_TOPOLOGY_REQUEST = re.compile(
+        r"/openapi/v2/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/devices/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/device-link-topology"
+    )
+    _DEVICE_RADSEC_SUPPORT_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/devices/un-support-radsec"
+    )
+    _DEVICE_UPGRADE_RESULT_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/devices/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/online-upgrade-result"
+    )
+    _DEVICE_TIMELINE_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/devices/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/timeline"
+        r"\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _DEVICE_ALL_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/devices/all"
+    )
+    _OLT_DETAIL_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/olts/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}"
+    )
+    _OLT_ETH_PON_LIST_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/olts/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/"
+        r"eth-port/and/pon-port/list"
+    )
+    _OLT_ONU_GLOBAL_STATUS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/olts/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/"
+        r"pon/onu-management/global-config/get"
+    )
+    _OLT_ONU_ISOLATION_STATUS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/olts/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/"
+        r"pon/onu-management/global-config/isolation/get"
+    )
+    _OLT_ETH_CONFIG_LIST_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/olts/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/"
+        r"l2-feature/eth-port/port/unit1/list"
+    )
+    _OLT_LAG_CONFIG_LIST_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/olts/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/"
+        r"l2-feature/eth-port/port/lags/list"
+    )
+    _OLT_AUTO_REFRESH_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/olts/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/"
+        r"pon/service-port/statistic/configs"
+    )
+    _OLT_PON_INFORMATION_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/olts/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/"
+        r"pon/pon-port/informations/list"
+    )
+    _OLT_PON_PORT_CONFIG_PAGE_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/olts/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/"
+        r"pon/pon-port/configs/page"
+    )
+    _OLT_SERVICE_PORT_PROFILES_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/olts/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/"
+        r"pon/profile/service-port/profiles/list"
+    )
+    _OLT_PON_PORT_CONFIG_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/olts/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/"
+        r"pon/pon-port/configs/list"
+    )
+    _OLT_ONU_AUTO_AUTH_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/olts/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/"
+        r"pon/onu-register/auto-authentication/global/configs/get"
+    )
+    _OLT_ONU_AUTOFIND_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/olts/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/"
+        r"pon/onu-register/autofind/configs/get"
+    )
+    _OLT_ONU_AUTOFIND_LIST_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/olts/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/"
+        r"pon/onu-register/autofinds/list"
+    )
+    _OLT_ONU_INVENTORY_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/olts/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/"
+        r"pon/onu-management/informations/list"
+    )
+    _OLT_ONU_REBOOT_STATUS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/olts/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/"
+        r"pon/onu-management/informations/reboot-status/list"
+    )
+    _OLT_SYSTEM_INFO_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/olts/"
+        r"((?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2})/"
+        r"system/system-info/configs"
+    )
+    _OLT_SYSTEM_INFO_MSP_REQUEST = re.compile(
+        r"/openapi/v1/msp/[A-Za-z0-9_-]{1,128}/customers/[A-Za-z0-9_-]{1,128}/"
+        r"sites/[A-Za-z0-9_-]{1,128}/olts/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/"
+        r"system/system-info/configs"
+    )
+    _OLT_MANAGEMENT_INTERFACES_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/olts/"
+        r"((?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2})/"
+        r"system/management-system-interface/get"
+    )
+    _AP_OVERVIEW_REQUEST = re.compile(
+        r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/aps/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}"
+    )
+    _CLIENT_REQUEST = re.compile(
+        r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/clients\?page=[0-9]+&pageSize=[0-9]+"
+    )
+    _SITE_RADIUS_USERS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/"
+        r"profiles/radius-server/users\?page=[0-9]+&pageSize=[0-9]+"
+    )
+    _SITE_DEVICE_TAGS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/devices/tag"
+    )
+    _SITE_PENDING_DEVICES_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})/"
+        r"grid/devices/pending\?page=([0-9]+)&pageSize=([0-9]+)"
+    )
+    _CLIENT_DETAIL_REQUEST = re.compile(
+        r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/clients/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}"
+    )
+    _CLIENT_CONNECTION_REQUEST = re.compile(
+        r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/clients/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/client-connection"
+        r"\?start=[0-9]{1,16}&end=[0-9]{1,16}"
+    )
+    _CLIENT_HISTORY_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/clients/"
+        r"((?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2})/client-history"
+        r"\?page=([0-9]{1,10})&pageSize=([0-9]{1,10})"
+    )
+    _AP_PORT_VLANS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/aps/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/"
+        r"port-vlans\?page=([0-9]{1,2})&pageSize=1000"
+    )
+    _AP_MESH_CANDIDATES_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/aps/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/"
+        r"grid/mesh/candiParents\?page=([0-9]{1,2})&pageSize=([0-9]{1,3})"
+    )
+    _AP_GENERAL_CONFIG_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/aps/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/general-config"
+    )
+    _AP_IP_SETTING_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/aps/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/ip-setting"
+    )
+    _AP_IPV6_SETTING_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/aps/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/ipv6-setting"
+    )
+    _AP_P2P_INFO_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/aps/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/p2pInfo"
+    )
+    _AP_L3_ACCESS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/aps/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/l3access"
+    )
+    _AP_LAG_CONFIG_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/aps/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/lag"
+    )
+    _AP_PARING_WINDOW_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/aps/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/paring-window-result"
+    )
+    _AP_MANAGEMENT_SSID_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/aps/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/management-wlan"
+    )
+    _CLIENT_TIMELINE_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/clients/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/client-timeline"
+        r"\?start=([0-9]{1,16})&end=([0-9]{1,16})&type=([0-3])"
+    )
+    _CLIENT_HEALTH_REQUEST = re.compile(
+        r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/clients/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/health/detail"
+        r"\?start=[0-9]{1,16}&end=[0-9]{1,16}"
+    )
+    _CLIENT_HEALTH_TIMELINE_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/clients/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/health/timeline"
+        r"\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _AP_RETRY_DROP_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/dashboard/retry-dropped-rate"
+        r"\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
+    _NETWORK_REQUEST = re.compile(
+        r"/openapi/v2/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/lan-networks\?page=[0-9]+&pageSize=[0-9]+"
+    )
+    _NETWORK_DHCP_CAPABILITIES_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/networks/"
+        r"[A-Za-z0-9_-]{1,128}/dhcp-server/capabilities"
+    )
+    _NETWORK_DHCP_SERVER_INFO_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/networks/"
+        r"[A-Za-z0-9_-]{1,128}/dhcp-server-info"
+    )
+    _SSID_REQUEST = re.compile(
+        r"/openapi/v2/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/wireless-network/ssids\?page=[0-9]+&pageSize=[0-9]+"
+    )
+    _SITE_MAC_AUTH_SSIDS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/wireless-network/ssids\?type=([1-3])"
+    )
+    _SSID_DETAIL_REQUEST = re.compile(
+        r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/wireless-network/ssids/[A-Za-z0-9_-]{1,128}"
+    )
+    _WLAN_GROUP_REQUEST = re.compile(
+        r"/openapi/v2/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/wireless-network/wlans\?page=[0-9]+&pageSize=[0-9]+"
+    )
+    _SITE_WLAN_GROUP_V1_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/wireless-network/wlans"
+    )
+    _SITE_WLAN_GROUP_DETAIL_REQUEST = re.compile(
+        r"/openapi/v2/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/wireless-network/wlans/[A-Za-z0-9_-]{1,128}"
+    )
+    _SITE_LOCK_TO_AP_BRIEF_REQUEST = re.compile(
+        r"/openapi/v2/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/lockToAp/aps"
+    )
+    _SITE_INELIGIBLE_INTERFERENCE_AP_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/full-channel-detect/batch/info"
+    )
+    _SITE_INTERFERENCE_SCAN_ELIGIBLE_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/grid/full-channel-detect/ap-list\?page=1&pageSize=500"
+    )
+    _SITE_WLAN_GROUP_SSIDS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/wireless-network/wlans/[A-Za-z0-9_-]{1,128}/ssids\?page=([1-5])&pageSize=100"
+    )
+    _SAFE_FIELD = re.compile(r"[A-Za-z0-9._() /+:-]{1,96}")
+    _MAC = re.compile(
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}"
+    )
+    _ARRAY_LIMIT = 64
+    CAPABILITY_OPERATIONS = (
+        ("sites", "GET /v1/sites"),
+        ("devices", "GET /v1/sites/{site_ref}/devices"),
+        ("ap_overview", "GET /v1/sites/{site_ref}/aps/{device_ref}/summary"),
+        ("device_firmware", "GET /v1/sites/{site_ref}/devices/{device_ref}/firmware"),
+        ("clients", "GET /v1/sites/{site_ref}/clients"),
+        ("site_client_identity_match",
+         "GET /v1/sites/{site_ref}/clients/identity-match"),
+        ("client_detail", "GET /v1/sites/{site_ref}/clients/{client_ref}"),
+        ("client_connection_history", "GET /v1/sites/{site_ref}/clients/{client_ref}/connections"),
+        ("client_history", "GET /v1/sites/{site_ref}/clients/{client_ref}/history"),
+        ("client_timeline_connect", "GET /v1/sites/{site_ref}/clients/{client_ref}/timeline/connect"),
+        ("client_timeline_association", "GET /v1/sites/{site_ref}/clients/{client_ref}/timeline/association"),
+        ("client_timeline_roaming", "GET /v1/sites/{site_ref}/clients/{client_ref}/timeline/roaming"),
+        ("client_timeline_disconnect", "GET /v1/sites/{site_ref}/clients/{client_ref}/timeline/disconnect"),
+        ("client_health", "GET /v1/sites/{site_ref}/clients/{client_ref}/health"),
+        ("client_health_timeline", "GET /v1/sites/{site_ref}/clients/{client_ref}/health/timeline"),
+        ("networks", "GET /v1/sites/{site_ref}/networks"),
+        ("network_dhcp_server_capabilities",
+         "GET /v1/sites/{site_ref}/networks/{network_ref}/dhcp-server/capabilities"),
+        ("network_dhcp_server_info",
+         "GET /v1/sites/{site_ref}/networks/{network_ref}/dhcp-server/info"),
+        ("ssids", "GET /v1/sites/{site_ref}/ssids"),
+        ("wlan_groups", "GET /v1/sites/{site_ref}/wireless-groups"),
+        ("site_wlan_group_detail_summary", "GET /v1/sites/{site_ref}/wlan-groups/{wlan_group_ref}/detail"),
+        ("site_lock_to_ap_brief_inventory", "GET /v1/sites/{site_ref}/lock-to-ap/ap-inventory"),
+        ("site_ineligible_interference_ap_summary", "GET /v1/sites/{site_ref}/wifi/interference-ineligible-ap-summary"),
+        ("site_interference_scan_eligible_summary", "GET /v1/sites/{site_ref}/wifi/interference-scan-eligible-summary"),
+        ("site_wlan_group_summary", "GET /v1/sites/{site_ref}/wlan-group-summary"),
+        ("site_wlan_group_ssids_summary", "GET /v1/sites/{site_ref}/wlan-groups/{wlan_group_ref}/ssids-summary"),
+        ("ssid_configuration", "GET /v1/sites/{site_ref}/ssids/{ssid_ref}"),
+        ("ssid_enable_change_preview", "POST /v1/sites/{site_ref}/ssids/{ssid_ref}/enable-preview"),
+        ("ap_radio_change_preview", "POST /v1/sites/{site_ref}/aps/{device_ref}/radio-preview"),
+        ("dns_cache_change_preview", "POST /v1/sites/{site_ref}/dns/cache-preview"),
+        ("ap_radio_config", "GET /v1/sites/{site_ref}/aps/{device_ref}/radio-config"),
+        ("ap_available_channels", "GET /v1/sites/{site_ref}/aps/{device_ref}/available-channels"),
+        ("ap_health", "GET /v1/sites/{site_ref}/aps/{device_ref}/health"),
+        ("ap_health_timeline", "GET /v1/sites/{site_ref}/aps/{device_ref}/health/timeline"),
+        ("ap_retry_drop", "GET /v1/sites/{site_ref}/aps/retry-drop"),
+        ("ap_mesh_statistics", "GET /v1/sites/{site_ref}/aps/{device_ref}/mesh"),
+        ("ap_afc", "GET /v1/sites/{site_ref}/aps/{device_ref}/afc"),
+        ("ap_afc_status", "GET /v1/sites/{site_ref}/aps/{device_ref}/afc/status"),
+        ("ap_channel_limit", "GET /v1/sites/{site_ref}/aps/{device_ref}/channel-limit"),
+        ("ap_channel_limit_preview", "POST /v1/sites/{site_ref}/aps/{device_ref}/channel-limit-preview"),
+        ("ap_ofdma", "GET /v1/sites/{site_ref}/aps/{device_ref}/ofdma"),
+        ("ap_ofdma_preview", "POST /v1/sites/{site_ref}/aps/{device_ref}/ofdma-preview"),
+        ("ap_qos", "GET /v1/sites/{site_ref}/aps/{device_ref}/qos"),
+        ("ap_lag", "GET /v1/sites/{site_ref}/aps/{device_ref}/lag"),
+        ("ap_lag_config", "GET /v1/sites/{site_ref}/aps/{device_ref}/lag-config"),
+        ("ap_load_balance", "GET /v1/sites/{site_ref}/aps/{device_ref}/load-balance"),
+        ("ap_antenna", "GET /v1/sites/{site_ref}/aps/{device_ref}/antenna"),
+        ("ap_antenna_gain", "GET /v1/sites/{site_ref}/aps/{device_ref}/antenna-gain"),
+        ("ap_power_saving", "GET /v1/sites/{site_ref}/aps/{device_ref}/power-saving"),
+        ("ap_wired_uplink", "GET /v1/sites/{site_ref}/aps/{device_ref}/wired-uplink"),
+        ("ap_wired_downlink", "GET /v1/sites/{site_ref}/aps/{device_ref}/wired-downlink"),
+        ("ap_ports", "GET /v1/sites/{site_ref}/aps/{device_ref}/ports"),
+        ("ap_lan_traffic", "GET /v1/sites/{site_ref}/aps/{device_ref}/lan-traffic"),
+        ("ap_snmp_config", "GET /v1/sites/{site_ref}/aps/{device_ref}/snmp"),
+        ("ap_vlan_v1", "GET /v1/sites/{site_ref}/aps/{device_ref}/vlan-v1"),
+        ("ap_wlan_overrides", "GET /v1/sites/{site_ref}/aps/{device_ref}/wlan-overrides"),
+        ("ap_vlan", "GET /v1/sites/{site_ref}/aps/{device_ref}/vlan"),
+        ("ap_afc_preview", "POST /v1/sites/{site_ref}/aps/{device_ref}/afc-preview"),
+        ("ap_radios", "GET /v1/sites/{site_ref}/aps/{device_ref}/radios"),
+        ("ap_scan_status", "GET /v1/sites/{site_ref}/aps/{device_ref}/scan-status"),
+        ("ap_speed_test_results", "GET /v1/sites/{site_ref}/aps/{device_ref}/speed-test-results"),
+        ("ap_channel_load", "GET /v1/sites/{site_ref}/aps/{device_ref}/channel-load"),
+        ("ap_rf_scan", "GET /v1/sites/{site_ref}/aps/{device_ref}/rf-scan"),
+        ("ap_rf_scan_v2", "GET /v1/sites/{site_ref}/aps/{device_ref}/rf-scan-v2"),
+        ("ap_wifi_interference", "GET /v1/sites/{site_ref}/aps/{device_ref}/wifi-neighbors"),
+        ("gateway_wan_status", "GET /v1/sites/{site_ref}/gateways/{device_ref}/wan-status"),
+        ("gateway_wan_health", "GET /v1/sites/{site_ref}/gateways/{device_ref}/wan-health"),
+        ("gateway_health", "GET /v1/sites/{site_ref}/gateways/{gateway_ref}/health"),
+        ("gateway_health_timeline", "GET /v1/sites/{site_ref}/gateways/{gateway_ref}/health/timeline"),
+        ("gateway_lan_status", "GET /v1/sites/{site_ref}/gateways/{device_ref}/lan-status"),
+        ("gateway_ports", "GET /v1/sites/{site_ref}/gateways/{device_ref}/ports"),
+        ("gateway_speed_test_results", "GET /v1/sites/{site_ref}/gateways/{device_ref}/speed-test-results"),
+        ("gateway_dhcp_leases", "GET /v1/sites/{site_ref}/gateways/{gateway_ref}/dhcp/leases"),
+        ("gateway_internet_info", "GET /v1/sites/{site_ref}/gateways/{device_ref}/internet-info"),
+        ("gateway_ipv6_ip_passthrough", "GET /v1/sites/{site_ref}/gateways/{gateway_ref}/ipv6-ip-passthrough"),
+        ("gateway_ipv6_ip_passthrough_preview", "POST /v1/sites/{site_ref}/gateways/{gateway_ref}/ipv6-ip-passthrough-preview"),
+        ("switch_ports", "GET /v1/sites/{site_ref}/switches/{switch_ref}/ports"),
+        ("switch_port_counters", "GET /v1/sites/{site_ref}/switches/{switch_ref}/ports/counters"),
+        ("switch_port_poe_info", "GET /v1/sites/{site_ref}/switches/{switch_ref}/ports/poe-info"),
+        ("switch_port_poe_mode", "GET /v1/sites/{site_ref}/switches/{switch_ref}/ports/{port}/poe"),
+        ("switch_port_status", "GET /v1/sites/{site_ref}/switches/{switch_ref}/ports/{port}/status"),
+        ("switch_port_name", "POST /v1/sites/{site_ref}/switches/{switch_ref}/ports/{port}/name-preview"),
+        ("switch_port_status_preview", "POST /v1/sites/{site_ref}/switches/{switch_ref}/ports/{port}/status-preview"),
+        ("switch_port_poe_mode_preview", "POST /v1/sites/{site_ref}/switches/{switch_ref}/ports/{port}/poe-preview"),
+        ("switch_vlans", "GET /v1/sites/{site_ref}/switches/{switch_ref}/vlans"),
+        ("switch_lldp_neighbors", "GET /v1/sites/{site_ref}/switches/{switch_ref}/lldp-neighbors"),
+        ("switch_health", "GET /v1/sites/{site_ref}/switches/{switch_ref}/health"),
+        ("switch_health_timeline", "GET /v1/sites/{site_ref}/switches/{switch_ref}/health/timeline"),
+        ("switch_sdm_usage", "GET /v1/sites/{site_ref}/switches/{switch_ref}/sdm-usage"),
+        ("switch_cable_test_logs", "GET /v1/sites/{site_ref}/switches/{switch_ref}/cable-test/logs"),
+        ("switch_cable_test_full_results", "GET /v1/sites/{site_ref}/switches/{switch_ref}/cable-test/full-results"),
+        ("switch_cable_test_increment_results", "GET /v1/sites/{site_ref}/switches/{switch_ref}/cable-test/increment-results"),
+        ("switch_cable_test_ports", "GET /v1/sites/{site_ref}/switches/{switch_ref}/cable-test/ports"),
+        ("switch_dhcp_users", "GET /v1/sites/{site_ref}/switches/{switch_ref}/dhcp/users"),
+        ("switch_ospf_neighbors", "GET /v1/sites/{site_ref}/switches/{switch_ref}/ospf-neighbors"),
+        ("switch_port_networks", "GET /v1/sites/{site_ref}/switches/{switch_ref}/port-networks"),
+        ("switch_exist_networks", "GET /v1/sites/{site_ref}/switches/{switch_ref}/exist-networks"),
+        ("switch_networks", "GET /v1/sites/{site_ref}/switches/{switch_ref}/networks"),
+        ("switch_interfaces", "GET /v1/sites/{site_ref}/switches/{switch_ref}/interfaces"),
+        ("switch_routing_table", "GET /v1/sites/{site_ref}/switches/{switch_ref}/routing-table"),
+        ("switch_static_routes", "GET /v1/sites/{site_ref}/switches/{switch_ref}/static-routes"),
+        ("switch_vrfs", "GET /v1/sites/{site_ref}/switches/{switch_ref}/vrfs"),
+        ("switch_vlan_interfaces", "GET /v1/sites/{site_ref}/switches/{switch_ref}/vlan-interfaces"),
+        ("switch_statistics", "GET /v1/sites/{site_ref}/switches/{switch_ref}/statistics"),
+        ("switch_port_tags", "GET /v1/sites/{site_ref}/switch-port-tags"),
+        ("gateway_firewall_rules", "GET /v1/sites/{site_ref}/firewall/gateway-acls"),
+        ("switch_firewall_rules", "GET /v1/sites/{site_ref}/firewall/switch-acls"),
+        ("ap_firewall_rules", "GET /v1/sites/{site_ref}/firewall/ap-acls"),
+        ("dhcp_leases", "GET /v1/sites/{site_ref}/dhcp/leases"),
+        ("dns_cache_settings", "GET /v1/sites/{site_ref}/dns/cache"),
+        ("dns_proxy_settings", "GET /v1/sites/{site_ref}/dns/proxy"),
+        ("lan_dns_records", "GET /v1/sites/{site_ref}/dns/records"),
+        ("controller_health", "GET /v1/controller/health"),
+        ("controller_threat_severity_summary",
+         "GET /v1/controller/threat-severity-summary"),
+        ("controller_scenarios", "GET /v1/controller/scenarios"),
+        ("controller_scenario_differences",
+         "GET /v1/controller/scenario-differences"),
+        ("site_threat_window_summary",
+         "GET /v1/sites/{site_ref}/threats/window"),
+        ("controller_client_recognition", "GET /v1/controller/settings/client-recognition"),
+        ("controller_device_statistics", "GET /v1/controller/devices/statistics"),
+        ("controller_client_active_timeout", "GET /v1/controller/settings/client-active-timeout"),
+        ("controller_client_history_retention", "GET /v1/controller/settings/client-history"),
+        ("controller_audit_notification", "GET /v1/controller/settings/audit-notification"),
+        ("controller_ui_interface", "GET /v1/controller/settings/ui-interface"),
+        ("controller_retention", "GET /v1/controller/settings/retention"),
+        ("controller_dst_info", "GET /v1/controller/dst-info"),
+        ("controller_experience_improvement", "GET /v1/controller/settings/experience-improvement"),
+        ("controller_client_detail_info", "GET /v1/controller/client-detail-information"),
+        ("controller_general_settings", "GET /v1/controller/settings/general"),
+        ("controller_device_access", "GET /v1/controller/settings/device-access"),
+        ("controller_backup_schedule", "GET /v1/controller/settings/backup-schedule"),
+        ("controller_cloud_access", "GET /v1/controller/cloud-access"),
+        ("controller_device_management", "GET /v1/controller/settings/device-management"),
+        ("controller_remote_binding", "GET /v1/controller/cloud-binding"),
+        ("controller_backup_result", "GET /v1/controller/maintenance/backup-status"),
+        ("controller_restore_result", "GET /v1/controller/maintenance/restore-status"),
+        ("controller_privacy_policy", "GET /v1/controller/settings/privacy-policy"),
+        ("controller_mail_status", "GET /v1/controller/settings/mail-server-status"),
+        ("controller_global_mfa_status", "GET /v1/controller/settings/mfa-status"),
+        ("msp_cloud_access_status", "GET /v1/msp/{msp_ref}/cloud-access"),
+        ("msp_privacy_policy", "GET /v1/msp/{msp_ref}/privacy-policy"),
+        ("msp_client_detail_info", "GET /v1/msp/{msp_ref}/client-detail-information"),
+        ("msp_audit_notification", "GET /v1/msp/{msp_ref}/settings/audit-notification"),
+        ("msp_device_link_topology", "GET /v1/msp/{msp_ref}/customers/{customer_ref}/sites/{site_ref}/devices/{device_ref}/link-topology"),
+        ("msp_device_tags", "GET /v1/msp/{msp_ref}/device-tags-summary"),
+        ("msp_mfa_status", "GET /v1/msp/{msp_ref}/settings/mfa-status"),
+        ("msp_license_auto_active", "GET /v1/msp/{msp_ref}/settings/license-auto-active"),
+        ("msp_customer_roles", "GET /v1/msp/{msp_ref}/customer-roles-summary"),
+        ("msp_dst_info", "GET /v1/msp/{msp_ref}/dst-info"),
+        ("msp_remote_logging", "GET /v1/msp/{msp_ref}/settings/remote-logging"),
+        ("msp_mail_server", "GET /v1/msp/{msp_ref}/settings/mail-server"),
+        ("msp_general_settings", "GET /v1/msp/{msp_ref}/settings/general"),
+        ("msp_log_notification_settings", "GET /v1/msp/{msp_ref}/settings/log-notifications"),
+        ("msp_data_retention", "GET /v1/msp/{msp_ref}/settings/retention"),
+        ("msp_ui_interface", "GET /v1/msp/{msp_ref}/settings/ui-interface"),
+        ("msp_user_interface", "GET /v1/msp/{msp_ref}/settings/user-interface"),
+        ("msp_available_roles", "GET /v1/msp/{msp_ref}/roles/available-summary"),
+        ("msp_available_customer_roles", "GET /v1/msp/{msp_ref}/roles/customer/available-summary"),
+        ("msp_dashboard_overall", "GET /v1/msp/{msp_ref}/dashboard/client-summary"),
+        ("msp_cluster_nodes", "GET /v1/msp/{msp_ref}/cluster/nodes/summary"),
+        ("msp_adopt_tip", "GET /v1/msp/{msp_ref}/devices/adoption-summary"),
+        ("msp_role_summary", "GET /v1/msp/{msp_ref}/roles/summary"),
+        ("controller_remote_logging", "GET /v1/controller/settings/remote-logging"),
+        ("controller_remote_logging_tip", "GET /v1/controller/settings/remote-logging-tip"),
+        ("controller_radius_proxy", "GET /v1/controller/settings/radius-proxy"),
+        ("controller_radius_server", "GET /v1/controller/settings/radius-server"),
+        ("controller_upgrade_port", "GET /v1/controller/settings/upgrade-port"),
+        ("controller_portal_port_settings", "GET /v1/controller/settings/portal-port"),
+        ("controller_port_settings", "GET /v1/controller/settings/controller-port"),
+        ("controller_status", "GET /v1/controller/status"),
+        ("controller_logging", "GET /v1/controller/settings/logging"),
+        ("controller_certificate", "GET /v1/controller/settings/certificate"),
+        ("controller_roles", "GET /v1/controller/roles/summary"),
+        ("controller_available_roles", "GET /v1/controller/roles/available-summary"),
+        ("controller_known_devices", "GET /v1/controller/devices/known-summary"),
+        ("controller_unknown_devices", "GET /v1/controller/devices/unknown-summary"),
+        ("controller_device_batch_adopt_summary", "GET /v1/controller/devices/batch-adopt-summary"),
+        ("site_pending_devices_summary", "GET /v1/sites/{site_ref}/pending-devices/summary"),
+        ("device_adopt_result", "GET /v1/sites/{site_ref}/devices/{device_ref}/adopt-result"),
+        ("device_mac_type", "GET /v1/sites/{site_ref}/devices/{device_ref}/mac-type"),
+        ("device_link_topology", "GET /v1/sites/{site_ref}/devices/{device_ref}/link-topology"),
+        ("device_radsec_support", "GET /v1/sites/{site_ref}/devices/radsec-support"),
+        ("device_upgrade_result", "GET /v1/sites/{site_ref}/devices/{device_ref}/upgrade-result"),
+        ("device_timeline", "GET /v1/sites/{site_ref}/devices/{device_ref}/online-timeline"),
+        ("device_inventory_summary", "GET /v1/sites/{site_ref}/device-inventory-summary"),
+        ("site_radius_user_summary", "GET /v1/sites/{site_ref}/radius-users/summary"),
+        ("site_templates", "GET /v1/site-templates"),
+        ("site_template_igmp_summary", "GET /v1/site-templates/{site_template_ref}/services/igmp-summary"),
+        ("site_template_upnp_summary", "GET /v1/site-templates/{site_template_ref}/settings/upnp-summary"),
+        ("site_template_ssh_summary", "GET /v1/site-templates/{site_template_ref}/settings/ssh-summary"),
+        ("site_template_iptv_summary", "GET /v1/site-templates/{site_template_ref}/services/iptv-summary"),
+        ("site_template_iptv_settings_summary", "GET /v1/site-templates/{site_template_ref}/services/iptv-settings-summary"),
+        ("site_entity_summary", "GET /v1/sites/{site_ref}/metadata/summary"),
+        ("site_switch_qos_mode", "GET /v1/sites/{site_ref}/switches/qos-mode"),
+        ("site_switch_qos_scheduler_summary", "GET /v1/sites/{site_ref}/switches/qos/scheduler-summary"),
+        ("site_switch_qos_dscp_summary", "GET /v1/sites/{site_ref}/switches/qos/dscp-summary"),
+        ("site_upnp_summary", "GET /v1/sites/{site_ref}/settings/upnp-summary"),
+        ("site_iot_aging_time", "GET /v1/sites/{site_ref}/iot/aging-time-summary"),
+        ("site_iot_radio_summary", "GET /v1/sites/{site_ref}/iot/radio-summary"),
+        ("site_mesh_summary", "GET /v1/sites/{site_ref}/mesh-summary"),
+        ("site_multicast_rate_limit_summary", "GET /v1/sites/{site_ref}/multicast-rate-limit-summary"),
+        ("site_gre_tunnel_summary", "GET /v1/sites/{site_ref}/settings/gre-tunnel-summary"),
+        ("site_ssl_vpn_summary", "GET /v1/sites/{site_ref}/settings/ssl-vpn-summary"),
+        ("site_ssh_summary", "GET /v1/sites/{site_ref}/settings/ssh-summary"),
+        ("site_mld_summary", "GET /v1/sites/{site_ref}/services/mld-summary"),
+        ("site_igmp_summary", "GET /v1/sites/{site_ref}/services/igmp-summary"),
+        ("site_iptv_summary", "GET /v1/sites/{site_ref}/services/iptv-summary"),
+        ("site_device_tag_summary", "GET /v1/sites/{site_ref}/device-tags/summary"),
+        ("site_overview", "GET /v1/sites/{site_ref}/health/summary"),
+        ("site_topology", "GET /v1/sites/{site_ref}/topology"),
+        ("site_health_timeline", "GET /v1/sites/{site_ref}/health/timeline"),
+        ("site_longest_client_uptime_summary",
+         "GET /v1/sites/{site_ref}/dashboard/longest-client-uptime-summary"),
+        ("site_mac_auth_ssid_inventory", "GET /v1/sites/{site_ref}/wlan-ssids/mac-auth"),
+        ("site_client_health_timeline", "GET /v1/sites/{site_ref}/health/client/timeline"),
+        ("site_wifi_summary", "GET /v1/sites/{site_ref}/wifi/summary"),
+        ("site_6ghz_ap_presence", "GET /v1/sites/{site_ref}/wifi/6ghz-ap-presence"),
+        ("site_setting_existence", "GET /v1/sites/{site_ref}/settings/existence"),
+        ("site_capabilities", "GET /v1/sites/{site_ref}/capabilities"),
+        ("site_duplicate_ssid_summary", "GET /v1/sites/{site_ref}/ssids/duplicate-summary"),
+        ("ssid_ap_groups", "GET /v1/sites/{site_ref}/ssids/{ssid_ref}/ap-groups"),
+        ("site_beacon_control_summary", "GET /v1/sites/{site_ref}/beacon-control-summary"),
+        ("site_iot_transmit_power_summary", "GET /v1/sites/{site_ref}/iot/transmit-power-summary"),
+        ("site_remember_setting_summary", "GET /v1/sites/{site_ref}/remember-setting-summary"),
+        ("site_client_connection_summary", "GET /v1/sites/{site_ref}/client-connection-summary"),
+        ("site_poe_usage_summary", "GET /v1/sites/{site_ref}/poe-usage-summary"),
+        ("site_device_counts_summary", "GET /v1/sites/{site_ref}/device-counts-summary"),
+        ("site_ipsec_tunnel_summary", "GET /v1/sites/{site_ref}/ipsec-tunnel-summary"),
+        ("site_client_association_time_summary", "GET /v1/sites/{site_ref}/client-association-time-summary"),
+        ("site_network_activity_summary", "GET /v1/sites/{site_ref}/network-activity-summary"),
+        ("site_client_rssi_distribution_summary", "GET /v1/sites/{site_ref}/client-rssi-distribution-summary"),
+        ("site_ap_rssi_density_summary", "GET /v1/sites/{site_ref}/ap-rssi-density-summary"),
+        ("site_client_attachment_distribution_summary", "GET /v1/sites/{site_ref}/client-attachment-distribution-summary"),
+        ("site_client_frequency_distribution_summary", "GET /v1/sites/{site_ref}/client-frequency-distribution-summary"),
+        ("site_device_traffic_summary", "GET /v1/sites/{site_ref}/device-traffic-summary"),
+        ("site_past_client_summary", "GET /v1/sites/{site_ref}/past-client-summary"),
+        ("site_current_client_summary", "GET /v1/sites/{site_ref}/current-client-summary"),
+        ("site_gateway_isp_summary", "GET /v1/sites/{site_ref}/gateway-isp-summary"),
+        ("site_top_ap_retry_drop_summary", "GET /v1/sites/{site_ref}/top-ap-retry-drop-summary"),
+        ("site_active_ap_summary", "GET /v1/sites/{site_ref}/active-ap-summary"),
+        ("site_active_ap_v2_summary", "GET /v1/sites/{site_ref}/active-ap-summary-v2"),
+        ("site_hotspot_statistics_summary", "GET /v1/sites/{site_ref}/hotspot-statistics-summary"),
+        ("site_allowed_application_summary", "GET /v1/sites/{site_ref}/application-usage/allowed-summary"),
+        ("site_blocked_application_summary", "GET /v1/sites/{site_ref}/application-usage/blocked-summary"),
+        ("site_specific_app_traffic_summary", "GET /v1/sites/{site_ref}/application-usage/{application_id}/traffic-summary"),
+        ("site_specific_client_traffic_summary", "GET /v1/sites/{site_ref}/client-application-usage/{client_ref}/traffic-summary"),
+        ("site_application_traffic_summary", "GET /v1/sites/{site_ref}/application-traffic-summary"),
+        ("site_wan_lan_status_summary", "GET /v1/sites/{site_ref}/wan-lan-status-summary"),
+        ("site_arp_detect_status_summary", "GET /v1/sites/{site_ref}/arp-detect-status-summary"),
+        ("site_disaster_mode_status", "GET /v1/sites/{site_ref}/disaster-mode-status"),
+        ("site_specification_summary", "GET /v1/sites/{site_ref}/specification-summary"),
+        ("site_portal_logout_domain", "GET /v1/sites/{site_ref}/portal-logout-domain"),
+        ("site_wids_config", "GET /v1/sites/{site_ref}/wireless-ids-config"),
+        ("site_wips_config", "GET /v1/sites/{site_ref}/wireless-ips-config"),
+        ("site_acl_config_mode", "GET /v1/sites/{site_ref}/acl-config-mode"),
+        ("site_attack_defense_summary", "GET /v1/sites/{site_ref}/attack-defense-summary"),
+        ("site_attack_defense_defaults_summary", "GET /v1/sites/{site_ref}/attack-defense/default-summary"),
+        ("site_alg_config", "GET /v1/sites/{site_ref}/alg-config"),
+        ("site_firewall_settings", "GET /v1/sites/{site_ref}/firewall-settings"),
+        ("site_bandwidth_control", "GET /v1/sites/{site_ref}/bandwidth-control"),
+        ("site_wan_ports_summary", "GET /v1/sites/{site_ref}/wan-ports-summary"),
+        ("site_vlan_network_summary", "GET /v1/sites/{site_ref}/vlan-network-summary"),
+        ("site_internet_summary", "GET /v1/sites/{site_ref}/internet-summary"),
+        ("site_vpn_session_summary", "GET /v1/sites/{site_ref}/vpn-session-summary"),
+        ("site_dhcp_candidate_summary", "GET /v1/sites/{site_ref}/dhcp-server-candidates"),
+        ("site_network_reservation_summary", "GET /v1/sites/{site_ref}/dhcp-reservation-summary"),
+        ("site_dhcp_reservation_summary", "GET /v1/sites/{site_ref}/dhcp-reservations-summary"),
+        ("site_dhcp_snooping_status", "GET /v1/sites/{site_ref}/dhcp-snooping-status"),
+        ("site_dhcp_snoops_summary", "GET /v1/sites/{site_ref}/dhcp-snoops-summary"),
+        ("site_mdns_rule_summary", "GET /v1/sites/{site_ref}/mdns-rule-summary"),
+        ("site_ddns_summary", "GET /v1/sites/{site_ref}/ddns-summary"),
+        ("site_firewall_defaults", "GET /v1/sites/{site_ref}/firewall-defaults"),
+        ("site_snmp_settings_summary", "GET /v1/sites/{site_ref}/snmp-summary"),
+        ("site_lan_network_config_summary", "GET /v1/sites/{site_ref}/lan-network-config-summary"),
+        ("site_lan_network_inventory", "GET /v1/sites/{site_ref}/lan-networks/inventory"),
+        ("site_internet_load_balance_summary", "GET /v1/sites/{site_ref}/internet/load-balance-summary"),
+        ("site_internet_basic_port_summary", "GET /v1/sites/{site_ref}/internet/basic-port-summary"),
+        ("controller_gateway_wan_status_summary", "GET /v1/controller/gateway-wan-status-summary"),
+        ("site_dashboard_all_tabs_summary", "GET /v1/sites/{site_ref}/dashboard/tabs-summary"),
+        ("site_dashboard_non_overall_tabs_summary", "GET /v1/sites/{site_ref}/dashboard/tabs-without-overall-summary"),
+        ("site_active_switch_summary", "GET /v1/sites/{site_ref}/active-switch-summary"),
+        ("site_device_memory_summary", "GET /v1/sites/{site_ref}/device-memory-summary"),
+        ("site_switch_dashboard_summary", "GET /v1/sites/{site_ref}/switch-dashboard-summary"),
+        ("site_ap_interference_summary", "GET /v1/sites/{site_ref}/ap-interference-summary"),
+        ("site_application_category_summary", "GET /v1/sites/{site_ref}/application-category-summary"),
+        ("site_category_application_summary", "GET /v1/sites/{site_ref}/application-category-summary/{family_id}/applications"),
+        ("site_category_client_summary", "GET /v1/sites/{site_ref}/application-category-summary/{family_id}/clients"),
+        ("site_active_application_summary", "GET /v1/sites/{site_ref}/active-application-summary"),
+        ("site_active_client_summary", "GET /v1/sites/{site_ref}/active-client-summary"),
+        ("site_cpu_usage_summary", "GET /v1/sites/{site_ref}/cpu-usage-summary"),
+        ("site_client_bubble_summary", "GET /v1/sites/{site_ref}/client-bubble-summary"),
+        ("site_traffic_activity_summary", "GET /v1/sites/{site_ref}/traffic-activity-summary"),
+        ("site_isp_load_summary", "GET /v1/sites/{site_ref}/isp-load-summary"),
+        ("site_vpn_tunnel_summary", "GET /v1/sites/{site_ref}/vpn-tunnel-summary"),
+        ("site_open_vpn_tunnel_summary", "GET /v1/sites/{site_ref}/open-vpn-tunnel-summary"),
+        ("site_client_activity_summary", "GET /v1/sites/{site_ref}/client-activity-summary"),
+        ("site_client_association_activity_summary", "GET /v1/sites/{site_ref}/client-association-activity-summary"),
+        ("site_client_traffic_summary", "GET /v1/sites/{site_ref}/client-traffic-summary"),
+        ("site_topology_network_summary", "GET /v1/sites/{site_ref}/topology/network-summary"),
+        ("site_topology_vlan_summary", "GET /v1/sites/{site_ref}/topology/vlan-summary"),
+        ("site_unresolved_incident_count", "GET /v1/sites/{site_ref}/incidents/unresolved-count"),
+        ("site_incident_overview", "GET /v1/sites/{site_ref}/incidents/summary"),
+        ("site_incident_distribution", "GET /v1/sites/{site_ref}/incidents/distribution"),
+        ("site_incident_category_counts", "GET /v1/sites/{site_ref}/incidents/categories"),
+        ("site_incident_list", "GET /v1/sites/{site_ref}/incidents/list"),
+        ("site_batch_interference_history",
+         "GET /v1/sites/{site_ref}/wifi/interference-history-summary"),
+        ("site_batch_interference_ap_summary",
+         "GET /v1/sites/{site_ref}/wifi/interference-history/{history_ref}/ap-summary"),
+        ("site_batch_wifi_interference_summary",
+         "GET /v1/sites/{site_ref}/wifi/interference-history/{history_ref}/wifi-interference-summary"),
+        ("site_batch_channel_load_summary",
+         "GET /v1/sites/{site_ref}/wifi/interference-history/{history_ref}/aps/{device_ref}/channel-load-summary"),
+        ("site_batch_interference_result_summary",
+         "GET /v1/sites/{site_ref}/wifi/interference-history/{history_ref}/interference-summary"),
+        ("site_batch_interference_status_summary",
+         "GET /v1/sites/{site_ref}/wifi/interference-history/{history_ref}/status-summary"),
+        ("site_ap_full_channel_detect_status",
+         "GET /v1/sites/{site_ref}/aps/{device_ref}/full-channel-detect-status"),
+        ("ap_available_channels_summary",
+         "GET /v1/sites/{site_ref}/aps/{device_ref}/available-channels-summary"),
+        ("ap_interference_result_summary",
+         "GET /v1/sites/{site_ref}/aps/{device_ref}/interference-result-summary"),
+        ("ap_channel_load_summary",
+         "GET /v1/sites/{site_ref}/aps/{device_ref}/channel-load-summary"),
+        ("site_lan_network_detail_summary",
+         "GET /v1/sites/{site_ref}/lan-networks/{network_ref}/summary"),
+        ("olt_detail_summary", "GET /v1/sites/{site_ref}/olts/{device_ref}/summary"),
+        ("olt_ports_summary", "GET /v1/sites/{site_ref}/olts/{device_ref}/ports-summary"),
+        ("msp_olt_detail_summary", "GET /v1/msp/{msp_ref}/customers/{customer_ref}/sites/{site_ref}/olts/{device_ref}/summary"),
+        ("msp_olt_eth_config_summary", "GET /v1/msp/{msp_ref}/customers/{customer_ref}/sites/{site_ref}/olts/{device_ref}/ports-config-summary"),
+        ("msp_olt_site_ports_summary", "GET /v1/msp/{msp_ref}/customers/{customer_ref}/sites/{site_ref}/olt-ports-summary"),
+        ("msp_olt_pon_port_config_summary", "GET /v1/msp/{msp_ref}/customers/{customer_ref}/sites/{site_ref}/olts/{device_ref}/pon-port-config-summary"),
+        ("olt_onu_global_status", "GET /v1/sites/{site_ref}/olts/{device_ref}/onu-global-status"),
+        ("olt_onu_isolation_status", "GET /v1/sites/{site_ref}/olts/{device_ref}/onu-isolation-status"),
+        ("olt_eth_config_summary", "GET /v1/sites/{site_ref}/olts/{device_ref}/ports-config-summary"),
+        ("olt_lag_config_summary", "GET /v1/sites/{site_ref}/olts/{device_ref}/lags-summary"),
+        ("olt_auto_refresh_summary", "GET /v1/sites/{site_ref}/olts/{device_ref}/auto-refresh-summary"),
+        ("olt_pon_information_summary", "GET /v1/sites/{site_ref}/olts/{device_ref}/pon-information-summary"),
+        ("olt_pon_port_config_summary", "GET /v1/sites/{site_ref}/olts/{device_ref}/pon-port-config-summary"),
+        ("olt_pon_port_config_page_summary", "GET /v1/sites/{site_ref}/olts/{device_ref}/pon-port-config-page-summary"),
+        ("olt_service_port_profiles_summary", "GET /v1/sites/{site_ref}/olts/{device_ref}/service-port-profiles-summary"),
+        ("olt_onu_auto_auth_status", "GET /v1/sites/{site_ref}/olts/{device_ref}/onu-auto-auth-status"),
+        ("olt_onu_autofind_summary", "GET /v1/sites/{site_ref}/olts/{device_ref}/onu-autofind-summary"),
+        ("olt_onu_autofind_inventory_summary", "GET /v1/sites/{site_ref}/olts/{device_ref}/onu-autofind-inventory-summary"),
+        ("olt_onu_inventory_summary", "GET /v1/sites/{site_ref}/olts/{device_ref}/onu-inventory-summary"),
+        ("olt_onu_reboot_status_summary", "GET /v1/sites/{site_ref}/olts/{device_ref}/onu-reboot-status-summary"),
+        ("olt_system_info", "GET /v1/sites/{site_ref}/olts/{device_ref}/system-info"),
+        ("olt_system_info_msp", "GET /v1/msp/{msp_ref}/customers/{customer_ref}/sites/{site_ref}/olts/{device_ref}/system-info"),
+        ("msp_ap_health_detail", "GET /v1/msp/{msp_ref}/customers/{customer_ref}/sites/{site_ref}/aps/{device_ref}/health"),
+        ("msp_gateway_health_detail", "GET /v1/msp/{msp_ref}/customers/{customer_ref}/sites/{site_ref}/gateways/{gateway_ref}/health"),
+        ("msp_switch_health_detail", "GET /v1/msp/{msp_ref}/customers/{customer_ref}/sites/{site_ref}/switches/{switch_ref}/health"),
+        ("msp_ap_health_timeline", "GET /v1/msp/{msp_ref}/customers/{customer_ref}/sites/{site_ref}/aps/{device_ref}/health/timeline"),
+        ("msp_ap_mesh_statistics", "GET /v1/msp/{msp_ref}/customers/{customer_ref}/sites/{site_ref}/aps/{device_ref}/mesh"),
+        ("msp_gateway_health_timeline", "GET /v1/msp/{msp_ref}/customers/{customer_ref}/sites/{site_ref}/gateways/{gateway_ref}/health/timeline"),
+        ("msp_switch_health_timeline", "GET /v1/msp/{msp_ref}/customers/{customer_ref}/sites/{site_ref}/switches/{switch_ref}/health/timeline"),
+        ("olt_management_interfaces",
+         "GET /v1/sites/{site_ref}/olts/{device_ref}/management-interfaces"),
+        ("device_health_incidents", "GET /v1/sites/{site_ref}/devices/{device_ref}/incidents"),
+        ("client_health_incidents", "GET /v1/sites/{site_ref}/clients/{client_ref}/incidents"),
+        ("site_incident_detail", "GET /v1/sites/{site_ref}/incidents/{incident_ref}"),
+        ("site_incident_notification", "GET /v1/sites/{site_ref}/incidents/notification"),
+        ("site_anomaly_event_settings", "GET /v1/sites/{site_ref}/incidents/settings"),
+        ("site_incident_influencing_clients", "GET /v1/sites/{site_ref}/incidents/{incident_ref}/influencing-clients"),
+        ("site_incident_influencing_devices", "GET /v1/sites/{site_ref}/incidents/{incident_ref}/influencing-devices"),
+        ("site_wlan_group_capacity", "GET /v1/sites/{site_ref}/wlan-group-capacity"),
+        ("site_ap_group_capacity", "GET /v1/sites/{site_ref}/ap-group-capacity"),
+        ("site_ap_group_summary", "GET /v1/sites/{site_ref}/ap-groups"),
+        ("site_ap_oui_vlan_rules_summary", "GET /v1/sites/{site_ref}/ap-oui-rules/summary"),
+        ("site_vlan_ssid_usage_summary", "GET /v1/sites/{site_ref}/networks/{network_ref}/vlan-ssids/summary"),
+        ("site_vlan_device_usage_summary", "GET /v1/sites/{site_ref}/networks/{network_ref}/vlan-devices/summary"),
+        ("site_wifi_calling_profiles_summary", "GET /v1/sites/{site_ref}/wifi-calling/profiles/summary"),
+        ("site_client_filter_options_summary", "GET /v1/sites/{site_ref}/clients/filter-options/summary"),
+        ("site_eap_dot1x_candidates_summary", "GET /v1/sites/{site_ref}/dot1x/eap-candidates/summary"),
+        ("site_switch_dot1x_candidates_summary", "GET /v1/sites/{site_ref}/dot1x/switch-candidates/summary"),
+        ("site_switch_support", "GET /v1/sites/{site_ref}/switch-support"),
+        ("experience_index", "GET /v1/sites/{site_ref}/wifi/optimization/history"),
+        ("rf_planning_result", "GET /v1/sites/{site_ref}/wifi/optimization/status"),
+        ("rf_planning_dashboard", "GET /v1/sites/{site_ref}/wifi/optimization/dashboard"),
+        ("rf_planning_dashboard_current", "GET /v1/sites/{site_ref}/wifi/optimization/dashboard/current"),
+        ("rf_planning_dashboard_history", "GET /v1/sites/{site_ref}/wifi/optimization/dashboard/history"),
+        ("rf_planning_detail", "GET /v1/sites/{site_ref}/wifi/optimization/detail"),
+        ("rf_planning_history", "GET /v1/sites/{site_ref}/wifi/optimization/history/records"),
+        ("rf_planning_history_detail", "GET /v1/sites/{site_ref}/wifi/optimization/history/records/{history_ref}"),
+        ("rf_planning_recent_history", "GET /v1/sites/{site_ref}/wifi/optimization/history/recent"),
+        ("rf_excluded_aps", "GET /v1/sites/{site_ref}/wifi/optimization/excluded-aps"),
+        ("rf_deploy_history", "GET /v1/sites/{site_ref}/wifi/optimization/deployment-history"),
+        ("wifi_health", "GET /v1/sites/{site_ref}/wifi/health/timeline"),
+        ("wifi_subhealth", "GET /v1/sites/{site_ref}/wifi/health/details"),
+        ("band_steering", "GET /v1/sites/{site_ref}/wifi/band-steering"),
+        ("band_steering_preview", "POST /v1/sites/{site_ref}/wifi/band-steering-preview"),
+        ("rrm_settings", "GET /v1/sites/{site_ref}/wifi/optimization"),
+        ("roaming_settings", "GET /v1/sites/{site_ref}/wifi/roaming"),
+        ("site_led", "GET /v1/sites/{site_ref}/led"),
+        ("site_led_preview", "POST /v1/sites/{site_ref}/led-preview"),
+        ("site_lldp", "GET /v1/sites/{site_ref}/lldp"),
+        ("site_lldp_preview", "POST /v1/sites/{site_ref}/lldp-preview"),
+        ("site_dpi", "GET /v1/sites/{site_ref}/application-control"),
+        ("site_dpi_preview", "POST /v1/sites/{site_ref}/application-control-preview"),
+        ("gateway_voip", "GET /v1/sites/{site_ref}/qos/gateway/voip-prioritization"),
+        ("gateway_voip_preview", "POST /v1/sites/{site_ref}/qos/gateway/voip-prioritization-preview"),
+        ("gateway_tag_qos", "GET /v1/sites/{site_ref}/qos/gateway/tag-outbound-traffic"),
+        ("gateway_tag_qos_preview", "POST /v1/sites/{site_ref}/qos/gateway/tag-outbound-traffic-preview"),
+        ("site_channel_limit", "GET /v1/sites/{site_ref}/wifi/channel-limit"),
+        ("rrm_incompatible", "GET /v1/sites/{site_ref}/wifi/rrm-incompatible"),
+        ("site_dashboard_channels", "GET /v1/sites/{site_ref}/wifi/channels"),
+        ("site_client_signal_distribution", "GET /v1/sites/{site_ref}/wifi/client-signal-distribution"),
+        ("rrm_mode_preview", "POST /v1/sites/{site_ref}/wifi/optimization-preview"),
+        ("site_events", "GET /v1/sites/{site_ref}/events"),
+        ("site_events_window_summary", "GET /v1/sites/{site_ref}/events/window"),
+        ("site_alerts", "GET /v1/sites/{site_ref}/alerts"),
+        ("site_alerts_window_summary", "GET /v1/sites/{site_ref}/alerts/window"),
+        ("site_rogue_ap_results", "GET /v1/sites/{site_ref}/wifi/rogue-ap-results"),
+        ("site_wids_summary", "GET /v1/sites/{site_ref}/wifi/wids-summary"),
+        ("site_wids_blacklist_summary", "GET /v1/sites/{site_ref}/wifi/wids-blacklist-summary"),
+        ("site_speed_test_settings", "GET /v1/sites/{site_ref}/speed-test/settings"),
+        ("ap_uplink_config", "GET /v1/sites/{site_ref}/aps/{device_ref}/uplink-config"),
+        ("ap_lldp_config", "GET /v1/sites/{site_ref}/aps/{device_ref}/lldp-config"),
+        ("ap_port_vlans", "GET /v1/sites/{site_ref}/aps/{device_ref}/port-vlans"),
+        ("ap_bridge_config", "GET /v1/sites/{site_ref}/aps/{device_ref}/bridge-config"),
+        ("ap_mesh_candidates", "GET /v1/sites/{site_ref}/aps/{device_ref}/mesh/candidates"),
+        ("ap_general_config", "GET /v1/sites/{site_ref}/aps/{device_ref}/general-config"),
+        ("ap_ip_setting", "GET /v1/sites/{site_ref}/aps/{device_ref}/ip-setting"),
+        ("ap_ipv6_setting", "GET /v1/sites/{site_ref}/aps/{device_ref}/ipv6-setting"),
+        ("ap_p2p_info", "GET /v1/sites/{site_ref}/aps/{device_ref}/p2p-info"),
+        ("ap_l3_access", "GET /v1/sites/{site_ref}/aps/{device_ref}/l3-access"),
+        ("ap_paring_window", "GET /v1/sites/{site_ref}/aps/{device_ref}/paring-window-result"),
+        ("ap_management_ssid", "GET /v1/sites/{site_ref}/aps/{device_ref}/management-ssid"),
+        ("ap_snmp_config", "GET /v1/sites/{site_ref}/aps/{device_ref}/snmp"),
+        ("ap_vlan_v1", "GET /v1/sites/{site_ref}/aps/{device_ref}/vlan-v1"),
+        ("ap_wlan_overrides", "GET /v1/sites/{site_ref}/aps/{device_ref}/wlan-overrides"),
+    )
+
+    def __init__(self, config: OpenApiConfig) -> None:
+        self.config = config
+        try:
+            self._ref_key = load_reference_key(
+                config.reference_key_file,
+                ephemeral=config.reference_key_file is None,
+            )
+        except ReferenceKeyError as exc:
+            raise OpenApiError(exc.code) from None
+        self._site_ids_by_ref: dict[str, str] = {}
+        self._site_template_ids_by_ref: dict[str, str] = {}
+        self._network_ids_by_site_ref: dict[str, dict[str, str]] = {}
+        self._rf_history_ids_by_site_ref: dict[str, dict[str, str]] = {}
+        self._batch_interference_history_ids_by_site_ref: dict[str, dict[str, str]] = {}
+        self._batch_interference_device_macs_by_site_history_ref: dict[
+            str, dict[str, dict[str, str]]] = {}
+        self._client_macs_by_site_ref: dict[str, dict[str, str]] = {}
+        self._client_items_by_site_ref: dict[str, list[dict[str, object]]] = {}
+        self._device_macs_by_site_ref: dict[str, dict[str, str]] = {}
+        self._inventory_macs_by_site_ref: dict[str, dict[str, str]] = {}
+        self._olt_macs_by_site_ref: dict[str, dict[str, str]] = {}
+        self._gateway_macs_by_site_ref: dict[str, dict[str, str]] = {}
+        self._switch_macs_by_site_ref: dict[str, dict[str, str]] = {}
+        self._ssid_ids_by_site_ref: dict[str, dict[str, str]] = {}
+        self._wlan_group_ids_by_site_ref: dict[str, dict[str, str]] = {}
+        self._incident_ids_by_site_ref: dict[str, dict[str, str]] = {}
+        self._incident_context_by_site_ref: dict[str, dict[str, dict[str, str]]] = {}
+        self._capability_evidence: dict[tuple[str, str | None], dict[str, object]] = {}
+        self._capability_local = threading.local()
+
+    def _record_capability(self, operation: str, target_ref: str | None,
+                           error: OpenApiError | None, observation: str | None,
+                           *, response_shape_state: str | None = None,
+                           controller_response_observed: bool = False) -> None:
+        if operation not in {name for name, _route in self.CAPABILITY_OPERATIONS}:
+            return
+        if target_ref is not None:
+            valid_ref = re.fullmatch(r"[0-9a-f]{24}(?::[0-9a-f]{24})?", target_ref)
+            if not valid_ref:
+                target_ref = None
+        evidence: dict[str, object] = {
+            "recorded_at": datetime.now(timezone.utc).isoformat(),
+            "result": "failure" if error else "success",
+            "controller_response_observed": controller_response_observed is True,
+            "response_shape_state": response_shape_state or "unknown",
+            "permission_state": "unknown",
+            "hardware_support_state": "unknown",
+            "firmware_support_state": "unknown",
+        }
+        if error:
+            if controller_response_observed and error.code == "openapi_permission_denied":
+                evidence["failure_class"] = "permission_denied"
+                evidence["support_state"] = "unavailable_permission"
+                evidence["permission_state"] = "denied"
+            elif controller_response_observed and error.code == "openapi_rejected":
+                evidence["failure_class"] = "unknown_rejection"
+                evidence["support_state"] = "unknown"
+            else:
+                evidence["failure_class"] = (
+                    "controller_operation_error" if controller_response_observed
+                    else "no_controller_response")
+                evidence["support_state"] = "unknown"
+            evidence["error_code"] = error.code
+            if error.upstream_error_code is not None:
+                evidence["upstream_error_code"] = error.upstream_error_code
+        if observation:
+            evidence["observation"] = observation
+        if not error and controller_response_observed:
+            evidence["permission_state"] = "allowed"
+            if response_shape_state == "response_shape_supported":
+                evidence["support_state"] = "live_verified_supported"
+            else:
+                evidence["support_state"] = "unknown"
+        elif not error:
+            evidence["support_state"] = "unknown"
+            if observation is None:
+                evidence["observation"] = "controller_response_not_observed"
+        self._capability_evidence[(operation, target_ref)] = evidence
+        while len(self._capability_evidence) > 1000:
+            self._capability_evidence.pop(next(iter(self._capability_evidence)))
+
+    def capabilities(self) -> dict[str, object]:
+        items = []
+        for operation, route in self.CAPABILITY_OPERATIONS:
+            matching = [(target, evidence) for (name, target), evidence in self._capability_evidence.items()
+                        if name == operation]
+            entries = [{"target_ref": target, **evidence} if target is not None else dict(evidence)
+                       for target, evidence in matching]
+            support_counts: dict[str, int] = {}
+            permission_counts: dict[str, int] = {}
+            controller_response_count = sum(
+                evidence.get("controller_response_observed") is True
+                for _target, evidence in matching)
+            for evidence in matching:
+                for key, counts in (("support_state", support_counts),
+                                    ("permission_state", permission_counts)):
+                    state = evidence[1].get(key)
+                    if isinstance(state, str):
+                        counts[state] = counts.get(state, 0) + 1
+            items.append({"operation": operation, "route": route,
+                          "support_state": "unknown", "implementation_state": "implemented",
+                          "runtime_evidence_count": len(entries),
+                          "controller_response_evidence_count": controller_response_count,
+                          "observed_support_states": dict(sorted(support_counts.items())),
+                          "observed_permission_states": dict(sorted(permission_counts.items())),
+                          "runtime_evidence": entries})
+        return {"status": "ok", "catalog_scope": "instrumented_openapi_operations",
+                "catalog_complete": False, "items": items}
+
+    @classmethod
+    def capability_catalog(cls) -> dict[str, object]:
+        return {"status": "ok", "catalog_scope": "instrumented_openapi_operations",
+                "catalog_complete": False, "items": [
+            {"operation": operation, "route": route, "support_state": "unknown",
+             "implementation_state": "implemented", "runtime_evidence_count": 0,
+             "controller_response_evidence_count": 0,
+             "observed_support_states": {}, "observed_permission_states": {},
+             "runtime_evidence": []}
+            for operation, route in cls.CAPABILITY_OPERATIONS
+        ]}
+
+    @_track_capability("site_templates")
+    def list_site_templates(self) -> dict[str, object]:
+        """List site-template aliases without exposing controller template IDs."""
+        token = self._access_token()
+        base_path = self._SITE_TEMPLATES_PATH.format(controller_id=self.config.controller_id)
+        rows = self._read_pages(base_path, token)
+        items: list[dict[str, object]] = []
+        template_ids: dict[str, str] = {}
+        invalid = unknown = 0
+        for row in rows:
+            if not isinstance(row, dict):
+                invalid += 1
+                continue
+            template_id = self._first_string(row, ("id",))
+            if not template_id or not self._IDENTIFIER.fullmatch(template_id):
+                invalid += 1
+                continue
+            template_ref = self._opaque_ref("site_template", template_id)
+            if template_ref in template_ids and template_ids[template_ref] != template_id:
+                raise OpenApiError("openapi_response_invalid")
+            template_ids[template_ref] = template_id
+            try:
+                projected = summarize_site_template(
+                    row, template_ref=template_ref,
+                    expose_name=self.config.expose_descriptive_names)
+            except SiteTemplateSummaryError:
+                invalid += 1
+                continue
+            data = projected["data"]
+            if isinstance(data, dict):
+                items.append(data)
+            invalid += int(projected["invalid_field_count"])
+            unknown += int(projected["unknown_field_count"])
+        self._site_template_ids_by_ref = template_ids
+        return {"status": "ok", "resource": "site_templates", "count": len(items),
+                "items": items, "missing_field_count": 0,
+                "invalid_field_count": invalid, "unknown_field_count": unknown,
+                "partial": bool(invalid or unknown)}
+
+    @_track_capability("sites")
+    def list_sites(self) -> dict[str, object]:
+        token = self._access_token()
+        rows = self._read_pages(self._SITE_PATH.format(controller_id=self.config.controller_id), token)
+        sites = []
+        site_ids_by_ref: dict[str, str] = {}
+        for row in rows:
+            if not isinstance(row, dict):
+                raise OpenApiError("openapi_response_invalid")
+            raw_id = self._first_string(row, ("siteId", "id"))
+            if not raw_id or not self._IDENTIFIER.fullmatch(raw_id):
+                raise OpenApiError("openapi_response_invalid")
+            site_ref = self._opaque_ref("site", raw_id)
+            site_ids_by_ref[site_ref] = raw_id
+            item: dict[str, object] = {"site_ref": site_ref}
+            if self.config.expose_descriptive_names:
+                name = self._display_name(row, 64)
+                if name is not None:
+                    item["site_name"] = name
+            sites.append(item)
+        self._site_ids_by_ref = site_ids_by_ref
+        # A site inventory refresh invalidates all client detail references;
+        # callers must refresh the client list before using one again.
+        self._client_macs_by_site_ref = {}
+        self._client_items_by_site_ref = {}
+        self._incident_ids_by_site_ref = {}
+        self._incident_context_by_site_ref = {}
+        self._ssid_ids_by_site_ref = {}
+        self._wlan_group_ids_by_site_ref = {}
+        self._device_macs_by_site_ref = {
+            ref: macs for ref, macs in self._device_macs_by_site_ref.items()
+            if ref in site_ids_by_ref
+        }
+        self._inventory_macs_by_site_ref = {
+            ref: macs for ref, macs in self._inventory_macs_by_site_ref.items()
+            if ref in site_ids_by_ref
+        }
+        self._olt_macs_by_site_ref = {
+            ref: macs for ref, macs in self._olt_macs_by_site_ref.items()
+            if ref in site_ids_by_ref
+        }
+        self._gateway_macs_by_site_ref = {
+            ref: macs for ref, macs in self._gateway_macs_by_site_ref.items()
+            if ref in site_ids_by_ref
+        }
+        self._switch_macs_by_site_ref = {
+            ref: macs for ref, macs in self._switch_macs_by_site_ref.items()
+            if ref in site_ids_by_ref
+        }
+        return {"status": "ok", "resource": "sites", "count": len(sites), "items": sites}
+
+    @_track_capability("devices")
+    def list_devices(self, site_ref: str) -> dict[str, object]:
+        """List devices using an opaque site reference returned by list_sites."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        token = self._access_token()
+        path = self._DEVICE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id
+        )
+        rows = self._read_pages(path, token)
+        devices = []
+        ap_macs: dict[str, str] = {}
+        gateway_macs: dict[str, str] = {}
+        switch_macs: dict[str, str] = {}
+        inventory_macs: dict[str, str] = {}
+        olt_macs: dict[str, str] = {}
+        for row in rows:
+            if not isinstance(row, dict):
+                raise OpenApiError("openapi_response_invalid")
+            raw_id = self._first_string(row, ("deviceId", "id", "mac", "macAddress", "sn"))
+            if not raw_id:
+                raise OpenApiError("openapi_response_invalid")
+            item: dict[str, object] = {
+                "device_ref": self._opaque_ref("device", site_id + ":" + raw_id)
+            }
+            device_ref = item["device_ref"]
+            # DeviceInfo.type has no schema enum. Only explicit, known AP labels
+            # qualify; unknown values are never guessed from model/name fields.
+            raw_type = self._first_string(row, ("deviceType", "type"))
+            mac = self._first_string(row, ("mac", "macAddress"))
+            if isinstance(mac, str) and self._MAC.fullmatch(mac):
+                inventory_macs[device_ref] = mac
+                if raw_type and raw_type.strip().casefold() == "olt":
+                    olt_macs[device_ref] = mac
+            if (raw_type and raw_type.strip().casefold() in {"ap", "access point", "accesspoint"}
+                    and isinstance(mac, str) and self._MAC.fullmatch(mac)):
+                ap_macs[device_ref] = mac
+            if (raw_type and raw_type.strip().casefold() in {"gateway", "router", "gw"}
+                    and isinstance(mac, str) and self._MAC.fullmatch(mac)):
+                gateway_macs[device_ref] = mac
+            if (raw_type and raw_type.strip().casefold() in {"switch", "sw"}
+                    and isinstance(mac, str) and self._MAC.fullmatch(mac)):
+                switch_macs[device_ref] = mac
+            # Names are excluded unless the explicit, authenticated API opt-in is
+            # enabled. Other identity/address/credential/raw fields stay excluded.
+            if self.config.expose_descriptive_names:
+                name = self._display_name(row, 128)
+                if name is not None:
+                    item["device_name"] = name
+            for target, keys in (
+                ("model", ("deviceModel", "model")),
+                ("device_type", ("deviceType", "type")),
+                ("firmware", ("firmwareVersion", "firmware")),
+            ):
+                value = self._first_string(row, keys)
+                if value and self._SAFE_FIELD.fullmatch(value):
+                    item[target] = value
+            # Omada 6.3 exposes device status as an integer. Preserve only that
+            # documented scalar, never the surrounding raw device record.
+            status = row.get("status")
+            if isinstance(status, int) and not isinstance(status, bool):
+                item["state"] = status
+            else:
+                state = self._first_string(row, ("state",))
+                if state and self._SAFE_FIELD.fullmatch(state):
+                    item["state"] = state
+            devices.append(item)
+        self._device_macs_by_site_ref[site_ref] = ap_macs
+        self._gateway_macs_by_site_ref[site_ref] = gateway_macs
+        self._switch_macs_by_site_ref[site_ref] = switch_macs
+        self._inventory_macs_by_site_ref[site_ref] = inventory_macs
+        self._olt_macs_by_site_ref[site_ref] = olt_macs
+        return {"status": "ok", "resource": "devices", "count": len(devices), "items": devices}
+
+    @_track_capability("ap_overview")
+    def read_ap_overview(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read a bounded, identifier-free overview for one inventoried AP."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        if not isinstance(device_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", device_ref):
+            raise OpenApiError("device_ref_invalid")
+        mac = self._device_macs_by_site_ref.get(site_ref, {}).get(device_ref)
+        if not mac:
+            raise OpenApiError("device_ref_unknown")
+        path = self._AP_OVERVIEW_PATH.format(controller_id=self.config.controller_id,
+                                             site_id=site_id, device_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        result = payload.get("result")
+        if not isinstance(result, dict):
+            raise OpenApiError("openapi_response_invalid")
+        item: dict[str, object] = {"device_ref": device_ref}
+        for source, target in (("model", "model"), ("firmwareVersion", "firmware")):
+            value = result.get(source)
+            if value is not None:
+                if not isinstance(value, str) or not self._SAFE_FIELD.fullmatch(value):
+                    raise OpenApiError("openapi_response_invalid")
+                item[target] = value
+        for source, target in (("cpuUtil", "cpu_percent"), ("memoryUtil", "memory_percent")):
+            value = result.get(source)
+            if value is not None:
+                if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 100:
+                    raise OpenApiError("openapi_response_invalid")
+                item[target] = value
+        uptime = result.get("uptimeLong")
+        if uptime is not None:
+            if isinstance(uptime, bool) or not isinstance(uptime, int) or not 0 <= uptime <= 2**63 - 1:
+                raise OpenApiError("openapi_response_invalid")
+            item["uptime_seconds"] = uptime
+        status = result.get("status")
+        if status is not None:
+            known_statuses = {0, 1, 10, 11, 12, 13, 14, 15, 16, 17, 20, 21, 22, 23,
+                              24, 25, 26, 27, 30, 31, 32, 33, 40, 41, 50}
+            if isinstance(status, bool) or not isinstance(status, int) or status not in known_statuses:
+                raise OpenApiError("openapi_response_invalid")
+            item["status_code"] = status
+        category = result.get("statusCategory")
+        if category is not None:
+            if isinstance(category, bool) or not isinstance(category, int) or category not in range(5):
+                raise OpenApiError("openapi_response_invalid")
+            item["status_category"] = category
+        if "wirelessLinked" in result:
+            linked = result["wirelessLinked"]
+            if not isinstance(linked, bool):
+                raise OpenApiError("openapi_response_invalid")
+            item["wireless_linked"] = linked
+        return {"status": "ok", "resource": "ap_overview", "device_ref": device_ref,
+                "data": item}
+
+    @_track_capability("device_firmware")
+    def read_device_firmware(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read current/latest firmware versions for one inventoried device."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        if not isinstance(device_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", device_ref):
+            raise OpenApiError("device_ref_invalid")
+        mac = self._inventory_macs_by_site_ref.get(site_ref, {}).get(device_ref)
+        if not mac:
+            raise OpenApiError("device_ref_unknown")
+        path = self._DEVICE_FIRMWARE_PATH.format(controller_id=self.config.controller_id,
+                                                 site_id=site_id, device_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        result = payload.get("result")
+        if not isinstance(result, dict):
+            raise OpenApiError("openapi_response_invalid")
+        safe_versions: dict[str, str] = {}
+        for source, target in (("curFwVer", "current_version"), ("lastFwVer", "latest_version")):
+            value = result.get(source)
+            if value is None:
+                continue
+            if (not isinstance(value, str) or value != value.strip() or
+                    not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._+ -]{0,95}", value)):
+                raise OpenApiError("openapi_response_invalid")
+            if re.search(r"(?<![0-9])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![0-9])", value):
+                raise OpenApiError("openapi_response_invalid")
+            try:
+                ipaddress.ip_address(value)
+            except ValueError:
+                pass
+            else:
+                raise OpenApiError("openapi_response_invalid")
+            safe_versions[target] = value
+        current, latest = safe_versions.get("current_version"), safe_versions.get("latest_version")
+        safe_versions["versions_differ"] = (current != latest) if current is not None and latest is not None else None
+        # A differing version string does not prove that an upgrade is available.
+        safe_versions["update_available"] = None
+        return {"status": "ok", "resource": "device_firmware", "device_ref": device_ref,
+                "data": safe_versions}
+
+    def _device_read_context(self, site_ref: str, device_ref: str) -> tuple[str, str]:
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        if not isinstance(device_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", device_ref):
+            raise OpenApiError("device_ref_invalid")
+        mac = self._inventory_macs_by_site_ref.get(site_ref, {}).get(device_ref)
+        if not mac:
+            raise OpenApiError("device_ref_unknown")
+        return site_id, mac
+
+    def _olt_read_context(self, site_ref: str, device_ref: str) -> tuple[str, str]:
+        site_id, _mac = self._device_read_context(site_ref, device_ref)
+        mac = self._olt_macs_by_site_ref.get(site_ref, {}).get(device_ref)
+        if not mac:
+            raise OpenApiError("device_type_unsupported")
+        return site_id, mac.replace(":", "-").upper()
+
+    @_track_capability("device_adopt_result")
+    def read_device_adopt_result(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        site_id, mac = self._device_read_context(site_ref, device_ref)
+        path = self._DEVICE_ADOPT_RESULT_PATH.format(controller_id=self.config.controller_id,
+                                                     site_id=site_id, device_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        result = payload.get("result")
+        try:
+            projected = project_device_adopt_result(result, mac)
+        except DeviceAdoptResultError as exc:
+            raise OpenApiError("openapi_response_invalid") from exc
+        return {"status": "ok", "resource": "device_adopt_result", "device_ref": device_ref,
+                **projected}
+
+    @_track_capability("device_mac_type")
+    def read_device_mac_type(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        site_id, mac = self._device_read_context(site_ref, device_ref)
+        path = self._DEVICE_MAC_TYPE_PATH.format(controller_id=self.config.controller_id,
+                                                 site_id=site_id, device_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            projected = project_device_mac_type(payload.get("result"))
+        except DeviceMacTypeError as exc:
+            raise OpenApiError("openapi_response_invalid") from exc
+        return {"status": "ok", "resource": "device_mac_type", "device_ref": device_ref,
+                **projected}
+
+    @_track_capability("device_link_topology")
+    def read_device_link_topology(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        site_id, mac = self._device_read_context(site_ref, device_ref)
+        path = self._DEVICE_LINK_TOPOLOGY_PATH.format(controller_id=self.config.controller_id,
+                                                      site_id=site_id, device_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            projected = project_device_link_topology(payload.get("result"))
+        except DeviceLinkTopologyError as exc:
+            raise OpenApiError("openapi_response_invalid") from exc
+        return {"status": "ok", "resource": "device_link_topology", "device_ref": device_ref,
+                **projected}
+
+    @_track_capability("olt_system_info")
+    def read_olt_system_info(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        site_id, mac = self._olt_read_context(site_ref, device_ref)
+        path = self._OLT_SYSTEM_INFO_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, device_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            projected = project_olt_system_info(payload.get("result"))
+        except OltSystemReadError as exc:
+            raise OpenApiError("openapi_response_invalid") from exc
+        return {"status": "ok", "resource": "olt_system_info",
+                "device_ref": device_ref, **projected}
+
+    @_track_capability("olt_detail_summary")
+    def read_olt_detail_summary(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        site_id, mac = self._olt_read_context(site_ref, device_ref)
+        path = self._OLT_DETAIL_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, device_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            projected = project_olt_detail(payload.get("result"))
+        except OltDetailError as exc:
+            raise OpenApiError("openapi_response_invalid") from exc
+        return {"status": "ok", "resource": "olt_detail_summary",
+                "site_ref": site_ref, "device_ref": device_ref, **projected}
+
+    @_track_capability("olt_ports_summary")
+    def read_olt_ports_summary(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        site_id, mac = self._olt_read_context(site_ref, device_ref)
+        path = self._OLT_ETH_PON_LIST_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, device_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            projected = project_olt_ports_summary(payload.get("result"))
+        except OltPortsSummaryError as exc:
+            raise OpenApiError("openapi_response_invalid") from exc
+        return {"status": "ok", "resource": "olt_ports_summary",
+                "site_ref": site_ref, "device_ref": device_ref, **projected}
+
+    def _msp_olt_device_context(self, msp_ref: str, customer_ref: str,
+                                site_ref: str, device_ref: str) -> tuple[str, str]:
+        if (not isinstance(msp_ref, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", msp_ref) or
+                not isinstance(customer_ref, str) or
+                not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", customer_ref)):
+            raise OpenApiError("msp_reference_invalid")
+        return self._olt_read_context(site_ref, device_ref)
+
+    def _read_msp_olt_device(self, operation: str, msp_ref: str, customer_ref: str,
+                             site_ref: str, device_ref: str, path_template: str,
+                             projector, projection_error) -> dict[str, object]:
+        site_id, mac = self._msp_olt_device_context(
+            msp_ref, customer_ref, site_ref, device_ref)
+        path = path_template.format(msp_id=msp_ref, customer_id=customer_ref,
+                                   site_id=site_id, device_mac=mac)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = projector(result)
+        except projection_error as exc:
+            raise OpenApiError("openapi_response_invalid") from exc
+        return {"status": "ok", "resource": operation,
+                "site_ref": site_ref, "device_ref": device_ref, **projected}
+
+    @_track_capability("msp_olt_detail_summary")
+    def read_msp_olt_detail_summary(self, msp_ref: str, customer_ref: str,
+                                    site_ref: str, device_ref: str) -> dict[str, object]:
+        return self._read_msp_olt_device(
+            "msp_olt_detail_summary", msp_ref, customer_ref, site_ref, device_ref,
+            self._MSP_OLT_DETAIL_PATH, project_olt_detail, OltDetailError)
+
+    @_track_capability("msp_olt_eth_config_summary")
+    def read_msp_olt_eth_config_summary(self, msp_ref: str, customer_ref: str,
+                                        site_ref: str, device_ref: str) -> dict[str, object]:
+        return self._read_msp_olt_device(
+            "msp_olt_eth_config_summary", msp_ref, customer_ref, site_ref, device_ref,
+            self._MSP_OLT_ETH_CONFIG_LIST_PATH, project_olt_eth_config_summary,
+            OltEthConfigError)
+
+    @_track_capability("msp_olt_pon_port_config_summary")
+    def read_msp_olt_pon_port_config_summary(self, msp_ref: str, customer_ref: str,
+                                              site_ref: str, device_ref: str) -> dict[str, object]:
+        return self._read_msp_olt_device(
+            "msp_olt_pon_port_config_summary", msp_ref, customer_ref, site_ref, device_ref,
+            self._MSP_OLT_PON_PORT_CONFIG_PATH, project_olt_pon_port_config_summary,
+            OltPonPortConfigError)
+
+    @_track_capability("msp_olt_site_ports_summary")
+    def read_msp_olt_site_ports_summary(self, msp_ref: str, customer_ref: str,
+                                        site_ref: str) -> dict[str, object]:
+        if (not isinstance(msp_ref, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", msp_ref) or
+                not isinstance(customer_ref, str) or
+                not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", customer_ref)):
+            raise OpenApiError("msp_reference_invalid")
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._MSP_OLT_ETH_PON_LIST_PATH.format(
+            msp_id=msp_ref, customer_id=customer_ref, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_olt_ports_summary(result)
+        except OltPortsSummaryError as exc:
+            raise OpenApiError("openapi_response_invalid") from exc
+        return {"status": "ok", "resource": "msp_olt_site_ports_summary",
+                "site_ref": site_ref, **projected}
+
+    def _read_olt_pon_status(self, operation: str, site_ref: str, device_ref: str,
+                             path_template: str, projector) -> dict[str, object]:
+        site_id, mac = self._olt_read_context(site_ref, device_ref)
+        path = path_template.format(
+            controller_id=self.config.controller_id, site_id=site_id, device_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            projected = projector(payload.get("result"))
+        except OltPonStatusError as exc:
+            raise OpenApiError("openapi_response_invalid") from exc
+        return {"status": "ok", "resource": operation,
+                "site_ref": site_ref, "device_ref": device_ref, **projected}
+
+    @_track_capability("olt_onu_global_status")
+    def read_olt_onu_global_status(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        return self._read_olt_pon_status(
+            "olt_onu_global_status", site_ref, device_ref,
+            self._OLT_ONU_GLOBAL_STATUS_PATH, project_olt_onu_global_status)
+
+    @_track_capability("olt_onu_isolation_status")
+    def read_olt_onu_isolation_status(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        return self._read_olt_pon_status(
+            "olt_onu_isolation_status", site_ref, device_ref,
+            self._OLT_ONU_ISOLATION_STATUS_PATH, project_olt_onu_isolation_status)
+
+    def _read_olt_eth_config_summary(self, operation: str, site_ref: str, device_ref: str,
+                                     path_template: str, projector) -> dict[str, object]:
+        site_id, mac = self._olt_read_context(site_ref, device_ref)
+        path = path_template.format(
+            controller_id=self.config.controller_id, site_id=site_id, device_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            projected = projector(payload.get("result"))
+        except OltEthConfigError as exc:
+            raise OpenApiError("openapi_response_invalid") from exc
+        return {"status": "ok", "resource": operation,
+                "site_ref": site_ref, "device_ref": device_ref, **projected}
+
+    @_track_capability("olt_eth_config_summary")
+    def read_olt_eth_config_summary(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        return self._read_olt_eth_config_summary(
+            "olt_eth_config_summary", site_ref, device_ref,
+            self._OLT_ETH_CONFIG_LIST_PATH, project_olt_eth_config_summary)
+
+    @_track_capability("olt_lag_config_summary")
+    def read_olt_lag_config_summary(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        return self._read_olt_eth_config_summary(
+            "olt_lag_config_summary", site_ref, device_ref,
+            self._OLT_LAG_CONFIG_LIST_PATH, project_olt_lag_config_summary)
+
+    def _read_olt_pon_info(self, operation: str, site_ref: str, device_ref: str,
+                           path_template: str, projector) -> dict[str, object]:
+        site_id, mac = self._olt_read_context(site_ref, device_ref)
+        path = path_template.format(
+            controller_id=self.config.controller_id, site_id=site_id, device_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            projected = projector(payload.get("result"))
+        except OltPonInfoError as exc:
+            raise OpenApiError("openapi_response_invalid") from exc
+        return {"status": "ok", "resource": operation,
+                "site_ref": site_ref, "device_ref": device_ref, **projected}
+
+    @_track_capability("olt_auto_refresh_summary")
+    def read_olt_auto_refresh_summary(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        return self._read_olt_pon_info(
+            "olt_auto_refresh_summary", site_ref, device_ref,
+            self._OLT_AUTO_REFRESH_PATH, project_olt_auto_refresh_summary)
+
+    @_track_capability("olt_pon_information_summary")
+    def read_olt_pon_information_summary(self, site_ref: str,
+                                        device_ref: str) -> dict[str, object]:
+        return self._read_olt_pon_info(
+            "olt_pon_information_summary", site_ref, device_ref,
+            self._OLT_PON_INFORMATION_PATH, project_olt_pon_information_summary)
+
+    def _read_olt_onu_registration(self, operation: str, site_ref: str, device_ref: str,
+                                   path_template: str, projector) -> dict[str, object]:
+        site_id, mac = self._olt_read_context(site_ref, device_ref)
+        path = path_template.format(
+            controller_id=self.config.controller_id, site_id=site_id, device_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            projected = projector(payload.get("result"))
+        except OltOnuRegistrationError as exc:
+            raise OpenApiError("openapi_response_invalid") from exc
+        return {"status": "ok", "resource": operation,
+                "site_ref": site_ref, "device_ref": device_ref, **projected}
+
+    @_track_capability("olt_pon_port_config_page_summary")
+    def read_olt_pon_port_config_page_summary(self, site_ref: str, device_ref: str,
+                                              page_number: int | str,
+                                              page_size: int | str) -> dict[str, object]:
+        try:
+            page = int(page_number)
+            size = int(page_size)
+            if (str(page) != str(page_number) or str(size) != str(page_size) or
+                    not 0 <= page <= 10_000 or not 1 <= size <= 100):
+                raise ValueError
+        except (TypeError, ValueError):
+            raise OpenApiError("page_arguments_invalid") from None
+        site_id, mac = self._olt_read_context(site_ref, device_ref)
+        path = self._OLT_PON_PORT_CONFIG_PAGE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, device_mac=mac)
+        path += "?" + urlencode({"number": page, "size": size})
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            projected = project_olt_pon_port_config_page_summary(
+                payload.get("result"), requested_page=page, requested_size=size)
+        except OltPonPortConfigError as exc:
+            raise OpenApiError("openapi_response_invalid") from exc
+        return {"status": "ok", "resource": "olt_pon_port_config_page_summary",
+                "site_ref": site_ref, "device_ref": device_ref, **projected}
+
+    @_track_capability("olt_service_port_profiles_summary")
+    def read_olt_service_port_profiles_summary(self, site_ref: str,
+                                               device_ref: str) -> dict[str, object]:
+        site_id, mac = self._olt_read_context(site_ref, device_ref)
+        path = self._OLT_SERVICE_PORT_PROFILES_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, device_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            projected = project_olt_service_port_profiles_summary(payload.get("result"))
+        except OltServicePortProfilesError as exc:
+            raise OpenApiError("openapi_response_invalid") from exc
+        return {"status": "ok", "resource": "olt_service_port_profiles_summary",
+                "site_ref": site_ref, "device_ref": device_ref, **projected}
+
+    @_track_capability("olt_pon_port_config_summary")
+    def read_olt_pon_port_config_summary(self, site_ref: str,
+                                         device_ref: str) -> dict[str, object]:
+        site_id, mac = self._olt_read_context(site_ref, device_ref)
+        path = self._OLT_PON_PORT_CONFIG_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, device_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            projected = project_olt_pon_port_config_summary(payload.get("result"))
+        except OltPonPortConfigError as exc:
+            raise OpenApiError("openapi_response_invalid") from exc
+        return {"status": "ok", "resource": "olt_pon_port_config_summary",
+                "site_ref": site_ref, "device_ref": device_ref, **projected}
+
+    @_track_capability("olt_onu_auto_auth_status")
+    def read_olt_onu_auto_auth_status(self, site_ref: str,
+                                      device_ref: str) -> dict[str, object]:
+        return self._read_olt_onu_registration(
+            "olt_onu_auto_auth_status", site_ref, device_ref,
+            self._OLT_ONU_AUTO_AUTH_PATH, project_olt_onu_auto_auth_status)
+
+    @_track_capability("olt_onu_autofind_summary")
+    def read_olt_onu_autofind_summary(self, site_ref: str,
+                                      device_ref: str) -> dict[str, object]:
+        return self._read_olt_onu_registration(
+            "olt_onu_autofind_summary", site_ref, device_ref,
+            self._OLT_ONU_AUTOFIND_PATH, project_olt_onu_autofind_summary)
+
+    def _read_olt_onu_inventory(self, operation: str, site_ref: str, device_ref: str,
+                                path_template: str, projector) -> dict[str, object]:
+        site_id, mac = self._olt_read_context(site_ref, device_ref)
+        path = path_template.format(
+            controller_id=self.config.controller_id, site_id=site_id, device_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            projected = projector(payload.get("result"))
+        except OltOnuInventoryError as exc:
+            raise OpenApiError("openapi_response_invalid") from exc
+        return {"status": "ok", "resource": operation,
+                "site_ref": site_ref, "device_ref": device_ref, **projected}
+
+    @_track_capability("olt_onu_autofind_inventory_summary")
+    def read_olt_onu_autofind_inventory_summary(
+        self, site_ref: str, device_ref: str, pon_port: str,
+        page_number: int | str, page_size: int | str,
+    ) -> dict[str, object]:
+        try:
+            selector = validate_pon_port_selector(pon_port)
+            page = int(page_number)
+            size = int(page_size)
+            if (str(page) != str(page_number) or str(size) != str(page_size) or
+                    not 0 <= page <= 10_000 or not 1 <= size <= 100):
+                raise ValueError
+        except (TypeError, ValueError, OltOnuInventoryError):
+            raise OpenApiError("query_arguments_invalid") from None
+        site_id, mac = self._olt_read_context(site_ref, device_ref)
+        path = self._OLT_ONU_AUTOFIND_LIST_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, device_mac=mac)
+        path += "?" + urlencode({"ponPort": selector, "number": page, "size": size})
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            projected = project_olt_autofind_inventory_page(
+                payload.get("result"), page_number=page, page_size=size)
+        except OltAutofindInventoryError as exc:
+            raise OpenApiError("openapi_response_invalid") from exc
+        return {"status": "ok", "resource": "olt_onu_autofind_inventory_summary",
+                "site_ref": site_ref, "device_ref": device_ref, **projected}
+
+    @_track_capability("olt_onu_inventory_summary")
+    def read_olt_onu_inventory_summary(self, site_ref: str, device_ref: str,
+                                       pon_port: str) -> dict[str, object]:
+        try:
+            selector = validate_pon_port_selector(pon_port)
+        except OltOnuInventoryError as exc:
+            raise OpenApiError("pon_port_invalid") from exc
+        query = urlencode({"ponPort": selector})
+        return self._read_olt_onu_inventory(
+            "olt_onu_inventory_summary", site_ref, device_ref,
+            self._OLT_ONU_INVENTORY_PATH + "?" + query, project_olt_onu_inventory_summary)
+
+    @_track_capability("olt_onu_reboot_status_summary")
+    def read_olt_onu_reboot_status_summary(self, site_ref: str,
+                                           device_ref: str) -> dict[str, object]:
+        return self._read_olt_onu_inventory(
+            "olt_onu_reboot_status_summary", site_ref, device_ref,
+            self._OLT_ONU_REBOOT_STATUS_PATH, project_olt_onu_reboot_status_summary)
+
+    @_track_capability("olt_system_info_msp")
+    def read_olt_system_info_msp(self, msp_ref: str, customer_ref: str,
+                                 site_ref: str, device_ref: str) -> dict[str, object]:
+        for name, value in (("msp_ref", msp_ref), ("customer_ref", customer_ref)):
+            if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", value):
+                raise OpenApiError(f"{name}_invalid")
+        site_id, mac = self._olt_read_context(site_ref, device_ref)
+        path = self._OLT_SYSTEM_INFO_MSP_PATH.format(
+            msp_id=msp_ref, customer_id=customer_ref, site_id=site_id, device_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            projected = project_olt_system_info(payload.get("result"))
+        except OltSystemReadError as exc:
+            raise OpenApiError("openapi_response_invalid") from exc
+        return {"status": "ok", "resource": "olt_system_info_msp",
+                "device_ref": device_ref, **projected}
+
+    @_track_capability("olt_management_interfaces")
+    def read_olt_management_interfaces(self, site_ref: str,
+                                      device_ref: str) -> dict[str, object]:
+        site_id, mac = self._olt_read_context(site_ref, device_ref)
+        path = self._OLT_MANAGEMENT_INTERFACES_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, device_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            projected = project_olt_management_interfaces(payload.get("result"))
+        except OltSystemReadError as exc:
+            raise OpenApiError("openapi_response_invalid") from exc
+        return {"status": "ok", "resource": "olt_management_interfaces",
+                "device_ref": device_ref, **projected}
+
+    @_track_capability("device_radsec_support")
+    def read_device_radsec_support(self, site_ref: str) -> dict[str, object]:
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._DEVICE_RADSEC_SUPPORT_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            projected = project_device_radsec_support(payload.get("result"))
+        except DeviceRadsecSupportError as exc:
+            raise OpenApiError("openapi_response_invalid") from exc
+        return {"status": "ok", "resource": "device_radsec_support", **projected}
+
+    @_track_capability("device_upgrade_result")
+    def read_device_upgrade_result(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        site_id, mac = self._device_read_context(site_ref, device_ref)
+        path = self._DEVICE_UPGRADE_RESULT_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, device_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            projected = project_device_upgrade_result(payload.get("result"))
+        except DeviceUpgradeResultError as exc:
+            raise OpenApiError("openapi_response_invalid") from exc
+        return {"status": "ok", "resource": "device_upgrade_result",
+                "device_ref": device_ref, **projected}
+
+    @_track_capability("device_timeline")
+    def read_device_timeline(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        site_id, mac = self._device_read_context(site_ref, device_ref)
+        end = int(time.time())
+        start = end - 86_400
+        path = self._DEVICE_TIMELINE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, device_mac=mac)
+        path += f"?start={start}&end={end}"
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            projected = project_device_timeline(payload.get("result"))
+        except DeviceTimelineError as exc:
+            raise OpenApiError("openapi_response_invalid") from exc
+        return {"status": "ok", "resource": "device_timeline",
+                "device_ref": device_ref, "window_seconds": 86_400, **projected}
+
+    @_track_capability("device_inventory_summary")
+    def read_device_inventory_summary(self, site_ref: str) -> dict[str, object]:
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._DEVICE_ALL_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            projected = summarize_device_inventory(payload.get("result"))
+        except DeviceInventorySummaryError as exc:
+            raise OpenApiError("openapi_response_invalid") from exc
+        return {"status": "ok", "resource": "device_inventory_summary", **projected}
+
+    @_track_capability("clients")
+    def list_clients(self, site_ref: str) -> dict[str, object]:
+        """List clients with opaque process-local references and safe diagnostics."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        token = self._access_token()
+        path = self._CLIENT_PATH.format(controller_id=self.config.controller_id, site_id=site_id)
+        rows = self._read_pages(path, token)
+        types = {"wireless": bool, "radioId": int, "channel": int, "rxRate": int,
+                 "txRate": int, "healthScore": int, "rssi": int, "snr": int,
+                 "active": bool, "lastSeen": int}
+        names = {"radioId": "radio_id", "rxRate": "rx_rate", "txRate": "tx_rate",
+                 "healthScore": "health_score", "lastSeen": "last_seen"}
+        clients = []
+        client_macs: dict[str, str] = {}
+        refresh_nonce = secrets.token_hex(16)
+        for row in rows:
+            if not isinstance(row, dict):
+                raise OpenApiError("openapi_response_invalid")
+            mac = self._first_string(row, ("mac",))
+            if not mac or not self._MAC.fullmatch(mac):
+                raise OpenApiError("openapi_response_invalid")
+            client_ref = self._opaque_ref("client", self._site_ids_by_ref[site_ref] + ":" + refresh_nonce + ":" + mac.casefold())
+            client_macs[client_ref] = mac
+            item: dict[str, object] = {"client_ref": client_ref}
+            for field, expected in types.items():
+                if field not in row:
+                    continue
+                value = row[field]
+                valid = (isinstance(value, int) and not isinstance(value, bool)) if expected is int else isinstance(value, expected)
+                if not valid:
+                    raise OpenApiError("openapi_response_invalid")
+                item[names.get(field, field)] = value
+            clients.append(item)
+        # Replacing the map makes every prior list snapshot stale at once.
+        self._client_macs_by_site_ref[site_ref] = client_macs
+        self._client_items_by_site_ref[site_ref] = [dict(item) for item in clients]
+        return {"status": "ok", "resource": "clients", "count": len(clients), "items": clients}
+
+    @_track_capability("site_client_identity_match")
+    def resolve_site_client_identity(self, site_ref: str, client_name: str,
+                                     ssid_name: str) -> dict[str, object]:
+        """Resolve a wireless client only when its name and SSID identify one row."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        for value in (client_name, ssid_name):
+            if (not isinstance(value, str) or not 1 <= len(value) <= 128 or
+                    value != value.strip() or any(ord(char) < 0x20 or ord(char) == 0x7f
+                                                  for char in value)):
+                raise OpenApiError("client_identity_invalid")
+        rows = self._read_pages(
+            self._CLIENT_PATH.format(controller_id=self.config.controller_id, site_id=site_id),
+            self._access_token())
+        # A successful inventory refresh invalidates every previous client
+        # reference for this site, including ambiguous and unmatched results.
+        self._client_macs_by_site_ref[site_ref] = {}
+        self._client_items_by_site_ref[site_ref] = []
+        wanted_name, wanted_ssid = client_name.casefold(), ssid_name.casefold()
+        matches: list[tuple[dict[str, object], str]] = []
+        present = {field: 0 for field in ("name", "hostName", "model", "ssid", "wireless")}
+        complete_identity_rows = 0
+        potential_matches = 0
+        for row in rows:
+            if not isinstance(row, dict):
+                raise OpenApiError("openapi_response_invalid")
+            wireless = row.get("wireless")
+            if wireless is not None and type(wireless) is not bool:
+                raise OpenApiError("openapi_response_invalid")
+            raw_ssid = row.get("ssid")
+            if raw_ssid is not None and not isinstance(raw_ssid, str):
+                raise OpenApiError("openapi_response_invalid")
+            names = []
+            for field in ("name", "hostName", "model"):
+                value = row.get(field)
+                if value is not None and not isinstance(value, str):
+                    raise OpenApiError("openapi_response_invalid")
+                if isinstance(value, str):
+                    names.append(value.casefold())
+            for field in ("name", "hostName", "model"):
+                if isinstance(row.get(field), str):
+                    present[field] += 1
+            if isinstance(raw_ssid, str):
+                present["ssid"] += 1
+            if type(wireless) is bool:
+                present["wireless"] += 1
+            if names and isinstance(raw_ssid, str) and type(wireless) is bool:
+                complete_identity_rows += 1
+
+            # An explicit mismatch is enough to exclude a row. Missing fields
+            # leave it as a possible match; they cannot prove the client absent.
+            if wireless is False:
+                continue
+            if isinstance(raw_ssid, str) and raw_ssid.casefold() != wanted_ssid:
+                continue
+            if names and wanted_name not in names:
+                continue
+            if wireless is not True or not isinstance(raw_ssid, str) or not names:
+                potential_matches += 1
+                continue
+            mac = self._first_string(row, ("mac",))
+            if not mac or not self._MAC.fullmatch(mac):
+                raise OpenApiError("openapi_response_invalid")
+            matches.append((row, mac))
+
+        coverage = {
+            "inventory_row_count": len(rows),
+            "complete_identity_row_count": complete_identity_rows,
+            "incomplete_identity_row_count": len(rows) - complete_identity_rows,
+            "potential_match_count": potential_matches,
+            "complete": potential_matches == 0,
+            "fields": {
+                field: {"present_count": count, "missing_count": len(rows) - count}
+                for field, count in present.items()
+            },
+        }
+        if len(matches) > 1:
+            return {"status": "ok", "resource": "site_client_identity_match",
+                    "match_state": "ambiguous",
+                    "match_count": len(matches), "client_ref": None,
+                    "search_coverage": coverage,
+                    "partial": potential_matches > 0}
+        if potential_matches or not matches:
+            return {"status": "ok", "resource": "site_client_identity_match",
+                    "match_state": "incomplete" if potential_matches else "unmatched",
+                    "match_count": len(matches), "client_ref": None,
+                    "search_coverage": coverage,
+                    "partial": potential_matches > 0}
+
+        row, mac = matches[0]
+        client_ref = self._opaque_ref(
+            "client", site_id + ":" + secrets.token_hex(16) + ":" + mac.casefold())
+        client_item: dict[str, object] = {"client_ref": client_ref}
+        types = {"wireless": bool, "radioId": int, "channel": int, "rxRate": int,
+                 "txRate": int, "healthScore": int, "rssi": int, "snr": int,
+                 "active": bool, "lastSeen": int}
+        names = {"radioId": "radio_id", "rxRate": "rx_rate", "txRate": "tx_rate",
+                 "healthScore": "health_score", "lastSeen": "last_seen"}
+        for field, expected in types.items():
+            if field not in row:
+                continue
+            value = row[field]
+            valid = (type(value) is int) if expected is int else isinstance(value, expected)
+            if not valid:
+                raise OpenApiError("openapi_response_invalid")
+            client_item[names.get(field, field)] = value
+        self._client_macs_by_site_ref[site_ref] = {client_ref: mac}
+        self._client_items_by_site_ref[site_ref] = [dict(client_item)]
+        return {"status": "ok", "resource": "site_client_identity_match",
+                "match_state": "matched", "match_count": 1,
+                "client_ref": client_ref, "search_coverage": coverage,
+                "partial": False}
+
+    def current_client_diagnostic_inventory(self, site_ref: str) -> dict[str, object]:
+        """Return the current process-local site/client snapshot without refreshing it.
+
+        Client references are invalidated by a new site or client inventory read.
+        A diagnostic that received a client reference must validate against this
+        snapshot rather than invalidate the reference by refreshing the inventory.
+        """
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        if site_ref not in self._site_ids_by_ref:
+            raise OpenApiError("site_ref_unknown")
+        clients = self._client_items_by_site_ref.get(site_ref)
+        if clients is None:
+            raise OpenApiError("client_inventory_unavailable")
+        return {
+            "sites": {"status": "ok", "resource": "sites", "count": 1,
+                      "items": [{"site_ref": site_ref}]},
+            "clients": {"status": "ok", "resource": "clients", "count": len(clients),
+                        "items": [dict(item) for item in clients]},
+        }
+
+    @_track_capability("client_detail")
+    def read_client_detail(self, site_ref: str, client_ref: str) -> dict[str, object]:
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        if not isinstance(client_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", client_ref):
+            raise OpenApiError("client_ref_invalid")
+        mac = self._client_macs_by_site_ref.get(site_ref, {}).get(client_ref)
+        if not mac:
+            raise OpenApiError("client_ref_unknown")
+        path = self._CLIENT_DETAIL_PATH.format(controller_id=self.config.controller_id,
+                                               site_id=site_id, client_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        detail = payload.get("result")
+        if not isinstance(detail, dict):
+            raise OpenApiError("openapi_response_invalid")
+        integers = {"connectType": "connect_type", "signalLevel": "signal_level",
+                    "signalRank": "signal_rank", "wifiMode": "wifi_mode", "radioId": "radio_id",
+                    "channel": "channel", "rxRate": "rx_rate_kbps", "txRate": "tx_rate_kbps",
+                    "rssi": "rssi", "snr": "snr", "vid": "vlan_id", "dot1xVlan": "dot1x_vlan",
+                    "port": "port", "lagId": "lag_id", "activity": "download_activity_bps",
+                    "uploadActivity": "upload_activity_bps", "trafficDown": "download_bytes",
+                    "trafficUp": "upload_bytes", "uptime": "uptime_seconds", "lastSeen": "last_seen_ms",
+                    "authStatus": "auth_status", "downPacket": "download_packets",
+                    "upPacket": "upload_packets", "unit": "unit", "dhcpLeaseTime": "dhcp_lease_seconds"}
+        booleans = {"connectedToWirelessRouter": "wireless_router", "wireless": "wireless",
+                    "powerSave": "power_save", "blocked": "blocked", "guest": "guest",
+                    "active": "active", "manager": "managed", "blockDisable": "block_disabled",
+                    "supportLocate": "supports_locate", "locateEnable": "locate_enabled",
+                    "clientSupportNatTraversal": "supports_nat_traversal"}
+        item: dict[str, object] = {"status": "ok", "resource": "client_detail", "client_ref": client_ref}
+        for source, target in integers.items():
+            if source not in detail or detail[source] is None:
+                continue
+            value = detail[source]
+            if isinstance(value, bool) or not isinstance(value, int) or not -(2**63) <= value <= 2**63 - 1:
+                raise OpenApiError("openapi_response_invalid")
+            if source == "signalLevel" and not 0 <= value <= 100:
+                raise OpenApiError("openapi_response_invalid")
+            if source == "signalRank" and not 0 <= value <= 5:
+                raise OpenApiError("openapi_response_invalid")
+            if source == "radioId" and not 0 <= value <= 3:
+                raise OpenApiError("openapi_response_invalid")
+            if source == "authStatus" and not 0 <= value <= 3:
+                raise OpenApiError("openapi_response_invalid")
+            item[target] = value
+        for source, target in booleans.items():
+            if source in detail and detail[source] is not None:
+                if not isinstance(detail[source], bool):
+                    raise OpenApiError("openapi_response_invalid")
+                item[target] = detail[source]
+        raw_connect_type = detail.get("connectDevType")
+        if raw_connect_type is not None:
+            if not isinstance(raw_connect_type, str):
+                raise OpenApiError("openapi_response_invalid")
+            category = raw_connect_type.casefold()
+            item["connection_device_type"] = category if category in {"ap", "switch", "gateway"} else "other"
+        return item
+
+    @_track_capability("client_connection_history")
+    def read_client_connection_history(self, site_ref: str, client_ref: str) -> dict[str, object]:
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        if not isinstance(client_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", client_ref):
+            raise OpenApiError("client_ref_invalid")
+        mac = self._client_macs_by_site_ref.get(site_ref, {}).get(client_ref)
+        if not mac:
+            raise OpenApiError("client_ref_unknown")
+        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        start_ms = end_ms - 24 * 60 * 60 * 1000
+        query = urlencode({"start": start_ms, "end": end_ms})
+        path = (self._CLIENT_CONNECTION_PATH.format(controller_id=self.config.controller_id,
+                                                    site_id=site_id, client_mac=mac) + "?" + query)
+        payload = self._request_json("GET", path, token=self._access_token())
+        result = payload.get("result")
+        if not isinstance(result, dict):
+            raise OpenApiError("openapi_response_invalid")
+        items = []
+        for key, label in (("connections", "connection"), ("roamings", "roaming")):
+            entries = result.get(key, [])
+            if not isinstance(entries, list) or len(entries) > 128:
+                raise OpenApiError("openapi_response_invalid")
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    raise OpenApiError("openapi_response_invalid")
+                start = entry.get("start")
+                duration = entry.get("duration")
+                if (isinstance(start, bool) or not isinstance(start, int) or
+                        not start_ms <= start <= end_ms or isinstance(duration, bool) or
+                        not isinstance(duration, int) or not 0 <= duration <= 2**63 - 1):
+                    raise OpenApiError("openapi_response_invalid")
+                item: dict[str, object] = {"kind": label, "start_ms": start, "duration_ms": duration}
+                finish = entry.get("end")
+                if label == "connection" and finish is not None:
+                    if isinstance(finish, bool) or not isinstance(finish, int) or not start <= finish <= end_ms:
+                        raise OpenApiError("openapi_response_invalid")
+                    item["end_ms"] = finish
+                items.append(item)
+        if len(items) > 128:
+            raise OpenApiError("openapi_response_invalid")
+        items.sort(key=lambda row: row["start_ms"])
+        return {"status": "ok", "resource": "client_connection_history", "client_ref": client_ref,
+                "window_start_ms": start_ms, "window_end_ms": end_ms, "count": len(items), "items": items}
+
+    @_track_capability("client_history")
+    def read_client_history(self, site_ref: str, client_ref: str) -> dict[str, object]:
+        """Read a bounded, redacted client history for a fresh site-scoped ref."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        if not isinstance(client_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", client_ref):
+            raise OpenApiError("client_ref_invalid")
+        mac = self._client_macs_by_site_ref.get(site_ref, {}).get(client_ref)
+        if not mac:
+            raise OpenApiError("client_ref_unknown")
+        base = self._CLIENT_HISTORY_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, client_mac=mac)
+        rows = self._read_pages(base, self._access_token())
+        try:
+            data = project_client_history(rows, mac)
+        except ClientHistoryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "client_ref": client_ref}
+
+    @_track_capability("client_timeline")
+    def read_client_timeline(self, site_ref: str, client_ref: str, kind: str) -> dict[str, object]:
+        """Read a redacted fixed 24-hour client event timeline from inventory."""
+        type_by_kind = {"connect": 0, "association": 1, "roaming": 2, "disconnect": 3}
+        if not isinstance(kind, str) or kind not in type_by_kind:
+            raise OpenApiError("client_timeline_kind_invalid")
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        if not isinstance(client_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", client_ref):
+            raise OpenApiError("client_ref_invalid")
+        mac = self._client_macs_by_site_ref.get(site_ref, {}).get(client_ref)
+        if not mac:
+            raise OpenApiError("client_ref_unknown")
+        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        start_ms = end_ms - 24 * 60 * 60 * 1000
+        query = urlencode({"start": start_ms, "end": end_ms, "type": type_by_kind[kind]})
+        path = self._CLIENT_TIMELINE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, client_mac=mac
+        ) + "?" + query
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_client_timeline(result, start_ms, end_ms, mac)
+        except ClientTimelineError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "client_ref": client_ref,
+                "kind": kind, "window_start_ms": start_ms, "window_end_ms": end_ms}
+
+    @_track_capability("client_health")
+    def read_client_health(self, site_ref: str, client_ref: str) -> dict[str, object]:
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        if not isinstance(client_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", client_ref):
+            raise OpenApiError("client_ref_invalid")
+        mac = self._client_macs_by_site_ref.get(site_ref, {}).get(client_ref)
+        if not mac:
+            raise OpenApiError("client_ref_unknown")
+        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        start_ms = end_ms - 24 * 60 * 60 * 1000
+        query = urlencode({"start": start_ms, "end": end_ms})
+        path = self._CLIENT_HEALTH_PATH.format(controller_id=self.config.controller_id,
+                                               site_id=site_id, client_mac=mac) + "?" + query
+        payload = self._request_json("GET", path, token=self._access_token())
+        result = payload.get("result")
+        if not isinstance(result, dict):
+            raise OpenApiError("openapi_response_invalid")
+        out: dict[str, object] = {}
+        if "score" in result and result["score"] is not None:
+            score = result["score"]
+            if isinstance(score, bool) or not isinstance(score, int) or not 0 <= score <= 100:
+                raise OpenApiError("openapi_response_invalid")
+            out["score"] = score
+
+        metric_limits = {"associationTime": (0, 86_400_000), "rssi": (-150, 0),
+                         "rate": (0, 10_000_000_000), "snr": (-100, 100)}
+        def common_dimension(value: object, minimum: int, maximum: int) -> dict[str, object]:
+            if not isinstance(value, dict):
+                raise OpenApiError("openapi_response_invalid")
+            clean: dict[str, object] = {}
+            if "summaryScore" in value and value["summaryScore"] is not None:
+                v = value["summaryScore"]
+                if isinstance(v, bool) or not isinstance(v, int) or not 0 <= v <= 100:
+                    raise OpenApiError("openapi_response_invalid")
+                clean["summary_score"] = v
+            if "averageNum" in value and value["averageNum"] is not None:
+                series = value["averageNum"]
+                if not isinstance(series, list) or len(series) > 64:
+                    raise OpenApiError("openapi_response_invalid")
+                values = []
+                for point in series:
+                    if not isinstance(point, dict):
+                        raise OpenApiError("openapi_response_invalid")
+                    timestamp, number = point.get("time"), point.get("pastNum")
+                    if (isinstance(timestamp, bool) or not isinstance(timestamp, int) or
+                            not start_ms <= timestamp <= end_ms or isinstance(number, bool) or
+                            not isinstance(number, int) or not minimum <= number <= maximum):
+                        raise OpenApiError("openapi_response_invalid")
+                    values.append({"time_ms": timestamp, "value": number})
+                clean["values"] = values
+            return clean
+
+        for source, (minimum, maximum) in metric_limits.items():
+            if source in result and result[source] is not None:
+                out[{"associationTime": "association_time_ms", "rssi": "rssi",
+                     "rate": "rate", "snr": "snr"}[source]] = common_dimension(
+                         result[source], minimum, maximum)
+        for source, target in (("connectScore", "connect_score"),
+                               ("linkErrorScore", "link_error_score")):
+            if source in result and result[source] is not None:
+                out[target] = common_dimension(result[source], -(2**31), 2**31 - 1)
+        if "incident" in result and result["incident"] is not None:
+            incident = result["incident"]
+            if not isinstance(incident, dict):
+                raise OpenApiError("openapi_response_invalid")
+            safe_incident: dict[str, object] = {}
+            if incident.get("summaryScore") is not None:
+                score = incident["summaryScore"]
+                if isinstance(score, bool) or not isinstance(score, int) or not 0 <= score <= 100:
+                    raise OpenApiError("openapi_response_invalid")
+                safe_incident["summary_score"] = score
+            if incident.get("support") is not None:
+                if not isinstance(incident["support"], bool):
+                    raise OpenApiError("openapi_response_invalid")
+                safe_incident["supported"] = incident["support"]
+            if incident.get("incidentNum") is not None:
+                number = incident["incidentNum"]
+                if isinstance(number, bool) or not isinstance(number, int) or not 0 <= number <= 1_000_000:
+                    raise OpenApiError("openapi_response_invalid")
+                safe_incident["incident_count"] = number
+            out["incident"] = safe_incident
+        return {"status": "ok", "resource": "client_health", "client_ref": client_ref,
+                "window_start_ms": start_ms, "window_end_ms": end_ms, "data": out}
+
+    @_track_capability("client_health_timeline")
+    def read_client_health_timeline(self, site_ref: str, client_ref: str) -> dict[str, object]:
+        """Read a redacted client-health score timeline for the fixed last 24 hours."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        if not isinstance(client_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", client_ref):
+            raise OpenApiError("client_ref_invalid")
+        mac = self._client_macs_by_site_ref.get(site_ref, {}).get(client_ref)
+        if not mac:
+            raise OpenApiError("client_ref_unknown")
+        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        start_ms = end_ms - 24 * 60 * 60 * 1000
+        query = urlencode({"start": start_ms, "end": end_ms})
+        path = self._CLIENT_HEALTH_TIMELINE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, client_mac=mac
+        ) + "?" + query
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_client_health_timeline(result, start_ms, end_ms)
+        except ClientHealthTimelineError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "client_ref": client_ref,
+                "window_start_ms": start_ms, "window_end_ms": end_ms}
+
+    @_track_capability("networks")
+    def list_networks(self, site_ref: str) -> dict[str, object]:
+        """List LAN networks with opaque IDs and no names or addressing data."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._NETWORK_PATH.format(controller_id=self.config.controller_id, site_id=site_id)
+        rows = self._read_pages(path, self._access_token())
+        items: list[dict[str, object]] = []
+        network_ids_by_ref: dict[str, str] = {}
+        for row in rows:
+            if not isinstance(row, dict):
+                raise OpenApiError("openapi_response_invalid")
+            network_id = self._first_string(row, ("id",))
+            if not network_id or not self._IDENTIFIER.fullmatch(network_id):
+                raise OpenApiError("openapi_response_invalid")
+            network_ref = self._opaque_ref("network", site_id + ":" + network_id)
+            network_ids_by_ref[network_ref] = network_id
+            item: dict[str, object] = {"network_ref": network_ref}
+            for source, target in (("purpose", "purpose"), ("vlanType", "vlan_type"),
+                                   ("vlan", "vlan"), ("application", "application")):
+                value = row.get(source)
+                if value is not None:
+                    if isinstance(value, bool) or not isinstance(value, int):
+                        raise OpenApiError("openapi_response_invalid")
+                    item[target] = value
+            for source, target in (("primary", "primary"), ("igmpSnoopEnable", "igmp_snooping"),
+                                   ("mldSnoopEnable", "mld_snooping"), ("portal", "portal_enabled"),
+                                   ("accessControlRule", "access_control_enabled"),
+                                   ("rateLimit", "rate_limit_enabled")):
+                value = row.get(source)
+                if value is not None:
+                    if not isinstance(value, bool):
+                        raise OpenApiError("openapi_response_invalid")
+                    item[target] = value
+            items.append(item)
+        self._network_ids_by_site_ref[site_ref] = network_ids_by_ref
+        return {"status": "ok", "resource": "networks", "count": len(items), "items": items}
+
+    @_track_capability("network_dhcp_server_info")
+    def read_network_dhcp_server_info(
+        self, site_ref: str, network_ref: str,
+    ) -> dict[str, object]:
+        """Read a redacted count of DHCP pool ranges for a known network."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        if not isinstance(network_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", network_ref):
+            raise OpenApiError("network_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        network_id = self._network_ids_by_site_ref.get(site_ref, {}).get(network_ref, "")
+        if not network_id:
+            raise OpenApiError("network_ref_unknown")
+        path = self._NETWORK_DHCP_SERVER_INFO_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, network_id=network_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_network_dhcp_server_info(result)
+        except NetworkDhcpServerInfoError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "network_dhcp_server_info",
+                "site_ref": site_ref, "network_ref": network_ref, **projected}
+
+    @_track_capability("network_dhcp_server_capabilities")
+    def read_network_dhcp_server_capabilities(
+        self, site_ref: str, network_ref: str,
+    ) -> dict[str, object]:
+        """Read documented DHCP-server capability flags for a known network."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        if not isinstance(network_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", network_ref):
+            raise OpenApiError("network_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        network_id = self._network_ids_by_site_ref.get(site_ref, {}).get(network_ref, "")
+        if not network_id:
+            raise OpenApiError("network_ref_unknown")
+        path = self._NETWORK_DHCP_CAPABILITIES_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, network_id=network_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_network_dhcp_capabilities(result)
+        except NetworkDhcpCapabilitiesError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "network_dhcp_server_capabilities",
+                "site_ref": site_ref, "network_ref": network_ref, **projected}
+
+    @_track_capability("ssids")
+    def list_ssids(self, site_ref: str) -> dict[str, object]:
+        """List SSIDs with opaque refs and optional, bounded display labels."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._SSID_PATH.format(controller_id=self.config.controller_id, site_id=site_id)
+        rows = self._read_pages(path, self._access_token())
+        items: list[dict[str, object]] = []
+        ssid_ids: dict[str, str] = {}
+        integer_fields = (("chooseDevices", "choose_devices"), ("band", "band"),
+                          ("security", "security"))
+        boolean_fields = (("description", "enabled"), ("guestNetEnable", "guest_enabled"),
+                          ("broadcast", "broadcast_enabled"), ("vlanEnable", "vlan_enabled"))
+        for row in rows:
+            if not isinstance(row, dict):
+                raise OpenApiError("openapi_response_invalid")
+            raw_id = self._first_string(row, ("id", "ssidId"))
+            if not raw_id or not self._IDENTIFIER.fullmatch(raw_id):
+                raise OpenApiError("openapi_response_invalid")
+            ssid_ref = self._opaque_ref("ssid", site_id + ":" + raw_id)
+            ssid_ids[ssid_ref] = raw_id
+            item: dict[str, object] = {"ssid_ref": ssid_ref}
+            if self.config.expose_descriptive_names:
+                name = self._display_name(row, 32)
+                if name is not None:
+                    item["ssid_name"] = name
+            for source, target in integer_fields:
+                if source in row:
+                    value = row[source]
+                    if isinstance(value, bool) or not isinstance(value, int):
+                        raise OpenApiError("openapi_response_invalid")
+                    item[target] = value
+            for source, target in boolean_fields:
+                if source in row:
+                    value = row[source]
+                    if not isinstance(value, bool):
+                        raise OpenApiError("openapi_response_invalid")
+                    item[target] = value
+            items.append(item)
+        self._ssid_ids_by_site_ref[site_ref] = ssid_ids
+        return {"status": "ok", "resource": "ssids", "count": len(items), "items": items}
+
+    @_track_capability("site_mac_auth_ssid_inventory")
+    def read_site_mac_auth_ssid_inventory(self, site_ref: str,
+                                          device_type: int) -> dict[str, object]:
+        """Read site WLAN groups and their configured MAC-authentication SSIDs."""
+        site_id = self._resolve_site_ref(site_ref)
+        if type(device_type) is not int or device_type not in (1, 2, 3):
+            raise OpenApiError("query_invalid")
+        path = self._SITE_MAC_AUTH_SSIDS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        path += f"?type={device_type}"
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_mac_auth_ssid_inventory import (
+                MacAuthSsidInventoryError, summarize_mac_auth_ssid_inventory)
+        except ImportError:  # direct execution in the image
+            from site_mac_auth_ssid_inventory import (
+                MacAuthSsidInventoryError, summarize_mac_auth_ssid_inventory)
+        try:
+            projected = summarize_mac_auth_ssid_inventory(
+                result, device_type=device_type)
+        except MacAuthSsidInventoryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"site_ref": site_ref, **projected}
+
+    @_track_capability("wlan_groups")
+    def list_wlan_groups(self, site_ref: str) -> dict[str, object]:
+        """List WLAN group references and documented, non-identifying flags."""
+        site_id = self._resolve_site_ref(site_ref)
+        base = self._WLAN_GROUP_PATH.format(controller_id=self.config.controller_id, site_id=site_id)
+        rows: list[object] = []
+        expected_total: int | None = None
+        token = self._access_token()
+        for page in range(1, self.config.max_pages + 1):
+            query = urlencode({"page": page, "pageSize": self.config.page_size})
+            payload = self._request_json("GET", base + "?" + query, token=token)
+            result = payload.get("result")
+            grid = result.get("gridWlanGroup") if isinstance(result, dict) else None
+            data = grid.get("data") if isinstance(grid, dict) else None
+            total = grid.get("totalRows") if isinstance(grid, dict) else None
+            current_page = grid.get("currentPage") if isinstance(grid, dict) else None
+            current_size = grid.get("currentSize") if isinstance(grid, dict) else None
+            if (not isinstance(data, list) or len(data) > self.config.page_size or
+                    isinstance(total, bool) or not isinstance(total, int) or total < 0 or
+                    type(current_page) is not int or current_page != page or
+                    isinstance(current_size, bool) or not isinstance(current_size, int) or
+                    current_size not in (len(data), self.config.page_size)):
+                raise OpenApiError("openapi_response_invalid")
+            if expected_total is None:
+                expected_total = total
+            elif expected_total != total:
+                raise OpenApiError("openapi_response_invalid")
+            rows.extend(data)
+            if len(rows) > total:
+                raise OpenApiError("openapi_response_invalid")
+            if len(rows) >= total:
+                break
+        else:
+            raise OpenApiError("openapi_page_limit_reached")
+        items: list[dict[str, object]] = []
+        group_ids: dict[str, str] = {}
+        for row in rows:
+            if not isinstance(row, dict):
+                raise OpenApiError("openapi_response_invalid")
+            raw_id = self._first_string(row, ("id", "wlanId"))
+            if not raw_id or not self._IDENTIFIER.fullmatch(raw_id):
+                raise OpenApiError("openapi_response_invalid")
+            group_ref = self._opaque_ref("wlan", site_id + ":" + raw_id)
+            group_ids[group_ref] = raw_id
+            item: dict[str, object] = {"group_ref": group_ref}
+            for source, target in (("primary", "primary"), ("clone", "cloned")):
+                if source in row:
+                    if not isinstance(row[source], bool):
+                        raise OpenApiError("openapi_response_invalid")
+                    item[target] = row[source]
+            if "resource" in row:
+                value = row["resource"]
+                if isinstance(value, bool) or not isinstance(value, int) or value not in (0, 1, 2):
+                    raise OpenApiError("openapi_response_invalid")
+                item["resource_type"] = value
+            items.append(item)
+        self._wlan_group_ids_by_site_ref[site_ref] = group_ids
+        return {"status": "ok", "resource": "wireless_groups", "count": len(items), "items": items}
+
+    @_track_capability("site_ineligible_interference_ap_summary")
+    def read_site_ineligible_interference_ap_summary(self, site_ref: str) -> dict[str, object]:
+        """Count APs unavailable for interference scans without returning MACs."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_INELIGIBLE_INTERFERENCE_AP_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_ineligible_interference_ap_summary import (
+                SiteIneligibleInterferenceApError,
+                summarize_site_ineligible_interference_aps)
+        except ImportError:  # direct execution in the image
+            from site_ineligible_interference_ap_summary import (
+                SiteIneligibleInterferenceApError,
+                summarize_site_ineligible_interference_aps)
+        try:
+            projected = summarize_site_ineligible_interference_aps(result)
+        except SiteIneligibleInterferenceApError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_ineligible_interference_ap_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_interference_scan_eligible_summary")
+    def read_site_interference_scan_eligible_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize a bounded first page of APs eligible for interference scans."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_INTERFERENCE_SCAN_ELIGIBLE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_interference_scan_eligible_summary import (
+                SiteInterferenceScanEligibleError,
+                summarize_site_interference_scan_eligible_aps)
+        except ImportError:  # direct execution in the image
+            from site_interference_scan_eligible_summary import (
+                SiteInterferenceScanEligibleError,
+                summarize_site_interference_scan_eligible_aps)
+        try:
+            projected = summarize_site_interference_scan_eligible_aps(result)
+        except SiteInterferenceScanEligibleError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_interference_scan_eligible_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_lock_to_ap_brief_inventory")
+    def read_site_lock_to_ap_brief_inventory(self, site_ref: str) -> dict[str, object]:
+        """Read a bounded, identity-free view of APs available to Lock to AP."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_LOCK_TO_AP_BRIEF_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_lock_to_ap_brief_inventory import (
+                SiteLockToApBriefInventoryError,
+                summarize_site_lock_to_ap_brief_inventory)
+        except ImportError:  # direct execution in the image
+            from site_lock_to_ap_brief_inventory import (
+                SiteLockToApBriefInventoryError,
+                summarize_site_lock_to_ap_brief_inventory)
+        try:
+            projected = summarize_site_lock_to_ap_brief_inventory(result)
+        except SiteLockToApBriefInventoryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_lock_to_ap_brief_inventory",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_wlan_group_detail_summary")
+    def read_site_wlan_group_detail_summary(self, site_ref: str,
+                                           wlan_group_ref: str) -> dict[str, object]:
+        """Read a WLAN-group detail through a current opaque group reference."""
+        site_id = self._resolve_site_ref(site_ref)
+        wlan_id = self._resolve_wlan_group_ref(site_ref, wlan_group_ref)
+        path = self._SITE_WLAN_GROUP_DETAIL_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, wlan_id=wlan_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_wlan_group_detail_summary import (
+                SiteWlanGroupDetailError, project_site_wlan_group_detail)
+        except ImportError:  # direct execution in the image
+            from site_wlan_group_detail_summary import (
+                SiteWlanGroupDetailError, project_site_wlan_group_detail)
+        try:
+            projected = project_site_wlan_group_detail(result)
+        except SiteWlanGroupDetailError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_wlan_group_detail_summary",
+                "site_ref": site_ref, "wlan_group_ref": wlan_group_ref, **projected}
+
+    @_track_capability("site_wlan_group_summary")
+    def read_site_wlan_group_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize the legacy WLAN-group list without group identities."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_WLAN_GROUP_V1_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path,
+                                    token=self._access_token()).get("result")
+        try:
+            from .site_wlan_group_summary import (
+                SiteWlanGroupSummaryError, project_site_wlan_groups,
+            )
+        except ImportError:  # direct execution in the image
+            from site_wlan_group_summary import (
+                SiteWlanGroupSummaryError, project_site_wlan_groups,
+            )
+        try:
+            projected = project_site_wlan_groups(result)
+        except SiteWlanGroupSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_wlan_group_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_wlan_group_ssids_summary")
+    def read_site_wlan_group_ssids_summary(self, site_ref: str,
+                                           wlan_group_ref: str) -> dict[str, object]:
+        """Summarize SSIDs belonging to a group from the site's current inventory."""
+        site_id = self._resolve_site_ref(site_ref)
+        wlan_id = self._resolve_wlan_group_ref(site_ref, wlan_group_ref)
+        pages: list[object] = []
+        token = self._access_token()
+        for page_number in range(1, 6):
+            path = self._SITE_WLAN_GROUP_SSIDS_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id, wlan_id=wlan_id)
+            path += f"?page={page_number}&pageSize=100"
+            payload = self._request_json("GET", path, token=token)
+            result = payload.get("result")
+            pages.append(result)
+            if not isinstance(result, Mapping):
+                break
+            rows, total = result.get("data"), result.get("totalRows")
+            if type(total) is int and total >= 0 and page_number * 100 >= total:
+                break
+            if not isinstance(rows, list) or len(rows) < 100:
+                break
+        try:
+            from .site_wlan_group_ssids_summary import (
+                SiteWlanGroupSsidsSummaryError, project_site_wlan_group_ssids,
+            )
+        except ImportError:  # direct execution in the image
+            from site_wlan_group_ssids_summary import (
+                SiteWlanGroupSsidsSummaryError, project_site_wlan_group_ssids,
+            )
+        try:
+            projected = project_site_wlan_group_ssids(pages)
+        except SiteWlanGroupSsidsSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_wlan_group_ssids_summary",
+                "site_ref": site_ref, "wlan_group_ref": wlan_group_ref, **projected}
+
+    @_track_capability("ssid_configuration")
+    def read_ssid_configuration(self, site_ref: str, ssid_ref: str) -> dict[str, object]:
+        """Read a site-bound SSID reference and return only safe config flags."""
+        site_id = self._resolve_site_ref(site_ref)
+        if not isinstance(ssid_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", ssid_ref):
+            raise OpenApiError("ssid_ref_invalid")
+        ssid_id = self._ssid_ids_by_site_ref.get(site_ref, {}).get(ssid_ref)
+        if not ssid_id:
+            raise OpenApiError("ssid_ref_unknown")
+        path = self._SSID_DETAIL_PATH.format(controller_id=self.config.controller_id,
+                                             site_id=site_id, ssid_id=ssid_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        if not isinstance(result, dict):
+            raise OpenApiError("openapi_response_invalid")
+        item: dict[str, object] = {"ssid_ref": ssid_ref}
+        bool_fields = (("ssidEnable", "enabled"), ("guestNetEnable", "guest_enabled"),
+                       ("broadcast", "broadcast_enabled"), ("vlanEnable", "vlan_enabled"),
+                       ("oweEnable", "owe_enabled"), ("mloEnable", "mlo_enabled"),
+                       ("enable11r", "fast_roaming_11r"), ("autoWanAccess", "auto_wan_access"))
+        for source, target in bool_fields:
+            if source in result:
+                if not isinstance(result[source], bool):
+                    raise OpenApiError("openapi_response_invalid")
+                item[target] = result[source]
+        for source, target, allowed_values in (("band", "band", set(range(8))),
+                                                ("security", "security_mode", {0, 2, 3, 4, 5}),
+                                                ("pmfMode", "pmf_mode", {1, 2, 3})):
+            if source in result:
+                value = result[source]
+                if isinstance(value, bool) or not isinstance(value, int) or value not in allowed_values:
+                    raise OpenApiError("openapi_response_invalid")
+                item[target] = value
+        # Expose only configuration-presence signals and protected references.
+        # Missing optional source fields stay absent (unknown); secret values,
+        # raw VLAN IDs and AP-group IDs never leave this method.
+        security_blocks = (
+            ("pskSetting", ("securityKey",)),
+            ("entSetting", ("radiusProfileId",)),
+            ("ppskSetting", ("ppskProfileId", "radiusProfileId")),
+        )
+        for block, fields in security_blocks:
+            if block not in result:
+                continue
+            settings = result[block]
+            if settings is None:
+                continue
+            if not isinstance(settings, dict):
+                raise OpenApiError("openapi_response_invalid")
+            configured = False
+            for field in fields:
+                if field not in settings or settings[field] is None:
+                    continue
+                value = settings[field]
+                if not isinstance(value, str) or len(value) > 128 or any(ord(char) < 32 for char in value):
+                    raise OpenApiError("openapi_response_invalid")
+                configured |= bool(value.strip())
+            if settings:
+                item["security_configuration_present"] = True
+            if configured:
+                item["security_credentials_present"] = True
+
+        vlan_setting = result.get("vlanSetting")
+        if "vlanSetting" in result:
+            if vlan_setting is None:
+                vlan_setting = None
+            elif not isinstance(vlan_setting, dict):
+                raise OpenApiError("openapi_response_invalid")
+            custom = vlan_setting.get("customConfig") if isinstance(vlan_setting, dict) else None
+            if isinstance(vlan_setting, dict) and "customConfig" in vlan_setting:
+                if custom is not None and not isinstance(custom, dict):
+                    raise OpenApiError("openapi_response_invalid")
+            if isinstance(custom, dict):
+                network_id = custom.get("lanNetworkId")
+                if network_id is not None:
+                    if (not isinstance(network_id, str) or len(network_id) > 128 or
+                            (network_id and not self._IDENTIFIER.fullmatch(network_id))):
+                        raise OpenApiError("openapi_response_invalid")
+                    if network_id:
+                        item["network_binding_ref"] = self._opaque_ref(
+                            "network", site_id + ":" + network_id)
+
+        if "apGroupIds" in result:
+            group_ids = result["apGroupIds"]
+            if group_ids is None:
+                group_ids = None
+            elif (not isinstance(group_ids, list) or len(group_ids) > 256 or
+                    any(not isinstance(group_id, str) or not self._IDENTIFIER.fullmatch(group_id)
+                        for group_id in group_ids)):
+                raise OpenApiError("openapi_response_invalid")
+            if isinstance(group_ids, list):
+                item["ap_group_binding_count"] = len(group_ids)
+        return {"status": "ok", "resource": "ssid_configuration", "data": item}
+
+    def read_ssid_enable_state(self, site_ref: str, ssid_ref: str) -> dict[str, bool]:
+        """Read only the documented site-level SSID enable flag."""
+        site_id = self._resolve_site_ref(site_ref)
+        if not isinstance(ssid_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", ssid_ref):
+            raise OpenApiError("ssid_ref_invalid")
+        ssid_id = self._ssid_ids_by_site_ref.get(site_ref, {}).get(ssid_ref)
+        if not ssid_id:
+            raise OpenApiError("ssid_ref_unknown")
+        path = self._SSID_DETAIL_PATH.format(controller_id=self.config.controller_id,
+                                             site_id=site_id, ssid_id=ssid_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        if not isinstance(result, dict) or type(result.get("ssidEnable")) is not bool:
+            raise OpenApiError("ssid_enable_state_unavailable")
+        return {"ssidEnable": result["ssidEnable"]}
+
+    def patch_ssid_enable(self, site_ref: str, ssid_ref: str,
+                          change: object) -> None:
+        """PATCH only the single documented SSID enable field on a known site SSID."""
+        site_id = self._resolve_site_ref(site_ref)
+        if not isinstance(ssid_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", ssid_ref):
+            raise OpenApiError("ssid_ref_invalid")
+        ssid_id = self._ssid_ids_by_site_ref.get(site_ref, {}).get(ssid_ref)
+        if not ssid_id:
+            raise OpenApiError("ssid_ref_unknown")
+        if (not isinstance(change, dict) or set(change) != {"ssidEnable"} or
+                type(change["ssidEnable"]) is not bool):
+            raise OpenApiError("ssid_enable_change_invalid")
+        path = self._SSID_ENABLE_PATH.format(controller_id=self.config.controller_id,
+                                             site_id=site_id, ssid_id=ssid_id)
+        body = json.dumps({"ssidEnable": change["ssidEnable"]},
+                          separators=(",", ":"), allow_nan=False).encode("utf-8")
+        self._request_json("PATCH", path, body=body, token=self._access_token())
+
+    def _resolve_site_ref(self, site_ref: str) -> str:
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        return site_id
+
+    def _resolve_wlan_group_ref(self, site_ref: str, group_ref: str) -> str:
+        if not isinstance(group_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", group_ref):
+            raise OpenApiError("wlan_group_ref_invalid")
+        group_id = self._wlan_group_ids_by_site_ref.get(site_ref, {}).get(group_ref, "")
+        if not group_id:
+            raise OpenApiError("wlan_group_ref_unknown")
+        return group_id
+
+    @_track_capability("ap_dynamic")
+    def read_ap_radio_part(self, site_ref: str, device_ref: str,
+                           part: str) -> dict[str, object]:
+        """Read one fixed AP diagnostic operation without requiring the others."""
+        if part not in self._AP_READ_PATHS:
+            raise OpenApiError("ap_radio_part_invalid")
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        if not isinstance(device_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", device_ref):
+            raise OpenApiError("device_ref_invalid")
+        mac = self._device_macs_by_site_ref.get(site_ref, {}).get(device_ref)
+        if not mac:
+            raise OpenApiError("device_ref_unknown")
+        token = self._access_token()
+        path = self._AP_READ_PATHS[part].format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        payload = self._request_json("GET", path, token=token)
+        entity = payload.get("result")
+        if not isinstance(entity, dict):
+            raise OpenApiError("openapi_response_invalid")
+        return {"status": "ok", "resource": part, "device_ref": device_ref,
+                "data": self._sanitize_ap_entity(part, entity)}
+
+    @_track_capability("ap_available_channels_summary")
+    def read_ap_available_channels_summary(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Return a compact supported-channel inventory for a known AP reference."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_AVAILABLE_CHANNEL_PATH.format(controller_id=self.config.controller_id,
+                                                      site_id=site_id, ap_mac=mac)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .ap_available_channel_summary import (
+                ApAvailableChannelSummaryError, summarize_ap_available_channels)
+        except ImportError:  # direct execution in the image
+            from ap_available_channel_summary import (
+                ApAvailableChannelSummaryError, summarize_ap_available_channels)
+        try:
+            projected = summarize_ap_available_channels(result)
+        except ApAvailableChannelSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "ap_available_channels_summary",
+                "device_ref": device_ref, **projected}
+
+    @_track_capability("ap_available_channels")
+    def read_ap_available_channels(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_AVAILABLE_CHANNEL_PATH.format(controller_id=self.config.controller_id,
+                                                      site_id=site_id, ap_mac=mac)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        if not isinstance(result, list) or len(result) > 4:
+            raise OpenApiError("openapi_response_invalid")
+        radio_labels = {0: "2.4GHz", 1: "5GHz-1", 2: "5GHz-2", 3: "6GHz"}
+        radios: list[dict[str, object]] = []
+        seen_radios: set[int] = set()
+        for radio in result:
+            if not isinstance(radio, dict):
+                raise OpenApiError("openapi_response_invalid")
+            radio_id = radio.get("radioId")
+            label = radio_labels.get(radio_id) if type(radio_id) is int else None
+            entries = radio.get("apChannelDetailList")
+            if label is None or radio_id in seen_radios or not isinstance(entries, list) or len(entries) > 256:
+                raise OpenApiError("openapi_response_invalid")
+            clean_entries: list[dict[str, object]] = []
+            seen_indices: set[int] = set()
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    raise OpenApiError("openapi_response_invalid")
+                channel, freq, index = entry.get("channel"), entry.get("freq"), entry.get("index")
+                widths = entry.get("availableChannelWidthList")
+                if (type(channel) is not int or not 1 <= channel <= 1000 or
+                        type(freq) is not int or not 100 <= freq <= 100000 or
+                        type(index) is not int or not 1 <= index <= 1024 or index in seen_indices or
+                        not isinstance(widths, list) or len(widths) > 8 or
+                        any(type(width) is not int or width not in (20, 40, 80, 160, 240, 320) for width in widths)):
+                    raise OpenApiError("openapi_response_invalid")
+                seen_indices.add(index)
+                clean_entries.append({"channel_index": index, "channel": channel, "frequency_mhz": freq,
+                                      "available_widths_mhz": widths})
+            seen_radios.add(radio_id)
+            radios.append({"radio_id": radio_id, "band": label, "channels": clean_entries})
+        return {"status": "ok", "resource": "ap_available_channels", "device_ref": device_ref,
+                "data": {"radios": radios}}
+
+    @_track_capability("ap_health")
+    def read_ap_health(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read a fixed 24-hour AP health window for a known site AP reference."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        start_ms = end_ms - 24 * 60 * 60 * 1000
+        query = urlencode({"start": start_ms, "end": end_ms})
+        path = self._AP_HEALTH_PATH.format(controller_id=self.config.controller_id,
+                                           site_id=site_id, ap_mac=mac) + "?" + query
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_ap_health_detail(result, start_ms, end_ms)
+        except ApHealthProjectionError as exc:
+            raise OpenApiError("openapi_response_invalid") from exc
+        partial = bool(data.get("unclassified_minus_one_fields"))
+        partial = partial or any(
+            isinstance(data.get(dimension), dict) and any(
+                data[dimension].get(marker, 0) > 0
+                for marker in ("discarded_out_of_window_points", "missing_value_points"))
+            for _, dimension, _ in AP_HEALTH_DIMENSIONS
+        )
+        return {"status": "ok", "resource": "ap_health", "site_ref": site_ref,
+                "device_ref": device_ref, "window_start_ms": start_ms,
+                "window_end_ms": end_ms, "partial": partial, "data": data}
+
+    @_track_capability("ap_health_timeline")
+    def read_ap_health_timeline(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read a fixed 24-hour AP health-score history for a known AP."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        start_ms = end_ms - 24 * 60 * 60 * 1000
+        query = urlencode({"start": start_ms, "end": end_ms})
+        path = self._AP_HEALTH_TIMELINE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac
+        ) + "?" + query
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_ap_health_timeline(result, start_ms, end_ms)
+        except ApHealthTimelineError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "device_ref": device_ref,
+                "window_start_ms": start_ms, "window_end_ms": end_ms}
+
+    @_track_capability("msp_ap_health_detail")
+    def read_msp_ap_health_detail(self, msp_ref: str, customer_ref: str,
+                                  site_ref: str, device_ref: str) -> dict[str, object]:
+        if (not isinstance(msp_ref, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", msp_ref) or
+                not isinstance(customer_ref, str) or
+                not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", customer_ref)):
+            raise OpenApiError("msp_reference_invalid")
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        start_ms = end_ms - 86_400_000
+        query = urlencode({"start": start_ms, "end": end_ms})
+        path = self._MSP_AP_HEALTH_PATH.format(
+            msp_id=msp_ref, customer_id=customer_ref, site_id=site_id, ap_mac=mac) + "?" + query
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_ap_health_detail(result, start_ms, end_ms)
+        except ApHealthProjectionError as exc:
+            raise OpenApiError("openapi_response_invalid") from exc
+        return {**data, "resource": "msp_ap_health_detail", "site_ref": site_ref,
+                "device_ref": device_ref, "window_start_ms": start_ms, "window_end_ms": end_ms}
+
+    @_track_capability("msp_ap_health_timeline")
+    def read_msp_ap_health_timeline(self, msp_ref: str, customer_ref: str,
+                                    site_ref: str, device_ref: str) -> dict[str, object]:
+        if (not isinstance(msp_ref, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", msp_ref) or
+                not isinstance(customer_ref, str) or
+                not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", customer_ref)):
+            raise OpenApiError("msp_reference_invalid")
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        start_ms = end_ms - 86_400_000
+        query = urlencode({"start": start_ms, "end": end_ms})
+        path = self._MSP_AP_HEALTH_TIMELINE_PATH.format(
+            msp_id=msp_ref, customer_id=customer_ref, site_id=site_id, ap_mac=mac) + "?" + query
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_ap_health_timeline(result, start_ms, end_ms)
+        except ApHealthTimelineError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "resource": "msp_ap_health_timeline", "site_ref": site_ref,
+                "device_ref": device_ref, "window_start_ms": start_ms, "window_end_ms": end_ms}
+
+    @_track_capability("msp_ap_mesh_statistics")
+    def read_msp_ap_mesh_statistics(self, msp_ref: str, customer_ref: str,
+                                    site_ref: str, device_ref: str) -> dict[str, object]:
+        if (not isinstance(msp_ref, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", msp_ref) or
+                not isinstance(customer_ref, str) or
+                not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", customer_ref)):
+            raise OpenApiError("msp_reference_invalid")
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._MSP_AP_MESH_STATISTICS_PATH.format(
+            msp_id=msp_ref, customer_id=customer_ref, site_id=site_id, ap_mac=mac)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_mesh_statistics(result)
+        except MeshStatisticsProjectionError as exc:
+            raise OpenApiError("openapi_response_invalid") from exc
+        return {"status": "ok", "resource": "msp_ap_mesh_statistics",
+                "site_ref": site_ref, "device_ref": device_ref, "data": data}
+
+    @_track_capability("ap_retry_drop")
+    def read_ap_retry_drop(self, site_ref: str) -> dict[str, object]:
+        """Read the site dashboard retry/drop report over a fixed 24-hour window."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        if site_ref not in self._device_macs_by_site_ref:
+            raise OpenApiError("ap_inventory_unavailable")
+
+        ap_refs_by_mac: dict[str, list[str]] = {}
+        for ap_ref, raw_mac in self._device_macs_by_site_ref[site_ref].items():
+            if (not isinstance(ap_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", ap_ref) or
+                    not isinstance(raw_mac, str) or not self._MAC.fullmatch(raw_mac)):
+                raise OpenApiError("openapi_response_invalid")
+            canonical_mac = re.sub(r"[:-]", "", raw_mac).lower()
+            # Keep every inventory reference: duplicate MACs are ambiguous and
+            # must remain so for the projector.
+            ap_refs_by_mac.setdefault(canonical_mac, []).append(ap_ref)
+
+        end_seconds = int(datetime.now(timezone.utc).timestamp())
+        start_seconds = end_seconds - 86_400
+        query = urlencode({"start": start_seconds, "end": end_seconds})
+        path = self._AP_RETRY_DROP_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id) + "?" + query
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_ap_retry_drop(result, start_seconds, end_seconds,
+                                         ap_refs_by_mac)
+        except ApRetryDropProjectionError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "ap_retry_drop", "site_ref": site_ref,
+                "window_start_seconds": start_seconds,
+                "window_end_seconds": end_seconds, "data": data}
+
+    @staticmethod
+    def _valid_rrm_mode_state(value: object) -> bool:
+        return (isinstance(value, dict) and
+                set(value) == {"mode", "timeRangeEnable", "resource", "timeRangeId", "timeRangeAction"} and
+                type(value.get("mode")) is int and value["mode"] in (0, 1) and
+                value.get("timeRangeEnable") is False and
+                type(value.get("resource")) is int and value["resource"] in (0, 1, 2) and
+                type(value.get("timeRangeId")) is str and value["timeRangeId"] == "" and
+                type(value.get("timeRangeAction")) is int and value["timeRangeAction"] in (0, 1))
+
+    def read_rrm_change_state(self, site_ref: str) -> dict[str, object]:
+        """Read complete RRM settings only with a disabled time flag and empty ID."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._RRM_SETTINGS_PATH.format(controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        if not self._valid_rrm_mode_state(result):
+            raise OpenApiError("rrm_change_state_unavailable")
+        return {"status": "ok", "site_ref": site_ref, "data": dict(result)}
+
+    def put_rrm_mode(self, site_ref: str, body: object) -> None:
+        """PUT the complete validated RRM state for a known site."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        if not self._valid_rrm_mode_state(body):
+            raise OpenApiError("rrm_change_invalid")
+        path = self._RRM_SETTINGS_PATH.format(controller_id=self.config.controller_id, site_id=site_id)
+        encoded = json.dumps(body, separators=(",", ":"), allow_nan=False).encode("ascii")
+        self._request_json("PUT", path, body=encoded, token=self._access_token())
+
+    @_track_capability("site_channel_limit")
+    def read_site_channel_limit(self, site_ref: str) -> dict[str, object]:
+        """Read the documented deprecated site channel-limit setting."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._SITE_CHANNEL_LIMIT_PATH.format(controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_site_channel_limit(result)
+        except ChannelLimitError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref}
+
+    @_track_capability("site_6ghz_ap_presence")
+    def read_site_6ghz_ap_presence(self, site_ref: str) -> dict[str, object]:
+        """Read whether any 6 GHz capable AP exists at a known site."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._SITE_6GHZ_AP_PRESENCE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        if not isinstance(result, dict) or type(result.get("exist6GAp")) is not bool:
+            raise OpenApiError("openapi_response_invalid")
+        return {"status": "ok", "resource": "site_6ghz_ap_presence", "site_ref": site_ref,
+                "data": {"has_6ghz_ap": result["exist6GAp"]}}
+
+    @_track_capability("site_rogue_ap_results")
+    def read_site_rogue_ap_results(self, site_ref: str) -> dict[str, object]:
+        """Summarize stored rogue-AP scan rows without starting a scan."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._SITE_ROGUE_AP_RESULTS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        rows = self._read_pages(path, self._access_token())
+        try:
+            data = summarize_rogue_ap_results(rows)
+        except RogueApResultsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref}
+
+    @_track_capability("site_wids_summary")
+    def read_site_wids_summary(self, site_ref: str) -> dict[str, object]:
+        """Read one bounded Wireless IDS page and return only redacted counts."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._SITE_WIDS_SUMMARY_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        query = f"?page=1&pageSize={WIDS_MAX_PAGE_SIZE}"
+        result = self._request_json("GET", path + query, token=self._access_token()).get("result")
+        if not isinstance(result, dict):
+            raise OpenApiError("openapi_response_invalid")
+        rows = result.get("data")
+        total = result.get("totalRows")
+        current_page = result.get("currentPage")
+        current_size = result.get("currentSize")
+        if (not isinstance(rows, list) or len(rows) > WIDS_MAX_PAGE_SIZE or
+                type(total) is not int or total < len(rows) or
+                type(current_page) is not int or current_page != 1 or
+                type(current_size) is not int or current_size not in (len(rows), WIDS_MAX_PAGE_SIZE)):
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            data = summarize_wids_results(rows, total)
+        except WidsSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref}
+
+    @_track_capability("site_wids_blacklist_summary")
+    def read_site_wids_blacklist_summary(self, site_ref: str) -> dict[str, object]:
+        """Count a bounded WIDS blacklist page without returning identities."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._SITE_WIDS_BLACKLIST_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        query = f"?page=1&pageSize={WIDS_MAX_PAGE_SIZE}"
+        result = self._request_json("GET", path + query, token=self._access_token()).get("result")
+        if not isinstance(result, dict):
+            raise OpenApiError("openapi_response_invalid")
+        rows = result.get("data")
+        total = result.get("totalRows")
+        current_page = result.get("currentPage")
+        current_size = result.get("currentSize")
+        if (not isinstance(rows, list) or len(rows) > WIDS_MAX_PAGE_SIZE or
+                type(total) is not int or total < len(rows) or
+                type(current_page) is not int or current_page != 1 or
+                type(current_size) is not int or
+                current_size not in (len(rows), WIDS_MAX_PAGE_SIZE)):
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            data = summarize_wids_blacklist(rows, total)
+        except WidsSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref}
+
+    @_track_capability("site_setting_existence")
+    def read_site_setting_existence(self, site_ref: str) -> dict[str, object]:
+        """Read the documented site-wide gateway-setting presence flags."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._SITE_SETTING_EXISTENCE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_site_setting_existence(result)
+        except SiteSettingExistenceError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_setting_existence",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_capabilities")
+    def read_site_capabilities(self, site_ref: str) -> dict[str, object]:
+        """Read documented boolean feature capabilities for a known site."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._SITE_CAPABILITIES_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_site_capabilities(result)
+        except SiteCapabilitiesError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_capabilities",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_duplicate_ssid_summary")
+    def read_site_duplicate_ssid_summary(self, site_ref: str) -> dict[str, object]:
+        """Return duplicate-SSID counts for a site, without exposing SSID names."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._SITE_DUPLICATE_SSID_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_duplicate_ssid_summary(result, site_id)
+        except DuplicateSsidProjectionError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_duplicate_ssid_summary",
+                "site_ref": site_ref, "data": data, "partial": data["partial"]}
+
+    @_track_capability("ssid_ap_groups")
+    def read_ssid_ap_groups(self, site_ref: str, ssid_ref: str) -> dict[str, object]:
+        """Read bounded AP-group counts for an SSID from the current site snapshot."""
+        site_id = self._resolve_site_ref(site_ref)
+        if not isinstance(ssid_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", ssid_ref):
+            raise OpenApiError("ssid_ref_invalid")
+        ssid_id = self._ssid_ids_by_site_ref.get(site_ref, {}).get(ssid_ref)
+        if not ssid_id:
+            raise OpenApiError("ssid_ref_unknown")
+        path = self._SSID_AP_GROUPS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ssid_id=ssid_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_ssid_ap_groups(result)
+        except SsidApGroupsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "ssid_ap_groups", "data": data,
+                "site_ref": site_ref, "ssid_ref": ssid_ref, "partial": data["partial"]}
+
+    @_track_capability("site_topology_network_summary")
+    def read_site_topology_network_summary(self, site_ref: str) -> dict[str, object]:
+        """Return counts for available networks and SSIDs, without names or IDs."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_TOPOLOGY_NETWORKS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_topology_network_summary(result)
+        except TopologyNetworkSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_topology_network_summary",
+                "site_ref": site_ref, "data": data, "partial": data["partial"]}
+
+    @_track_capability("site_topology_vlan_summary")
+    def read_site_topology_vlan_summary(self, site_ref: str) -> dict[str, object]:
+        """Return counts for available wired VLANs without exposing VLAN values."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_TOPOLOGY_VLANS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_topology_vlan_summary(result)
+        except TopologyVlanSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_topology_vlan_summary",
+                "site_ref": site_ref, "data": data, "partial": data["partial"]}
+
+    @_track_capability("site_unresolved_incident_count")
+    def read_site_unresolved_incident_count(self, site_ref: str) -> dict[str, object]:
+        """Read only the validated total of unresolved incidents for a site."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._SITE_UNRESOLVED_INCIDENT_COUNT_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_site_unresolved_incident_count(result)
+        except SiteUnresolvedIncidentCountError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_unresolved_incident_count",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_incident_overview")
+    def read_site_incident_overview(self, site_ref: str) -> dict[str, object]:
+        """Read bounded site incident counts for the preceding 24 hours."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        start_ms = end_ms - INCIDENT_OVERVIEW_WINDOW_MS
+        path = self._SITE_INCIDENT_OVERVIEW_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        path += f"?filters.startTime={start_ms}&filters.endTime={end_ms}"
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_site_incident_overview(result)
+        except SiteIncidentOverviewError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_incident_overview",
+                "site_ref": site_ref, "window_start_ms": start_ms,
+                "window_end_ms": end_ms, **projected}
+
+    @_track_capability("site_incident_distribution")
+    def read_site_incident_distribution(self, site_ref: str) -> dict[str, object]:
+        """Read bounded incident time buckets for the preceding 24 hours."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        start_ms = end_ms - INCIDENT_DISTRIBUTION_WINDOW_MS
+        path = self._SITE_INCIDENT_DISTRIBUTION_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        path += f"?filters.startTime={start_ms}&filters.endTime={end_ms}"
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_site_incident_distribution(result)
+        except SiteIncidentDistributionError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_incident_distribution",
+                "site_ref": site_ref, "window_start_ms": start_ms,
+                "window_end_ms": end_ms, **projected}
+
+    @_track_capability("site_incident_category_counts")
+    def read_site_incident_category_counts(self, site_ref: str) -> dict[str, object]:
+        """Read bounded site incident counts grouped by anomaly category."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._SITE_INCIDENT_CATEGORY_COUNTS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_site_incident_category_counts(result)
+        except SiteIncidentCategoryCountsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_incident_category_counts",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_incident_list")
+    def read_site_incident_list(self, site_ref: str) -> dict[str, object]:
+        """Read one bounded, identity-redacted page of recent site incidents."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        start_ms = end_ms - INCIDENT_LIST_WINDOW_MS
+        path = self._SITE_INCIDENT_LIST_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        path += (f"?page=1&pageSize={INCIDENT_PAGE_SIZE}"
+                 f"&filters.startTime={start_ms}&filters.endTime={end_ms}")
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_site_incident_list(result)
+        except SiteIncidentListError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_incident_list",
+                "site_ref": site_ref, "window_start_ms": start_ms,
+                "window_end_ms": end_ms, **projected}
+
+    @_track_capability("site_batch_interference_history")
+    def read_site_batch_interference_history(self, site_ref: str) -> dict[str, object]:
+        """Summarize one bounded page of stored site interference scan history."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._SITE_BATCH_INTERFERENCE_HISTORY_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        path += "?page=1&pageSize=100"
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        history_ids, reference_for = self._batch_interference_history_ref_mapper(site_id)
+        try:
+            projected = project_site_batch_interference_history(
+                result, history_ref_for=reference_for)
+        except SiteBatchInterferenceHistoryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        self._batch_interference_history_ids_by_site_ref[site_ref] = history_ids
+        return {"status": "ok", "resource": "site_batch_interference_history",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_batch_interference_ap_summary")
+    def read_site_batch_interference_ap_summary(
+            self, site_ref: str, history_ref: str) -> dict[str, object]:
+        """Summarize AP capabilities from a history reference issued for this site."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        if not isinstance(history_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", history_ref):
+            raise OpenApiError("history_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        history_id = self._batch_interference_history_ids_by_site_ref.get(
+            site_ref, {}).get(history_ref, "")
+        if not history_id:
+            raise OpenApiError("history_ref_unknown")
+        encoded_id = quote(history_id, safe="-_~.")
+        path = self._SITE_BATCH_INTERFERENCE_APS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id,
+            history_id=encoded_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_batch_interference_ap_summary import (
+                SiteBatchInterferenceApSummaryError,
+                summarize_site_batch_interference_ap_list)
+        except ImportError:  # direct execution in the image
+            from site_batch_interference_ap_summary import (
+                SiteBatchInterferenceApSummaryError,
+                summarize_site_batch_interference_ap_list)
+        device_macs: dict[str, str] = {}
+
+        def device_ref_for(mac: str) -> str:
+            device_ref = self._opaque_ref(
+                "site-batch-interference-device",
+                site_id + ":" + history_id + ":" + mac.casefold())
+            device_macs[device_ref] = mac
+            return device_ref
+
+        try:
+            projected = summarize_site_batch_interference_ap_list(
+                result, device_ref_for=device_ref_for)
+        except SiteBatchInterferenceApSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        self._batch_interference_device_macs_by_site_history_ref.setdefault(
+            site_ref, {})[history_ref] = device_macs
+        return {"status": "ok", "resource": "site_batch_interference_ap_summary",
+                "site_ref": site_ref, "history_ref": history_ref, **projected}
+
+    @_track_capability("site_batch_wifi_interference_summary")
+    def read_site_batch_wifi_interference_summary(
+            self, site_ref: str, history_ref: str) -> dict[str, object]:
+        """Summarize the first 100 AP Wi-Fi interference records for one scan."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        if not isinstance(history_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", history_ref):
+            raise OpenApiError("history_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        history_id = self._batch_interference_history_ids_by_site_ref.get(
+            site_ref, {}).get(history_ref, "")
+        if not history_id:
+            raise OpenApiError("history_ref_unknown")
+        encoded_id = quote(history_id, safe="-_~.")
+        path = self._SITE_BATCH_WIFI_INTERFERENCE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id,
+            history_id=encoded_id)
+        path += "?page=1&pageSize=100&filters.type=0"
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_batch_wifi_interference_summary import (
+                SiteBatchWifiInterferenceSummaryError,
+                summarize_site_batch_wifi_interferences)
+        except ImportError:  # direct execution in the image
+            from site_batch_wifi_interference_summary import (
+                SiteBatchWifiInterferenceSummaryError,
+                summarize_site_batch_wifi_interferences)
+        try:
+            projected = summarize_site_batch_wifi_interferences(result)
+        except SiteBatchWifiInterferenceSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_batch_wifi_interference_summary",
+                "site_ref": site_ref, "history_ref": history_ref, **projected}
+
+    @_track_capability("site_batch_channel_load_summary")
+    def read_site_batch_channel_load_summary(
+            self, site_ref: str, history_ref: str,
+            device_ref: str) -> dict[str, object]:
+        """Summarize channel loads for an AP reference issued by the paired AP list."""
+        for name, value in (("site_ref", site_ref), ("history_ref", history_ref),
+                            ("device_ref", device_ref)):
+            if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{24}", value):
+                raise OpenApiError(name + "_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        history_id = self._batch_interference_history_ids_by_site_ref.get(
+            site_ref, {}).get(history_ref, "")
+        if not history_id:
+            raise OpenApiError("history_ref_unknown")
+        mac = self._batch_interference_device_macs_by_site_history_ref.get(
+            site_ref, {}).get(history_ref, {}).get(device_ref, "")
+        if not mac:
+            raise OpenApiError("device_ref_unknown")
+        path = self._SITE_BATCH_CHANNEL_LOAD_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id,
+            history_id=quote(history_id, safe="-_~."))
+        path += "?" + urlencode({"mac": mac})
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_batch_channel_load_summary import (
+                SiteBatchChannelLoadSummaryError,
+                summarize_site_batch_channel_loads)
+        except ImportError:  # direct execution in the image
+            from site_batch_channel_load_summary import (
+                SiteBatchChannelLoadSummaryError,
+                summarize_site_batch_channel_loads)
+        try:
+            projected = summarize_site_batch_channel_loads(result)
+        except SiteBatchChannelLoadSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_batch_channel_load_summary",
+                "site_ref": site_ref, "history_ref": history_ref,
+                "device_ref": device_ref, **projected}
+
+    @_track_capability("site_batch_interference_result_summary")
+    def read_site_batch_interference_result_summary(
+            self, site_ref: str, history_ref: str) -> dict[str, object]:
+        """Count documented interference entries from the first fixed result page."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        if not isinstance(history_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", history_ref):
+            raise OpenApiError("history_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        history_id = self._batch_interference_history_ids_by_site_ref.get(
+            site_ref, {}).get(history_ref, "")
+        if not history_id:
+            raise OpenApiError("history_ref_unknown")
+        path = self._SITE_BATCH_INTERFERENCE_RESULT_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id,
+            history_id=quote(history_id, safe="-_~.")) + "?page=1&pageSize=100"
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_batch_interference_result_summary import (
+                SiteBatchInterferenceResultSummaryError,
+                summarize_site_batch_interferences)
+        except ImportError:  # direct execution in the image
+            from site_batch_interference_result_summary import (
+                SiteBatchInterferenceResultSummaryError,
+                summarize_site_batch_interferences)
+        try:
+            projected = summarize_site_batch_interferences(result)
+        except SiteBatchInterferenceResultSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_batch_interference_result_summary",
+                "site_ref": site_ref, "history_ref": history_ref, **projected}
+
+    @_track_capability("site_batch_interference_status_summary")
+    def read_site_batch_interference_status_summary(
+            self, site_ref: str, history_ref: str) -> dict[str, object]:
+        """Read status for exactly one history returned by the paired site history read."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        if not isinstance(history_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", history_ref):
+            raise OpenApiError("history_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        history_id = self._batch_interference_history_ids_by_site_ref.get(
+            site_ref, {}).get(history_ref, "")
+        if not history_id:
+            raise OpenApiError("history_ref_unknown")
+        path = self._SITE_BATCH_INTERFERENCE_STATUS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        body = json.dumps({"idList": [history_id]}, separators=(",", ":")).encode("utf-8")
+        result = self._request_json("POST", path, body=body,
+                                    token=self._access_token()).get("result")
+        try:
+            from .site_batch_interference_status_summary import (
+                SiteBatchInterferenceStatusSummaryError,
+                summarize_site_batch_interference_status)
+        except ImportError:  # direct execution in the image
+            from site_batch_interference_status_summary import (
+                SiteBatchInterferenceStatusSummaryError,
+                summarize_site_batch_interference_status)
+        try:
+            projected = summarize_site_batch_interference_status(
+                result, expected_history_id=history_id)
+        except SiteBatchInterferenceStatusSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_batch_interference_status_summary",
+                "site_ref": site_ref, "history_ref": history_ref, **projected}
+
+    @_track_capability("ap_channel_load_summary")
+    def read_ap_channel_load_summary(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Return aggregate channel-load ranges for one inventoried AP."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_READ_PATHS["channel_load"].format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            from .ap_channel_load_summary import (
+                ApChannelLoadSummaryError, summarize_ap_channel_load_result)
+        except ImportError:  # direct execution in the image
+            from ap_channel_load_summary import (
+                ApChannelLoadSummaryError, summarize_ap_channel_load_result)
+        try:
+            projected = summarize_ap_channel_load_result(payload.get("result"))
+        except ApChannelLoadSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "ap_channel_load_summary",
+                "device_ref": device_ref, **projected}
+
+    @_track_capability("ap_interference_result_summary")
+    def read_ap_interference_result_summary(
+            self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read a bounded passive interference result for an inventoried AP."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_INTERFERENCE_RESULT_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        path += "?page=1&pageSize=100"
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            from .ap_interference_result_summary import (
+                ApInterferenceResultSummaryError, summarize_ap_interference_result)
+        except ImportError:  # direct execution in the image
+            from ap_interference_result_summary import (
+                ApInterferenceResultSummaryError, summarize_ap_interference_result)
+        try:
+            projected = summarize_ap_interference_result(payload.get("result"))
+        except ApInterferenceResultSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "ap_interference_result_summary",
+                "device_ref": device_ref, **projected}
+
+    @_track_capability("site_ap_full_channel_detect_status")
+    def read_ap_full_channel_detect_status(
+            self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read passive scan status for an AP reference from the current site inventory."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        if not isinstance(device_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", device_ref):
+            raise OpenApiError("device_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        mac = self._device_macs_by_site_ref.get(site_ref, {}).get(device_ref)
+        if not mac:
+            raise OpenApiError("device_ref_unknown")
+        path = self._AP_FULL_CHANNEL_DETECT_STATUS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            from .site_ap_full_channel_detect_status import (
+                ApFullChannelDetectStatusError, project_ap_full_channel_detect_status)
+        except ImportError:  # direct execution in the image
+            from site_ap_full_channel_detect_status import (
+                ApFullChannelDetectStatusError, project_ap_full_channel_detect_status)
+        try:
+            projected = project_ap_full_channel_detect_status(payload.get("result"))
+        except ApFullChannelDetectStatusError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_ap_full_channel_detect_status",
+                "site_ref": site_ref, "device_ref": device_ref, **projected}
+
+    @_track_capability("device_health_incidents")
+    def read_device_health_incidents(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read a device's incidents into a short-lived opaque-reference snapshot."""
+        return self._read_target_health_incidents(site_ref, device_ref, "device")
+
+    @_track_capability("client_health_incidents")
+    def read_client_health_incidents(self, site_ref: str, client_ref: str) -> dict[str, object]:
+        """Read a client MAC's incidents into a short-lived opaque-reference snapshot."""
+        return self._read_target_health_incidents(site_ref, client_ref, "client")
+
+    def _read_target_health_incidents(self, site_ref: str, target_ref: str,
+                                      target_kind: str) -> dict[str, object]:
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        if not isinstance(target_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", target_ref):
+            raise OpenApiError(target_kind + "_ref_invalid")
+        mapping = (self._inventory_macs_by_site_ref.get(site_ref, {})
+                   if target_kind == "device" else
+                   self._client_macs_by_site_ref.get(site_ref, {}))
+        mac = mapping.get(target_ref)
+        if not mac or not self._MAC.fullmatch(mac):
+            raise OpenApiError(target_kind + "_ref_unknown")
+
+        # Starting a new list snapshot invalidates the previous incident refs,
+        # even if the upstream request or response validation fails.
+        self._incident_ids_by_site_ref[site_ref] = {}
+        self._incident_context_by_site_ref[site_ref] = {}
+        path = self._DEVICE_HEALTH_INCIDENTS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, mac=mac)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            rows = extract_incidents(result)
+        except SiteHealthIncidentError:
+            raise OpenApiError("openapi_response_invalid") from None
+
+        nonce = secrets.token_hex(16)
+        incident_ids: dict[str, str] = {}
+        incident_context: dict[str, dict[str, str]] = {}
+        items: list[dict[str, object]] = []
+        for incident_id, projection in rows:
+            incident_ref = self._opaque_ref("incident", f"{site_id}:{nonce}:{incident_id}")
+            incident_ids[incident_ref] = incident_id
+            items.append({"incident_ref": incident_ref, **projection})
+            anomaly_code = projection.get("anomaly_code")
+            if isinstance(anomaly_code, str):
+                incident_context[incident_ref] = {"mac": mac, "anomaly_code": anomaly_code,
+                                                  "target_kind": target_kind}
+        self._incident_ids_by_site_ref[site_ref] = incident_ids
+        self._incident_context_by_site_ref[site_ref] = incident_context
+        resource = target_kind + "_health_incidents"
+        return {"status": "ok", "resource": resource,
+                "site_ref": site_ref, "count": len(items), "items": items}
+
+    @_track_capability("site_incident_notification")
+    def read_site_incident_notification(self, site_ref: str) -> dict[str, object]:
+        """Read normalized site incident notification flags; never return recipient addresses."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._SITE_INCIDENT_NOTIFICATION_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_site_incident_notification(result)
+        except SiteIncidentNotificationError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_incident_notification",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_anomaly_event_settings")
+    def read_site_anomaly_event_settings(self, site_ref: str) -> dict[str, object]:
+        """Read one fixed page of bounded site event settings without free-form parameters."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._SITE_ANOMALY_EVENT_SETTINGS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id) + "?page=1&pageSize=100"
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_site_anomaly_event_settings(result)
+        except SiteAnomalyEventSettingsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_anomaly_event_settings",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_incident_detail")
+    def read_site_incident_detail(self, site_ref: str, incident_ref: str) -> dict[str, object]:
+        """Read projected detail for an incident ref from the current list snapshot."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        if not isinstance(incident_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", incident_ref):
+            raise OpenApiError("incident_ref_invalid")
+        incident_id = self._incident_ids_by_site_ref.get(site_ref, {}).get(incident_ref)
+        if not incident_id:
+            raise OpenApiError("incident_ref_unknown")
+        path = self._SITE_INCIDENT_DETAIL_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id,
+            incident_id=incident_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_incident_detail(result)
+        except SiteHealthIncidentError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_incident_detail",
+                "site_ref": site_ref, "incident_ref": incident_ref, **projected}
+
+    @_track_capability("site_incident_influencing_clients")
+    def read_site_incident_influencing_clients(self, site_ref: str,
+                                               incident_ref: str) -> dict[str, object]:
+        return self._read_site_incident_influences(site_ref, incident_ref, "clients")
+
+    @_track_capability("site_incident_influencing_devices")
+    def read_site_incident_influencing_devices(self, site_ref: str,
+                                               incident_ref: str) -> dict[str, object]:
+        return self._read_site_incident_influences(site_ref, incident_ref, "devices")
+
+    def _read_site_incident_influences(self, site_ref: str, incident_ref: str,
+                                       kind: str) -> dict[str, object]:
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        if not isinstance(incident_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", incident_ref):
+            raise OpenApiError("incident_ref_invalid")
+        context = self._incident_context_by_site_ref.get(site_ref, {}).get(incident_ref)
+        if not context:
+            if incident_ref not in self._incident_ids_by_site_ref.get(site_ref, {}):
+                raise OpenApiError("incident_ref_unknown")
+            raise OpenApiError("incident_ref_context_unavailable")
+        mac, anomaly_code = context.get("mac", ""), context.get("anomaly_code", "")
+        if not self._MAC.fullmatch(mac) or not re.fullmatch(r"[A-Za-z0-9_.-]{1,64}", anomaly_code):
+            raise OpenApiError("incident_ref_context_unavailable")
+        path = self._SITE_INCIDENT_INFLUENCES_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, mac=mac, kind=kind)
+        path += "?" + urlencode({"anomalyCode": anomaly_code, "page": 1, "pageSize": 100})
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        refs = (self._client_macs_by_site_ref.get(site_ref, {}) if kind == "clients" else
+                self._inventory_macs_by_site_ref.get(site_ref, {}))
+        refs_by_mac = {value.lower(): key for key, value in refs.items()}
+        try:
+            projected = project_site_incident_influences(result, kind, refs_by_mac)
+        except SiteIncidentInfluencesError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_incident_influencing_" + kind,
+                "site_ref": site_ref, "incident_ref": incident_ref, **projected}
+
+    @_track_capability("site_wlan_group_capacity")
+    def read_site_wlan_group_capacity(self, site_ref: str) -> dict[str, object]:
+        return self._read_site_group_capacity(site_ref, "wlan")
+
+    @_track_capability("site_ap_group_capacity")
+    def read_site_ap_group_capacity(self, site_ref: str) -> dict[str, object]:
+        return self._read_site_group_capacity(site_ref, "ap")
+
+    def _read_site_group_capacity(self, site_ref: str, kind: str) -> dict[str, object]:
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        if kind == "wlan":
+            path = self._SITE_WLAN_GROUP_CAPACITY_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id)
+            count_field = "wlanGroupNum"
+            resource = "site_wlan_group_capacity"
+        else:
+            path = self._SITE_AP_GROUP_CAPACITY_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id)
+            count_field = "apGroupNum"
+            resource = "site_ap_group_capacity"
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_site_wireless_group_capacity(result, count_field)
+        except SiteWirelessGroupCapacityError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": resource, "site_ref": site_ref, **projected}
+
+    @_track_capability("site_ap_group_summary")
+    def read_site_ap_group_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize the documented, paged AP-group inventory without labels or IDs."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        base = self._SITE_AP_GROUPS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._read_pages_result(base, self._access_token(), max_items=10_000)
+        try:
+            data = project_site_ap_group_summary(result)
+        except ApGroupSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_ap_group_summary",
+                "site_ref": site_ref, **data}
+
+    @_track_capability("site_ap_oui_vlan_rules_summary")
+    def read_site_ap_oui_vlan_rules_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize AP OUI VLAN rules without returning their configured values."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        base = self._SITE_AP_OUI_VLAN_RULES_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._read_pages_result(base, self._access_token(), max_items=10_000)
+        try:
+            data = project_site_ap_oui_vlan_rules_summary(result)
+        except ApOuiVlanRulesError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_ap_oui_vlan_rules_summary",
+                "site_ref": site_ref, **data}
+
+    @_track_capability("site_vlan_ssid_usage_summary")
+    def read_site_vlan_ssid_usage_summary(self, site_ref: str, network_ref: str,
+                                          vlan_id: int) -> dict[str, object]:
+        """Count SSID bindings for a validated site network and VLAN."""
+        site_id = self._resolve_site_ref(site_ref)
+        if type(vlan_id) is not int or not 1 <= vlan_id <= 4094:
+            raise OpenApiError("vlan_id_invalid")
+        if not isinstance(network_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", network_ref):
+            raise OpenApiError("network_ref_invalid")
+        network_id = self._network_ids_by_site_ref.get(site_ref, {}).get(network_ref)
+        if not network_id:
+            raise OpenApiError("network_ref_unknown")
+        path = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/networks/"
+                f"{network_id}/vlan/{vlan_id}/ssids")
+        raw = self._read_pages_result(path, self._access_token(), max_items=10_000)
+        try:
+            summary = project_site_vlan_ssid_usage_summary(raw)
+        except VlanSsidUsageError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_vlan_ssid_usage_summary",
+                "site_ref": site_ref, "network_ref": network_ref,
+                "vlan_id": vlan_id, **summary}
+
+    @_track_capability("site_vlan_device_usage_summary")
+    def read_site_vlan_device_usage_summary(self, site_ref: str, network_ref: str,
+                                            vlan_id: int) -> dict[str, object]:
+        """Count documented device types and DHCP modes using one VLAN."""
+        site_id = self._resolve_site_ref(site_ref)
+        if type(vlan_id) is not int or not 1 <= vlan_id <= 4094:
+            raise OpenApiError("vlan_id_invalid")
+        if not isinstance(network_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", network_ref):
+            raise OpenApiError("network_ref_invalid")
+        network_id = self._network_ids_by_site_ref.get(site_ref, {}).get(network_ref)
+        if not network_id:
+            raise OpenApiError("network_ref_unknown")
+        path = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/networks/"
+                f"{network_id}/vlan/{vlan_id}/devices")
+        rows = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            summary = project_site_vlan_device_usage_summary(rows)
+        except VlanDeviceUsageError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_vlan_device_usage_summary",
+                "site_ref": site_ref, "network_ref": network_ref,
+                "vlan_id": vlan_id, **summary}
+
+    @_track_capability("site_wifi_calling_profiles_summary")
+    def read_site_wifi_calling_profiles_summary(self, site_ref: str) -> dict[str, object]:
+        """Read fixed site profiles and return redacted configuration counts."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/profiles/wifi-calling"
+        rows = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            summary = project_site_wifi_calling_profiles_summary(rows)
+        except WifiCallingProfilesError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_wifi_calling_profiles_summary",
+                "site_ref": site_ref, **summary}
+
+    @_track_capability("site_client_filter_options_summary")
+    def read_site_client_filter_options_summary(self, site_ref: str) -> dict[str, object]:
+        """Read filter options for a site and return only category counts."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/clients/"
+                "search-fields-options")
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            summary = project_site_client_filter_options_summary(result)
+        except ClientFilterOptionsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_client_filter_options_summary",
+                "site_ref": site_ref, **summary}
+
+    @_track_capability("site_eap_dot1x_candidates_summary")
+    def read_site_eap_dot1x_candidates_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize EAP 802.1X port candidates without returning identifiers."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/"
+                "dot1x/eap/candidates")
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            summary = summarize_site_eap_dot1x_candidates(result)
+        except EapDot1xCandidatesError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_eap_dot1x_candidates_summary",
+                "site_ref": site_ref, **summary}
+
+    @_track_capability("site_switch_dot1x_candidates_summary")
+    def read_site_switch_dot1x_candidates_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize switch 802.1X candidates without returning identifiers."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/"
+                "dot1x/candidates")
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            summary = summarize_site_switch_dot1x_candidates(result)
+        except EapDot1xCandidatesError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_switch_dot1x_candidates_summary",
+                "site_ref": site_ref, **summary}
+
+    @_track_capability("site_switch_support")
+    def read_site_switch_support(self, site_ref: str) -> dict[str, object]:
+        """Read documented site-level support flags for switch families."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._SITE_SWITCH_SUPPORT_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_site_switch_support(result)
+        except SiteSwitchSupportError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_switch_support",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("rrm_incompatible")
+    def read_rrm_incompatible(self, site_ref: str) -> dict[str, object]:
+        """Read paginated incompatible-RRM AP diagnostics for a known site."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._RRM_INCOMPATIBLE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        rows = self._read_pages(path, self._access_token())
+
+        # Build a site-local AP lookup from the existing AP inventory only.
+        # A duplicate normalized MAC is ambiguous and intentionally unmapped.
+        refs_by_mac: dict[str, str | None] = {}
+        for device_ref, mac in self._device_macs_by_site_ref.get(site_ref, {}).items():
+            if not isinstance(mac, str) or not self._MAC.fullmatch(mac):
+                continue
+            normalized = mac.replace(":", "").replace("-", "").lower()
+            if normalized in refs_by_mac:
+                refs_by_mac[normalized] = None
+            else:
+                refs_by_mac[normalized] = device_ref
+
+        def ap_ref_for_normalized_mac(normalized_mac: str) -> str | None:
+            if (not isinstance(normalized_mac, str) or
+                    not re.fullmatch(r"[0-9a-f]{12}", normalized_mac)):
+                return None
+            return refs_by_mac.get(normalized_mac)
+
+        try:
+            data = project_rrm_incompatible_rows(rows, ap_ref_for_normalized_mac)
+        except RrmIncompatibleProjectionError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref}
+
+    @_track_capability("site_dashboard_channels")
+    def read_site_dashboard_channels(self, site_ref: str) -> dict[str, object]:
+        """Read redacted channel distribution statistics for a known site."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._SITE_DASHBOARD_CHANNELS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_site_dashboard_channels(result)
+        except ChannelDashboardError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref}
+
+    @_track_capability("site_wifi_summary")
+    def read_site_wifi_summary(self, site_ref: str) -> dict[str, object]:
+        """Read the documented site WLAN summary for a fixed trailing day."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        end_seconds = int(datetime.now(timezone.utc).timestamp())
+        start_seconds = end_seconds - 86_400
+        path = (self._SITE_WIFI_SUMMARY_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id) +
+            f"?start={start_seconds}&end={end_seconds}")
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_site_wifi_summary(result)
+        except SiteWifiSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref,
+                "window_start_seconds": start_seconds,
+                "window_end_seconds": end_seconds}
+
+    @_track_capability("site_client_signal_distribution")
+    def read_site_client_signal_distribution(self, site_ref: str) -> dict[str, object]:
+        """Read redacted site-wide client signal-category counts."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._SITE_CLIENT_SIGNAL_DISTRIBUTION_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_client_signal_distribution(result)
+        except ClientSignalDistributionError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref}
+
+    @_track_capability("site_lldp")
+    def read_site_lldp(self, site_ref: str) -> dict[str, object]:
+        """Read the documented site LLDP switch for a known site."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._SITE_LLDP_PATH.format(controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        if not isinstance(result, dict) or set(result) != {"lldp"}:
+            raise OpenApiError("openapi_response_invalid")
+        setting = result["lldp"]
+        if not isinstance(setting, dict) or set(setting) != {"enable"} or type(setting.get("enable")) is not bool:
+            raise OpenApiError("openapi_response_invalid")
+        return {"status": "ok", "resource": "site_lldp", "site_ref": site_ref,
+                "data": {"enable": setting["enable"]}}
+
+    def patch_site_lldp(self, site_ref: str, body: object) -> None:
+        """PATCH only the documented site LLDP switch for a known site."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        if not isinstance(body, dict) or set(body) != {"enable"} or type(body.get("enable")) is not bool:
+            raise OpenApiError("site_lldp_invalid")
+        path = self._SITE_LLDP_PATH.format(controller_id=self.config.controller_id, site_id=site_id)
+        encoded = json.dumps({"lldp": body}, separators=(",", ":"), allow_nan=False).encode("ascii")
+        self._request_json("PATCH", path, body=encoded, token=self._access_token())
+
+    @_track_capability("site_dpi")
+    def read_site_dpi_logging(self, site_ref: str) -> dict[str, object]:
+        """Read the complete, documented site DPI/traffic-logging state."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._SITE_DPI_LOGGING_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        if not self._valid_site_dpi_logging_state(result):
+            raise OpenApiError("openapi_response_invalid")
+        return {"status": "ok", "resource": "site_dpi_logging", "site_ref": site_ref,
+                "data": {"dpi": result["dpi"], "loggingTraffic": result["loggingTraffic"]}}
+
+    def put_site_dpi_logging(self, site_ref: str, body: object) -> None:
+        """PUT the complete two-boolean DPI/logging state for one known site."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        if not self._valid_site_dpi_logging_state(body):
+            raise OpenApiError("site_dpi_logging_invalid")
+        path = self._SITE_DPI_LOGGING_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        encoded = json.dumps({"dpi": body["dpi"], "loggingTraffic": body["loggingTraffic"]},
+                             separators=(",", ":"), allow_nan=False).encode("ascii")
+        self._request_json("PUT", path, body=encoded, token=self._access_token())
+
+    @staticmethod
+    def _valid_site_dpi_logging_state(value: object) -> bool:
+        return (isinstance(value, dict) and set(value) == {"dpi", "loggingTraffic"}
+                and type(value["dpi"]) is bool and type(value["loggingTraffic"]) is bool)
+
+    @_track_capability("gateway_voip")
+    def read_gateway_voip(self, site_ref: str) -> dict[str, object]:
+        """Read the complete, bounded site VoIP prioritization state."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._GATEWAY_VOIP_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        if not self._valid_gateway_voip_state(result):
+            raise OpenApiError("openapi_response_invalid")
+        return {"status": "ok", "resource": "gateway_voip",
+                "site_ref": site_ref, "data": {"enable": result["enable"],
+                                                 "sipUdpPort": result["sipUdpPort"]}}
+
+    def put_gateway_voip(self, site_ref: str, body: object) -> None:
+        """PUT exactly the complete validated site VoIP prioritization state."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        if not self._valid_gateway_voip_state(body):
+            raise OpenApiError("gateway_voip_invalid")
+        path = self._GATEWAY_VOIP_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        encoded = json.dumps({"enable": body["enable"], "sipUdpPort": body["sipUdpPort"]},
+                             separators=(",", ":"), allow_nan=False).encode("ascii")
+        self._request_json("PUT", path, body=encoded, token=self._access_token())
+
+    @staticmethod
+    def _valid_gateway_voip_state(value: object) -> bool:
+        return (isinstance(value, dict) and set(value) == {"enable", "sipUdpPort"}
+                and type(value["enable"]) is bool and type(value["sipUdpPort"]) is int
+                and 0 <= value["sipUdpPort"] <= 65535)
+
+    @_track_capability("gateway_tag_qos")
+    def read_gateway_tag_qos(self, site_ref: str) -> dict[str, object]:
+        """Read the complete, validated four-class gateway tag QoS state."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._GATEWAY_TAG_QOS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        if not self._valid_gateway_tag_qos_state(result):
+            raise OpenApiError("openapi_response_invalid")
+        return {"status": "ok", "resource": "gateway_tag_qos", "site_ref": site_ref,
+                "data": {"tagConfigList": result["tagConfigList"]}}
+
+    def put_gateway_tag_qos(self, site_ref: str, body: object) -> None:
+        """PUT only a complete four-class, schema-validated state."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        if not self._valid_gateway_tag_qos_state(body):
+            raise OpenApiError("gateway_tag_qos_invalid")
+        path = self._GATEWAY_TAG_QOS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        encoded = json.dumps({"tagConfigList": body["tagConfigList"]},
+                             separators=(",", ":"), allow_nan=False).encode("ascii")
+        self._request_json("PUT", path, body=encoded, token=self._access_token())
+
+    @staticmethod
+    def _valid_gateway_tag_qos_state(value: object) -> bool:
+        dscp_values = {"8", "16", "24", "32", "40", "48", "56", "10", "12", "14",
+                       "18", "20", "22", "26", "28", "30", "34", "36", "38", "46"}
+        if not isinstance(value, dict) or set(value) != {"tagConfigList"}:
+            return False
+        rows = value.get("tagConfigList")
+        if not isinstance(rows, list) or len(rows) != 4:
+            return False
+        seen: set[int] = set()
+        for row in rows:
+            if (not isinstance(row, dict) or set(row) != {"classType", "enable", "dscp"} or
+                    type(row.get("classType")) is not int or row["classType"] not in (0, 1, 2, 3) or
+                    row["classType"] in seen or type(row.get("enable")) is not bool or
+                    type(row.get("dscp")) is not str or row["dscp"] not in dscp_values):
+                return False
+            seen.add(row["classType"])
+        return seen == {0, 1, 2, 3}
+
+    @_track_capability("site_led")
+    def read_site_led(self, site_ref: str) -> dict[str, object]:
+        """Read the documented site LED switch for a known site."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._SITE_LED_PATH.format(controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        if not isinstance(result, dict) or set(result) != {"enable"} or type(result.get("enable")) is not bool:
+            raise OpenApiError("openapi_response_invalid")
+        return {"status": "ok", "resource": "site_led", "site_ref": site_ref,
+                "data": {"enable": result["enable"]}}
+
+    def put_site_led(self, site_ref: str, body: object) -> None:
+        """PUT only the documented site LED switch for a known site."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        if not isinstance(body, dict) or set(body) != {"enable"} or type(body.get("enable")) is not bool:
+            raise OpenApiError("site_led_invalid")
+        path = self._SITE_LED_PATH.format(controller_id=self.config.controller_id, site_id=site_id)
+        encoded = json.dumps(body, separators=(",", ":"), allow_nan=False).encode("ascii")
+        self._request_json("PUT", path, body=encoded, token=self._access_token())
+
+    @_track_capability("roaming_settings")
+    def read_roaming_settings(self, site_ref: str) -> dict[str, object]:
+        """Read redacted site roaming settings without initiating a change."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._ROAMING_SETTINGS_PATH.format(controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_roaming_settings(result)
+        except RoamingSettingsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref}
+
+    @_track_capability("rrm_settings")
+    def read_rrm_settings(self, site_ref: str) -> dict[str, object]:
+        """Read a redacted, read-only view of site WLAN optimization settings."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._RRM_SETTINGS_PATH.format(controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_rrm_settings(result)
+        except RrmSettingsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        # timeRangeId is deliberately omitted from the public projection. Its
+        # type still matters for capability evidence: a malformed value must
+        # not be mistaken for normal redaction.
+        time_range_id_valid = (not isinstance(result, dict) or "timeRangeId" not in result
+                               or type(result["timeRangeId"]) is str)
+        return {**data, "site_ref": site_ref,
+                "_capability_payload_complete": time_range_id_valid}
+
+    @_track_capability("band_steering")
+    def read_band_steering(self, site_ref: str) -> dict[str, object]:
+        """Read the complete documented band-steering setting for a known site."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._BAND_STEERING_PATH.format(controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        if not isinstance(result, dict) or set(result) != {"bandSteeringForMultiBand"}:
+            raise OpenApiError("openapi_response_invalid")
+        settings = result["bandSteeringForMultiBand"]
+        if (not isinstance(settings, dict) or set(settings) != {"mode"} or
+                type(settings.get("mode")) is not int or settings["mode"] not in (0, 1, 2)):
+            raise OpenApiError("openapi_response_invalid")
+        return {"status": "ok", "resource": "band_steering", "site_ref": site_ref,
+                "data": {"mode": settings["mode"]}}
+
+    def patch_band_steering(self, site_ref: str, body: object) -> None:
+        """PATCH only the documented band-steering mode for a known site."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        if (not isinstance(body, dict) or set(body) != {"mode"} or
+                type(body.get("mode")) is not int or body["mode"] not in (0, 1, 2)):
+            raise OpenApiError("band_steering_invalid")
+        path = self._BAND_STEERING_PATH.format(controller_id=self.config.controller_id, site_id=site_id)
+        encoded = json.dumps({"bandSteeringForMultiBand": body}, separators=(",", ":"),
+                             allow_nan=False).encode("ascii")
+        self._request_json("PATCH", path, body=encoded, token=self._access_token())
+
+    @_track_capability("wifi_health")
+    def read_wifi_health(self, site_ref: str) -> dict[str, object]:
+        """Read the documented, bounded 24-hour site Wi-Fi health timeline."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        start_ms = end_ms - 86_400_000
+        query = urlencode({"start": start_ms, "end": end_ms})
+        path = self._WIFI_HEALTH_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id) + "?" + query
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_wifi_health(result, start_ms, end_ms)
+        except WifiHealthProjectionError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "wifi_health", "site_ref": site_ref,
+                "query_time_unit": "milliseconds_documented_not_live_verified", "data": data}
+
+    @_track_capability("wifi_subhealth")
+    def read_wifi_subhealth(self, site_ref: str) -> dict[str, object]:
+        """Read redacted site Wi-Fi sub-health details for a fixed 24-hour window."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        start_ms = end_ms - 86_400_000
+        query = urlencode({"start": start_ms, "end": end_ms})
+        path = self._WIFI_SUBHEALTH_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id) + "?" + query
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_wifi_subhealth(result, start_ms, end_ms)
+        except WifiSubhealthError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref,
+                "query_time_unit": "milliseconds_documented_not_live_verified"}
+
+    @_track_capability("ap_ofdma")
+    def read_ap_ofdma(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read redacted per-band OFDMA capability and configuration."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_OFDMA_PATH.format(controller_id=self.config.controller_id,
+                                         site_id=site_id, ap_mac=mac)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_ap_ofdma(result)
+        except ApOfdmaError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_qos")
+    def read_ap_qos(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read documented AP QoS booleans without returning device identifiers."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_QOS_PATH.format(controller_id=self.config.controller_id,
+                                        site_id=site_id, ap_mac=mac)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_ap_qos(result)
+        except ApQosError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "device_ref": device_ref}
+
+    def read_ap_qos_change_state(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Require complete support flags and values for supported bands."""
+        result = self.read_ap_qos(site_ref, device_ref)
+        if result.get("invalid_fields") or result.get("unknown_field_count") != 0:
+            raise OpenApiError("ap_qos_state_unavailable")
+        try:
+            state = normalize_ap_qos_change_state(result.get("data"))
+        except ApQosError:
+            raise OpenApiError("ap_qos_state_unavailable")
+        return {"status": "ok", "site_ref": site_ref, "device_ref": device_ref,
+                "data": state}
+
+    def patch_ap_qos(self, site_ref: str, device_ref: str, body: object) -> None:
+        """PATCH only documented per-band U-APSD booleans for a known AP."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        fields = {"deliveryEnable2g", "deliveryEnable5g", "deliveryEnable5g1",
+                  "deliveryEnable5g2", "deliveryEnable6g"}
+        if (not isinstance(body, dict) or not body or not set(body) <= fields or
+                any(type(value) is not bool for value in body.values())):
+            raise OpenApiError("ap_qos_change_invalid")
+        path = self._AP_QOS_PATH.format(controller_id=self.config.controller_id,
+                                       site_id=site_id, ap_mac=mac)
+        encoded = json.dumps(body, separators=(",", ":"), allow_nan=False).encode("ascii")
+        self._request_json("PATCH", path, body=encoded, token=self._access_token())
+
+    @_track_capability("ap_lag")
+    def read_ap_lag(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read redacted AP trunk-setting (LAG) state for a known AP."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_LAG_PATH.format(controller_id=self.config.controller_id,
+                                        site_id=site_id, ap_mac=mac)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_ap_lag(result)
+        except ApLagError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_lag_config")
+    def read_ap_lag_config(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read the documented AP LAG route and return only bounded state values."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_LAG_CONFIG_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            data = project_ap_lag(payload.get("result"))
+        except ApLagError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "resource": "ap_lag_config", "site_ref": site_ref,
+                "device_ref": device_ref}
+
+    @_track_capability("ap_load_balance")
+    def read_ap_load_balance(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read the redacted AP load-balancing values for an inventoried AP."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_LOAD_BALANCE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_ap_load_balance(result)
+        except ApLoadBalanceError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_antenna")
+    def read_ap_antenna(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read redacted antenna settings for an inventoried AP."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_ANTENNA_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_ap_antenna(result)
+        except ApAntennaError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_antenna_gain")
+    def read_ap_antenna_gain(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read bounded, redacted per-radio antenna gain values for a known AP."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_ANTENNA_GAIN_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_ap_antenna_gain(result)
+        except ApAntennaGainError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_power_saving")
+    def read_ap_power_saving(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read the redacted power-saving state for an inventoried AP."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_POWER_SAVING_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_ap_power_saving(result)
+        except ApPowerSavingError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_wired_uplink")
+    def read_ap_wired_uplink(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read a redacted wired-uplink diagnostic for one inventoried AP."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_WIRED_UPLINK_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_ap_wired_uplink(result)
+        except ApWiredUplinkError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_uplink_config")
+    def read_ap_uplink_config(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read only auto-uplink state and the documented port identifier."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_UPLINK_CONFIG_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_ap_uplink_config(result)
+        except ApUplinkConfigError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_lldp_config")
+    def read_ap_lldp_config(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read documented LLDP setting and support state for an inventoried AP."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_LLDP_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_ap_lldp(result)
+        except ApLldpError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_port_vlans")
+    def read_ap_port_vlans(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Summarize documented AP VLAN rows while omitting network names and addresses."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        base = self._AP_PORT_VLANS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        rows: list[object] = []
+        expected_total: int | None = None
+        token = self._access_token()
+        final_grid: dict[str, object] | None = None
+        for page in range(1, self.config.max_pages + 1):
+            query = urlencode({"page": page, "pageSize": 1000})
+            payload = self._request_json("GET", base + "?" + query, token=token)
+            result = payload.get("result")
+            if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+                raise OpenApiError("openapi_response_invalid")
+            if not isinstance(result, dict) or len(result) > 8:
+                raise OpenApiError("openapi_response_invalid")
+            data = result.get("data")
+            total, current_page = result.get("totalRows"), result.get("currentPage")
+            current_size = result.get("currentSize")
+            if (not isinstance(data, list) or len(data) > 1000 or
+                    type(total) is not int or total < 0 or
+                    type(current_page) is not int or current_page != page or
+                    type(current_size) is not int or current_size not in (len(data), 1000)):
+                raise OpenApiError("openapi_response_invalid")
+            if expected_total is None:
+                expected_total = total
+            elif expected_total != total:
+                raise OpenApiError("openapi_response_invalid")
+            rows.extend(data)
+            if len(rows) > total:
+                raise OpenApiError("openapi_response_invalid")
+            final_grid = {"data": rows, "totalRows": total,
+                          "currentPage": page, "currentSize": len(data)}
+            if len(rows) == total or not data:
+                break
+        if final_grid is None or len(rows) != expected_total:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            summary = summarize_ap_port_vlans(final_grid)
+        except ApPortVlansError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**summary, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_bridge_config")
+    def read_ap_bridge_config(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Summarize P2P bridge state without exposing credentials or AP identities."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_BRIDGE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            data = summarize_ap_bridge_config(payload.get("result"))
+        except ApBridgeConfigError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_mesh_candidates")
+    def read_ap_mesh_candidates(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read a bounded mesh candidate page and return only aggregate fields."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        base = self._AP_MESH_CANDIDATES_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        rows: list[object] = []
+        expected_total: int | None = None
+        token = self._access_token()
+        final_grid: dict[str, object] | None = None
+        for page in range(1, self.config.max_pages + 1):
+            query = urlencode({"page": page, "pageSize": self.config.page_size})
+            payload = self._request_json("GET", base + "?" + query, token=token)
+            if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+                raise OpenApiError("openapi_response_invalid")
+            grid = payload.get("result")
+            data = grid.get("data") if isinstance(grid, dict) else None
+            total = grid.get("totalRows") if isinstance(grid, dict) else None
+            current_page = grid.get("currentPage") if isinstance(grid, dict) else None
+            current_size = grid.get("currentSize") if isinstance(grid, dict) else None
+            if (not isinstance(data, list) or len(data) > self.config.page_size or
+                    type(total) is not int or not 0 <= total <= 2000 or
+                    type(current_page) is not int or current_page != page or
+                    type(current_size) is not int or current_size not in
+                    (len(data), self.config.page_size)):
+                raise OpenApiError("openapi_response_invalid")
+            if expected_total is None:
+                expected_total = total
+            elif total != expected_total:
+                raise OpenApiError("openapi_response_invalid")
+            rows.extend(data)
+            if len(rows) > total:
+                raise OpenApiError("openapi_response_invalid")
+            final_grid = {"data": rows, "totalRows": total,
+                          "currentPage": page, "currentSize": len(data)}
+            if len(rows) == total or not data:
+                break
+        if final_grid is None or len(rows) != expected_total:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            result = summarize_ap_mesh_candidates(final_grid)
+        except ApMeshCandidatesError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**result, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_general_config")
+    def read_ap_general_config(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read an inventoried AP's projected general settings."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_GENERAL_CONFIG_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            result = summarize_ap_general_config(payload.get("result"))
+        except ApGeneralConfigError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**result, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_ip_setting")
+    def read_ap_ip_setting(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read AP management-IP mode without returning address values."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_IP_SETTING_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            result = summarize_ap_ip_setting(payload.get("result"))
+        except ApIpSettingError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**result, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_ipv6_setting")
+    def read_ap_ipv6_setting(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read AP IPv6 mode and enablement without returning addresses."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_IPV6_SETTING_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            result = summarize_ap_ipv6_setting(payload.get("result"))
+        except ApIpv6SettingError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**result, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_p2p_info")
+    def read_ap_p2p_info(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Summarize P2P group membership without AP identities."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_P2P_INFO_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            result = summarize_ap_p2p_info(payload.get("result"))
+        except ApP2pInfoError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**result, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_l3_access")
+    def read_ap_l3_access(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read AP layer-3 access enablement and support."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_L3_ACCESS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            result = summarize_ap_l3_access(payload.get("result"))
+        except ApL3AccessError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**result, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_paring_window")
+    def read_ap_paring_window(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read redacted status of an already saved AP pairing window."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_PARING_WINDOW_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            result = summarize_ap_paring_window(payload.get("result"))
+        except ApParingWindowError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**result, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_management_ssid")
+    def read_ap_management_ssid(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read safe management-WLAN settings without returning names or secrets."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_MANAGEMENT_SSID_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            result = summarize_ap_management_ssid(payload.get("result"))
+        except ApManagementSsidError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**result, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_snmp_config")
+    def read_ap_snmp_config(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read AP SNMP setting mode without returning contact/location text."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_SNMP_CONFIG_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            result = summarize_ap_snmp_config(payload.get("result"))
+        except ApSnmpConfigError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**result, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_uplink_config")
+    def read_ap_uplink_config(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read only auto-uplink state and the documented port identifier."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_UPLINK_CONFIG_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_ap_uplink_config(result)
+        except ApUplinkConfigError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_lldp_config")
+    def read_ap_lldp_config(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read documented LLDP setting and support state for an inventoried AP."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_LLDP_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_ap_lldp(result)
+        except ApLldpError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_port_vlans")
+    def read_ap_port_vlans(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Summarize documented AP VLAN rows while omitting network names and addresses."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        base = self._AP_PORT_VLANS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        rows: list[object] = []
+        expected_total: int | None = None
+        token = self._access_token()
+        final_grid: dict[str, object] | None = None
+        for page in range(1, self.config.max_pages + 1):
+            query = urlencode({"page": page, "pageSize": 1000})
+            payload = self._request_json("GET", base + "?" + query, token=token)
+            result = payload.get("result")
+            if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+                raise OpenApiError("openapi_response_invalid")
+            if not isinstance(result, dict) or len(result) > 8:
+                raise OpenApiError("openapi_response_invalid")
+            data = result.get("data")
+            total, current_page = result.get("totalRows"), result.get("currentPage")
+            current_size = result.get("currentSize")
+            if (not isinstance(data, list) or len(data) > 1000 or
+                    type(total) is not int or total < 0 or
+                    type(current_page) is not int or current_page != page or
+                    type(current_size) is not int or current_size not in (len(data), 1000)):
+                raise OpenApiError("openapi_response_invalid")
+            if expected_total is None:
+                expected_total = total
+            elif expected_total != total:
+                raise OpenApiError("openapi_response_invalid")
+            rows.extend(data)
+            if len(rows) > total:
+                raise OpenApiError("openapi_response_invalid")
+            final_grid = {"data": rows, "totalRows": total,
+                          "currentPage": page, "currentSize": len(data)}
+            if len(rows) == total or not data:
+                break
+        if final_grid is None or len(rows) != expected_total:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            summary = summarize_ap_port_vlans(final_grid)
+        except ApPortVlansError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**summary, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_bridge_config")
+    def read_ap_bridge_config(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Summarize P2P bridge state without exposing credentials or AP identities."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_BRIDGE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            data = summarize_ap_bridge_config(payload.get("result"))
+        except ApBridgeConfigError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_mesh_candidates")
+    def read_ap_mesh_candidates(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read a bounded mesh candidate page and return only aggregate fields."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        base = self._AP_MESH_CANDIDATES_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        rows: list[object] = []
+        expected_total: int | None = None
+        token = self._access_token()
+        final_grid: dict[str, object] | None = None
+        for page in range(1, self.config.max_pages + 1):
+            query = urlencode({"page": page, "pageSize": self.config.page_size})
+            payload = self._request_json("GET", base + "?" + query, token=token)
+            if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+                raise OpenApiError("openapi_response_invalid")
+            grid = payload.get("result")
+            data = grid.get("data") if isinstance(grid, dict) else None
+            total = grid.get("totalRows") if isinstance(grid, dict) else None
+            current_page = grid.get("currentPage") if isinstance(grid, dict) else None
+            current_size = grid.get("currentSize") if isinstance(grid, dict) else None
+            if (not isinstance(data, list) or len(data) > self.config.page_size or
+                    type(total) is not int or not 0 <= total <= 2000 or
+                    type(current_page) is not int or current_page != page or
+                    type(current_size) is not int or current_size not in
+                    (len(data), self.config.page_size)):
+                raise OpenApiError("openapi_response_invalid")
+            if expected_total is None:
+                expected_total = total
+            elif total != expected_total:
+                raise OpenApiError("openapi_response_invalid")
+            rows.extend(data)
+            if len(rows) > total:
+                raise OpenApiError("openapi_response_invalid")
+            final_grid = {"data": rows, "totalRows": total,
+                          "currentPage": page, "currentSize": len(data)}
+            if len(rows) == total or not data:
+                break
+        if final_grid is None or len(rows) != expected_total:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            result = summarize_ap_mesh_candidates(final_grid)
+        except ApMeshCandidatesError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**result, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_general_config")
+    def read_ap_general_config(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read an inventoried AP's projected general settings."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_GENERAL_CONFIG_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            result = summarize_ap_general_config(payload.get("result"))
+        except ApGeneralConfigError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**result, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_ip_setting")
+    def read_ap_ip_setting(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read AP management-IP mode without returning address values."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_IP_SETTING_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            result = summarize_ap_ip_setting(payload.get("result"))
+        except ApIpSettingError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**result, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_ipv6_setting")
+    def read_ap_ipv6_setting(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read AP IPv6 mode and enablement without returning addresses."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_IPV6_SETTING_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            result = summarize_ap_ipv6_setting(payload.get("result"))
+        except ApIpv6SettingError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**result, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_p2p_info")
+    def read_ap_p2p_info(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Summarize P2P group membership without AP identities."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_P2P_INFO_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            result = summarize_ap_p2p_info(payload.get("result"))
+        except ApP2pInfoError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**result, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_l3_access")
+    def read_ap_l3_access(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read AP layer-3 access enablement and support."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_L3_ACCESS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            result = summarize_ap_l3_access(payload.get("result"))
+        except ApL3AccessError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**result, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_paring_window")
+    def read_ap_paring_window(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read redacted status of an already saved AP pairing window."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_PARING_WINDOW_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            result = summarize_ap_paring_window(payload.get("result"))
+        except ApParingWindowError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**result, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_management_ssid")
+    def read_ap_management_ssid(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read safe management-WLAN settings without returning names or secrets."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_MANAGEMENT_SSID_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            result = summarize_ap_management_ssid(payload.get("result"))
+        except ApManagementSsidError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**result, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_snmp_config")
+    def read_ap_snmp_config(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read AP SNMP setting mode without returning contact/location text."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_SNMP_CONFIG_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            result = summarize_ap_snmp_config(payload.get("result"))
+        except ApSnmpConfigError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**result, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_wired_downlink")
+    def read_ap_wired_downlink(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read redacted wired downstream devices for an inventoried AP."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_WIRED_DOWNLINK_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        reverse: dict[str, str | None] = {}
+        for ref, inventory_mac in self._inventory_macs_by_site_ref.get(site_ref, {}).items():
+            if not isinstance(inventory_mac, str) or not self._MAC.fullmatch(inventory_mac):
+                continue
+            normalized = inventory_mac.replace(":", "").replace("-", "").lower()
+            reverse[normalized] = ref if normalized not in reverse else None
+        try:
+            data = project_ap_wired_downlink(result, reverse)
+        except ApWiredDownlinkError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_ports")
+    def list_ap_ports(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Summarize link state and documented capabilities of AP ports."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_PORTS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload.get("errorCode") != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            data = summarize_ap_ports(payload.get("result"))
+        except ApPortsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_lan_traffic")
+    def read_ap_lan_traffic(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read redacted raw LAN traffic counters for one known site-bound AP."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_LAN_TRAFFIC_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        if (not isinstance(result, dict) or len(result) > 32 or
+                any(not isinstance(key, str) or len(key) > 128 for key in result)):
+            raise OpenApiError("openapi_response_invalid")
+        unknown_wrapper_fields = sum(1 for key in result if key != "lanTraffic")
+        try:
+            data = project_ap_lan_traffic(result.get("lanTraffic"))
+        except ApLanTrafficError:
+            raise OpenApiError("openapi_response_invalid") from None
+        if unknown_wrapper_fields:
+            data["partial"] = True
+            data["unknown_field_count"] = int(data["unknown_field_count"]) + unknown_wrapper_fields
+        return {**data, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_vlan")
+    def read_ap_vlan(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read a redacted AP VLAN configuration for a known AP."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_VLAN_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_ap_vlan(result)
+        except ApVlanError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_vlan_v1")
+    def read_ap_vlan_v1(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read the distinct v1 AP management-VLAN response safely."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_VLAN_V1_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            data = summarize_ap_vlan_v1(payload.get("result"))
+        except ApVlanV1Error:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_wlan_overrides")
+    def read_ap_wlan_overrides(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read bounded override status without returning WLAN identifiers/secrets."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_WLAN_OVERRIDES_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            data = summarize_ap_wlan_overrides(payload.get("result"))
+        except ApWlanOverridesError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_vlan_v1")
+    def read_ap_vlan_v1(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read the distinct v1 AP management-VLAN response safely."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_VLAN_V1_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            data = summarize_ap_vlan_v1(payload.get("result"))
+        except ApVlanV1Error:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_wlan_overrides")
+    def read_ap_wlan_overrides(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read bounded override status without returning WLAN identifiers/secrets."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_WLAN_OVERRIDES_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            data = summarize_ap_wlan_overrides(payload.get("result"))
+        except ApWlanOverridesError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "device_ref": device_ref}
+
+    def read_ap_ofdma_change_state(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Reject incomplete OFDMA state for controlled changes."""
+        result = self.read_ap_ofdma(site_ref, device_ref)
+        if result.get("partial") is not False:
+            raise OpenApiError("ofdma_state_unavailable")
+        return {"status": "ok", "site_ref": site_ref, "device_ref": device_ref, "data": result["data"]}
+
+    def patch_ap_ofdma(self, site_ref: str, device_ref: str, body: object) -> None:
+        """Send one documented band flag, subject to the write dispatch guard."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        fields = {"ofdmaEnable2g", "ofdmaEnable5g", "ofdmaEnable5g2", "ofdmaEnable6g"}
+        if not isinstance(body, dict) or len(body) != 1 or not set(body) <= fields or type(next(iter(body.values()))) is not bool:
+            raise OpenApiError("ofdma_change_invalid")
+        path = self._AP_OFDMA_PATH.format(controller_id=self.config.controller_id,
+                                         site_id=site_id, ap_mac=mac)
+        encoded = json.dumps(body, separators=(",", ":"), allow_nan=False).encode("ascii")
+        self._request_json("PATCH", path, body=encoded, token=self._access_token())
+
+    @_track_capability("ap_channel_limit")
+    def read_ap_channel_limit(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read redacted channel-limit settings reported for a known AP."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_CHANNEL_LIMIT_PATH.format(controller_id=self.config.controller_id,
+                                                   site_id=site_id, ap_mac=mac)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_ap_channel_limit(result)
+        except ChannelLimitError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "device_ref": device_ref}
+
+    def read_ap_channel_limit_change_state(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Require the complete redacted AP state before planning a change."""
+        result = self.read_ap_channel_limit(site_ref, device_ref)
+        if result.get("partial") is not False:
+            raise OpenApiError("channel_limit_state_unavailable")
+        return {"status": "ok", "site_ref": site_ref, "device_ref": device_ref, "data": result["data"]}
+
+    def put_ap_channel_limit(self, site_ref: str, device_ref: str, body: object) -> None:
+        """PUT only the documented AP channel-limit type for a known AP."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        if (not isinstance(body, dict) or set(body) != {"channelLimitType"} or
+                type(body.get("channelLimitType")) is not int or body["channelLimitType"] not in (0, 1, 2)):
+            raise OpenApiError("channel_limit_invalid")
+        path = self._AP_CHANNEL_LIMIT_PATH.format(controller_id=self.config.controller_id,
+                                                   site_id=site_id, ap_mac=mac)
+        encoded = json.dumps(body, separators=(",", ":"), allow_nan=False).encode("ascii")
+        self._request_json("PUT", path, body=encoded, token=self._access_token())
+
+    @_track_capability("ap_afc_status")
+    def read_ap_afc_status(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read redacted AFC operational status for one known AP."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_AFC_STATUS_PATH.format(controller_id=self.config.controller_id,
+                                                site_id=site_id, ap_mac=mac)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_afc_status(result)
+        except AfcStatusError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("ap_afc")
+    def read_ap_afc(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read the reported AFC support and setting for a known AP."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_AFC_PATH.format(controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        if (not isinstance(result, dict) or set(result) != {"supportAfc", "enable"} or
+                type(result.get("supportAfc")) is not bool or type(result.get("enable")) is not bool):
+            raise OpenApiError("openapi_response_invalid")
+        return {"status": "ok", "resource": "ap_afc", "site_ref": site_ref,
+                "device_ref": device_ref, "data": {"supportAfc": result["supportAfc"],
+                                                     "enable": result["enable"]}}
+
+    def put_ap_afc(self, site_ref: str, device_ref: str, body: object) -> None:
+        """PUT only the documented AFC enable switch for a known AP."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        if not isinstance(body, dict) or set(body) != {"enable"} or type(body.get("enable")) is not bool:
+            raise OpenApiError("ap_afc_invalid")
+        path = self._AP_AFC_PATH.format(controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        encoded = json.dumps(body, separators=(",", ":"), allow_nan=False).encode("ascii")
+        self._request_json("PUT", path, body=encoded, token=self._access_token())
+
+    @_track_capability("ap_mesh_statistics")
+    def read_ap_mesh_statistics(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read fixed mesh statistics for a known AP reference; never initiates a scan."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_MESH_STATISTICS_PATH.format(controller_id=self.config.controller_id,
+                                                    site_id=site_id, ap_mac=mac)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_mesh_statistics(result)
+        except MeshStatisticsProjectionError as exc:
+            raise OpenApiError("openapi_response_invalid") from exc
+        return {"status": "ok", "resource": "ap_mesh_statistics", "site_ref": site_ref,
+                "device_ref": device_ref, "data": data}
+
+    @_track_capability("ap_rf_scan")
+    def read_ap_rf_scan(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        return self._read_ap_rf_scan(site_ref, device_ref, self._AP_RF_SCAN_PATH, "ap_rf_scan")
+
+    @_track_capability("ap_rf_scan_v2")
+    def read_ap_rf_scan_v2(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        return self._read_ap_rf_scan(site_ref, device_ref, self._AP_RF_SCAN_V2_PATH,
+                                     "ap_rf_scan_v2")
+
+    def _read_ap_rf_scan(self, site_ref: str, device_ref: str, path_template: str,
+                         resource: str) -> dict[str, object]:
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = path_template.format(controller_id=self.config.controller_id,
+                                    site_id=site_id, ap_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        result = payload.get("result")
+        if not isinstance(result, dict):
+            raise OpenApiError("openapi_response_invalid")
+        bands = {"channel2g": "2g", "channel5g": "5g", "channel5g2": "5g2", "channel6g": "6g"}
+        missing_bands = [band for source, band in bands.items() if source not in result]
+        output: dict[str, object] = {}
+        for source, band in bands.items():
+            rows = result.get(source, [])
+            if not isinstance(rows, list) or len(rows) > 128:
+                raise OpenApiError("openapi_response_invalid")
+            clean_rows = []
+            for row in rows:
+                if not isinstance(row, dict):
+                    raise OpenApiError("openapi_response_invalid")
+                channel, width, util = row.get("chan"), row.get("chanWidth"), row.get("util")
+                if (isinstance(channel, bool) or not isinstance(channel, int) or not 1 <= channel <= 233 or
+                        isinstance(width, bool) or not isinstance(width, int) or width not in {2, 3, 5} or
+                        isinstance(util, bool) or not isinstance(util, int) or not 0 <= util <= 100):
+                    raise OpenApiError("openapi_response_invalid")
+                interference_rows = row.get("inter", [])
+                if not isinstance(interference_rows, list) or len(interference_rows) > 2:
+                    raise OpenApiError("openapi_response_invalid")
+                clean_interference = []
+                type_names = {0: "invalid", 1: "microwave", 2: "continuous_wave", 3: "wlan", 4: "fhss"}
+                for interference in interference_rows:
+                    if not isinstance(interference, dict):
+                        raise OpenApiError("openapi_response_invalid")
+                    level, kind = interference.get("inf"), interference.get("infType")
+                    if (isinstance(level, bool) or not isinstance(level, int) or not -96 <= level <= -48 or
+                            isinstance(kind, bool) or not isinstance(kind, int) or kind not in type_names):
+                        raise OpenApiError("openapi_response_invalid")
+                    hist = interference.get("infData", {})
+                    if not isinstance(hist, dict):
+                        raise OpenApiError("openapi_response_invalid")
+                    strengths, counts = hist.get("str", []), hist.get("cnt", [])
+                    if (not isinstance(strengths, list) or not isinstance(counts, list) or
+                            len(strengths) > 32 or len(counts) > 32 or len(strengths) != len(counts)):
+                        raise OpenApiError("openapi_response_invalid")
+                    histogram = []
+                    for strength, count in zip(strengths, counts):
+                        if (isinstance(strength, bool) or not isinstance(strength, int) or not -91 <= strength <= -29 or
+                                isinstance(count, bool) or not isinstance(count, int) or not 0 <= count <= 200):
+                            raise OpenApiError("openapi_response_invalid")
+                        histogram.append({"signal_dbm": strength, "count": count})
+                    clean_interference.append({"level_dbm": level, "type": type_names[kind],
+                                               "histogram": histogram})
+                clean_rows.append({"channel": channel, "channel_width": width,
+                                   "utilization_percent": util, "interference": clean_interference})
+            output[band] = clean_rows
+            status_key = {"2g": "status2g", "5g": "status5g", "5g2": "status5g2", "6g": "status6g"}[band]
+            if status_key in result:
+                status = result[status_key]
+                if isinstance(status, bool) or not isinstance(status, int) or status not in {0, 1, 2}:
+                    raise OpenApiError("openapi_response_invalid")
+                output[band + "_scan_status"] = status
+        response: dict[str, object] = {"status": "ok", "resource": resource,
+                                       "device_ref": device_ref, "data": output}
+        if missing_bands:
+            response["partial"] = True
+            response["missing_bands"] = missing_bands
+        # Consumed by _track_capability and stripped before returning.
+        # Presence of a band key with [] is a valid empty observation; absent
+        # band keys provide no evidence either way. Keep complete responses in
+        # their original public shape.
+        response["_capability_payload_complete"] = not missing_bands
+        return response
+
+    @_track_capability("ap_wifi_interference")
+    def read_ap_wifi_neighbors(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        base = self._AP_WIFI_INTERFERENCE_PATH.format(controller_id=self.config.controller_id,
+                                                      site_id=site_id, ap_mac=mac)
+        rows = self._read_pages(base, self._access_token())
+        if len(rows) > 512:
+            raise OpenApiError("openapi_response_invalid")
+        radio_bands = {0: "2g", 1: "5g", 2: "5g2", 3: "6g"}
+        items = []
+        for row in rows:
+            if not isinstance(row, dict):
+                raise OpenApiError("openapi_response_invalid")
+            radio = row.get("radioId")
+            channel = row.get("channel")
+            signal = row.get("signal")
+            bandwidth = row.get("bandWidth")
+            last_seen = row.get("lastSeen")
+            raw_identifier = row.get("id") or row.get("bssid")
+            if (isinstance(radio, bool) or not isinstance(radio, int) or radio not in radio_bands or
+                    isinstance(channel, bool) or not isinstance(channel, int) or not 1 <= channel <= 233 or
+                    isinstance(signal, bool) or not isinstance(signal, int) or not -120 <= signal <= 0 or
+                    isinstance(bandwidth, bool) or not isinstance(bandwidth, int) or not 0 <= bandwidth <= 320 or
+                    isinstance(last_seen, bool) or not isinstance(last_seen, int) or not 0 <= last_seen <= 2**63 - 1 or
+                    not isinstance(raw_identifier, str) or not raw_identifier or len(raw_identifier) > 256):
+                raise OpenApiError("openapi_response_invalid")
+            ref = self._opaque_ref("wifi_neighbor", site_id + ":" + mac.casefold() + ":" + raw_identifier)
+            items.append({"neighbor_ref": ref, "band": radio_bands[radio], "channel": channel,
+                          "signal_dbm": signal, "bandwidth": bandwidth, "last_seen_ms": last_seen})
+        return {"status": "ok", "resource": "ap_wifi_neighbors", "device_ref": device_ref,
+                "count": len(items), "items": items}
+
+    @_track_capability("ap_speed_test_results")
+    def read_ap_speed_test_results(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read existing AP link-speed results without starting a measurement."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_SPEED_TEST_RESULT_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        entity = payload.get("result")
+        if not isinstance(entity, dict):
+            raise OpenApiError("openapi_response_invalid")
+        refs_by_mac: dict[str, str] = {}
+        ambiguous: set[str] = set()
+        for ref, raw_mac in self._device_macs_by_site_ref.get(site_ref, {}).items():
+            canonical = re.sub(r"[:-]", "", raw_mac).lower()
+            if canonical in refs_by_mac:
+                ambiguous.add(canonical)
+            else:
+                refs_by_mac[canonical] = ref
+        for canonical in ambiguous:
+            refs_by_mac.pop(canonical, None)
+        try:
+            result = project_ap_speed_test(entity, device_ref, refs_by_mac)
+        except ApSpeedTestError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**result, "site_ref": site_ref}
+
+    def _known_ap_mac(self, site_ref: str, device_ref: str) -> tuple[str, str]:
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        if not isinstance(device_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", device_ref):
+            raise OpenApiError("device_ref_invalid")
+        mac = self._device_macs_by_site_ref.get(site_ref, {}).get(device_ref)
+        if not mac:
+            raise OpenApiError("device_ref_unknown")
+        return site_id, mac
+
+    @_track_capability("gateway_ipv6_ip_passthrough")
+    def read_gateway_ipv6_ip_passthrough(self, site_ref: str,
+                                        gateway_ref: str) -> dict[str, object]:
+        """Read only IPv6 IP-passthrough enable state for an inventoried gateway."""
+        site_id, gateway_mac = self._known_gateway_mac(site_ref, gateway_ref)
+        path = self._GATEWAY_IPV6_IP_PASSTHROUGH_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id,
+            gateway_mac=gateway_mac)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        if not isinstance(result, dict) or type(result.get("enable")) is not bool:
+            raise OpenApiError("openapi_response_invalid")
+        return {"status": "ok", "resource": "gateway_ipv6_ip_passthrough",
+                "scope": "gateway_ipv6_ip_passthrough", "site_ref": site_ref,
+                "gateway_ref": gateway_ref, "data": {"enable": result["enable"]}}
+
+    def patch_gateway_ipv6_ip_passthrough(self, site_ref: str, gateway_ref: str,
+                                           change: object) -> None:
+        """PATCH exactly the documented Boolean for a known site gateway."""
+        site_id, gateway_mac = self._known_gateway_mac(site_ref, gateway_ref)
+        if (not isinstance(change, dict) or set(change) != {"enable"} or
+                type(change.get("enable")) is not bool):
+            raise OpenApiError("gateway_ipv6_change_invalid")
+        path = self._GATEWAY_IPV6_IP_PASSTHROUGH_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id,
+            gateway_mac=gateway_mac)
+        body = json.dumps({"enable": change["enable"]}, separators=(",", ":"),
+                          allow_nan=False).encode("utf-8")
+        self._request_json("PATCH", path, body=body, token=self._access_token())
+
+    def _known_gateway_mac(self, site_ref: str, gateway_ref: str) -> tuple[str, str]:
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        if not isinstance(gateway_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", gateway_ref):
+            raise OpenApiError("gateway_ref_invalid")
+        mac = self._gateway_macs_by_site_ref.get(site_ref, {}).get(gateway_ref)
+        if not mac:
+            raise OpenApiError("gateway_ref_unknown")
+        return site_id, mac
+
+    @_track_capability("gateway_wan_status")
+    def read_gateway_wan_status(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Return whitelisted WAN health/link scalars for an inventoried gateway."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        if not isinstance(device_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", device_ref):
+            raise OpenApiError("device_ref_invalid")
+        mac = self._gateway_macs_by_site_ref.get(site_ref, {}).get(device_ref)
+        if not mac:
+            raise OpenApiError("device_ref_unknown")
+        path = self._GATEWAY_WAN_PATH.format(controller_id=self.config.controller_id,
+                                             site_id=site_id, gateway_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        rows = payload.get("result")
+        if not isinstance(rows, list) or len(rows) > self._ARRAY_LIMIT:
+            raise OpenApiError("openapi_response_invalid")
+        fields = {"port": "port", "type": "port_type", "mode": "mode",
+                  "status": "link_status", "internetState": "internet_state",
+                  "speed": "speed", "duplex": "duplex", "rx": "rx_bytes",
+                  "tx": "tx_bytes", "rxPktRate": "rx_packet_rate", "txPktRate": "tx_packet_rate",
+                  "rxRate": "rx_rate_kb_s", "txRate": "tx_rate_kb_s",
+                  "healthLevel": "health_level", "latency": "latency_ms", "loss": "loss_percent",
+                  "signal": "signal", "rsrp": "rsrp", "rsrq": "rsrq", "snr": "snr"}
+        items = []
+        for row in rows:
+            if not isinstance(row, dict):
+                raise OpenApiError("openapi_response_invalid")
+            item: dict[str, object] = {}
+            for source, target in fields.items():
+                if source not in row or row[source] is None:
+                    continue
+                value = row[source]
+                if source == "loss":
+                    if not is_finite_number(value):
+                        raise OpenApiError("openapi_response_invalid")
+                elif isinstance(value, bool) or not isinstance(value, int) or not -(2**63) <= value <= 2**63 - 1:
+                    raise OpenApiError("openapi_response_invalid")
+                item[target] = value
+            items.append(item)
+        return {"status": "ok", "resource": "gateway_wan_status", "device_ref": device_ref,
+                "count": len(items), "items": items}
+
+    @_track_capability("gateway_lan_status")
+    def read_gateway_lan_status(self, site_ref: str, gateway_ref: str) -> dict[str, object]:
+        """Read redacted LAN counters for one inventoried gateway."""
+        site_id, gateway_mac = self._known_gateway_mac(site_ref, gateway_ref)
+        path = self._GATEWAY_LAN_STATUS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id,
+            gateway_mac=gateway_mac)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_gateway_lan_status(result)
+        except GatewayLanStatusError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "device_ref": gateway_ref}
+
+    @_track_capability("gateway_ports")
+    def read_gateway_ports(self, site_ref: str, gateway_ref: str) -> dict[str, object]:
+        """Read bounded, redacted port codes for one inventoried gateway."""
+        site_id, gateway_mac = self._known_gateway_mac(site_ref, gateway_ref)
+        path = self._GATEWAY_PORTS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id,
+            gateway_mac=gateway_mac)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_gateway_ports(result)
+        except GatewayPortsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "device_ref": gateway_ref}
+
+    @_track_capability("gateway_speed_test_results")
+    def read_gateway_speed_test_results(self, site_ref: str, gateway_ref: str) -> dict[str, object]:
+        """Read saved WAN speed-test results without starting a new test."""
+        site_id, gateway_mac = self._known_gateway_mac(site_ref, gateway_ref)
+        path = self._GATEWAY_SPEED_TEST_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id,
+            gateway_mac=gateway_mac)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_gateway_speed_test(result)
+        except GatewaySpeedTestError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "device_ref": gateway_ref}
+
+    @_track_capability("site_speed_test_settings")
+    def read_site_speed_test_settings(self, site_ref: str) -> dict[str, object]:
+        """Read only the documented schedule and resource fields for speed tests."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._SITE_SPEED_TEST_SETTINGS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_speed_test_settings(result)
+        except SpeedTestSettingsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref}
+
+    @_track_capability("gateway_wan_health")
+    def read_gateway_wan_health(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Read bounded, redacted WAN detail health for an inventoried gateway."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        if not isinstance(device_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", device_ref):
+            raise OpenApiError("device_ref_invalid")
+        mac = self._gateway_macs_by_site_ref.get(site_ref, {}).get(device_ref)
+        if not mac:
+            raise OpenApiError("device_ref_unknown")
+        path = self._GATEWAY_WAN_HEALTH_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, gateway_mac=mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            data = project_wan_details(payload.get("result"))
+        except WanHealthProjectionError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "gateway_wan_health",
+                "device_ref": device_ref, **data}
+
+    @_track_capability("gateway_health")
+    def read_gateway_health(self, site_ref: str, gateway_ref: str) -> dict[str, object]:
+        """Read fixed 24-hour redacted health details for an inventoried gateway."""
+        site_id, gateway_mac = self._known_gateway_mac(site_ref, gateway_ref)
+        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        start_ms = end_ms - 86_400_000
+        query = urlencode({"start": start_ms, "end": end_ms})
+        path = self._GATEWAY_HEALTH_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id,
+            gateway_mac=gateway_mac) + "?" + query
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_gateway_health_detail(result, start_ms, end_ms)
+        except GatewayHealthProjectionError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "gateway_health", "site_ref": site_ref,
+                "gateway_ref": gateway_ref, "window_start_ms": start_ms,
+                "window_end_ms": end_ms, "data": data}
+
+    @_track_capability("msp_gateway_health_detail")
+    def read_msp_gateway_health_detail(self, msp_ref: str, customer_ref: str,
+                                       site_ref: str, gateway_ref: str) -> dict[str, object]:
+        if (not isinstance(msp_ref, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", msp_ref) or
+                not isinstance(customer_ref, str) or
+                not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", customer_ref)):
+            raise OpenApiError("msp_reference_invalid")
+        site_id, mac = self._known_gateway_mac(site_ref, gateway_ref)
+        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        start_ms = end_ms - 86_400_000
+        query = urlencode({"start": start_ms, "end": end_ms})
+        path = self._MSP_GATEWAY_HEALTH_PATH.format(
+            msp_id=msp_ref, customer_id=customer_ref, site_id=site_id, gateway_mac=mac) + "?" + query
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_gateway_health_detail(result, start_ms, end_ms)
+        except GatewayHealthProjectionError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "msp_gateway_health_detail", "site_ref": site_ref,
+                "gateway_ref": gateway_ref, "window_start_ms": start_ms,
+                "window_end_ms": end_ms, "data": data}
+
+    @_track_capability("msp_gateway_health_timeline")
+    def read_msp_gateway_health_timeline(self, msp_ref: str, customer_ref: str,
+                                         site_ref: str, gateway_ref: str) -> dict[str, object]:
+        if (not isinstance(msp_ref, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", msp_ref) or
+                not isinstance(customer_ref, str) or
+                not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", customer_ref)):
+            raise OpenApiError("msp_reference_invalid")
+        site_id, mac = self._known_gateway_mac(site_ref, gateway_ref)
+        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        start_ms = end_ms - 86_400_000
+        query = urlencode({"start": start_ms, "end": end_ms})
+        path = self._MSP_GATEWAY_HEALTH_TIMELINE_PATH.format(
+            msp_id=msp_ref, customer_id=customer_ref, site_id=site_id, gateway_mac=mac) + "?" + query
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_gateway_health_timeline(result, start_ms, end_ms)
+        except GatewayHealthTimelineError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "resource": "msp_gateway_health_timeline", "site_ref": site_ref,
+                "gateway_ref": gateway_ref, "window_start_ms": start_ms, "window_end_ms": end_ms}
+
+    @_track_capability("gateway_health_timeline")
+    def read_gateway_health_timeline(self, site_ref: str, gateway_ref: str) -> dict[str, object]:
+        """Read a fixed 24-hour, redacted health-score timeline for an inventoried gateway."""
+        site_id, gateway_mac = self._known_gateway_mac(site_ref, gateway_ref)
+        normalized_mac = re.sub(r"[:-]", "", gateway_mac).casefold()
+        matching_refs = [ref for ref, value in self._gateway_macs_by_site_ref.get(site_ref, {}).items()
+                         if isinstance(value, str) and re.sub(r"[:-]", "", value).casefold() == normalized_mac]
+        if matching_refs != [gateway_ref]:
+            raise OpenApiError("gateway_ref_ambiguous")
+        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        start_ms = end_ms - 86_400_000
+        query = urlencode({"start": start_ms, "end": end_ms})
+        path = self._GATEWAY_HEALTH_TIMELINE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id,
+            gateway_mac=gateway_mac) + "?" + query
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_gateway_health_timeline(result, start_ms, end_ms)
+        except GatewayHealthTimelineError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "gateway_ref": gateway_ref,
+                "window_start_ms": start_ms, "window_end_ms": end_ms}
+
+    @_track_capability("switch_ports")
+    def read_switch_ports(self, site_ref: str, switch_ref: str) -> dict[str, object]:
+        """Read a sanitized overview for one inventoried switch."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        if not isinstance(switch_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", switch_ref):
+            raise OpenApiError("device_ref_invalid")
+        mac = self._switch_macs_by_site_ref.get(site_ref, {}).get(switch_ref)
+        if not mac:
+            raise OpenApiError("device_ref_unknown")
+        base = self._SWITCH_PORTS_PATH.format(controller_id=self.config.controller_id, site_id=site_id)
+        rows = self._read_pages(base, self._access_token())
+        items = []
+        int_fields = {"connectedStatus": "connected_status", "linkSpeed": "configured_link_speed",
+                      "duplex": "configured_duplex", "poe": "poe_mode"}
+        bool_fields = {"supportPoe": "poe_supported", "disable": "disabled"}
+        nested_ints = {"linkStatus": "link_status", "linkSpeed": "link_speed", "duplex": "duplex"}
+        for row in rows:
+            if not isinstance(row, dict):
+                raise OpenApiError("openapi_response_invalid")
+            row_mac = self._first_string(row, ("switchMac",))
+            if not row_mac or not self._MAC.fullmatch(row_mac):
+                raise OpenApiError("openapi_response_invalid")
+            if row_mac.casefold() != mac.casefold():
+                continue
+            port = row.get("port")
+            if isinstance(port, bool) or not isinstance(port, int) or not 0 <= port <= 4096:
+                raise OpenApiError("openapi_response_invalid")
+            item: dict[str, object] = {"port": port}
+            for source, target in int_fields.items():
+                if source in row and row[source] is not None:
+                    value = row[source]
+                    if isinstance(value, bool) or not isinstance(value, int):
+                        raise OpenApiError("openapi_response_invalid")
+                    item[target] = value
+            for source, target in bool_fields.items():
+                if source in row and row[source] is not None:
+                    value = row[source]
+                    if not isinstance(value, bool):
+                        raise OpenApiError("openapi_response_invalid")
+                    item[target] = value
+            status = row.get("portStatus")
+            if status is not None:
+                if not isinstance(status, dict):
+                    raise OpenApiError("openapi_response_invalid")
+                for source, target in nested_ints.items():
+                    if source in status and status[source] is not None:
+                        value = status[source]
+                        if isinstance(value, bool) or not isinstance(value, int):
+                            raise OpenApiError("openapi_response_invalid")
+                        item[target] = value
+                if status.get("poe") is not None:
+                    if not isinstance(status["poe"], bool):
+                        raise OpenApiError("openapi_response_invalid")
+                    item["poe_active"] = status["poe"]
+                if status.get("poePower") is not None:
+                    value = status["poePower"]
+                    if not is_finite_number(value):
+                        raise OpenApiError("openapi_response_invalid")
+                    item["poe_power_w"] = value
+            items.append(item)
+        return {"status": "ok", "resource": "switch_ports", "device_ref": switch_ref,
+                "count": len(items), "items": items}
+
+    @_track_capability("switch_port_counters")
+    def read_switch_port_counters(self, site_ref: str, switch_ref: str) -> dict[str, object]:
+        """Read bounded site-wide counters and project only this inventoried switch."""
+        site_id, switch_mac = self._known_switch_mac(site_ref, switch_ref)
+        normalized_mac = re.sub(r"[:-]", "", switch_mac).casefold()
+        matching_refs = [ref for ref, value in self._switch_macs_by_site_ref.get(site_ref, {}).items()
+                         if isinstance(value, str) and re.sub(r"[:-]", "", value).casefold() == normalized_mac]
+        if matching_refs != [switch_ref]:
+            raise OpenApiError("switch_ref_ambiguous")
+        base = self._SWITCH_PORT_COUNTERS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        rows = self._read_pages(base, self._access_token())
+        try:
+            data = project_switch_port_counters(rows, switch_mac)
+        except SwitchPortCountersError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "status": "ok", "resource": "switch_port_counters",
+                "site_ref": site_ref, "switch_ref": switch_ref}
+
+    @_track_capability("switch_port_poe_info")
+    def read_switch_port_poe_info(self, site_ref: str, switch_ref: str) -> dict[str, object]:
+        """Read bounded site-wide PoE information for one known switch only."""
+        site_id, switch_mac = self._known_switch_mac(site_ref, switch_ref)
+        normalized_mac = re.sub(r"[:-]", "", switch_mac).casefold()
+        matching_refs = [ref for ref, value in self._switch_macs_by_site_ref.get(site_ref, {}).items()
+                         if isinstance(value, str) and re.sub(r"[:-]", "", value).casefold() == normalized_mac]
+        if matching_refs != [switch_ref]:
+            raise OpenApiError("switch_ref_ambiguous")
+        base = self._SWITCH_PORT_POE_INFO_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        rows = self._read_pages(base, self._access_token())
+        try:
+            data = project_switch_port_poe_info(rows, switch_mac)
+        except SwitchPortPoeInfoError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "status": "ok", "resource": "switch_port_poe_info",
+                "site_ref": site_ref, "switch_ref": switch_ref}
+
+    @_track_capability("switch_port_status")
+    def read_switch_port_status(self, site_ref: str, switch_ref: str,
+                                port: int) -> dict[str, object]:
+        """Read one uniquely inventoried port's administrative status."""
+        site_id, switch_mac = self._known_switch_mac(site_ref, switch_ref)
+        self._require_unique_switch_ref(site_ref, switch_ref, switch_mac)
+        if type(port) is not int or not 0 <= port <= 4096:
+            raise OpenApiError("switch_port_invalid")
+        path = self._SWITCH_PORTS_PATH.format(controller_id=self.config.controller_id,
+                                               site_id=site_id)
+        rows = self._read_pages(path, self._access_token())
+        wanted_mac = re.sub(r"[:-]", "", switch_mac).lower()
+        matches = []
+        for row in rows:
+            if not isinstance(row, dict):
+                raise OpenApiError("openapi_response_invalid")
+            mac = self._first_string(row, ("switchMac",))
+            row_port = row.get("port")
+            if (not mac or not self._MAC.fullmatch(mac) or type(row_port) is not int or
+                    not 0 <= row_port <= 4096):
+                raise OpenApiError("openapi_response_invalid")
+            if re.sub(r"[:-]", "", mac).lower() == wanted_mac and row_port == port:
+                matches.append(row)
+        if not matches:
+            raise OpenApiError("switch_port_unknown")
+        if len(matches) != 1:
+            raise OpenApiError("switch_port_ambiguous")
+        disabled, connected = matches[0].get("disable"), matches[0].get("connectedStatus")
+        if type(disabled) is not bool or type(connected) is not int or connected not in (0, 1, 2):
+            raise OpenApiError("openapi_response_invalid")
+        if disabled != (connected == 2):
+            raise OpenApiError("switch_port_state_inconsistent")
+        return {"status": "ok", "resource": "switch_port_status", "site_ref": site_ref,
+                "switch_ref": switch_ref, "port": port, "data": {"status": 0 if disabled else 1}}
+
+    @_track_capability("switch_port_name")
+    def read_switch_port_name(self, site_ref: str, switch_ref: str,
+                              port: int) -> dict[str, object]:
+        """Read exactly one inventoried port name for a change preview."""
+        site_id, switch_mac = self._known_switch_mac(site_ref, switch_ref)
+        self._require_unique_switch_ref(site_ref, switch_ref, switch_mac)
+        if type(port) is not int or not 0 <= port <= 4096:
+            raise OpenApiError("switch_port_invalid")
+        path = self._SWITCH_PORTS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        rows = self._read_pages(path, self._access_token())
+        wanted_mac = re.sub(r"[:-]", "", switch_mac).lower()
+        matches: list[dict[str, object]] = []
+        for row in rows:
+            if not isinstance(row, dict):
+                raise OpenApiError("openapi_response_invalid")
+            row_mac = self._first_string(row, ("switchMac",))
+            row_port = row.get("port")
+            if (not row_mac or not self._MAC.fullmatch(row_mac) or type(row_port) is not int or
+                    not 0 <= row_port <= 4096):
+                raise OpenApiError("openapi_response_invalid")
+            if re.sub(r"[:-]", "", row_mac).lower() == wanted_mac and row_port == port:
+                matches.append(row)
+        if not matches:
+            raise OpenApiError("switch_port_unknown")
+        if len(matches) != 1:
+            raise OpenApiError("switch_port_ambiguous")
+        name = matches[0].get("portName")
+        if not self._valid_current_switch_port_name(name):
+            raise OpenApiError("openapi_response_invalid")
+        return {"status": "ok", "resource": "switch_port_name", "site_ref": site_ref,
+                "switch_ref": switch_ref, "port": port, "data": {"name": name}}
+
+    def put_switch_port_name(self, site_ref: str, switch_ref: str,
+                             port: int, body: object) -> None:
+        """PUT exactly the documented name field for one known port."""
+        site_id, switch_mac = self._known_switch_mac(site_ref, switch_ref)
+        self._require_unique_switch_ref(site_ref, switch_ref, switch_mac)
+        if type(port) is not int or not 0 <= port <= 4096:
+            raise OpenApiError("switch_port_invalid")
+        if not isinstance(body, dict) or set(body) != {"name"} or not self._valid_switch_port_name(body.get("name")):
+            raise OpenApiError("switch_port_name_invalid")
+        path = self._SWITCH_PORT_NAME_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id,
+            switch_mac=switch_mac, port=port)
+        encoded = json.dumps({"name": body["name"]}, ensure_ascii=True,
+                             separators=(",", ":"), allow_nan=False).encode("ascii")
+        self._request_json("PUT", path, body=encoded, token=self._access_token())
+
+    def _require_unique_switch_ref(self, site_ref: str, switch_ref: str,
+                                   switch_mac: str) -> None:
+        normalized_mac = re.sub(r"[:-]", "", switch_mac).casefold()
+        matching_refs = [ref for ref, value in self._switch_macs_by_site_ref.get(site_ref, {}).items()
+                         if isinstance(value, str) and re.sub(r"[:-]", "", value).casefold() == normalized_mac]
+        if matching_refs != [switch_ref]:
+            raise OpenApiError("switch_ref_ambiguous")
+
+    @staticmethod
+    def _valid_switch_port_name(value: object) -> bool:
+        if (type(value) is not str or not 1 <= len(value) <= 128 or
+                unicodedata.normalize("NFC", value) != value or
+                value[0].isspace() or value[-1].isspace() or "?" in value or '"' in value):
+            return False
+        return not any(unicodedata.category(char).startswith("C") for char in value)
+
+    @staticmethod
+    def _valid_current_switch_port_name(value: object) -> bool:
+        """Accept a bounded, comparable old label, including an empty label.
+
+        Controller state is validated separately from a new target: historical
+        labels may contain characters the shared write schema forbids. They are
+        preserved exactly for preview/stale comparison and never normalized.
+        """
+        if type(value) is not str or len(value) > 128:
+            return False
+        try:
+            value.encode("utf-8", "strict")
+        except UnicodeEncodeError:
+            return False
+        return (unicodedata.normalize("NFC", value) == value and
+                not any(unicodedata.category(char).startswith("C") for char in value) and
+                (not value or (not value[0].isspace() and not value[-1].isspace())))
+
+    def put_switch_port_status(self, site_ref: str, switch_ref: str, port: int,
+                               body: object) -> None:
+        """PUT only the documented administrative status for one port."""
+        site_id, switch_mac = self._known_switch_mac(site_ref, switch_ref)
+        self._require_unique_switch_ref(site_ref, switch_ref, switch_mac)
+        if type(port) is not int or not 0 <= port <= 4096:
+            raise OpenApiError("switch_port_invalid")
+        if (not isinstance(body, dict) or set(body) != {"status"} or
+                type(body.get("status")) is not int or body["status"] not in (0, 1)):
+            raise OpenApiError("switch_port_status_invalid")
+        path = self._SWITCH_PORT_STATUS_PATH.format(controller_id=self.config.controller_id,
+            site_id=site_id, switch_mac=switch_mac, port=port)
+        encoded = json.dumps(body, separators=(",", ":"), allow_nan=False).encode("ascii")
+        self._request_json("PUT", path, body=encoded, token=self._access_token())
+
+    @_track_capability("switch_port_poe_mode")
+    def read_switch_port_poe_state(self, site_ref: str, switch_ref: str,
+                                   port: int) -> dict[str, object]:
+        """Read the exact PoE prerequisites for one unique inventoried port row."""
+        site_id, switch_mac = self._known_switch_mac(site_ref, switch_ref)
+        self._require_unique_switch_ref(site_ref, switch_ref, switch_mac)
+        if type(port) is not int or not 0 <= port <= 4096:
+            raise OpenApiError("switch_port_invalid")
+        base = self._SWITCH_PORTS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        rows = self._read_pages(base, self._access_token())
+        wanted_mac = re.sub(r"[:-]", "", switch_mac).lower()
+        matches: list[dict[str, object]] = []
+        for row in rows:
+            if not isinstance(row, dict):
+                raise OpenApiError("openapi_response_invalid")
+            row_mac = self._first_string(row, ("switchMac",))
+            if not row_mac or not self._MAC.fullmatch(row_mac):
+                raise OpenApiError("openapi_response_invalid")
+            row_port = row.get("port")
+            if (type(row_port) is not int or not 0 <= row_port <= 4096):
+                raise OpenApiError("openapi_response_invalid")
+            if re.sub(r"[:-]", "", row_mac).lower() == wanted_mac and row_port == port:
+                matches.append(row)
+        if not matches:
+            raise OpenApiError("switch_port_unknown")
+        if len(matches) != 1:
+            raise OpenApiError("switch_port_ambiguous")
+        selected = matches[0]
+        poe = selected.get("poe")
+        if type(poe) is not int or poe not in (0, 1):
+            raise OpenApiError("poe_mode_invalid")
+        support_poe = selected.get("supportPoe")
+        if type(support_poe) is not bool:
+            raise OpenApiError("openapi_response_invalid")
+        if support_poe is False:
+            raise OpenApiError("poe_unsupported")
+        profile_override = selected.get("profileOverrideEnable")
+        if type(profile_override) is not bool:
+            raise OpenApiError("openapi_response_invalid")
+        if profile_override is False:
+            raise OpenApiError("profile_override_required")
+        return {"status": "ok", "resource": "switch_port_poe_mode",
+                "scope": "switch_port_poe_mode", "site_ref": site_ref,
+                "switch_ref": switch_ref, "port": port,
+                "data": {"poe": poe, "supportPoe": True,
+                         "profileOverrideEnable": True}}
+
+    def put_switch_port_poe_mode(self, site_ref: str, switch_ref: str, port: int,
+                                 body: object) -> None:
+        """PUT only ``poeMode`` for one inventoried site/switch/port target."""
+        site_id, switch_mac = self._known_switch_mac(site_ref, switch_ref)
+        self._require_unique_switch_ref(site_ref, switch_ref, switch_mac)
+        if type(port) is not int or not 0 <= port <= 4096:
+            raise OpenApiError("switch_port_invalid")
+        if (not isinstance(body, dict) or set(body) != {"poeMode"} or
+                type(body.get("poeMode")) is not int or body["poeMode"] not in (0, 1)):
+            raise OpenApiError("poe_change_invalid")
+        path = self._SWITCH_PORT_POE_MODE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id,
+            switch_mac=switch_mac, port=port)
+        encoded = json.dumps({"poeMode": body["poeMode"]}, separators=(",", ":"),
+                             allow_nan=False).encode("utf-8")
+        self._request_json("PUT", path, body=encoded, token=self._access_token())
+
+    def _known_switch_mac(self, site_ref: str, switch_ref: str) -> tuple[str, str]:
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        if not isinstance(switch_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", switch_ref):
+            raise OpenApiError("switch_ref_invalid")
+        switch_mac = self._switch_macs_by_site_ref.get(site_ref, {}).get(switch_ref)
+        if not switch_mac:
+            raise OpenApiError("switch_ref_unknown")
+        return site_id, switch_mac
+
+    @_track_capability("switch_health")
+    def read_switch_health(self, site_ref: str, switch_ref: str) -> dict[str, object]:
+        """Read a fixed 24-hour redacted switch health report."""
+        site_id, switch_mac = self._known_switch_mac(site_ref, switch_ref)
+        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        start_ms = end_ms - 86_400_000
+        query = urlencode({"start": start_ms, "end": end_ms})
+        path = self._SWITCH_HEALTH_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, switch_mac=switch_mac) + "?" + query
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_switch_health_detail(result, start_ms, end_ms)
+        except SwitchHealthProjectionError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "switch_health", "site_ref": site_ref,
+                "switch_ref": switch_ref, "window_start_ms": start_ms,
+                "window_end_ms": end_ms, "query_time_unit": "milliseconds_documented_not_live_verified", "data": data}
+
+    @_track_capability("msp_switch_health_detail")
+    def read_msp_switch_health_detail(self, msp_ref: str, customer_ref: str,
+                                      site_ref: str, switch_ref: str) -> dict[str, object]:
+        if (not isinstance(msp_ref, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", msp_ref) or
+                not isinstance(customer_ref, str) or
+                not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", customer_ref)):
+            raise OpenApiError("msp_reference_invalid")
+        site_id, mac = self._known_switch_mac(site_ref, switch_ref)
+        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        start_ms = end_ms - 86_400_000
+        query = urlencode({"start": start_ms, "end": end_ms})
+        path = self._MSP_SWITCH_HEALTH_PATH.format(
+            msp_id=msp_ref, customer_id=customer_ref, site_id=site_id, switch_mac=mac) + "?" + query
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_switch_health_detail(result, start_ms, end_ms)
+        except SwitchHealthProjectionError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "msp_switch_health_detail", "site_ref": site_ref,
+                "switch_ref": switch_ref, "window_start_ms": start_ms,
+                "window_end_ms": end_ms,
+                "query_time_unit": "milliseconds_documented_not_live_verified", "data": data}
+
+    @_track_capability("msp_switch_health_timeline")
+    def read_msp_switch_health_timeline(self, msp_ref: str, customer_ref: str,
+                                        site_ref: str, switch_ref: str) -> dict[str, object]:
+        if (not isinstance(msp_ref, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", msp_ref) or
+                not isinstance(customer_ref, str) or
+                not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", customer_ref)):
+            raise OpenApiError("msp_reference_invalid")
+        site_id, mac = self._known_switch_mac(site_ref, switch_ref)
+        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        start_ms = end_ms - 86_400_000
+        query = urlencode({"start": start_ms, "end": end_ms})
+        path = self._MSP_SWITCH_HEALTH_TIMELINE_PATH.format(
+            msp_id=msp_ref, customer_id=customer_ref, site_id=site_id, switch_mac=mac) + "?" + query
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_switch_health_timeline(result, start_ms, end_ms)
+        except SwitchHealthTimelineError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "msp_switch_health_timeline",
+                "site_ref": site_ref, "switch_ref": switch_ref,
+                "window_start_ms": start_ms, "window_end_ms": end_ms,
+                "query_time_unit": "milliseconds_documented_not_live_verified",
+                "data": data["data"], "partial": data["partial"],
+                "missing_fields": data["missing_fields"],
+                "omitted_field_count": data["omitted_field_count"],
+                "omitted_fields": data["omitted_fields"]}
+
+    @_track_capability("switch_health_timeline")
+    def read_switch_health_timeline(self, site_ref: str, switch_ref: str) -> dict[str, object]:
+        """Read a fixed 24-hour switch health score timeline."""
+        site_id, switch_mac = self._known_switch_mac(site_ref, switch_ref)
+        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        start_ms = end_ms - 86_400_000
+        query = urlencode({"start": start_ms, "end": end_ms})
+        path = self._SWITCH_HEALTH_TIMELINE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id,
+            switch_mac=switch_mac) + "?" + query
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_switch_health_timeline(result, start_ms, end_ms)
+        except SwitchHealthTimelineError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "switch_health_timeline",
+                "site_ref": site_ref, "switch_ref": switch_ref,
+                "window_start_ms": start_ms, "window_end_ms": end_ms,
+                "query_time_unit": "milliseconds_documented_not_live_verified",
+                "data": data["data"], "partial": data["partial"],
+                "missing_fields": data["missing_fields"],
+                "omitted_field_count": data["omitted_field_count"],
+                "omitted_fields": data["omitted_fields"]}
+
+    @_track_capability("switch_sdm_usage")
+    def read_switch_sdm_usage(self, site_ref: str, switch_ref: str) -> dict[str, object]:
+        """Read documented switch SDM category and capacity values."""
+        site_id, switch_mac = self._known_switch_mac(site_ref, switch_ref)
+        path = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/switches/"
+                f"{switch_mac}/sdm-used")
+        raw = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_switch_sdm_usage(raw)
+        except SwitchSdmUsageError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "switch_sdm_usage",
+                "site_ref": site_ref, "switch_ref": switch_ref,
+                "data": data["data"], "partial": data["partial"],
+                "missing_fields": data["missing_fields"],
+                "omitted_field_count": data["omitted_field_count"],
+                "omitted_fields": data["omitted_fields"]}
+
+    @_track_capability("switch_cable_test_logs")
+    def read_switch_cable_test_logs(self, site_ref: str, switch_ref: str) -> dict[str, object]:
+        """Read stored cable-test logs; this call never starts a test."""
+        site_id, switch_mac = self._known_switch_mac(site_ref, switch_ref)
+        path = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/cable-test/"
+                f"switches/{switch_mac}/logs")
+        raw = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_switch_cable_test_logs(raw)
+        except SwitchCableTestLogsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "switch_cable_test_logs",
+                "site_ref": site_ref, "switch_ref": switch_ref,
+                "data": data["data"], "count": data["count"],
+                "partial": data["partial"], "missing_fields": data["missing_fields"],
+                "omitted_field_count": data["omitted_field_count"],
+                "omitted_fields": data["omitted_fields"]}
+
+    @_track_capability("switch_cable_test_full_results")
+    def read_switch_cable_test_full_results(self, site_ref: str,
+                                            switch_ref: str) -> dict[str, object]:
+        """Read stored cable-test full results; this call never starts a test."""
+        site_id, switch_mac = self._known_switch_mac(site_ref, switch_ref)
+        path = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/cable-test/"
+                f"switches/{switch_mac}/full-results")
+        raw = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_switch_cable_test_results(raw)
+        except SwitchCableTestResultsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "switch_cable_test_full_results",
+                "site_ref": site_ref, "switch_ref": switch_ref,
+                "data": data["data"], "partial": data["partial"],
+                "missing_fields": data["missing_fields"],
+                "omitted_field_count": data["omitted_field_count"],
+                "omitted_fields": data["omitted_fields"]}
+
+    @_track_capability("switch_cable_test_increment_results")
+    def read_switch_cable_test_increment_results(self, site_ref: str,
+                                                 switch_ref: str) -> dict[str, object]:
+        """Read stored cable-test incremental results; this call never starts a test."""
+        site_id, switch_mac = self._known_switch_mac(site_ref, switch_ref)
+        path = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/cable-test/"
+                f"switches/{switch_mac}/increment-results")
+        raw = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_switch_cable_test_results(raw)
+        except SwitchCableTestResultsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "switch_cable_test_increment_results",
+                "site_ref": site_ref, "switch_ref": switch_ref,
+                "data": data["data"], "partial": data["partial"],
+                "missing_fields": data["missing_fields"],
+                "omitted_field_count": data["omitted_field_count"],
+                "omitted_fields": data["omitted_fields"]}
+
+    @_track_capability("switch_cable_test_ports")
+    def read_switch_cable_test_ports(self, site_ref: str, switch_ref: str) -> dict[str, object]:
+        """Read the redacted switch port list; this does not start a cable test."""
+        site_id, switch_mac = self._known_switch_mac(site_ref, switch_ref)
+        path = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/cable-test/"
+                f"switches/{switch_mac}/ports")
+        raw = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_switch_cable_test_ports(raw)
+        except SwitchCableTestPortsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "switch_cable_test_ports",
+                "site_ref": site_ref, "switch_ref": switch_ref,
+                "data": data["data"], "count": data["count"],
+                "partial": data["partial"], "missing_fields": data["missing_fields"],
+                "omitted_field_count": data["omitted_field_count"],
+                "omitted_fields": data["omitted_fields"]}
+
+    def start_switch_cable_test(self, site_ref: str, switch_ref: str,
+                                ports: object) -> None:
+        """Start one explicitly selected switch cable test after outer approval."""
+        site_id, switch_mac = self._known_switch_mac(site_ref, switch_ref)
+        self._require_unique_switch_ref(site_ref, switch_ref, switch_mac)
+        if not self._valid_cable_test_ports(ports):
+            raise OpenApiError("cable_test_ports_invalid")
+        path = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/cable-test/"
+                f"switches/{switch_mac}/start")
+        body = json.dumps({"portList": [{"port": port} for port in ports]},
+                          separators=(",", ":"), allow_nan=False).encode("ascii")
+        result = self._request_json("POST", path, body=body, token=self._access_token())
+        self._validate_cable_test_action_response(result)
+
+    def cancel_switch_cable_test(self, site_ref: str, switch_ref: str) -> None:
+        """Cancel a running switch cable test; the outer plan must authorize it."""
+        site_id, switch_mac = self._known_switch_mac(site_ref, switch_ref)
+        self._require_unique_switch_ref(site_ref, switch_ref, switch_mac)
+        path = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/cable-test/"
+                f"switches/{switch_mac}/cancel")
+        result = self._request_json("POST", path, token=self._access_token())
+        self._validate_cable_test_action_response(result)
+
+    @staticmethod
+    def _valid_cable_test_ports(value: object) -> bool:
+        return (type(value) is list and 1 <= len(value) <= 16 and
+                all(type(port) is int and 1 <= port <= 4096 for port in value) and
+                len(set(value)) == len(value))
+
+    @staticmethod
+    def _validate_cable_test_action_response(value: object) -> None:
+        if (not isinstance(value, dict) or type(value.get("errorCode")) is not int or
+                value["errorCode"] != 0 or
+                ("msg" in value and type(value["msg"]) is not str) or
+                ("result" in value and value["result"] is not None)):
+            raise OpenApiError("openapi_response_invalid")
+
+    @_track_capability("switch_dhcp_users")
+    def list_switch_dhcp_users(self, site_ref: str, switch_ref: str) -> dict[str, object]:
+        """Return redacted DHCP user classifications for one inventoried switch."""
+        site_id, switch_mac = self._known_switch_mac(site_ref, switch_ref)
+        base = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/switches/"
+                f"{switch_mac}/dhcp/user-list")
+        rows = self._read_pages(base, self._access_token())
+        return {**self._project_dhcp_lease_rows(site_id, rows, "switch_dhcp_users"),
+                "site_ref": site_ref, "switch_ref": switch_ref}
+
+    @_track_capability("switch_ospf_neighbors")
+    def list_switch_ospf_neighbors(self, site_ref: str, switch_ref: str) -> dict[str, object]:
+        """Summarize neighbor states without returning peer addresses or IDs."""
+        site_id, switch_mac = self._known_switch_mac(site_ref, switch_ref)
+        base = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/switches/"
+                f"{switch_mac}/ospf-neighbors")
+        rows = self._read_pages(base, self._access_token())
+        try:
+            data = summarize_switch_ospf_neighbors(rows)
+        except SwitchOspfNeighborsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "switch_ref": switch_ref}
+
+    @_track_capability("switch_port_networks")
+    def list_switch_port_networks(self, site_ref: str, switch_ref: str) -> dict[str, object]:
+        """Summarize VLAN use on an inventoried switch's ports and LAGs."""
+        site_id, switch_mac = self._known_switch_mac(site_ref, switch_ref)
+        base = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/switches/"
+                f"{switch_mac}/port-lag-networks")
+        rows = self._read_pages(base, self._access_token())
+        try:
+            data = summarize_switch_port_networks(rows)
+        except SwitchPortNetworksError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "switch_ref": switch_ref}
+
+    @_track_capability("switch_exist_networks")
+    def list_switch_exist_networks(self, site_ref: str, switch_ref: str) -> dict[str, object]:
+        """Summarize configured VLANs without exposing network or DHCP details."""
+        site_id, switch_mac = self._known_switch_mac(site_ref, switch_ref)
+        path = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/switches/"
+                f"{switch_mac}/exist-network")
+        raw = self._request_json("GET", path, token=self._access_token()).get("result")
+        if not isinstance(raw, dict) or not isinstance(raw.get("data"), list):
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            data = summarize_switch_exist_networks(raw["data"], raw)
+        except SwitchExistNetworksError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "switch_ref": switch_ref}
+
+    @_track_capability("switch_networks")
+    def list_switch_networks(self, site_ref: str, switch_ref: str) -> dict[str, object]:
+        """Summarize configured switch VLANs and codes without network settings."""
+        site_id, switch_mac = self._known_switch_mac(site_ref, switch_ref)
+        base = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/switches/"
+                f"{switch_mac}/networks")
+        rows = self._read_pages(base, self._access_token())
+        try:
+            data = summarize_switch_networks(rows)
+        except SwitchNetworksError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "switch_ref": switch_ref}
+
+    @_track_capability("switch_interfaces")
+    def list_switch_interfaces(self, site_ref: str, switch_ref: str) -> dict[str, object]:
+        """Count loopback and VLAN interface types without exposing names or IDs."""
+        site_id, switch_mac = self._known_switch_mac(site_ref, switch_ref)
+        path = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/switches/"
+                f"{switch_mac}/interfaces/brief")
+        raw = self._request_json("GET", path, token=self._access_token()).get("result")
+        if not isinstance(raw, list):
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            data = summarize_switch_interfaces(raw)
+        except SwitchInterfacesError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "switch_ref": switch_ref}
+
+    @_track_capability("switch_routing_table")
+    def list_switch_routing_table(self, site_ref: str, switch_ref: str) -> dict[str, object]:
+        """Count route types and numeric codes without returning IP addresses."""
+        site_id, switch_mac = self._known_switch_mac(site_ref, switch_ref)
+        base = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/switches/"
+                f"{switch_mac}/routingTable")
+        rows = self._read_pages(base, self._access_token())
+        try:
+            data = summarize_switch_routing_table(rows)
+        except SwitchRoutingTableError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "switch_ref": switch_ref}
+
+    @_track_capability("switch_static_routes")
+    def list_switch_static_routes(self, site_ref: str, switch_ref: str) -> dict[str, object]:
+        """Summarize static-route fields without returning addresses or descriptions."""
+        site_id, switch_mac = self._known_switch_mac(site_ref, switch_ref)
+        base = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/switches/"
+                f"{switch_mac}/staticRoutings")
+        payload = self._read_pages_result(base, self._access_token())
+        rows = payload.get("data")
+        if not isinstance(rows, list):
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            data = summarize_switch_static_routes(rows, payload.get("supportIpv6StaticRouting"))
+        except SwitchStaticRoutesError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "switch_ref": switch_ref}
+
+    @_track_capability("switch_vrfs")
+    def list_switch_vrfs(self, site_ref: str, switch_ref: str) -> dict[str, object]:
+        """Count VRF settings without returning names, identifiers, or addresses."""
+        site_id, switch_mac = self._known_switch_mac(site_ref, switch_ref)
+        base = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/switches/"
+                f"{switch_mac}/vrfs")
+        token = self._access_token()
+        try:
+            result = self._request_json("GET", base, token=token).get("result")
+        except OpenApiError as exc:
+            # Hardware Controller and CBC require page/pageSize. ER7212PC's
+            # supplied contract omits them; retry only a request rejection.
+            if exc.code not in {"openapi_http_error", "openapi_rejected"}:
+                raise
+            rows = self._read_pages(base, token)
+        else:
+            if not isinstance(result, dict):
+                raise OpenApiError("openapi_response_invalid")
+            rows_value, total = result.get("data"), result.get("totalRows")
+            current_page, current_size = result.get("currentPage"), result.get("currentSize")
+            if (not isinstance(rows_value, list) or len(rows_value) >
+                    self.config.page_size * self.config.max_pages or
+                    isinstance(total, bool) or not isinstance(total, int) or total < 0 or
+                    type(current_page) is not int or current_page not in (0, 1) or
+                    isinstance(current_size, bool) or not isinstance(current_size, int) or
+                    current_size not in (0, len(rows_value))):
+                raise OpenApiError("openapi_response_invalid")
+            if total != len(rows_value):
+                rows = self._read_pages(base, token)
+            else:
+                rows = rows_value
+        try:
+            data = summarize_switch_vrfs(rows)
+        except SwitchVrfsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "switch_ref": switch_ref}
+
+    @_track_capability("switch_vlan_interfaces")
+    def list_switch_vlan_interfaces(self, site_ref: str, switch_ref: str) -> dict[str, object]:
+        """Count VLAN interfaces without returning their names or IDs."""
+        site_id, switch_mac = self._known_switch_mac(site_ref, switch_ref)
+        path = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/vlan-interface/"
+                f"switches/{switch_mac}")
+        raw = self._request_json("GET", path, token=self._access_token()).get("result")
+        if not isinstance(raw, list):
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            data = summarize_switch_vlan_interfaces(raw)
+        except SwitchVlanInterfacesError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "switch_ref": switch_ref}
+
+    @_track_capability("switch_statistics")
+    def read_switch_statistics(self, site_ref: str, switch_ref: str) -> dict[str, object]:
+        """Read compact switch and port statistics for one inventoried switch."""
+        site_id, switch_mac = self._known_switch_mac(site_ref, switch_ref)
+        path = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/stat/switches/"
+                f"{switch_mac}")
+        raw = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = summarize_switch_statistics(raw)
+        except SwitchStatisticsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "switch_ref": switch_ref}
+
+    @_track_capability("switch_port_tags")
+    def list_switch_port_tags(self, site_ref: str) -> dict[str, object]:
+        """Count site switch-port labels and source codes without label text."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/"
+                "switches/port-tag")
+        raw = self._request_json("GET", path, token=self._access_token()).get("result")
+        if not isinstance(raw, list):
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            data = summarize_switch_port_tags(raw)
+        except SwitchPortTagsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref}
+
+    @_track_capability("switch_lldp_neighbors")
+    def read_switch_lldp_neighbors(self, site_ref: str, switch_ref: str) -> dict[str, object]:
+        """Read redacted LLDP neighbor counts for one inventoried switch."""
+        site_id, switch_mac = self._known_switch_mac(site_ref, switch_ref)
+        path = self._SWITCH_LLDP_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, switch_mac=switch_mac)
+        rows = self._read_pages(path, self._access_token())
+        try:
+            data = project_lldp_neighbor_rows(rows)
+        except LldpNeighborProjectionError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "switch_lldp_neighbors", "site_ref": site_ref,
+                "switch_ref": switch_ref, "data": data}
+
+    @_track_capability("switch_vlans")
+    def read_switch_vlans(self, site_ref: str, switch_ref: str) -> dict[str, object]:
+        """Read documented VLAN and port membership for an inventoried switch."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        if not isinstance(switch_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", switch_ref):
+            raise OpenApiError("switch_ref_invalid")
+        mac = self._switch_macs_by_site_ref.get(site_ref, {}).get(switch_ref)
+        if not mac:
+            raise OpenApiError("switch_ref_unknown")
+        base = self._SWITCH_NETWORKS_DETAIL_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, switch_mac=mac)
+        rows = self._read_pages(base, self._access_token())
+        max_items = min(10_000, self.config.page_size * self.config.max_pages)
+        try:
+            projected = project_switch_network_rows(
+                rows,
+                lambda network_id: self._opaque_ref("switch_network", site_id + ":" + network_id),
+                max_entries=max_items,
+            )
+            membership = summarize_switch_network_membership(rows)
+        except SwitchVlanProjectionError as exc:
+            raise OpenApiError("openapi_response_invalid") from exc
+        except SwitchNetworkMembershipError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "switch_vlans", "switch_ref": switch_ref,
+                "count": projected["count"], "items": projected["items"],
+                "membership_summary": membership["summary"]}
+
+    @_track_capability("gateway_firewall_rules")
+    def list_gateway_firewall_rules(self, site_ref: str) -> dict[str, object]:
+        return self._list_acl_rules(site_ref, "gateway")
+
+    @_track_capability("switch_firewall_rules")
+    def list_switch_firewall_rules(self, site_ref: str) -> dict[str, object]:
+        return self._list_acl_rules(site_ref, "switch")
+
+    @_track_capability("ap_firewall_rules")
+    def list_ap_firewall_rules(self, site_ref: str) -> dict[str, object]:
+        return self._list_acl_rules(site_ref, "ap")
+
+    def _list_acl_rules(self, site_ref: str, family: str) -> dict[str, object]:
+        """Read only a safe common ACL subset for one documented ACL family."""
+        paths = {"gateway": self._GATEWAY_ACL_PATH, "switch": self._SWITCH_ACL_PATH,
+                 "ap": self._AP_ACL_PATH}
+        if family not in paths:
+            raise OpenApiError("acl_family_invalid")
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        base = paths[family].format(controller_id=self.config.controller_id, site_id=site_id)
+        rows = self._read_pages(base, self._access_token())
+        items = []
+        scalar_ints = {"index": "index", "policy": "policy", "sourceType": "source_type",
+                       "destinationType": "destination_type"}
+        if family == "gateway":
+            scalar_ints["stateMode"] = "state_mode"
+        if family == "switch":
+            scalar_ints["bindingType"] = "binding_type"
+            scalar_ints["bindingBridgeVlan"] = "binding_bridge_vlan"
+        for row in rows:
+            if not isinstance(row, dict):
+                raise OpenApiError("openapi_response_invalid")
+            raw_id = self._first_string(row, ("id",))
+            if not raw_id or not self._IDENTIFIER.fullmatch(raw_id):
+                raise OpenApiError("openapi_response_invalid")
+            item: dict[str, object] = {"rule_ref": self._opaque_ref(f"{family}_acl", site_id + ":" + raw_id)}
+            for source, target in scalar_ints.items():
+                if source not in row:
+                    continue
+                value = row[source]
+                if isinstance(value, bool) or not isinstance(value, int):
+                    raise OpenApiError("openapi_response_invalid")
+                valid_values = {
+                    "policy": {0, 1}, "stateMode": {0, 1},
+                    "bindingType": {0, 1, 2, 3},
+                    "sourceType": ({0, 1, 2, 4, 6, 7} if family != "gateway" else
+                                   {0, 1, 2, 4, 6, 7, 8, 9, 11, 12, 13, 14, 15}),
+                    "destinationType": ({0, 1, 2, 6, 7} if family != "gateway" else
+                                         {0, 1, 2, 6, 7, 10, 11, 12, 13, 14, 15}),
+                }
+                if source in valid_values and value not in valid_values[source]:
+                    raise OpenApiError("openapi_response_invalid")
+                if source == "bindingBridgeVlan" and not 1 <= value <= 4094:
+                    raise OpenApiError("openapi_response_invalid")
+                item[target] = value
+            if "status" in row:
+                if not isinstance(row["status"], bool):
+                    raise OpenApiError("openapi_response_invalid")
+                item["enabled"] = row["status"]
+            if "syslog" in row:
+                if not isinstance(row["syslog"], bool):
+                    raise OpenApiError("openapi_response_invalid")
+                item["syslog_enabled"] = row["syslog"]
+            if "protocols" in row:
+                values = row["protocols"]
+                if not isinstance(values, list) or len(values) > 64 or any(
+                    isinstance(v, bool) or not isinstance(v, int) for v in values
+                ):
+                    raise OpenApiError("openapi_response_invalid")
+                item["protocols"] = values
+            for source, target in (("sourceIds", "source_refs"), ("destinationIds", "destination_refs")):
+                if source in row:
+                    values = row[source]
+                    if not isinstance(values, list) or len(values) > 256 or any(
+                        not isinstance(v, str) or not v or len(v) > 128 or not self._IDENTIFIER.fullmatch(v)
+                        for v in values
+                    ):
+                        raise OpenApiError("openapi_response_invalid")
+                    item[target] = [self._opaque_ref(f"{family}_acl_target", site_id + ":" + v)
+                                    for v in values]
+            items.append(item)
+        resource = {"gateway": "gateway_firewall_rules", "switch": "switch_firewall_rules",
+                    "ap": "ap_firewall_rules"}[family]
+        return {"status": "ok", "resource": resource, "count": len(items), "items": items}
+
+    @_track_capability("dhcp_leases")
+    def list_dhcp_leases(self, site_ref: str) -> dict[str, object]:
+        """Summarize safe DHCP binding classifications from the documented user list."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        base = self._DHCP_USERS_PATH.format(controller_id=self.config.controller_id, site_id=site_id)
+        rows = self._read_pages(base, self._access_token())
+        return self._project_dhcp_lease_rows(site_id, rows, "dhcp_leases")
+
+    @_track_capability("gateway_dhcp_leases")
+    def list_gateway_dhcp_leases(self, site_ref: str, gateway_ref: str) -> dict[str, object]:
+        """Summarize DHCP bindings returned by the selected gateway."""
+        site_id, gateway_mac = self._known_gateway_mac(site_ref, gateway_ref)
+        base = self._GATEWAY_DHCP_USERS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id,
+            gateway_mac=gateway_mac)
+        rows = self._read_pages(base, self._access_token())
+        return {**self._project_dhcp_lease_rows(site_id, rows, "gateway_dhcp_leases"),
+                "site_ref": site_ref, "device_ref": gateway_ref}
+
+    @_track_capability("gateway_internet_info")
+    def read_gateway_internet_info(self, site_ref: str, gateway_ref: str) -> dict[str, object]:
+        """Read redacted WAN capability and online-detection metadata."""
+        site_id, gateway_mac = self._known_gateway_mac(site_ref, gateway_ref)
+        path = self._GATEWAY_INTERNET_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id,
+            gateway_mac=gateway_mac)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            data = project_gateway_internet(result)
+        except GatewayInternetError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**data, "site_ref": site_ref, "device_ref": gateway_ref}
+
+    def _project_dhcp_lease_rows(self, site_id: str, rows: list[object],
+                                 resource: str) -> dict[str, object]:
+        type_names = {0: "device", 1: "client"}
+        binding_names = {0: "dynamic", 1: "static"}
+        items: list[dict[str, str]] = []
+        for row in rows:
+            if not isinstance(row, dict):
+                raise OpenApiError("openapi_response_invalid")
+            mac = self._first_string(row, ("macAddress",))
+            if not mac or not self._MAC.fullmatch(mac):
+                raise OpenApiError("openapi_response_invalid")
+            user_type, status = row.get("type"), row.get("status")
+            if (isinstance(user_type, bool) or not isinstance(user_type, int) or user_type not in type_names or
+                    isinstance(status, bool) or not isinstance(status, int) or status not in binding_names):
+                raise OpenApiError("openapi_response_invalid")
+            network_id = row.get("netId", "")
+            if network_id is not None and (not isinstance(network_id, str) or len(network_id) > 128):
+                raise OpenApiError("openapi_response_invalid")
+            opaque_source = site_id + ":" + (network_id or "") + ":" + mac.casefold()
+            items.append({"lease_ref": self._opaque_ref("dhcp_lease", opaque_source),
+                          "entity_type": type_names[user_type],
+                          "binding_status": binding_names[status]})
+        counts = {"total": len(items), "devices": 0, "clients": 0,
+                  "dynamic": 0, "static": 0}
+        for item in items:
+            counts["devices" if item["entity_type"] == "device" else "clients"] += 1
+            counts[item["binding_status"]] += 1
+        return {"status": "ok", "resource": resource, "count": len(items),
+                "summary": counts, "items": items}
+
+    @_track_capability("dns_cache_settings")
+    def read_dns_cache_settings(self, site_ref: str) -> dict[str, object]:
+        site_id = self._site_ids_by_ref.get(site_ref, "") if isinstance(site_ref, str) else ""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._DNS_CACHE_PATH.format(controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        if not isinstance(result, dict):
+            raise OpenApiError("openapi_response_invalid")
+        data: dict[str, object] = {}
+        if "enable" in result:
+            if not isinstance(result["enable"], bool):
+                raise OpenApiError("openapi_response_invalid")
+            data["enabled"] = result["enable"]
+        if "ttl" in result:
+            ttl = result["ttl"]
+            if isinstance(ttl, bool) or not isinstance(ttl, int) or not 1 <= ttl <= 86400:
+                raise OpenApiError("openapi_response_invalid")
+            data["ttl_seconds"] = ttl
+        return {"status": "ok", "resource": "dns_cache_settings", "data": data}
+
+    def read_dns_cache_change_state(self, site_ref: str) -> dict[str, object]:
+        """Read the exact full state required by DNS cache change plans."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._DNS_CACHE_PATH.format(controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        if (not isinstance(result, dict) or set(result) != {"enable", "ttl"} or
+                type(result.get("enable")) is not bool or type(result.get("ttl")) is not int or
+                not 1 <= result["ttl"] <= 86400):
+            raise OpenApiError("dns_cache_state_invalid")
+        return {"enable": result["enable"], "ttl": result["ttl"]}
+
+    def put_dns_cache_settings(self, site_ref: str, state: object) -> None:
+        """Write only the complete documented DNS cache object to its fixed route."""
+        site_id = self._resolve_site_ref(site_ref)
+        if (not isinstance(state, dict) or set(state) != {"enable", "ttl"} or
+                type(state.get("enable")) is not bool or type(state.get("ttl")) is not int or
+                not 1 <= state["ttl"] <= 86400):
+            raise OpenApiError("dns_cache_state_invalid")
+        path = self._DNS_CACHE_PATH.format(controller_id=self.config.controller_id, site_id=site_id)
+        body = json.dumps({"enable": state["enable"], "ttl": state["ttl"]},
+                          separators=(",", ":"), allow_nan=False).encode("utf-8")
+        self._request_json("PUT", path, body=body, token=self._access_token())
+
+    @_track_capability("dns_proxy_settings")
+    def read_dns_proxy_settings(self, site_ref: str) -> dict[str, object]:
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._DNS_PROXY_PATH.format(controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        if not isinstance(result, dict):
+            raise OpenApiError("openapi_response_invalid")
+        data: dict[str, object] = {}
+        if "enable" in result:
+            if not isinstance(result["enable"], bool):
+                raise OpenApiError("openapi_response_invalid")
+            data["enabled"] = result["enable"]
+        if "type" in result:
+            proxy_type = result["type"]
+            if isinstance(proxy_type, bool) or not isinstance(proxy_type, int) or proxy_type not in {0, 1, 2, 3}:
+                raise OpenApiError("openapi_response_invalid")
+            data["mode"] = {0: "dnssec", 1: "doh", 2: "dot", 3: "dns_override"}[proxy_type]
+        for source, target in (("supportDnsOverride", "supports_dns_override"),
+                               ("existDnsOverride", "dns_override_configured")):
+            if source in result:
+                if not isinstance(result[source], bool):
+                    raise OpenApiError("openapi_response_invalid")
+                data[target] = result[source]
+        # Upstream server IPs, resolver names, domains, and network identifiers
+        # under nested mode-specific settings are deliberately not returned.
+        return {"status": "ok", "resource": "dns_proxy_settings", "data": data}
+
+    @_track_capability("lan_dns_records")
+    def list_lan_dns_records(self, site_ref: str) -> dict[str, object]:
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        base = self._LAN_DNS_PATH.format(controller_id=self.config.controller_id, site_id=site_id)
+        rows = self._read_pages(base, self._access_token())
+        items = []
+        type_names = {0: "ip", 1: "cname", 2: "forward"}
+        for row in rows:
+            if not isinstance(row, dict):
+                raise OpenApiError("openapi_response_invalid")
+            raw_name, domain = row.get("name"), row.get("domain")
+            if not isinstance(raw_name, str) or not 1 <= len(raw_name) <= 128 or not isinstance(domain, str) or not 1 <= len(domain) <= 128:
+                raise OpenApiError("openapi_response_invalid")
+            enabled, raw_type = row.get("enable"), row.get("type")
+            if not isinstance(enabled, bool) or isinstance(raw_type, bool) or not isinstance(raw_type, int) or raw_type not in type_names:
+                raise OpenApiError("openapi_response_invalid")
+            identifier = row.get("id")
+            if identifier is not None and (not isinstance(identifier, str) or not identifier or len(identifier) > 128):
+                raise OpenApiError("openapi_response_invalid")
+            record_key = identifier if identifier is not None else raw_name + ":" + domain
+            item: dict[str, object] = {"record_ref": self._opaque_ref("lan_dns", site_id + ":" + record_key),
+                                      "record_type": type_names[raw_type], "enabled": enabled}
+            if "customTtl" in row and row["customTtl"] is not None:
+                if not isinstance(row["customTtl"], bool):
+                    raise OpenApiError("openapi_response_invalid")
+                item["custom_ttl"] = row["customTtl"]
+            if "ttl" in row and row["ttl"] is not None:
+                ttl = row["ttl"]
+                if isinstance(ttl, bool) or not isinstance(ttl, int) or not 1 <= ttl <= 86400:
+                    raise OpenApiError("openapi_response_invalid")
+                item["ttl_seconds"] = ttl
+            networks = row.get("lanNetworkIds")
+            if networks is not None:
+                if not isinstance(networks, list) or len(networks) > 256 or any(not isinstance(v, str) or len(v) > 128 for v in networks):
+                    raise OpenApiError("openapi_response_invalid")
+                item["network_count"] = len(networks)
+            items.append(item)
+        return {"status": "ok", "resource": "lan_dns_records", "count": len(items), "items": items}
+
+    @_track_capability("controller_client_history_retention")
+    def read_controller_client_history_retention(self) -> dict[str, object]:
+        """Read whether client history and trend retention are enabled."""
+        path = self._CONTROLLER_CLIENT_HISTORY_RETENTION_PATH.format(
+            controller_id=self.config.controller_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_controller_client_history_retention(result)
+        except ControllerClientHistoryRetentionError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "controller_client_history_retention", **projected}
+
+    @_track_capability("controller_audit_notification")
+    def read_controller_audit_notification(self) -> dict[str, object]:
+        """Read global audit-log webhook settings without identifiers or labels."""
+        path = self._CONTROLLER_AUDIT_NOTIFICATION_PATH.format(
+            controller_id=self.config.controller_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_controller_audit_notification(result)
+        except ControllerAuditNotificationError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "controller_audit_notification", **projected}
+
+    @_track_capability("controller_ui_interface")
+    def read_controller_ui_interface(self) -> dict[str, object]:
+        """Read safe controller UI preferences without private-label strings."""
+        path = self._CONTROLLER_UI_INTERFACE_PATH.format(
+            controller_id=self.config.controller_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_controller_ui_interface(result)
+        except ControllerUiInterfaceError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "controller_ui_interface", **projected}
+
+    @_track_capability("controller_retention")
+    def read_controller_retention(self) -> dict[str, object]:
+        """Read bounded controller data-retention settings."""
+        path = self._CONTROLLER_RETENTION_PATH.format(
+            controller_id=self.config.controller_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_controller_retention(result)
+        except ControllerRetentionError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "controller_retention", **projected}
+
+    @_track_capability("controller_dst_info")
+    def read_controller_dst_info(self) -> dict[str, object]:
+        """Read bounded controller daylight-saving-time settings and status."""
+        path = self._CONTROLLER_DST_PATH.format(controller_id=self.config.controller_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_controller_dst(result)
+        except ControllerDstError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "controller_dst_info", **projected}
+
+    @_track_capability("controller_experience_improvement")
+    def read_controller_experience_improvement(self) -> dict[str, object]:
+        """Read the controller's user experience improvement participation flag."""
+        path = self._CONTROLLER_EXPERIENCE_PATH.format(
+            controller_id=self.config.controller_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_controller_experience_improvement(result)
+        except ControllerExperienceImprovementError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "controller_experience_improvement", **projected}
+
+    @_track_capability("controller_client_detail_info")
+    def read_controller_client_detail_info(self) -> dict[str, object]:
+        """Read controller-wide client detail data settings."""
+        path = self._CONTROLLER_CLIENT_DETAIL_INFO_PATH.format(
+            controller_id=self.config.controller_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_controller_client_detail_info(result)
+        except ControllerClientDetailInfoError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "controller_client_detail_info", **projected}
+
+    @_track_capability("controller_general_settings")
+    def read_controller_general_settings(self) -> dict[str, object]:
+        """Read bounded controller identity, locale and DST configuration."""
+        path = self._CONTROLLER_GENERAL_SETTINGS_PATH.format(
+            controller_id=self.config.controller_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_controller_general_settings(result)
+        except ControllerGeneralSettingsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "controller_general_settings", **projected}
+
+    @_track_capability("controller_device_access")
+    def read_controller_device_access(self) -> dict[str, object]:
+        """Read the three documented controller device-access switches."""
+        path = self._CONTROLLER_DEVICE_ACCESS_PATH.format(
+            controller_id=self.config.controller_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_controller_device_access(result)
+        except ControllerDeviceAccessError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "controller_device_access", **projected}
+
+    @_track_capability("controller_backup_schedule")
+    def read_controller_backup_schedule(self) -> dict[str, object]:
+        """Read a bounded backup schedule summary without storage credentials or paths."""
+        try:
+            from .controller_backup_schedule import (
+                ControllerBackupScheduleError, project_controller_backup_schedule,
+            )
+        except ImportError:  # direct execution in the image
+            from controller_backup_schedule import (
+                ControllerBackupScheduleError, project_controller_backup_schedule,
+            )
+        path = self._CONTROLLER_BACKUP_SCHEDULE_PATH.format(
+            controller_id=self.config.controller_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_controller_backup_schedule(result)
+        except ControllerBackupScheduleError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "controller_backup_schedule", **projected}
+
+    @_track_capability("controller_cloud_access")
+    def read_controller_cloud_access(self) -> dict[str, object]:
+        """Read cloud connection state without returning the account owner."""
+        try:
+            from .controller_cloud_access import (
+                ControllerCloudAccessError, project_controller_cloud_access,
+            )
+        except ImportError:  # direct execution in the image
+            from controller_cloud_access import (
+                ControllerCloudAccessError, project_controller_cloud_access,
+            )
+        path = self._CONTROLLER_CLOUD_ACCESS_PATH.format(
+            controller_id=self.config.controller_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_controller_cloud_access(result)
+        except ControllerCloudAccessError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "controller_cloud_access", **projected}
+
+    @_track_capability("controller_device_management")
+    def read_controller_device_management(self) -> dict[str, object]:
+        """Read the documented device-management switches from their global GET."""
+        path = self._CONTROLLER_DEVICE_MANAGEMENT_PATH.format(
+            controller_id=self.config.controller_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_controller_device_access(result)
+        except ControllerDeviceAccessError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "controller_device_management", **projected}
+
+    def _read_controller_system_status(self, operation: str, path_template: str,
+                                       projector_name: str) -> dict[str, object]:
+        try:
+            from . import controller_system_status as projector
+        except ImportError:  # direct execution in the image
+            import controller_system_status as projector
+        path = path_template.format(controller_id=self.config.controller_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = getattr(projector, projector_name)(result)
+        except projector.ControllerSystemStatusError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": operation, **projected}
+
+    @_track_capability("controller_remote_binding")
+    def read_controller_remote_binding(self) -> dict[str, object]:
+        """Read only whether this controller is remotely bound."""
+        return self._read_controller_system_status(
+            "controller_remote_binding", self._CONTROLLER_REMOTE_BINDING_PATH,
+            "project_controller_remote_binding")
+
+    @_track_capability("controller_backup_result")
+    def read_controller_backup_result(self) -> dict[str, object]:
+        """Read the bounded controller backup result status."""
+        return self._read_controller_system_status(
+            "controller_backup_result", self._CONTROLLER_BACKUP_RESULT_PATH,
+            "project_controller_backup_result")
+
+    @_track_capability("controller_restore_result")
+    def read_controller_restore_result(self) -> dict[str, object]:
+        """Read the bounded controller restore result status."""
+        return self._read_controller_system_status(
+            "controller_restore_result", self._CONTROLLER_RESTORE_RESULT_PATH,
+            "project_controller_restore_result")
+
+    @_track_capability("controller_privacy_policy")
+    def read_controller_privacy_policy(self) -> dict[str, object]:
+        """Read the documented privacy-policy enable switch."""
+        return self._read_controller_system_status(
+            "controller_privacy_policy", self._CONTROLLER_PRIVACY_POLICY_PATH,
+            "project_controller_privacy_policy")
+
+    @_track_capability("controller_mail_status")
+    def read_controller_mail_status(self) -> dict[str, object]:
+        """Read mail configuration facts without exposing addresses or secrets."""
+        return self._read_controller_system_status(
+            "controller_mail_status", self._CONTROLLER_MAIL_STATUS_PATH,
+            "project_controller_mail_status")
+
+    @_track_capability("controller_global_mfa_status")
+    def read_controller_global_mfa_status(self) -> dict[str, object]:
+        """Read only the controller-wide two-factor authentication switch."""
+        return self._read_controller_system_status(
+            "controller_global_mfa_status", self._CONTROLLER_GLOBAL_MFA_STATUS_PATH,
+            "project_controller_mfa_status")
+
+    def _read_msp_status(self, operation: str, path_template: str,
+                         projector_name: str, msp_id: str) -> dict[str, object]:
+        if not isinstance(msp_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", msp_id):
+            raise OpenApiError("openapi_path_rejected")
+        try:
+            from . import controller_system_status as projector
+        except ImportError:  # direct execution in the image
+            import controller_system_status as projector
+        path = path_template.format(msp_id=msp_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = getattr(projector, projector_name)(result)
+        except projector.ControllerSystemStatusError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": operation, **projected}
+
+    @_track_capability("msp_cloud_access_status")
+    def read_msp_cloud_access_status(self, msp_id: str) -> dict[str, object]:
+        """Read a fixed MSP cloud status using a bounded MSP identifier."""
+        return self._read_msp_status(
+            "msp_cloud_access_status", self._MSP_CLOUD_ACCESS_PATH,
+            "project_msp_cloud_access_status", msp_id)
+
+    @_track_capability("msp_privacy_policy")
+    def read_msp_privacy_policy(self, msp_id: str) -> dict[str, object]:
+        """Read the CBC MSP privacy-policy switch without returning policy text."""
+        return self._read_msp_status(
+            "msp_privacy_policy", self._MSP_PRIVACY_POLICY_PATH,
+            "project_controller_privacy_policy", msp_id)
+
+    @_track_capability("msp_client_detail_info")
+    def read_msp_client_detail_info(self, msp_id: str) -> dict[str, object]:
+        """Read the bounded MSP client data retention switches."""
+        try:
+            from .controller_client_detail_info import (
+                ControllerClientDetailInfoError, project_msp_client_detail_info,
+            )
+        except ImportError:  # direct execution in the image
+            from controller_client_detail_info import (
+                ControllerClientDetailInfoError, project_msp_client_detail_info,
+            )
+        if not isinstance(msp_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", msp_id):
+            raise OpenApiError("openapi_path_rejected")
+        path = self._MSP_CLIENT_DETAIL_INFO_PATH.format(msp_id=msp_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_msp_client_detail_info(result)
+        except ControllerClientDetailInfoError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "msp_client_detail_info", **projected}
+
+    @_track_capability("msp_audit_notification")
+    def read_msp_audit_notification(self, msp_id: str) -> dict[str, object]:
+        """Read redacted CBC MSP audit notification settings."""
+        if not isinstance(msp_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", msp_id):
+            raise OpenApiError("openapi_path_rejected")
+        path = self._MSP_AUDIT_NOTIFICATION_PATH.format(msp_id=msp_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_controller_audit_notification(result)
+        except ControllerAuditNotificationError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "msp_audit_notification", **projected}
+
+    @_track_capability("msp_device_link_topology")
+    def read_msp_device_link_topology(self, msp_ref: str, customer_ref: str,
+                                      site_ref: str, device_ref: str) -> dict[str, object]:
+        if (not isinstance(msp_ref, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", msp_ref) or
+                not isinstance(customer_ref, str) or
+                not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", customer_ref)):
+            raise OpenApiError("msp_reference_invalid")
+        site_id, mac = self._device_read_context(site_ref, device_ref)
+        path = self._MSP_DEVICE_LINK_TOPOLOGY_PATH.format(
+            msp_id=msp_ref, customer_id=customer_ref, site_id=site_id, device_mac=mac)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_device_link_topology(result)
+        except DeviceLinkTopologyError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "msp_device_link_topology",
+                "site_ref": site_ref, "device_ref": device_ref, **projected}
+
+    @_track_capability("msp_device_tags")
+    def read_msp_device_tags(self, msp_ref: str) -> dict[str, object]:
+        if not isinstance(msp_ref, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", msp_ref):
+            raise OpenApiError("msp_reference_invalid")
+        try:
+            from .msp_device_tags import MspDeviceTagsError, project_msp_device_tags
+        except ImportError:  # direct execution in the image
+            from msp_device_tags import MspDeviceTagsError, project_msp_device_tags
+        path = self._MSP_DEVICE_TAGS_PATH.format(msp_id=msp_ref)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_msp_device_tags(result)
+        except MspDeviceTagsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "msp_device_tags", **projected}
+
+    @_track_capability("msp_mfa_status")
+    def read_msp_mfa_status(self, msp_ref: str) -> dict[str, object]:
+        if not isinstance(msp_ref, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", msp_ref):
+            raise OpenApiError("msp_reference_invalid")
+        try:
+            from .msp_mfa_status import MspMfaStatusError, project_msp_mfa_status
+        except ImportError:  # direct execution in the image
+            from msp_mfa_status import MspMfaStatusError, project_msp_mfa_status
+        path = self._MSP_MFA_STATUS_PATH.format(msp_id=msp_ref)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_msp_mfa_status(result)
+        except MspMfaStatusError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "msp_mfa_status", **projected}
+
+    @_track_capability("msp_license_auto_active")
+    def read_msp_license_auto_active(self, msp_ref: str) -> dict[str, object]:
+        if not isinstance(msp_ref, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", msp_ref):
+            raise OpenApiError("msp_reference_invalid")
+        try:
+            from .msp_license_auto_active import (
+                MspLicenseAutoActiveError, project_msp_license_auto_active,
+            )
+        except ImportError:  # direct execution in the image
+            from msp_license_auto_active import (
+                MspLicenseAutoActiveError, project_msp_license_auto_active,
+            )
+        path = self._MSP_LICENSE_AUTO_ACTIVE_PATH.format(msp_id=msp_ref)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_msp_license_auto_active(result)
+        except MspLicenseAutoActiveError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "msp_license_auto_active", **projected}
+
+    @_track_capability("msp_customer_roles")
+    def read_msp_customer_roles(self, msp_ref: str) -> dict[str, object]:
+        if not isinstance(msp_ref, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", msp_ref):
+            raise OpenApiError("msp_reference_invalid")
+        try:
+            from .msp_customer_roles import MspCustomerRolesError, project_msp_customer_roles
+        except ImportError:  # direct execution in the image
+            from msp_customer_roles import MspCustomerRolesError, project_msp_customer_roles
+        path = self._MSP_CUSTOMER_ROLES_PATH.format(msp_id=msp_ref)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_msp_customer_roles(result)
+        except MspCustomerRolesError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "msp_customer_roles", **projected}
+
+    @_track_capability("msp_dst_info")
+    def read_msp_dst_info(self, msp_id: str) -> dict[str, object]:
+        """Read the documented CBC MSP daylight-saving status."""
+        return self._read_msp_status(
+            "msp_dst_info", self._MSP_DST_INFO_PATH,
+            "project_msp_dst_info", msp_id)
+
+    @_track_capability("msp_remote_logging")
+    def read_msp_remote_logging(self, msp_id: str) -> dict[str, object]:
+        """Read CBC MSP remote-logging status without its host or port values."""
+        return self._read_msp_status(
+            "msp_remote_logging", self._MSP_REMOTE_LOGGING_PATH,
+            "project_msp_remote_logging", msp_id)
+
+    @_track_capability("msp_mail_server")
+    def read_msp_mail_server(self, msp_id: str) -> dict[str, object]:
+        """Read MSP mail-server status and omit all addresses and credentials."""
+        return self._read_msp_status(
+            "msp_mail_server", self._MSP_MAIL_SERVER_PATH,
+            "project_msp_mail_server", msp_id)
+
+    @_track_capability("msp_general_settings")
+    def read_msp_general_settings(self, msp_id: str) -> dict[str, object]:
+        """Read CBC MSP timezone and DST settings without returning its display name."""
+        return self._read_msp_status(
+            "msp_general_settings", self._MSP_GENERAL_SETTINGS_PATH,
+            "project_msp_general_settings", msp_id)
+
+    @_track_capability("msp_log_notification_settings")
+    def read_msp_log_notification_settings(self, msp_id: str) -> dict[str, object]:
+        """Read CBC notification summaries without exposing labels or webhook IDs."""
+        return self._read_msp_status(
+            "msp_log_notification_settings", self._MSP_LOG_NOTIFICATION_PATH,
+            "project_msp_log_notification_settings", msp_id)
+
+    @_track_capability("msp_data_retention")
+    def read_msp_data_retention(self, msp_id: str) -> dict[str, object]:
+        """Read the documented CBC MSP retention settings through the bounded projector."""
+        return self._read_msp_status(
+            "msp_data_retention", self._MSP_DATA_RETENTION_PATH,
+            "project_msp_data_retention", msp_id)
+
+    @_track_capability("msp_ui_interface")
+    def read_msp_ui_interface(self, msp_id: str) -> dict[str, object]:
+        return self._read_msp_status(
+            "msp_ui_interface", self._MSP_UI_INTERFACE_PATH,
+            "project_msp_ui_interface", msp_id)
+
+    @_track_capability("msp_user_interface")
+    def read_msp_user_interface(self, msp_id: str) -> dict[str, object]:
+        return self._read_msp_status(
+            "msp_user_interface", self._MSP_USER_INTERFACE_PATH,
+            "project_msp_user_interface", msp_id)
+
+    @_track_capability("msp_available_roles")
+    def read_msp_available_roles(self, msp_id: str) -> dict[str, object]:
+        return self._read_msp_status(
+            "msp_available_roles", self._MSP_AVAILABLE_ROLES_PATH,
+            "project_msp_available_roles", msp_id)
+
+    @_track_capability("msp_available_customer_roles")
+    def read_msp_available_customer_roles(self, msp_id: str) -> dict[str, object]:
+        return self._read_msp_status(
+            "msp_available_customer_roles", self._MSP_AVAILABLE_CUSTOMER_ROLES_PATH,
+            "project_msp_available_roles", msp_id)
+
+    @_track_capability("msp_dashboard_overall")
+    def read_msp_dashboard_overall(self, msp_id: str) -> dict[str, object]:
+        """Read aggregate MSP client counts without returning client records."""
+        return self._read_msp_status(
+            "msp_dashboard_overall", self._MSP_DASHBOARD_OVERALL_PATH,
+            "project_msp_dashboard_overall", msp_id)
+
+    @_track_capability("msp_cluster_nodes")
+    def read_msp_cluster_nodes(self, msp_id: str) -> dict[str, object]:
+        """Read bounded cluster capacity counts without node identity values."""
+        return self._read_msp_status(
+            "msp_cluster_nodes", self._MSP_CLUSTER_NODES_PATH,
+            "project_msp_cluster_nodes", msp_id)
+
+    @_track_capability("msp_adopt_tip")
+    def read_msp_adopt_tip(self, msp_id: str) -> dict[str, object]:
+        """Read documented adoption counts without exposing device records."""
+        return self._read_msp_status(
+            "msp_adopt_tip", self._MSP_ADOPT_TIP_PATH,
+            "project_msp_adopt_tip", msp_id)
+
+    @_track_capability("msp_role_summary")
+    def read_msp_role_summary(self, msp_id: str) -> dict[str, object]:
+        """Read a redacted summary of documented MSP role privileges."""
+        return self._read_msp_status(
+            "msp_role_summary", self._MSP_ROLES_PATH,
+            "project_msp_roles", msp_id)
+
+    @_track_capability("controller_remote_logging")
+    def read_controller_remote_logging(self) -> dict[str, object]:
+        """Read remote logging state without returning its network target."""
+        path = self._CONTROLLER_REMOTE_LOGGING_PATH.format(
+            controller_id=self.config.controller_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_controller_remote_logging(result)
+        except ControllerRemoteLoggingError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "controller_remote_logging", **projected}
+
+    @_track_capability("controller_remote_logging_tip")
+    def read_controller_remote_logging_tip(self) -> dict[str, object]:
+        """Read remote logging tip data without returning its network target."""
+        path = self._CONTROLLER_REMOTE_LOGGING_TIP_PATH.format(
+            controller_id=self.config.controller_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_controller_remote_logging(result)
+        except ControllerRemoteLoggingError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "controller_remote_logging_tip", **projected}
+
+    @_track_capability("controller_radius_proxy")
+    def read_controller_radius_proxy(self) -> dict[str, object]:
+        """Read bounded RADIUS proxy settings without raw failure text."""
+        path = self._CONTROLLER_RADIUS_PROXY_PATH.format(
+            controller_id=self.config.controller_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_controller_radius_proxy(result)
+        except ControllerRadiusProxyError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "controller_radius_proxy", **projected}
+
+    def patch_controller_radius_proxy(self, state: dict[str, object]) -> None:
+        """Apply a documented proxy state only while a valid write guard is active."""
+        if not self._valid_controller_radius_proxy_state(state):
+            raise OpenApiError("controller_radius_proxy_change_invalid")
+        path = self._CONTROLLER_RADIUS_PROXY_PATH.format(
+            controller_id=self.config.controller_id)
+        body = json.dumps(state, separators=(",", ":"), allow_nan=False).encode("utf-8")
+        self._request_json("PATCH", path, body=body, token=self._access_token())
+
+    @_track_capability("controller_radius_server")
+    def read_controller_radius_server(self) -> dict[str, object]:
+        """Read built-in RADIUS server settings while redacting secrets and identities."""
+        path = self._CONTROLLER_RADIUS_SERVER_PATH.format(
+            controller_id=self.config.controller_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_controller_radius_server(result)
+        except ControllerRadiusServerError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "controller_radius_server", **projected}
+
+    def _read_controller_system_port_setting(self, operation_id: str, path_template: str) -> dict[str, object]:
+        path = path_template.format(controller_id=self.config.controller_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_controller_system_ports(result, operation_id)
+        except ControllerSystemPortsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": operation_id, **projected}
+
+    @_track_capability("controller_upgrade_port")
+    def read_controller_upgrade_port(self) -> dict[str, object]:
+        """Read the controller's documented HTTPS upgrade port."""
+        return self._read_controller_system_port_setting(
+            "controller_upgrade_port", self._CONTROLLER_UPGRADE_PORT_PATH)
+
+    @_track_capability("controller_portal_port_settings")
+    def read_controller_portal_port_settings(self) -> dict[str, object]:
+        """Read portal ports and flags without exposing its configured host."""
+        return self._read_controller_system_port_setting(
+            "controller_portal_port_settings", self._CONTROLLER_PORTAL_PORT_PATH)
+
+    @_track_capability("controller_port_settings")
+    def read_controller_port_settings(self) -> dict[str, object]:
+        """Read management ports and flags without exposing the controller hostname."""
+        return self._read_controller_system_port_setting(
+            "controller_port_settings", self._CONTROLLER_PORT_SETTINGS_PATH)
+
+    @_track_capability("controller_status")
+    def read_controller_status(self) -> dict[str, object]:
+        path = self._CONTROLLER_STATUS_PATH.format(controller_id=self.config.controller_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_controller_status(result)
+        except ControllerStatusError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "controller_status", **projected}
+
+    @_track_capability("controller_logging")
+    def read_controller_logging(self) -> dict[str, object]:
+        path = self._CONTROLLER_LOGGING_PATH.format(controller_id=self.config.controller_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_controller_logging(result)
+        except ControllerLoggingError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "controller_logging", **projected}
+
+    @_track_capability("controller_certificate")
+    def read_controller_certificate(self) -> dict[str, object]:
+        path = self._CONTROLLER_CERTIFICATE_PATH.format(controller_id=self.config.controller_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_controller_certificate(result)
+        except ControllerCertificateError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "controller_certificate", **projected}
+
+    @_track_capability("controller_roles")
+    def read_controller_roles(self) -> dict[str, object]:
+        path = self._CONTROLLER_ROLES_PATH.format(controller_id=self.config.controller_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_controller_roles(result, includes_privilege=True)
+        except ControllerRolesError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "controller_roles", **projected}
+
+    @_track_capability("controller_available_roles")
+    def read_controller_available_roles(self) -> dict[str, object]:
+        path = self._CONTROLLER_AVAILABLE_ROLES_PATH.format(
+            controller_id=self.config.controller_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_controller_roles(result, includes_privilege=False)
+        except ControllerRolesError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "controller_available_roles", **projected}
+
+    @_track_capability("controller_known_devices")
+    def read_controller_known_devices(self) -> dict[str, object]:
+        path = (self._CONTROLLER_KNOWN_DEVICES_PATH.format(
+            controller_id=self.config.controller_id) +
+            f"?page=1&pageSize={self.config.page_size}")
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_global_device_summary(
+                result, kind="known", page_size=self.config.page_size)
+        except GlobalDeviceSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "controller_known_devices", **projected}
+
+    @_track_capability("controller_unknown_devices")
+    def read_controller_unknown_devices(self) -> dict[str, object]:
+        path = (self._CONTROLLER_UNKNOWN_DEVICES_PATH.format(
+            controller_id=self.config.controller_id) +
+            f"?page=1&pageSize={self.config.page_size}")
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_global_device_summary(
+                result, kind="unknown", page_size=self.config.page_size)
+        except GlobalDeviceSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "controller_unknown_devices", **projected}
+
+    @_track_capability("controller_device_batch_adopt_summary")
+    def read_controller_device_batch_adopt_summary(self) -> dict[str, object]:
+        path = (self._CONTROLLER_BATCH_ADOPT_INFO_PATH.format(
+            controller_id=self.config.controller_id) +
+            f"?page=1&pageSize={self.config.page_size}")
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = summarize_adoption_devices(
+                result, kind="batch", page_size=self.config.page_size)
+        except DeviceAdoptionSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "controller_device_batch_adopt_summary", **projected}
+
+    @_track_capability("site_pending_devices_summary")
+    def read_site_pending_devices_summary(self, site_ref: str) -> dict[str, object]:
+        site_id = self._resolve_site_ref(site_ref)
+        path = (self._SITE_PENDING_DEVICES_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id) +
+            f"?page=1&pageSize={self.config.page_size}")
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = summarize_adoption_devices(
+                result, kind="pending", page_size=self.config.page_size)
+        except DeviceAdoptionSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_pending_devices_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_radius_user_summary")
+    def read_site_radius_user_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize built-in RADIUS users without exposing account data."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_RADIUS_USERS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        rows = self._read_pages(path, self._access_token())
+        try:
+            projected = summarize_radius_users(rows)
+        except RadiusUserSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_radius_user_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_entity_summary")
+    def read_site_entity_summary(self, site_ref: str) -> dict[str, object]:
+        """Read redacted site metadata for a reference from the current inventory."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_ENTITY_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = summarize_site_entity(result)
+        except SiteEntitySummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_entity_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_upnp_summary")
+    def read_site_upnp_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize UPnP settings without exposing controller reference IDs."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_UPNP_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = summarize_site_upnp(result)
+        except SiteUpnpSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_upnp_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_iot_aging_time")
+    def read_site_iot_aging_time(self, site_ref: str) -> dict[str, object]:
+        """Read the documented Bluetooth device-aging interval."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_IOT_AGING_TIME_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_iot_aging_time import (
+                SiteIotAgingTimeError, project_site_iot_aging_time,
+            )
+        except ImportError:  # direct execution in the image
+            from site_iot_aging_time import (
+                SiteIotAgingTimeError, project_site_iot_aging_time,
+            )
+        try:
+            projected = project_site_iot_aging_time(result)
+        except SiteIotAgingTimeError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_iot_aging_time",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_iot_radio_summary")
+    def read_site_iot_radio_summary(self, site_ref: str) -> dict[str, object]:
+        """Read Bluetooth radio settings while redacting the console passcode."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_IOT_RADIO_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_iot_radio import SiteIotRadioError, project_site_iot_radio
+        except ImportError:  # direct execution in the image
+            from site_iot_radio import SiteIotRadioError, project_site_iot_radio
+        try:
+            projected = project_site_iot_radio(result)
+        except SiteIotRadioError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_iot_radio_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_mesh_summary")
+    def read_site_mesh_summary(self, site_ref: str) -> dict[str, object]:
+        """Read site mesh enablement and bounded failover settings."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_MESH_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_mesh_summary import SiteMeshSummaryError, project_site_mesh_summary
+        except ImportError:  # direct execution in the image
+            from site_mesh_summary import SiteMeshSummaryError, project_site_mesh_summary
+        try:
+            projected = project_site_mesh_summary(result)
+        except SiteMeshSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_mesh_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_multicast_rate_limit_summary")
+    def read_site_multicast_rate_limit_summary(self, site_ref: str) -> dict[str, object]:
+        """Read the bounded multicast and broadcast packet-rate controls."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_MULTICAST_RATE_LIMIT_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_multicast_rate_limit import (
+                SiteMulticastRateLimitError, project_site_multicast_rate_limit,
+            )
+        except ImportError:  # direct execution in the image
+            from site_multicast_rate_limit import (
+                SiteMulticastRateLimitError, project_site_multicast_rate_limit,
+            )
+        try:
+            projected = project_site_multicast_rate_limit(result)
+        except SiteMulticastRateLimitError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_multicast_rate_limit_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_beacon_control_summary")
+    def read_site_beacon_control_summary(self, site_ref: str) -> dict[str, object]:
+        """Read the bounded WLAN beacon, probe-response and airtime settings."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_BEACON_CONTROL_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_beacon_control import SiteBeaconControlError, project_site_beacon_control
+        except ImportError:  # direct execution in the image
+            from site_beacon_control import SiteBeaconControlError, project_site_beacon_control
+        try:
+            projected = project_site_beacon_control(result)
+        except SiteBeaconControlError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_beacon_control_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_iot_transmit_power_summary")
+    def read_site_iot_transmit_power_summary(self, site_ref: str) -> dict[str, object]:
+        """Read one fixed IoT radio power page and return aggregate counts only."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = (self._SITE_IOT_TRANSMIT_POWER_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id) + "?page=1&pageSize=100")
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_iot_transmit_power import (
+                SiteIotTransmitPowerError, project_site_iot_transmit_power,
+            )
+        except ImportError:  # direct execution in the image
+            from site_iot_transmit_power import (
+                SiteIotTransmitPowerError, project_site_iot_transmit_power,
+            )
+        try:
+            projected = project_site_iot_transmit_power(result)
+        except SiteIotTransmitPowerError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_iot_transmit_power_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_remember_setting_summary")
+    def read_site_remember_setting_summary(self, site_ref: str) -> dict[str, object]:
+        """Read whether the site remember-device setting is enabled."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_REMEMBER_SETTING_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_remember_setting import (
+                SiteRememberSettingError, project_site_remember_setting,
+            )
+        except ImportError:  # direct execution in the image
+            from site_remember_setting import (
+                SiteRememberSettingError, project_site_remember_setting,
+            )
+        try:
+            projected = project_site_remember_setting(result)
+        except SiteRememberSettingError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_remember_setting_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_client_connection_summary")
+    def read_site_client_connection_summary(self, site_ref: str) -> dict[str, object]:
+        """Read the documented total, wired and wireless client counts."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_CLIENT_CONNECTION_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_client_connection_summary import (
+                SiteClientConnectionSummaryError, project_site_client_connection_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_client_connection_summary import (
+                SiteClientConnectionSummaryError, project_site_client_connection_summary,
+            )
+        try:
+            projected = project_site_client_connection_summary(result)
+        except SiteClientConnectionSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_client_connection_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_poe_usage_summary")
+    def read_site_poe_usage_summary(self, site_ref: str) -> dict[str, object]:
+        """Read PoE use and rated capacity without returning switch identities."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_POE_USAGE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_poe_usage_summary import (
+                SitePoeUsageSummaryError, project_site_poe_usage_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_poe_usage_summary import (
+                SitePoeUsageSummaryError, project_site_poe_usage_summary,
+            )
+        try:
+            projected = project_site_poe_usage_summary(result)
+        except SitePoeUsageSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_poe_usage_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_device_counts_summary")
+    def read_site_device_counts_summary(self, site_ref: str) -> dict[str, object]:
+        """Read only aggregate device counts from the site dashboard."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_DEVICE_COUNTS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_device_counts_summary import (
+                SiteDeviceCountsSummaryError, project_site_device_counts_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_device_counts_summary import (
+                SiteDeviceCountsSummaryError, project_site_device_counts_summary,
+            )
+        try:
+            projected = project_site_device_counts_summary(result)
+        except SiteDeviceCountsSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_device_counts_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_ipsec_tunnel_summary")
+    def read_site_ipsec_tunnel_summary(self, site_ref: str) -> dict[str, object]:
+        """Read IPsec tunnel status and direction counts without addresses."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_IPSEC_TUNNEL_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_ipsec_tunnel_summary import (
+                SiteIpsecTunnelSummaryError, project_site_ipsec_tunnel_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_ipsec_tunnel_summary import (
+                SiteIpsecTunnelSummaryError, project_site_ipsec_tunnel_summary,
+            )
+        try:
+            projected = project_site_ipsec_tunnel_summary(result)
+        except SiteIpsecTunnelSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_ipsec_tunnel_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_client_association_time_summary")
+    def read_site_client_association_time_summary(self, site_ref: str) -> dict[str, object]:
+        """Read client association-time bins for the trailing 24 hours."""
+        site_id = self._resolve_site_ref(site_ref)
+        end_seconds = int(datetime.now(timezone.utc).timestamp())
+        start_seconds = end_seconds - 86_400
+        path = (self._SITE_CLIENT_ASSOCIATION_TIME_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+            + f"?start={start_seconds}&end={end_seconds}")
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_client_association_time import (
+                SiteClientAssociationTimeError, project_site_client_association_time,
+            )
+        except ImportError:  # direct execution in the image
+            from site_client_association_time import (
+                SiteClientAssociationTimeError, project_site_client_association_time,
+            )
+        try:
+            projected = project_site_client_association_time(result)
+        except SiteClientAssociationTimeError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_client_association_time_summary",
+                "site_ref": site_ref, "window_start_seconds": start_seconds,
+                "window_end_seconds": end_seconds, **projected}
+
+    @_track_capability("site_network_activity_summary")
+    def read_site_network_activity_summary(self, site_ref: str) -> dict[str, object]:
+        """Read aggregate traffic and client counts for the trailing 24 hours."""
+        site_id = self._resolve_site_ref(site_ref)
+        end_seconds = int(datetime.now(timezone.utc).timestamp())
+        start_seconds = end_seconds - 86_400
+        path = (self._SITE_NETWORK_ACTIVITY_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+            + f"?start={start_seconds}&end={end_seconds}")
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_network_activity_summary import (
+                SiteNetworkActivitySummaryError, project_site_network_activity_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_network_activity_summary import (
+                SiteNetworkActivitySummaryError, project_site_network_activity_summary,
+            )
+        try:
+            projected = project_site_network_activity_summary(result)
+        except SiteNetworkActivitySummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_network_activity_summary",
+                "site_ref": site_ref, "window_start_seconds": start_seconds,
+                "window_end_seconds": end_seconds, **projected}
+
+    @_track_capability("site_client_rssi_distribution_summary")
+    def read_site_client_rssi_distribution_summary(self, site_ref: str) -> dict[str, object]:
+        """Read aggregate client RSSI categories overall and by radio band."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_CLIENT_RSSI_DISTRIBUTION_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_client_rssi_distribution import (
+                SiteClientRssiDistributionError, project_site_client_rssi_distribution,
+            )
+        except ImportError:  # direct execution in the image
+            from site_client_rssi_distribution import (
+                SiteClientRssiDistributionError, project_site_client_rssi_distribution,
+            )
+        try:
+            projected = project_site_client_rssi_distribution(result)
+        except SiteClientRssiDistributionError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_client_rssi_distribution_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_ap_rssi_density_summary")
+    def read_site_ap_rssi_density_summary(self, site_ref: str) -> dict[str, object]:
+        """Read only the number of AP rows in each documented signal bucket."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_AP_RSSI_DENSITY_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_ap_rssi_density import (
+                SiteApRssiDensityError, project_site_ap_rssi_density,
+            )
+        except ImportError:  # direct execution in the image
+            from site_ap_rssi_density import (
+                SiteApRssiDensityError, project_site_ap_rssi_density,
+            )
+        try:
+            projected = project_site_ap_rssi_density(result)
+        except SiteApRssiDensityError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_ap_rssi_density_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_client_attachment_distribution_summary")
+    def read_site_client_attachment_distribution_summary(self, site_ref: str) -> dict[str, object]:
+        """Read aggregate client totals by AP and switch attachment."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_CLIENT_ATTACHMENT_DISTRIBUTION_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_client_attachment_distribution import (
+                SiteClientAttachmentDistributionError,
+                project_site_client_attachment_distribution,
+            )
+        except ImportError:  # direct execution in the image
+            from site_client_attachment_distribution import (
+                SiteClientAttachmentDistributionError,
+                project_site_client_attachment_distribution,
+            )
+        try:
+            projected = project_site_client_attachment_distribution(result)
+        except SiteClientAttachmentDistributionError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_client_attachment_distribution_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_client_frequency_distribution_summary")
+    def read_site_client_frequency_distribution_summary(self, site_ref: str) -> dict[str, object]:
+        """Read aggregate client connection counts from the frequency dashboard."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_CLIENT_FREQUENCY_DISTRIBUTION_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_client_connection_summary import (
+                SiteClientConnectionSummaryError,
+                project_site_client_connection_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_client_connection_summary import (
+                SiteClientConnectionSummaryError,
+                project_site_client_connection_summary,
+            )
+        try:
+            projected = project_site_client_connection_summary(result)
+        except SiteClientConnectionSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_client_frequency_distribution_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_device_traffic_summary")
+    def read_site_device_traffic_summary(self, site_ref: str) -> dict[str, object]:
+        """Read aggregate AP and switch traffic in the fixed trailing day."""
+        site_id = self._resolve_site_ref(site_ref)
+        end_seconds = int(datetime.now(timezone.utc).timestamp())
+        start_seconds = end_seconds - 86_400
+        path = (self._SITE_DEVICE_TRAFFIC_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+            + f"?start={start_seconds}&end={end_seconds}")
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_device_traffic_summary import (
+                SiteDeviceTrafficSummaryError, project_site_device_traffic_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_device_traffic_summary import (
+                SiteDeviceTrafficSummaryError, project_site_device_traffic_summary,
+            )
+        try:
+            projected = project_site_device_traffic_summary(result)
+        except SiteDeviceTrafficSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_device_traffic_summary",
+                "site_ref": site_ref, "window_start_seconds": start_seconds,
+                "window_end_seconds": end_seconds, **projected}
+
+    @_track_capability("site_past_client_summary")
+    def read_site_past_client_summary(self, site_ref: str) -> dict[str, object]:
+        """Read aggregate historical client counts for the fixed trailing day."""
+        site_id = self._resolve_site_ref(site_ref)
+        end_seconds = int(datetime.now(timezone.utc).timestamp())
+        start_seconds = end_seconds - 86_400
+        path = (self._SITE_PAST_CLIENT_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+            + f"?start={start_seconds}&end={end_seconds}")
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_client_connection_summary import (
+                SiteClientConnectionSummaryError,
+                project_site_client_connection_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_client_connection_summary import (
+                SiteClientConnectionSummaryError,
+                project_site_client_connection_summary,
+            )
+        try:
+            projected = project_site_client_connection_summary(result)
+        except SiteClientConnectionSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_past_client_summary",
+                "site_ref": site_ref, "window_start_seconds": start_seconds,
+                "window_end_seconds": end_seconds, **projected}
+
+    @_track_capability("site_current_client_summary")
+    def read_site_current_client_summary(self, site_ref: str) -> dict[str, object]:
+        """Read aggregate current wired and wireless client counts."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_CURRENT_CLIENT_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_client_connection_summary import (
+                SiteClientConnectionSummaryError,
+                project_site_client_connection_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_client_connection_summary import (
+                SiteClientConnectionSummaryError,
+                project_site_client_connection_summary,
+            )
+        try:
+            projected = project_site_client_connection_summary(result)
+        except SiteClientConnectionSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_current_client_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_gateway_isp_summary")
+    def read_site_gateway_isp_summary(self, site_ref: str) -> dict[str, object]:
+        """Read gateway and ISP status with peak utilization only."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_GATEWAY_ISP_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_gateway_isp_summary import (
+                SiteGatewayIspSummaryError, project_site_gateway_isp_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_gateway_isp_summary import (
+                SiteGatewayIspSummaryError, project_site_gateway_isp_summary,
+            )
+        try:
+            projected = project_site_gateway_isp_summary(result)
+        except SiteGatewayIspSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_gateway_isp_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_top_ap_retry_drop_summary")
+    def read_site_top_ap_retry_drop_summary(self, site_ref: str) -> dict[str, object]:
+        """Read the documented top-AP ranking as counts and peak ratios only."""
+        site_id = self._resolve_site_ref(site_ref)
+        end = int(datetime.now(timezone.utc).timestamp())
+        start = end - 86_400
+        path = self._SITE_TOP_AP_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        path += f"?start={start}&end={end}"
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_top_ap_retry_drop_summary import (
+                SiteTopApRetryDropSummaryError,
+                project_site_top_ap_retry_drop_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_top_ap_retry_drop_summary import (
+                SiteTopApRetryDropSummaryError,
+                project_site_top_ap_retry_drop_summary,
+            )
+        try:
+            projected = project_site_top_ap_retry_drop_summary(result)
+        except SiteTopApRetryDropSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_top_ap_retry_drop_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_active_ap_summary")
+    def read_site_active_ap_summary(self, site_ref: str) -> dict[str, object]:
+        """Read AP activity over a fixed trailing day as aggregate traffic only."""
+        return self._read_site_active_device_summary(
+            site_ref, self._SITE_ACTIVE_AP_PATH, "site_active_ap_summary")
+
+    @_track_capability("site_active_ap_v2_summary")
+    def read_site_active_ap_v2_summary(self, site_ref: str) -> dict[str, object]:
+        """Read the top ten active APs through the v2 dashboard contract."""
+        site_id = self._resolve_site_ref(site_ref)
+        end = int(datetime.now(timezone.utc).timestamp())
+        start = end - 86_400
+        path = self._SITE_ACTIVE_AP_V2_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        path += f"?deviceNum=10&start={start}&end={end}"
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_active_ap_v2_summary import (
+                SiteActiveApV2SummaryError, project_site_active_ap_v2_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_active_ap_v2_summary import (
+                SiteActiveApV2SummaryError, project_site_active_ap_v2_summary,
+            )
+        try:
+            projected = project_site_active_ap_v2_summary(result)
+        except SiteActiveApV2SummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_active_ap_v2_summary",
+                "site_ref": site_ref, **projected}
+
+    def _read_site_application_access_summary(self, site_ref: str, page_number: int,
+                                              page_size: int, operation: str,
+                                              resource: str) -> dict[str, object]:
+        if (type(page_number) is not int or not 0 <= page_number <= 10_000 or
+                type(page_size) is not int or not 1 <= page_size <= 100):
+            raise OpenApiError("page_arguments_invalid")
+        site_id = self._resolve_site_ref(site_ref)
+        end = int(datetime.now(timezone.utc).timestamp())
+        start = end - 86_400
+        path = self._SITE_APPLICATION_ACCESS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id,
+            operation=operation)
+        path += f"?start={start}&end={end}&page={page_number + 1}&pageSize={page_size}"
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_application_access_summary import (
+                SiteApplicationAccessSummaryError, project_site_application_access_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_application_access_summary import (
+                SiteApplicationAccessSummaryError, project_site_application_access_summary,
+            )
+        try:
+            projected = project_site_application_access_summary(result, page_size=page_size)
+        except SiteApplicationAccessSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": resource, "site_ref": site_ref,
+                "page_number": page_number, "page_size": page_size, **projected}
+
+    @_track_capability("site_allowed_application_summary")
+    def read_site_allowed_application_summary(self, site_ref: str, page_number: int,
+                                              page_size: int) -> dict[str, object]:
+        """Summarize allowed applications for a fixed trailing day."""
+        return self._read_site_application_access_summary(
+            site_ref, page_number, page_size, "allowApp", "site_allowed_application_summary")
+
+    @_track_capability("site_blocked_application_summary")
+    def read_site_blocked_application_summary(self, site_ref: str, page_number: int,
+                                              page_size: int) -> dict[str, object]:
+        """Summarize blocked applications for a fixed trailing day."""
+        return self._read_site_application_access_summary(
+            site_ref, page_number, page_size, "blockApp", "site_blocked_application_summary")
+
+    def _read_site_dashboard_tabs_summary(self, site_ref: str, route: str,
+                                          resource: str) -> dict[str, object]:
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_DASHBOARD_TABS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, route=route)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_dashboard_tabs_summary import (
+                SiteDashboardTabsSummaryError, project_site_dashboard_tabs_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_dashboard_tabs_summary import (
+                SiteDashboardTabsSummaryError, project_site_dashboard_tabs_summary,
+            )
+        try:
+            projected = project_site_dashboard_tabs_summary(result)
+        except SiteDashboardTabsSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": resource, "site_ref": site_ref, **projected}
+
+    @_track_capability("site_dashboard_all_tabs_summary")
+    def read_site_dashboard_all_tabs_summary(self, site_ref: str) -> dict[str, object]:
+        """Read counts for the complete dashboard tab list."""
+        return self._read_site_dashboard_tabs_summary(
+            site_ref, "tabs", "site_dashboard_all_tabs_summary")
+
+    @_track_capability("site_dashboard_non_overall_tabs_summary")
+    def read_site_dashboard_non_overall_tabs_summary(self, site_ref: str) -> dict[str, object]:
+        """Read counts for dashboard tabs other than Overall."""
+        return self._read_site_dashboard_tabs_summary(
+            site_ref, "without-overall-tabs", "site_dashboard_non_overall_tabs_summary")
+
+    @_track_capability("site_specific_client_traffic_summary")
+    def read_site_specific_client_traffic_summary(self, site_ref: str,
+                                                  client_ref: str) -> dict[str, object]:
+        """Aggregate a known client's app traffic over the trailing day."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        if not isinstance(client_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", client_ref):
+            raise OpenApiError("client_ref_invalid")
+        mac = self._client_macs_by_site_ref.get(site_ref, {}).get(client_ref)
+        if not mac or not self._MAC.fullmatch(mac):
+            raise OpenApiError("client_ref_unknown")
+        end = int(datetime.now(timezone.utc).timestamp())
+        start = end - 86_400
+        path = self._SITE_SPECIFIC_CLIENT_INFO_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, client_mac=mac)
+        path += f"?start={start}&end={end}"
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_specific_client_traffic_summary import (
+                SiteSpecificClientTrafficSummaryError,
+                project_site_specific_client_traffic_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_specific_client_traffic_summary import (
+                SiteSpecificClientTrafficSummaryError,
+                project_site_specific_client_traffic_summary,
+            )
+        try:
+            projected = project_site_specific_client_traffic_summary(result)
+        except SiteSpecificClientTrafficSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_specific_client_traffic_summary",
+                "site_ref": site_ref, "client_ref": client_ref,
+                "window_start_seconds": start, "window_end_seconds": end, **projected}
+
+    @_track_capability("site_application_traffic_summary")
+    def read_site_application_traffic_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize the controller's documented top ten application traffic rows."""
+        site_id = self._resolve_site_ref(site_ref)
+        end = int(datetime.now(timezone.utc).timestamp())
+        start = end - 86_400
+        path = self._SITE_APPLICATION_TRAFFIC_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        path += f"?dateStart={start}&dateEnd={end}"
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_application_traffic_summary import (
+                SiteApplicationTrafficSummaryError,
+                project_site_application_traffic_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_application_traffic_summary import (
+                SiteApplicationTrafficSummaryError,
+                project_site_application_traffic_summary,
+            )
+        try:
+            projected = project_site_application_traffic_summary(result)
+        except SiteApplicationTrafficSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_application_traffic_summary",
+                "site_ref": site_ref, "window_start_seconds": start,
+                "window_end_seconds": end, **projected}
+
+    @_track_capability("site_wan_lan_status_summary")
+    def read_site_wan_lan_status_summary(self, site_ref: str) -> dict[str, object]:
+        """Read bounded WAN/LAN metadata without exposing port or model labels."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_WAN_LAN_STATUS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_wan_lan_status_summary import (
+                SiteWanLanStatusSummaryError,
+                project_site_wan_lan_status_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_wan_lan_status_summary import (
+                SiteWanLanStatusSummaryError,
+                project_site_wan_lan_status_summary,
+            )
+        try:
+            projected = project_site_wan_lan_status_summary(result)
+        except SiteWanLanStatusSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_wan_lan_status_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_arp_detect_status_summary")
+    def read_site_arp_detect_status_summary(self, site_ref: str) -> dict[str, object]:
+        """Read site ARP-detection and snooping enablement flags."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_ARP_DETECT_STATUS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_arp_detect_status_summary import (
+                SiteArpDetectStatusSummaryError,
+                project_site_arp_detect_status_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_arp_detect_status_summary import (
+                SiteArpDetectStatusSummaryError,
+                project_site_arp_detect_status_summary,
+            )
+        try:
+            projected = project_site_arp_detect_status_summary(result)
+        except SiteArpDetectStatusSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_arp_detect_status_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_disaster_mode_status")
+    def read_site_disaster_mode_status(self, site_ref: str) -> dict[str, object]:
+        """Read the documented int32 code without assigning undocumented meaning."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_DISASTER_MODE_STATUS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_disaster_mode_status import (
+                SiteDisasterModeStatusError, project_site_disaster_mode_status)
+        except ImportError:  # direct execution in the image
+            from site_disaster_mode_status import (
+                SiteDisasterModeStatusError, project_site_disaster_mode_status)
+        try:
+            projected = project_site_disaster_mode_status(result)
+        except SiteDisasterModeStatusError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_disaster_mode_status",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_specification_summary")
+    def read_site_specification_summary(self, site_ref: str) -> dict[str, object]:
+        """Read the three documented site capacity values without extra data."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_SPECIFICATION_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_specification_summary import (
+                SiteSpecificationSummaryError, project_site_specification_summary)
+        except ImportError:  # direct execution in the image
+            from site_specification_summary import (
+                SiteSpecificationSummaryError, project_site_specification_summary)
+        try:
+            projected = project_site_specification_summary(result)
+        except SiteSpecificationSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_specification_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_portal_logout_domain")
+    def read_site_portal_logout_domain(self, site_ref: str) -> dict[str, object]:
+        """Read the source-documented portal logout domain string."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_PORTAL_LOGOUT_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_portal_logout_domain import (
+                SitePortalLogoutDomainError, project_site_portal_logout_domain)
+        except ImportError:  # direct execution in the image
+            from site_portal_logout_domain import (
+                SitePortalLogoutDomainError, project_site_portal_logout_domain)
+        try:
+            projected = project_site_portal_logout_domain(result)
+        except SitePortalLogoutDomainError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_portal_logout_domain",
+                "site_ref": site_ref, "data": projected}
+
+    @_track_capability("site_wids_config")
+    def read_site_wids_config(self, site_ref: str) -> dict[str, object]:
+        """Read the common wireless IDS fields without imposing disputed enum values."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_WIDS_CONFIG_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_wids_config import SiteWidsConfigError, project_site_wids_config
+        except ImportError:  # direct execution in the image
+            from site_wids_config import SiteWidsConfigError, project_site_wids_config
+        try:
+            projected = project_site_wids_config(result)
+        except SiteWidsConfigError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_wids_config",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_wips_config")
+    def read_site_wips_config(self, site_ref: str) -> dict[str, object]:
+        """Read common wireless IPS settings and enforce documented lock-time bounds."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_WIPS_CONFIG_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_wips_config import SiteWipsConfigError, project_site_wips_config
+        except ImportError:  # direct execution in the image
+            from site_wips_config import SiteWipsConfigError, project_site_wips_config
+        try:
+            projected = project_site_wips_config(result)
+        except SiteWipsConfigError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_wips_config",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_acl_config_mode")
+    def read_site_acl_config_mode(self, site_ref: str) -> dict[str, object]:
+        """Read the documented gateway ACL configuration mode code."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_ACL_CONFIG_MODE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_acl_config_mode import (
+                SiteAclConfigModeError, project_site_acl_config_mode)
+        except ImportError:  # direct execution in the image
+            from site_acl_config_mode import (
+                SiteAclConfigModeError, project_site_acl_config_mode)
+        try:
+            projected = project_site_acl_config_mode(result)
+        except SiteAclConfigModeError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_acl_config_mode",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_attack_defense_summary")
+    def read_site_attack_defense_summary(self, site_ref: str) -> dict[str, object]:
+        """Read the source-common typed attack-defense configuration fields."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_ATTACK_DEFENSE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_attack_defense_summary import (
+                SiteAttackDefenseSummaryError, project_site_attack_defense_summary)
+        except ImportError:  # direct execution in the image
+            from site_attack_defense_summary import (
+                SiteAttackDefenseSummaryError, project_site_attack_defense_summary)
+        try:
+            projected = project_site_attack_defense_summary(result)
+        except SiteAttackDefenseSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_attack_defense_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_attack_defense_defaults_summary")
+    def read_site_attack_defense_defaults_summary(self, site_ref: str) -> dict[str, object]:
+        """Read fixed site attack-defense defaults and validate documented values."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_ATTACK_DEFENSE_DEFAULTS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_attack_defense_defaults import (
+                SiteAttackDefenseDefaultsError, project_site_attack_defense_defaults)
+        except ImportError:  # direct execution in the image
+            from site_attack_defense_defaults import (
+                SiteAttackDefenseDefaultsError, project_site_attack_defense_defaults)
+        try:
+            projected = project_site_attack_defense_defaults(result)
+        except SiteAttackDefenseDefaultsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_attack_defense_defaults_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_alg_config")
+    def read_site_alg_config(self, site_ref: str) -> dict[str, object]:
+        """Read the common application-layer gateway settings."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_ALG_CONFIG_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_alg_config import SiteAlgConfigError, project_site_alg_config
+        except ImportError:  # direct execution in the image
+            from site_alg_config import SiteAlgConfigError, project_site_alg_config
+        try:
+            projected = project_site_alg_config(result)
+        except SiteAlgConfigError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_alg_config",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_firewall_settings")
+    def read_site_firewall_settings(self, site_ref: str) -> dict[str, object]:
+        """Read the common required site firewall flags and thresholds."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_FIREWALL_SETTINGS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_firewall_settings import (
+                SiteFirewallSettingsError, project_site_firewall_settings)
+        except ImportError:  # direct execution in the image
+            from site_firewall_settings import (
+                SiteFirewallSettingsError, project_site_firewall_settings)
+        try:
+            projected = project_site_firewall_settings(result)
+        except SiteFirewallSettingsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_firewall_settings",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_firewall_defaults")
+    def read_site_firewall_defaults(self, site_ref: str) -> dict[str, object]:
+        """Read the documented site firewall default timeout values and flags."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_FIREWALL_DEFAULTS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_firewall_defaults import (
+                SiteFirewallDefaultsError, project_site_firewall_defaults,
+            )
+        except ImportError:  # direct execution in the image
+            from site_firewall_defaults import (
+                SiteFirewallDefaultsError, project_site_firewall_defaults,
+            )
+        try:
+            projected = project_site_firewall_defaults(result)
+        except SiteFirewallDefaultsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_firewall_defaults",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_snmp_settings_summary")
+    def read_site_snmp_settings_summary(self, site_ref: str) -> dict[str, object]:
+        """Read SNMP enablement and modes without returning credentials or contacts."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_SNMP_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_snmp_summary import SiteSnmpError, project_site_snmp
+        except ImportError:  # direct execution in the image
+            from site_snmp_summary import SiteSnmpError, project_site_snmp
+        try:
+            projected = project_site_snmp(result)
+        except SiteSnmpError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_snmp_settings_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_bandwidth_control")
+    def read_site_bandwidth_control(self, site_ref: str) -> dict[str, object]:
+        """Read bandwidth settings and summarize ports without exposing their IDs."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_BANDWIDTH_CONTROL_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_bandwidth_control import (
+                SiteBandwidthControlError, project_site_bandwidth_control)
+        except ImportError:  # direct execution in the image
+            from site_bandwidth_control import (
+                SiteBandwidthControlError, project_site_bandwidth_control)
+        try:
+            projected = project_site_bandwidth_control(result)
+        except SiteBandwidthControlError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_bandwidth_control",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_wan_ports_summary")
+    def read_site_wan_ports_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize WAN and USB-LTE ports without exposing settings or credentials."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_WAN_PORTS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_wan_ports_summary import SiteWanPortsError, project_site_wan_ports
+        except ImportError:  # direct execution in the image
+            from site_wan_ports_summary import SiteWanPortsError, project_site_wan_ports
+        try:
+            projected = project_site_wan_ports(result)
+        except SiteWanPortsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_wan_ports_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_vlan_network_summary")
+    def read_site_vlan_network_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize a bounded VLAN-network listing without returning identifiers."""
+        site_id = self._resolve_site_ref(site_ref)
+        base_path = self._SITE_VLAN_NETWORK_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        token = self._access_token()
+        pages: list[object] = []
+        for page_number in range(1, 6):
+            path = f"{base_path}?page={page_number}&pageSize=100"
+            result = self._request_json("GET", path, token=token).get("result")
+            pages.append(result)
+            if not isinstance(result, dict):
+                break
+            rows = result.get("data")
+            total = result.get("totalRows")
+            if isinstance(total, int) and not isinstance(total, bool) and total >= 0:
+                if page_number * 100 >= total:
+                    break
+            if not isinstance(rows, list) or len(rows) < 100:
+                break
+        try:
+            from .site_vlan_network_summary import (
+                SiteVlanNetworkError, project_site_vlan_networks)
+        except ImportError:  # direct execution in the image
+            from site_vlan_network_summary import (
+                SiteVlanNetworkError, project_site_vlan_networks)
+        try:
+            projected = project_site_vlan_networks(pages)
+        except SiteVlanNetworkError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_vlan_network_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_lan_network_detail_summary")
+    def read_site_lan_network_detail_summary(
+            self, site_ref: str, network_ref: str) -> dict[str, object]:
+        """Read redacted configuration and addressing details for one network ref."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        if not isinstance(network_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", network_ref):
+            raise OpenApiError("network_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        network_id = self._network_ids_by_site_ref.get(site_ref, {}).get(network_ref, "")
+        if not network_id:
+            raise OpenApiError("network_ref_unknown")
+        path = self._NETWORK_DETAIL_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, network_id=network_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_lan_network_detail_summary import (
+                SiteLanNetworkDetailSummaryError, project_site_lan_network_detail)
+        except ImportError:  # direct execution in the image
+            from site_lan_network_detail_summary import (
+                SiteLanNetworkDetailSummaryError, project_site_lan_network_detail)
+        try:
+            projected = project_site_lan_network_detail(result)
+        except SiteLanNetworkDetailSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_lan_network_detail_summary",
+                "site_ref": site_ref, "network_ref": network_ref, **projected}
+
+    @_track_capability("site_lan_network_config_summary")
+    def read_site_lan_network_config_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize LAN network purposes and feature flags without identities."""
+        site_id = self._resolve_site_ref(site_ref)
+        pages: list[object] = []
+        for page_number in range(1, 6):
+            path = self._SITE_LAN_NETWORKS_V3_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id)
+            path += f"?page={page_number}&pageSize=100"
+            result = self._request_json("GET", path,
+                                        token=self._access_token()).get("result")
+            pages.append(result)
+            if not isinstance(result, Mapping):
+                break
+            rows = result.get("data")
+            total = result.get("totalRows")
+            if type(total) is int and total >= 0 and page_number * 100 >= total:
+                break
+            if not isinstance(rows, list) or len(rows) < 100:
+                break
+        try:
+            from .site_lan_network_config_summary import (
+                SiteLanNetworkSummaryError, project_site_lan_networks,
+            )
+        except ImportError:  # direct execution in the image
+            from site_lan_network_config_summary import (
+                SiteLanNetworkSummaryError, project_site_lan_networks,
+            )
+        try:
+            projected = project_site_lan_networks(pages)
+        except SiteLanNetworkSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_lan_network_config_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_lan_network_inventory")
+    def read_site_lan_network_inventory(self, site_ref: str) -> dict[str, object]:
+        """Summarize all documented LAN networks without returning identities or addresses."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_LAN_NETWORK_INVENTORY_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_lan_network_inventory import (
+                LanNetworkInventoryError, summarize_lan_network_inventory)
+        except ImportError:  # direct execution in the image
+            from site_lan_network_inventory import (
+                LanNetworkInventoryError, summarize_lan_network_inventory)
+        try:
+            projected = summarize_lan_network_inventory(result, max_items=500)
+        except LanNetworkInventoryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_lan_network_inventory",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_internet_summary")
+    def read_site_internet_summary(self, site_ref: str) -> dict[str, object]:
+        """Read site Internet settings and return only safe counts and flags."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_INTERNET_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_internet_summary import (
+                SiteInternetSummaryError, project_site_internet)
+        except ImportError:  # direct execution in the image
+            from site_internet_summary import (
+                SiteInternetSummaryError, project_site_internet)
+        try:
+            projected = project_site_internet(result)
+        except SiteInternetSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_internet_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_internet_load_balance_summary")
+    def read_site_internet_load_balance_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize site Internet load-balance configuration without identifiers."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_INTERNET_LOAD_BALANCE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path,
+                                    token=self._access_token()).get("result")
+        try:
+            from .site_internet_load_balance_summary import (
+                SiteInternetLoadBalanceSummaryError,
+                project_site_internet_load_balance,
+            )
+        except ImportError:  # direct execution in the image
+            from site_internet_load_balance_summary import (
+                SiteInternetLoadBalanceSummaryError,
+                project_site_internet_load_balance,
+            )
+        try:
+            projected = project_site_internet_load_balance(result)
+        except SiteInternetLoadBalanceSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_internet_load_balance_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_internet_basic_port_summary")
+    def read_site_internet_basic_port_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize documented Internet port roles without names or identifiers."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_INTERNET_BASIC_INFO_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path,
+                                    token=self._access_token()).get("result")
+        try:
+            from .site_internet_basic_port_summary import (
+                SiteInternetBasicPortSummaryError, project_site_internet_basic_ports,
+            )
+        except ImportError:  # direct execution in the image
+            from site_internet_basic_port_summary import (
+                SiteInternetBasicPortSummaryError, project_site_internet_basic_ports,
+            )
+        try:
+            projected = project_site_internet_basic_ports(result)
+        except SiteInternetBasicPortSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_internet_basic_port_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_vpn_session_summary")
+    def read_site_vpn_session_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize at most 500 site VPN sessions without identities or addresses."""
+        site_id = self._resolve_site_ref(site_ref)
+        base_path = self._SITE_VPN_SESSION_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        token = self._access_token()
+        pages: list[object] = []
+        for page_number in range(1, 6):
+            path = f"{base_path}?page={page_number}&pageSize=100"
+            result = self._request_json("GET", path, token=token).get("result")
+            pages.append(result)
+            if not isinstance(result, dict):
+                break
+            rows = result.get("data")
+            total = result.get("totalRows")
+            if isinstance(total, int) and not isinstance(total, bool) and total >= 0:
+                if page_number * 100 >= total:
+                    break
+            if not isinstance(rows, list) or len(rows) < 100:
+                break
+        try:
+            from .site_vpn_session_summary import (
+                SiteVpnSessionError, project_site_vpn_sessions)
+        except ImportError:  # direct execution in the image
+            from site_vpn_session_summary import (
+                SiteVpnSessionError, project_site_vpn_sessions)
+        try:
+            projected = project_site_vpn_sessions(pages)
+        except SiteVpnSessionError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_vpn_session_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_dhcp_candidate_summary")
+    def read_site_dhcp_candidate_summary(self, site_ref: str) -> dict[str, object]:
+        """Count DHCP-capable network devices without returning device details."""
+        site_id = self._resolve_site_ref(site_ref)
+        base_path = self._SITE_DHCP_CANDIDATES_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        token = self._access_token()
+        pages: list[object] = []
+        for page_number in range(1, 6):
+            path = f"{base_path}?page={page_number}&pageSize=100"
+            result = self._request_json("GET", path, token=token).get("result")
+            pages.append(result)
+            if not isinstance(result, dict):
+                break
+            rows = result.get("data")
+            total = result.get("totalRows")
+            if isinstance(total, int) and not isinstance(total, bool) and total >= 0:
+                if page_number * 100 >= total:
+                    break
+            if not isinstance(rows, list) or len(rows) < 100:
+                break
+        try:
+            from .site_dhcp_server_candidates import (
+                SiteDhcpCandidatesError, project_site_dhcp_candidates)
+        except ImportError:  # direct execution in the image
+            from site_dhcp_server_candidates import (
+                SiteDhcpCandidatesError, project_site_dhcp_candidates)
+        try:
+            projected = project_site_dhcp_candidates(pages)
+        except SiteDhcpCandidatesError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_dhcp_candidate_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_network_reservation_summary")
+    def read_site_network_reservation_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize reservable networks and DHCP settings without identities/ranges."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_NETWORK_RESERVATION_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_network_reservation_summary import (
+                SiteNetworkReservationError, project_site_network_reservations)
+        except ImportError:  # direct execution in the image
+            from site_network_reservation_summary import (
+                SiteNetworkReservationError, project_site_network_reservations)
+        try:
+            projected = project_site_network_reservations(result)
+        except SiteNetworkReservationError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_network_reservation_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_dhcp_reservation_summary")
+    def read_site_dhcp_reservation_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize DHCP reservation rows without returning row identities."""
+        site_id = self._resolve_site_ref(site_ref)
+        pages: list[object] = []
+        for page_number in range(1, 6):
+            path = self._SITE_DHCP_RESERVATIONS_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id)
+            path += f"?page={page_number}&pageSize=100"
+            result = self._request_json("GET", path, token=self._access_token()).get("result")
+            pages.append(result)
+            if not isinstance(result, Mapping):
+                break
+            rows = result.get("data")
+            total = result.get("totalRows")
+            if type(total) is int and total >= 0 and page_number * 100 >= total:
+                break
+            if not isinstance(rows, list) or len(rows) < 100:
+                break
+        try:
+            from .site_dhcp_reservation_summary import (
+                SiteDhcpReservationError, project_site_dhcp_reservations)
+        except ImportError:  # direct execution in the image
+            from site_dhcp_reservation_summary import (
+                SiteDhcpReservationError, project_site_dhcp_reservations)
+        try:
+            projected = project_site_dhcp_reservations(pages)
+        except SiteDhcpReservationError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_dhcp_reservation_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_dhcp_snooping_status")
+    def read_site_dhcp_snooping_status(self, site_ref: str) -> dict[str, object]:
+        """Read the site's DHCP snooping enable flag."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_DHCP_SNOOP_STATUS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_dhcp_snooping_status import (
+                SiteDhcpSnoopingStatusError, project_site_dhcp_snooping_status)
+        except ImportError:  # direct execution in the image
+            from site_dhcp_snooping_status import (
+                SiteDhcpSnoopingStatusError, project_site_dhcp_snooping_status)
+        try:
+            projected = project_site_dhcp_snooping_status(result)
+        except SiteDhcpSnoopingStatusError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_dhcp_snooping_status",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_dhcp_snoops_summary")
+    def read_site_dhcp_snoops_summary(self, site_ref: str) -> dict[str, object]:
+        """Count DHCP snooping device types and status codes without identities."""
+        site_id = self._resolve_site_ref(site_ref)
+        pages: list[object] = []
+        for page_number in range(1, 6):
+            path = self._SITE_DHCP_SNOOPS_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id)
+            path += f"?page={page_number}&pageSize=100"
+            result = self._request_json("GET", path, token=self._access_token()).get("result")
+            pages.append(result)
+            if not isinstance(result, Mapping):
+                break
+            rows = result.get("data")
+            total = result.get("totalRows")
+            if type(total) is int and total >= 0 and page_number * 100 >= total:
+                break
+            if not isinstance(rows, list) or len(rows) < 100:
+                break
+        try:
+            from .site_dhcp_snoops_summary import (
+                SiteDhcpSnoopsError, project_site_dhcp_snoops)
+        except ImportError:  # direct execution in the image
+            from site_dhcp_snoops_summary import (
+                SiteDhcpSnoopsError, project_site_dhcp_snoops)
+        try:
+            projected = project_site_dhcp_snoops(pages)
+        except SiteDhcpSnoopsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_dhcp_snoops_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_mdns_rule_summary")
+    def read_site_mdns_rule_summary(self, site_ref: str) -> dict[str, object]:
+        """Count mDNS rule state and type codes without profile/network details."""
+        site_id = self._resolve_site_ref(site_ref)
+        pages: list[object] = []
+        for page_number in range(1, 6):
+            path = self._SITE_MDNS_RULES_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id)
+            path += f"?page={page_number}&pageSize=100"
+            result = self._request_json("GET", path, token=self._access_token()).get("result")
+            pages.append(result)
+            if not isinstance(result, Mapping):
+                break
+            rows = result.get("data")
+            total = result.get("totalRows")
+            if type(total) is int and total >= 0 and page_number * 100 >= total:
+                break
+            if not isinstance(rows, list) or len(rows) < 100:
+                break
+        try:
+            from .site_mdns_rule_summary import SiteMdnsRuleError, project_site_mdns_rules
+        except ImportError:  # direct execution in the image
+            from site_mdns_rule_summary import SiteMdnsRuleError, project_site_mdns_rules
+        try:
+            projected = project_site_mdns_rules(pages)
+        except SiteMdnsRuleError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_mdns_rule_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_ddns_summary")
+    def read_site_ddns_summary(self, site_ref: str) -> dict[str, object]:
+        """Count Dynamic DNS services without returning credentials or domains."""
+        site_id = self._resolve_site_ref(site_ref)
+        pages: list[object] = []
+        for page_number in range(1, 6):
+            path = self._SITE_DDNS_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id)
+            path += f"?page={page_number}&pageSize=100"
+            result = self._request_json("GET", path, token=self._access_token()).get("result")
+            pages.append(result)
+            if not isinstance(result, Mapping):
+                break
+            rows = result.get("data")
+            total = result.get("totalRows")
+            if type(total) is int and total >= 0 and page_number * 100 >= total:
+                break
+            if not isinstance(rows, list) or len(rows) < 100:
+                break
+        try:
+            from .site_ddns_summary import SiteDdnsError, project_site_ddns
+        except ImportError:  # direct execution in the image
+            from site_ddns_summary import SiteDdnsError, project_site_ddns
+        try:
+            projected = project_site_ddns(pages)
+        except SiteDdnsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_ddns_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("controller_gateway_wan_status_summary")
+    def read_controller_gateway_wan_status_summary(
+            self, page_number: int, page_size: int) -> dict[str, object]:
+        """Summarize one bounded page of global gateway WAN diagnostics."""
+        if type(page_number) is not int or not 0 <= page_number <= 10_000 or \
+                type(page_size) is not int or not 1 <= page_size <= 100:
+            raise OpenApiError("request_parameters_invalid")
+        path = self._CONTROLLER_GATEWAY_WAN_STATUS_PATH.format(
+            controller_id=self.config.controller_id)
+        path += f"?page={page_number + 1}&pageSize={page_size}"
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .controller_gateway_wan_status_summary import (
+                ControllerGatewayWanStatusSummaryError,
+                project_controller_gateway_wan_status_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from controller_gateway_wan_status_summary import (
+                ControllerGatewayWanStatusSummaryError,
+                project_controller_gateway_wan_status_summary,
+            )
+        try:
+            projected = project_controller_gateway_wan_status_summary(
+                result, requested_page_size=page_size)
+        except ControllerGatewayWanStatusSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "controller_gateway_wan_status_summary",
+                "page_number": page_number, "page_size": page_size, **projected}
+
+    @_track_capability("site_specific_app_traffic_summary")
+    def read_site_specific_app_traffic_summary(self, site_ref: str,
+                                               application_id: str) -> dict[str, object]:
+        """Aggregate per-client traffic for one app over the trailing day."""
+        if not isinstance(application_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", application_id):
+            raise OpenApiError("application_id_invalid")
+        site_id = self._resolve_site_ref(site_ref)
+        end = int(datetime.now(timezone.utc).timestamp())
+        start = end - 86_400
+        path = self._SITE_SPECIFIC_APP_INFO_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id,
+            application_id=application_id)
+        path += f"?start={start}&end={end}"
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_specific_app_traffic_summary import (
+                SiteSpecificAppTrafficSummaryError, project_site_specific_app_traffic_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_specific_app_traffic_summary import (
+                SiteSpecificAppTrafficSummaryError, project_site_specific_app_traffic_summary,
+            )
+        try:
+            projected = project_site_specific_app_traffic_summary(result)
+        except SiteSpecificAppTrafficSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_specific_app_traffic_summary",
+                "site_ref": site_ref, "application_id": application_id, **projected}
+
+    @_track_capability("site_hotspot_statistics_summary")
+    def read_site_hotspot_statistics_summary(self, site_ref: str) -> dict[str, object]:
+        """Read compact hotspot authentication counts for a fixed trailing day."""
+        site_id = self._resolve_site_ref(site_ref)
+        end = int(datetime.now(timezone.utc).timestamp())
+        start = end - 86_400
+        path = self._SITE_HOTSPOT_STATISTICS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        path += f"?start={start}&end={end}"
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_hotspot_statistics_summary import (
+                SiteHotspotStatisticsSummaryError,
+                project_site_hotspot_statistics_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_hotspot_statistics_summary import (
+                SiteHotspotStatisticsSummaryError,
+                project_site_hotspot_statistics_summary,
+            )
+        try:
+            projected = project_site_hotspot_statistics_summary(result)
+        except SiteHotspotStatisticsSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_hotspot_statistics_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_active_switch_summary")
+    def read_site_active_switch_summary(self, site_ref: str) -> dict[str, object]:
+        """Read switch activity over a fixed trailing day as aggregate traffic only."""
+        return self._read_site_active_device_summary(
+            site_ref, self._SITE_ACTIVE_SWITCH_PATH, "site_active_switch_summary")
+
+    def _read_site_active_device_summary(
+            self, site_ref: str, route: str, resource: str) -> dict[str, object]:
+        site_id = self._resolve_site_ref(site_ref)
+        end = int(datetime.now(timezone.utc).timestamp())
+        start = end - 86_400
+        path = route.format(controller_id=self.config.controller_id, site_id=site_id)
+        path += f"?start={start}&end={end}"
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_active_device_summary import (
+                SiteActiveDeviceSummaryError, project_site_active_device_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_active_device_summary import (
+                SiteActiveDeviceSummaryError, project_site_active_device_summary,
+            )
+        try:
+            projected = project_site_active_device_summary(result)
+        except SiteActiveDeviceSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": resource,
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_device_memory_summary")
+    def read_site_device_memory_summary(self, site_ref: str) -> dict[str, object]:
+        """Read top memory-use percentages over a fixed trailing day only."""
+        site_id = self._resolve_site_ref(site_ref)
+        end = int(datetime.now(timezone.utc).timestamp())
+        start = end - 86_400
+        path = self._SITE_DEVICE_MEMORY_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        path += f"?start={start}&end={end}"
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_device_memory_summary import (
+                SiteDeviceMemorySummaryError, project_site_device_memory_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_device_memory_summary import (
+                SiteDeviceMemorySummaryError, project_site_device_memory_summary,
+            )
+        try:
+            projected = project_site_device_memory_summary(result)
+        except SiteDeviceMemorySummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_device_memory_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_switch_dashboard_summary")
+    def read_site_switch_dashboard_summary(self, site_ref: str) -> dict[str, object]:
+        """Read wired-client, switch, port and traffic totals for a fixed day."""
+        site_id = self._resolve_site_ref(site_ref)
+        end = int(datetime.now(timezone.utc).timestamp())
+        start = end - 86_400
+        path = self._SITE_SWITCH_DASHBOARD_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        path += f"?start={start}&end={end}"
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_switch_dashboard_summary import (
+                SiteSwitchDashboardSummaryError,
+                project_site_switch_dashboard_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_switch_dashboard_summary import (
+                SiteSwitchDashboardSummaryError,
+                project_site_switch_dashboard_summary,
+            )
+        try:
+            projected = project_site_switch_dashboard_summary(result)
+        except SiteSwitchDashboardSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_switch_dashboard_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_ap_interference_summary")
+    def read_site_ap_interference_summary(self, site_ref: str) -> dict[str, object]:
+        """Read the documented top-interference lists as bounded band aggregates."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_AP_INTERFERENCE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_ap_interference_summary import (
+                SiteApInterferenceSummaryError, project_site_ap_interference_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_ap_interference_summary import (
+                SiteApInterferenceSummaryError, project_site_ap_interference_summary,
+            )
+        try:
+            projected = project_site_ap_interference_summary(result)
+        except SiteApInterferenceSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_ap_interference_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_application_category_summary")
+    def read_site_application_category_summary(self, site_ref: str) -> dict[str, object]:
+        """Read a bounded first category page for a fixed trailing day."""
+        site_id = self._resolve_site_ref(site_ref)
+        end = int(datetime.now(timezone.utc).timestamp())
+        start = end - 86_400
+        path = self._SITE_APPLICATION_CATEGORY_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        path += f"?start={start}&end={end}&page=1&pageSize=100"
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_application_category_summary import (
+                SiteApplicationCategorySummaryError,
+                project_site_application_category_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_application_category_summary import (
+                SiteApplicationCategorySummaryError,
+                project_site_application_category_summary,
+            )
+        try:
+            projected = project_site_application_category_summary(result)
+        except SiteApplicationCategorySummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_application_category_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_category_application_summary")
+    def read_site_category_application_summary(
+            self, site_ref: str, family_id: str) -> dict[str, object]:
+        """Read redacted application totals for one documented category ID."""
+        if (not isinstance(family_id, str) or
+                not re.fullmatch(r"(?:0|[1-9][0-9]{0,9})", family_id) or
+                int(family_id) > (1 << 31) - 1):
+            raise OpenApiError("category_id_invalid")
+        site_id = self._resolve_site_ref(site_ref)
+        end = int(datetime.now(timezone.utc).timestamp())
+        start = end - 86_400
+        path = self._SITE_CATEGORY_APPLICATION_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id,
+            family_id=family_id)
+        path += f"?start={start}&end={end}"
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_category_application_summary import (
+                SiteCategoryApplicationSummaryError,
+                project_site_category_application_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_category_application_summary import (
+                SiteCategoryApplicationSummaryError,
+                project_site_category_application_summary,
+            )
+        try:
+            projected = project_site_category_application_summary(result)
+        except SiteCategoryApplicationSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_category_application_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_category_client_summary")
+    def read_site_category_client_summary(
+            self, site_ref: str, family_id: str) -> dict[str, object]:
+        """Read redacted client traffic totals for one documented category ID."""
+        if (not isinstance(family_id, str) or
+                not re.fullmatch(r"(?:0|[1-9][0-9]{0,9})", family_id) or
+                int(family_id) > (1 << 31) - 1):
+            raise OpenApiError("category_id_invalid")
+        site_id = self._resolve_site_ref(site_ref)
+        end = int(datetime.now(timezone.utc).timestamp())
+        start = end - 86_400
+        path = self._SITE_CATEGORY_CLIENT_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id,
+            family_id=family_id)
+        path += f"?start={start}&end={end}"
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_category_client_summary import (
+                SiteCategoryClientSummaryError, project_site_category_client_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_category_client_summary import (
+                SiteCategoryClientSummaryError, project_site_category_client_summary,
+            )
+        try:
+            projected = project_site_category_client_summary(result)
+        except SiteCategoryClientSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_category_client_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_active_application_summary")
+    def read_site_active_application_summary(self, site_ref: str) -> dict[str, object]:
+        """Read redacted totals from the most-active application dashboard."""
+        site_id = self._resolve_site_ref(site_ref)
+        end = int(datetime.now(timezone.utc).timestamp())
+        start = end - 86_400
+        path = self._SITE_ACTIVE_APPLICATION_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        path += f"?start={start}&end={end}"
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_active_application_summary import (
+                SiteActiveApplicationSummaryError, project_site_active_application_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_active_application_summary import (
+                SiteActiveApplicationSummaryError, project_site_active_application_summary,
+            )
+        try:
+            projected = project_site_active_application_summary(result)
+        except SiteActiveApplicationSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_active_application_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_active_client_summary")
+    def read_site_active_client_summary(self, site_ref: str) -> dict[str, object]:
+        """Read client counts and traffic totals without client identity fields."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_ACTIVE_CLIENT_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_active_client_summary import (
+                SiteActiveClientSummaryError, project_site_active_client_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_active_client_summary import (
+                SiteActiveClientSummaryError, project_site_active_client_summary,
+            )
+        try:
+            projected = project_site_active_client_summary(result)
+        except SiteActiveClientSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_active_client_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_cpu_usage_summary")
+    def read_site_cpu_usage_summary(self, site_ref: str) -> dict[str, object]:
+        """Read redacted CPU utilization aggregates for the busiest devices."""
+        site_id = self._resolve_site_ref(site_ref)
+        end = int(datetime.now(timezone.utc).timestamp())
+        start = end - 86_400
+        path = self._SITE_CPU_USAGE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        path += f"?start={start}&end={end}"
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_cpu_usage_summary import (
+                SiteCpuUsageSummaryError, project_site_cpu_usage_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_cpu_usage_summary import (
+                SiteCpuUsageSummaryError, project_site_cpu_usage_summary,
+            )
+        try:
+            projected = project_site_cpu_usage_summary(result)
+        except SiteCpuUsageSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_cpu_usage_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_client_bubble_summary")
+    def read_site_client_bubble_summary(self, site_ref: str) -> dict[str, object]:
+        """Read client traffic and radio aggregates without client identity."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_CLIENT_BUBBLE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_client_bubble_summary import (
+                SiteClientBubbleSummaryError, project_site_client_bubble_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_client_bubble_summary import (
+                SiteClientBubbleSummaryError, project_site_client_bubble_summary,
+            )
+        try:
+            projected = project_site_client_bubble_summary(result)
+        except SiteClientBubbleSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_client_bubble_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_traffic_activity_summary")
+    def read_site_traffic_activity_summary(self, site_ref: str) -> dict[str, object]:
+        """Read compact AP and switch traffic sample summaries."""
+        site_id = self._resolve_site_ref(site_ref)
+        end = int(datetime.now(timezone.utc).timestamp())
+        start = end - 86_400
+        path = self._SITE_TRAFFIC_ACTIVITY_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        path += f"?start={start}&end={end}"
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_traffic_activity_summary import (
+                SiteTrafficActivitySummaryError, project_site_traffic_activity_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_traffic_activity_summary import (
+                SiteTrafficActivitySummaryError, project_site_traffic_activity_summary,
+            )
+        try:
+            projected = project_site_traffic_activity_summary(result)
+        except SiteTrafficActivitySummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_traffic_activity_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_isp_load_summary")
+    def read_site_isp_load_summary(self, site_ref: str) -> dict[str, object]:
+        """Read compact WAN rate and latency aggregates without port identity."""
+        site_id = self._resolve_site_ref(site_ref)
+        end = int(datetime.now(timezone.utc).timestamp())
+        start = end - 86_400
+        path = self._SITE_ISP_LOAD_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        path += f"?start={start}&end={end}"
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_isp_load_summary import (
+                SiteIspLoadSummaryError, project_site_isp_load_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_isp_load_summary import (
+                SiteIspLoadSummaryError, project_site_isp_load_summary,
+            )
+        try:
+            projected = project_site_isp_load_summary(result)
+        except SiteIspLoadSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_isp_load_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_vpn_tunnel_summary")
+    def read_site_vpn_tunnel_summary(self, site_ref: str,
+                                    vpn_type: int) -> dict[str, object]:
+        """Read VPN tunnel status and byte aggregates without tunnel names."""
+        if type(vpn_type) is not int or vpn_type not in (0, 1):
+            raise OpenApiError("request_invalid")
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_VPN_TUNNEL_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        path += f"?type={vpn_type}"
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_vpn_tunnel_summary import (
+                SiteVpnTunnelSummaryError, project_site_vpn_tunnel_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_vpn_tunnel_summary import (
+                SiteVpnTunnelSummaryError, project_site_vpn_tunnel_summary,
+            )
+        try:
+            projected = project_site_vpn_tunnel_summary(result, vpn_type)
+        except SiteVpnTunnelSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_vpn_tunnel_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_open_vpn_tunnel_summary")
+    def read_site_open_vpn_tunnel_summary(self, site_ref: str,
+                                          vpn_type: int) -> dict[str, object]:
+        """Read OpenVPN tunnel status and byte aggregates without tunnel names."""
+        if type(vpn_type) is not int or vpn_type not in (0, 1):
+            raise OpenApiError("request_invalid")
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_OPEN_VPN_TUNNEL_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        path += f"?type={vpn_type}"
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_vpn_tunnel_summary import (
+                SiteVpnTunnelSummaryError, project_site_vpn_tunnel_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_vpn_tunnel_summary import (
+                SiteVpnTunnelSummaryError, project_site_vpn_tunnel_summary,
+            )
+        try:
+            projected = project_site_vpn_tunnel_summary(result, vpn_type)
+        except SiteVpnTunnelSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_open_vpn_tunnel_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_client_activity_summary")
+    def read_site_client_activity_summary(self, site_ref: str) -> dict[str, object]:
+        """Read bounded, identity-free client activity aggregates for one day."""
+        site_id = self._resolve_site_ref(site_ref)
+        end = int(datetime.now(timezone.utc).timestamp())
+        start = end - 86_400
+        path = self._SITE_CLIENT_ACTIVITY_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        path += f"?start={start}&end={end}"
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_client_activity_summary import (
+                SiteClientActivitySummaryError, project_site_client_activity_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_client_activity_summary import (
+                SiteClientActivitySummaryError, project_site_client_activity_summary,
+            )
+        try:
+            projected = project_site_client_activity_summary(result)
+        except SiteClientActivitySummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_client_activity_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_client_association_activity_summary")
+    def read_site_client_association_activity_summary(
+            self, site_ref: str) -> dict[str, object]:
+        """Read redacted wired and wireless client counts for one day."""
+        site_id = self._resolve_site_ref(site_ref)
+        end = int(datetime.now(timezone.utc).timestamp())
+        start = end - 86_400
+        path = self._SITE_CLIENT_ASSOCIATION_ACTIVITY_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        path += f"?start={start}&end={end}"
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_client_association_activity_summary import (
+                SiteClientAssociationActivitySummaryError,
+                project_site_client_association_activity_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_client_association_activity_summary import (
+                SiteClientAssociationActivitySummaryError,
+                project_site_client_association_activity_summary,
+            )
+        try:
+            projected = project_site_client_association_activity_summary(result)
+        except SiteClientAssociationActivitySummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_client_association_activity_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_client_traffic_summary")
+    def read_site_client_traffic_summary(self, site_ref: str, page_number: int,
+                                         page_size: int) -> dict[str, object]:
+        """Read one bounded page of client traffic as identity-free aggregates."""
+        if (type(page_number) is not int or not 0 <= page_number <= 10_000 or
+                type(page_size) is not int or not 1 <= page_size <= 100):
+            raise OpenApiError("request_invalid")
+        site_id = self._resolve_site_ref(site_ref)
+        end = int(datetime.now(timezone.utc).timestamp())
+        start = end - 86_400
+        path = self._SITE_CLIENT_TRAFFIC_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        path += f"?start={start}&end={end}&page={page_number}&pageSize={page_size}"
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_client_traffic_summary import (
+                SiteClientTrafficSummaryError, project_site_client_traffic_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_client_traffic_summary import (
+                SiteClientTrafficSummaryError, project_site_client_traffic_summary,
+            )
+        try:
+            projected = project_site_client_traffic_summary(result, page_number, page_size)
+        except SiteClientTrafficSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_client_traffic_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_switch_qos_mode")
+    def read_site_switch_qos_mode(self, site_ref: str) -> dict[str, object]:
+        """Read the documented switch QoS mode and transition state only."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_SWITCH_QOS_MODE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .switch_qos_mode import SwitchQosModeError, project_switch_qos_mode
+        except ImportError:  # direct execution in the image
+            from switch_qos_mode import SwitchQosModeError, project_switch_qos_mode
+        try:
+            projected = project_switch_qos_mode(result)
+        except SwitchQosModeError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_switch_qos_mode",
+                "site_ref": site_ref, **projected}
+
+    def _read_site_switch_qos_mapping(self, operation: str, site_ref: str,
+                                      path_template: str, projector_name: str) -> dict[str, object]:
+        site_id = self._resolve_site_ref(site_ref)
+        path = path_template.format(controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from . import switch_qos_mapping as projector
+        except ImportError:  # direct execution in the image
+            import switch_qos_mapping as projector
+        try:
+            projected = getattr(projector, projector_name)(result)
+        except projector.SwitchQosMappingError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": operation,
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_switch_qos_scheduler_summary")
+    def read_site_switch_qos_scheduler_summary(self, site_ref: str) -> dict[str, object]:
+        return self._read_site_switch_qos_mapping(
+            "site_switch_qos_scheduler_summary", site_ref,
+            self._SITE_SWITCH_QOS_SCHEDULER_PATH, "project_scheduler_mapping")
+
+    @_track_capability("site_switch_qos_dscp_summary")
+    def read_site_switch_qos_dscp_summary(self, site_ref: str) -> dict[str, object]:
+        return self._read_site_switch_qos_mapping(
+            "site_switch_qos_dscp_summary", site_ref,
+            self._SITE_SWITCH_QOS_DSCP_PATH, "project_dscp_mapping")
+
+    @_track_capability("site_gre_tunnel_summary")
+    def read_site_gre_tunnel_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize EoGRE tunnel state without exposing endpoint addresses."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_GRE_TUNNEL_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = summarize_site_gre_tunnel(result)
+        except SiteGreTunnelSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_gre_tunnel_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_ssl_vpn_summary")
+    def read_site_ssl_vpn_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize the deprecated SSL VPN setting without returning network/auth data."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_SSL_VPN_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = summarize_site_ssl_vpn(result)
+        except SiteSslVpnSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_ssl_vpn_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_ssh_summary")
+    def read_site_ssh_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize site SSH exposure settings without initiating a connection."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_SSH_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = summarize_site_ssh(result)
+        except SiteSshSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_ssh_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_mld_summary")
+    def read_site_mld_summary(self, site_ref: str) -> dict[str, object]:
+        """Read site MLD status without exposing its WAN port identifier."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_MLD_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = summarize_site_mld(result)
+        except SiteMldSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_mld_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_template_upnp_summary")
+    def read_site_template_upnp_summary(self, site_template_ref: str) -> dict[str, object]:
+        """Read redacted UPnP settings for a CBC template from its inventory ref."""
+        if not isinstance(site_template_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_template_ref):
+            raise OpenApiError("site_template_ref_invalid")
+        template_id = self._site_template_ids_by_ref.get(site_template_ref, "")
+        if not template_id:
+            raise OpenApiError("site_template_ref_unknown")
+        path = self._SITE_TEMPLATE_UPNP_PATH.format(
+            controller_id=self.config.controller_id, site_template_id=template_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = summarize_site_upnp(result)
+        except SiteUpnpSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_template_upnp_summary",
+                "site_template_ref": site_template_ref, **projected}
+
+    @_track_capability("site_template_igmp_summary")
+    def read_site_template_igmp_summary(self, site_template_ref: str) -> dict[str, object]:
+        """Read redacted IGMP settings for a template from the site-template inventory."""
+        if not isinstance(site_template_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_template_ref):
+            raise OpenApiError("site_template_ref_invalid")
+        template_id = self._site_template_ids_by_ref.get(site_template_ref, "")
+        if not template_id:
+            raise OpenApiError("site_template_ref_unknown")
+        path = self._SITE_TEMPLATE_IGMP_PATH.format(
+            controller_id=self.config.controller_id, site_template_id=template_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = summarize_site_template_igmp(result)
+        except SiteIgmpSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_template_igmp_summary",
+                "site_template_ref": site_template_ref, **projected}
+
+    @_track_capability("site_template_ssh_summary")
+    def read_site_template_ssh_summary(self, site_template_ref: str) -> dict[str, object]:
+        """Read SSH template settings without connecting to the SSH service."""
+        if not isinstance(site_template_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_template_ref):
+            raise OpenApiError("site_template_ref_invalid")
+        template_id = self._site_template_ids_by_ref.get(site_template_ref, "")
+        if not template_id:
+            raise OpenApiError("site_template_ref_unknown")
+        path = self._SITE_TEMPLATE_SSH_PATH.format(
+            controller_id=self.config.controller_id, site_template_id=template_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = summarize_site_ssh(result)
+        except SiteSshSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_template_ssh_summary",
+                "site_template_ref": site_template_ref, **projected}
+
+    @_track_capability("site_template_iptv_summary")
+    def read_site_template_iptv_summary(self, site_template_ref: str) -> dict[str, object]:
+        """Read redacted IPTV settings for a CBC site template."""
+        if not isinstance(site_template_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_template_ref):
+            raise OpenApiError("site_template_ref_invalid")
+        template_id = self._site_template_ids_by_ref.get(site_template_ref, "")
+        if not template_id:
+            raise OpenApiError("site_template_ref_unknown")
+        path = self._SITE_TEMPLATE_IPTV_PATH.format(
+            controller_id=self.config.controller_id, site_template_id=template_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = summarize_site_iptv(result)
+        except SiteIptvSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_template_iptv_summary",
+                "site_template_ref": site_template_ref, **projected}
+
+    @_track_capability("site_template_iptv_settings_summary")
+    def read_site_template_iptv_settings_summary(self, site_template_ref: str) -> dict[str, object]:
+        """Read combined CBC template IPTV and IGMP settings in one request."""
+        if not isinstance(site_template_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_template_ref):
+            raise OpenApiError("site_template_ref_invalid")
+        template_id = self._site_template_ids_by_ref.get(site_template_ref, "")
+        if not template_id:
+            raise OpenApiError("site_template_ref_unknown")
+        path = self._SITE_TEMPLATE_IPTV_SERVICE_PATH.format(
+            controller_id=self.config.controller_id, site_template_id=template_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = summarize_site_template_iptv_service(result)
+        except SiteTemplateIptvServiceSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_template_iptv_settings_summary",
+                "site_template_ref": site_template_ref, **projected}
+
+    @_track_capability("site_igmp_summary")
+    def read_site_igmp_summary(self, site_ref: str) -> dict[str, object]:
+        """Read redacted IGMP enablement and WAN selection state."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_IGMP_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = summarize_site_igmp(result)
+        except SiteIgmpSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_igmp_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_iptv_summary")
+    def read_site_iptv_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize IPTV mode and port types without exposing IDs or VLAN values."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_IPTV_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = summarize_site_iptv(result)
+        except SiteIptvSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_iptv_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_device_tag_summary")
+    def read_site_device_tag_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize site tag presence without returning tag IDs or names."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_DEVICE_TAGS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = summarize_device_tags(result)
+        except DeviceTagSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_device_tag_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("controller_client_active_timeout")
+    def read_controller_client_active_timeout(self) -> dict[str, object]:
+        """Read the documented controller client active-timeout value."""
+        path = self._CONTROLLER_CLIENT_ACTIVE_TIMEOUT_PATH.format(
+            controller_id=self.config.controller_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_controller_client_active_timeout(result)
+        except ControllerClientActiveTimeoutError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "controller_client_active_timeout", **projected}
+
+    @_track_capability("controller_device_statistics")
+    def read_controller_device_statistics(self) -> dict[str, object]:
+        """Read bounded controller-wide device and health counters."""
+        path = self._CONTROLLER_DEVICE_STATISTICS_PATH.format(
+            controller_id=self.config.controller_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_controller_device_statistics(result)
+        except ControllerDeviceStatisticsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "controller_device_statistics", **projected}
+
+    @_track_capability("controller_client_recognition")
+    def read_controller_client_recognition(self) -> dict[str, object]:
+        """Read the documented controller-wide client-recognition state."""
+        path = self._CONTROLLER_CLIENT_RECOGNITION_PATH.format(
+            controller_id=self.config.controller_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_controller_client_recognition(result)
+        except ControllerClientRecognitionError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "controller_client_recognition", **projected}
+
+    @_track_capability("controller_health")
+    def read_controller_health(self) -> dict[str, object]:
+        path = self._CONTROLLER_HEALTH_PATH.format(controller_id=self.config.controller_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        if not isinstance(result, dict):
+            raise OpenApiError("openapi_response_invalid")
+        counts = {
+            "gateways_total": "totalGatewayNum", "gateways_connected": "connectedGatewayNum",
+            "gateways_disconnected": "disconnectedGatewayNum", "switches_total": "totalSwitchNum",
+            "switches_connected": "connectedSwitchNum", "switches_disconnected": "disconnectedSwitchNum",
+            "aps_total": "totalApNum", "aps_connected": "connectedApNum", "aps_isolated": "isolatedApNum",
+            "aps_disconnected": "disconnectedApNum", "clients_total": "totalClientNum",
+            "clients_wired": "wiredClientNum", "clients_wireless": "wirelessClientNum",
+            "clients_guest": "guestNum", "sites_total": "siteNum",
+            "devices_connected_total": "totalConnectedNum", "gateways_preconfigured": "preConfigOsgNum",
+            "switches_preconfigured": "preConfigOswNum", "aps_preconfigured": "preConfigApNum",
+        }
+        data: dict[str, object] = {}
+        for target, source in counts.items():
+            if source in result and result[source] is not None:
+                value = result[source]
+                if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 1_000_000_000:
+                    raise OpenApiError("openapi_response_invalid")
+                data[target] = value
+        if "cloudAccessStatus" in result and result["cloudAccessStatus"] is not None:
+            status = result["cloudAccessStatus"]
+            if isinstance(status, bool) or not isinstance(status, int) or status not in {-1, 0, 1}:
+                raise OpenApiError("openapi_response_invalid")
+            data["cloud_access"] = {-1: "disabled", 0: "disconnected", 1: "connected"}[status]
+        return {"status": "ok", "resource": "controller_health",
+                "controller_ref": self._opaque_ref("controller", self.config.controller_id), "data": data}
+
+    @_track_capability("controller_scenarios")
+    def read_controller_scenarios(self) -> dict[str, object]:
+        path = self._CONTROLLER_SCENARIOS_PATH.format(controller_id=self.config.controller_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        if not isinstance(result, list):
+            raise OpenApiError("openapi_response_invalid")
+        items: list[str] = []
+        invalid_count = 0
+        for value in result[:100]:
+            if (not isinstance(value, str) or not 1 <= len(value) <= 256 or
+                    any(ord(char) < 32 or ord(char) == 127 for char in value)):
+                invalid_count += 1
+                continue
+            items.append(value)
+        partial = len(result) > 100 or invalid_count > 0
+        return {"status": "ok", "resource": "controller_scenarios",
+                "scenario_count": len(result), "items": items,
+                "partial": partial}
+
+    @_track_capability("controller_scenario_differences")
+    def read_controller_scenario_differences(self) -> dict[str, object]:
+        path = self._CONTROLLER_SCENARIO_DIFFERENCE_PATH.format(
+            controller_id=self.config.controller_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            return summarize_scenario_differences(result, max_items=100)
+        except ScenarioDifferenceError:
+            raise OpenApiError("openapi_response_invalid") from None
+
+    @_track_capability("controller_threat_severity_summary")
+    def read_controller_threat_severity_summary(self, start_ms: int,
+                                                end_ms: int) -> dict[str, object]:
+        if (type(start_ms) is not int or type(end_ms) is not int or
+                not 946684800000 <= start_ms <= end_ms <= 4102444800000 or
+                end_ms - start_ms > 86_400_000 or end_ms > int(time.time() * 1000) + 60_000):
+            raise OpenApiError("threat_time_window_invalid")
+        path = self._CONTROLLER_THREAT_SEVERITY_PATH.format(
+            controller_id=self.config.controller_id)
+        path += "?" + urlencode({"startTime": start_ms, "endTime": end_ms})
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        if not isinstance(result, dict):
+            raise OpenApiError("openapi_response_invalid")
+        counts: dict[str, int | None] = {}
+        for severity in ("critical", "major", "moderate", "minor", "low"):
+            value = result.get(severity)
+            if severity not in result or value is None:
+                counts[severity] = None
+                continue
+            if type(value) is not int or not 0 <= value <= (1 << 63) - 1:
+                raise OpenApiError("openapi_response_invalid")
+            counts[severity] = value
+        return {"status": "ok", "resource": "controller_threat_severity_summary",
+                "counts": counts, "partial": any(v is None for v in counts.values())}
+
+    @classmethod
+    def _controller_threat_severity_request_valid(cls, path: str) -> bool:
+        if not cls._CONTROLLER_THREAT_SEVERITY_REQUEST.fullmatch(path):
+            return False
+        parsed = urlsplit(path)
+        try:
+            query = parse_qs(parsed.query, keep_blank_values=True, strict_parsing=True)
+            if set(query) != {"startTime", "endTime"} or any(len(v) != 1 for v in query.values()):
+                return False
+            start_ms, end_ms = int(query["startTime"][0]), int(query["endTime"][0])
+        except (ValueError, TypeError):
+            return False
+        return (parsed.path.endswith("/security/threat-management/severity") and
+                946684800000 <= start_ms <= end_ms <= 4102444800000 and
+                end_ms - start_ms <= 86_400_000)
+
+    def read_site_threat_window_summary(self, site_ref: str, start_ms: int,
+                                        end_ms: int, archived: bool = False
+                                        ) -> dict[str, object]:
+        if (type(start_ms) is not int or type(end_ms) is not int or
+                not 946684800000 <= start_ms <= end_ms <= 4102444800000 or
+                end_ms - start_ms > 86_400_000 or
+                end_ms > int(time.time() * 1000) + 60_000 or
+                type(archived) is not bool):
+            raise OpenApiError("threat_time_window_invalid")
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+
+        start_s, end_s = start_ms // 1000, end_ms // 1000
+        token = self._access_token()
+        page = 1
+        max_pages = 10
+        max_items = max_pages * 1000
+        rows: list[object] = []
+        total_rows: int | None = None
+        while page <= max_pages:
+            query = urlencode({
+                "siteList": site_id,
+                "archived": str(archived).lower(),
+                "page": page,
+                "pageSize": 1000,
+                "filters.startTime": start_s,
+                "filters.endTime": end_s,
+            })
+            path = self._SITE_THREAT_WINDOW_PATH.format(
+                controller_id=self.config.controller_id) + "?" + query
+            if not self._site_threat_window_request_valid(path):
+                raise OpenApiError("threat_query_invalid")
+            envelope = self._request_json("GET", path, token=token)
+            result = envelope.get("result") if isinstance(envelope, dict) else None
+            if not isinstance(result, dict):
+                raise OpenApiError("openapi_response_invalid")
+            current_total = result.get("totalRows")
+            data = result.get("data")
+            if (type(current_total) is not int or not 0 <= current_total <= 1_000_000_000 or
+                    not isinstance(data, list) or len(data) > 1000):
+                raise OpenApiError("openapi_response_invalid")
+            if total_rows is None:
+                total_rows = current_total
+            elif current_total != total_rows:
+                raise OpenApiError("openapi_response_invalid")
+            rows.extend(data)
+            if len(rows) >= total_rows or len(data) < 1000:
+                break
+            page += 1
+        try:
+            projected = summarize_threat_rows(
+                rows, start_s, end_s, total_rows or 0,
+                archived=archived, max_items=max_items)
+        except ThreatWindowError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**projected, "site_ref": site_ref}
+
+    @classmethod
+    def _site_threat_window_request_valid(cls, path: str) -> bool:
+        if not cls._SITE_THREAT_WINDOW_REQUEST.fullmatch(path):
+            return False
+        parsed = urlsplit(path)
+        try:
+            query = parse_qs(parsed.query, keep_blank_values=True, strict_parsing=True)
+            required = {"siteList", "archived", "page", "pageSize",
+                        "filters.startTime", "filters.endTime"}
+            if set(query) != required or any(len(values) != 1 for values in query.values()):
+                return False
+            start_s = int(query["filters.startTime"][0])
+            end_s = int(query["filters.endTime"][0])
+        except (ValueError, TypeError):
+            return False
+        return (parsed.path.endswith("/security/threat-management") and
+                946_684_800 <= start_s <= end_s <= 4_102_444_800 and
+                end_s - start_s <= 86_400)
+
+    @_track_capability("site_overview")
+    def read_site_overview(self, site_ref: str) -> dict[str, object]:
+        site_id = self._site_ids_by_ref.get(site_ref, "") if isinstance(site_ref, str) else ""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._SITE_OVERVIEW_PATH.format(controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        if not isinstance(result, dict):
+            raise OpenApiError("openapi_response_invalid")
+        fields = {"gateways_total": "totalGatewayNum", "gateways_connected": "connectedGatewayNum",
+                  "gateways_disconnected": "disconnectedGatewayNum", "switches_total": "totalSwitchNum",
+                  "switches_connected": "connectedSwitchNum", "switches_disconnected": "disconnectedSwitchNum",
+                  "ports_total": "totalPorts", "ports_available": "availablePorts",
+                  "aps_total": "totalApNum", "aps_connected": "connectedApNum",
+                  "aps_isolated": "isolatedApNum", "aps_disconnected": "disconnectedApNum",
+                  "clients_total": "totalClientNum", "clients_wired": "wiredClientNum",
+                  "clients_wireless": "wirelessClientNum", "clients_guest": "guestNum",
+                  "network_capacity_mbps": "netCapacity"}
+        data: dict[str, object] = {}
+        for target, source in fields.items():
+            if source in result and result[source] is not None:
+                value = result[source]
+                if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 1_000_000_000:
+                    raise OpenApiError("openapi_response_invalid")
+                data[target] = value
+        for source, target in (("netUsage", "network_usage_percent"),
+                               ("powerConsumption", "power_consumption_w")):
+            if source in result and result[source] is not None:
+                value = result[source]
+                if not is_finite_number(value) or value < 0:
+                    raise OpenApiError("openapi_response_invalid")
+                if source == "netUsage" and value > 100:
+                    raise OpenApiError("openapi_response_invalid")
+                data[target] = value
+        return {"status": "ok", "resource": "site_overview", "site_ref": site_ref, "data": data}
+
+    @_track_capability("site_topology")
+    def read_site_topology(self, site_ref: str) -> dict[str, object]:
+        """Project only inventoried device nodes and known topology edges."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        inventory = self._inventory_macs_by_site_ref.get(site_ref)
+        if not inventory:
+            raise OpenApiError("device_inventory_required")
+        query = urlencode({"filters.deviceStatus": "0,1"})
+        path = self._SITE_TOPOLOGY_PATH.format(controller_id=self.config.controller_id,
+                                               site_id=site_id) + "?" + query
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        if not isinstance(result, dict):
+            raise OpenApiError("openapi_response_invalid")
+        topology = result.get("topologyArray")
+        if not isinstance(topology, list) or len(topology) > 1000:
+            raise OpenApiError("openapi_response_invalid")
+        last_update = result.get("lastUpdateTime")
+        if last_update is not None and (type(last_update) is not int or not 0 <= last_update <= 2**63 - 1):
+            raise OpenApiError("openapi_response_invalid")
+
+        roles: dict[str, set[str]] = {}
+        device_refs_by_mac: dict[str, set[str]] = {}
+        for inventory_ref, mac in inventory.items():
+            if (isinstance(inventory_ref, str) and re.fullmatch(r"[0-9a-f]{24}", inventory_ref)
+                    and isinstance(mac, str) and self._MAC.fullmatch(mac)):
+                device_refs_by_mac.setdefault(mac.casefold(), set()).add(inventory_ref)
+        inventory_macs = set(device_refs_by_mac)
+        for kind, groups in (("ap", self._device_macs_by_site_ref),
+                             ("gateway", self._gateway_macs_by_site_ref),
+                             ("switch", self._switch_macs_by_site_ref)):
+            for mac in groups.get(site_ref, {}).values():
+                if mac.casefold() in inventory_macs:
+                    roles.setdefault(mac.casefold(), set()).add(kind)
+
+        nodes_by_ref: dict[str, dict[str, object]] = {}
+        edges: set[tuple[str, str]] = set()
+        visit_count = 0
+        omitted_node_count = 0
+        omitted_edge_count = 0
+
+        def visit(node: object, parent_ref: str | None, depth: int,
+                  has_parent: bool = False) -> None:
+            nonlocal visit_count, omitted_node_count, omitted_edge_count
+            visit_count += 1
+            if (depth > 16 or visit_count > 2000 or not isinstance(node, dict)):
+                raise OpenApiError("openapi_response_invalid")
+            successors = node.get("successors", [])
+            if not isinstance(successors, list) or len(successors) > 256:
+                raise OpenApiError("openapi_response_invalid")
+
+            device_ref: str | None = None
+            device_type: str | None = None
+            raw_mac = node.get("mac")
+            raw_type = node.get("type")
+            if raw_mac is not None or raw_type is not None:
+                if (not isinstance(raw_mac, str) or not self._MAC.fullmatch(raw_mac) or
+                        not isinstance(raw_type, str) or len(raw_type) > 64):
+                    # Aggregate/client nodes can lack a device identity; omit them.
+                    raw_mac = None
+                else:
+                    mac_key = raw_mac.casefold()
+                    candidates = roles.get(mac_key, set())
+                    inventory_refs = device_refs_by_mac.get(mac_key, set())
+                    expected = {"ap": {"ap", "access point", "accesspoint"},
+                                "gateway": {"gateway", "router", "gw"},
+                                "switch": {"switch", "sw"}}
+                    matching = ([next(iter(candidates))] if len(candidates) == 1 and
+                                len(inventory_refs) == 1 and
+                                raw_type.strip().casefold() in expected[next(iter(candidates))] else [])
+                    if len(matching) == 1:
+                        device_type = matching[0]
+                        device_ref = next(iter(inventory_refs))
+                        item: dict[str, object] = {"device_ref": device_ref, "device_type": device_type}
+                        for source, target in (("disconnected", "disconnected"), ("active", "license_active")):
+                            if source in node:
+                                if not isinstance(node[source], bool):
+                                    raise OpenApiError("openapi_response_invalid")
+                                item[target] = node[source]
+                        previous = nodes_by_ref.get(device_ref)
+                        if previous is not None and previous != item:
+                            raise OpenApiError("openapi_response_invalid")
+                        nodes_by_ref[device_ref] = item
+            if has_parent:
+                if parent_ref and device_ref:
+                    if parent_ref != device_ref:
+                        edges.add((parent_ref, device_ref))
+                        if len(edges) > 5000:
+                            raise OpenApiError("openapi_response_invalid")
+                    else:
+                        omitted_edge_count += 1
+                else:
+                    omitted_edge_count += 1
+            if device_ref is None:
+                omitted_node_count += 1
+            for child in successors:
+                visit(child, device_ref, depth + 1, True)
+
+        for node in topology:
+            visit(node, None, 0)
+        return {"status": "ok", "resource": "site_topology", "site_ref": site_ref,
+                "last_update_ms": last_update,
+                "scope": "inventory_mapped_access_points_gateways_switches_only",
+                "partial": omitted_node_count > 0 or omitted_edge_count > 0,
+                "omitted_node_count": omitted_node_count,
+                "omitted_edge_count": omitted_edge_count,
+                "nodes": list(nodes_by_ref.values()),
+                "edges": [{"from_device_ref": source, "to_device_ref": target}
+                          for source, target in sorted(edges)]}
+
+    @_track_capability("site_longest_client_uptime_summary")
+    def read_site_longest_client_uptime_summary(self, site_ref: str) -> dict[str, object]:
+        """Read documented wired/wireless client counts from the site dashboard."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_LONGEST_CLIENT_UPTIME_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_longest_client_uptime import (
+                LongestClientUptimeError, summarize_longest_client_uptime)
+        except ImportError:  # direct execution in the image
+            from site_longest_client_uptime import (
+                LongestClientUptimeError, summarize_longest_client_uptime)
+        try:
+            projected = summarize_longest_client_uptime(result)
+        except LongestClientUptimeError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"site_ref": site_ref, **projected}
+
+    @_track_capability("site_health_timeline")
+    def read_site_health_timeline(self, site_ref: str) -> dict[str, object]:
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        start_ms = end_ms - 24 * 60 * 60 * 1000
+        query = urlencode({"start": start_ms, "end": end_ms})
+        path = self._SITE_HEALTH_TIMELINE_PATH.format(controller_id=self.config.controller_id,
+                                                      site_id=site_id) + "?" + query
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        scores = result.get("scores") if isinstance(result, dict) else None
+        if not isinstance(scores, list) or len(scores) > 512:
+            raise OpenApiError("openapi_response_invalid")
+        score_fields = {"site_health_score": "siteHealthScore", "device_health_score": "deviceHealthScore",
+                        "client_health_score": "clientHealthScore", "wifi_health_score": "wifiHealthScore",
+                        "wan_health_score": "wanHealthScore"}
+        items = []
+        discarded_outside_window = 0
+        for point in scores:
+            if not isinstance(point, dict):
+                raise OpenApiError("openapi_response_invalid")
+            timestamp = point.get("time")
+            if (isinstance(timestamp, bool) or not isinstance(timestamp, int) or
+                    not start_ms - 3_600_000 <= timestamp <= end_ms + 3_600_000):
+                raise OpenApiError("openapi_response_invalid")
+            if not start_ms <= timestamp <= end_ms:
+                discarded_outside_window += 1
+                continue
+            item: dict[str, object] = {"time_ms": timestamp}
+            unclassified = []
+            for target, source in score_fields.items():
+                if source in point and point[source] is not None:
+                    score = point[source]
+                    if isinstance(score, bool) or not isinstance(score, int) or not -1 <= score <= 100:
+                        raise OpenApiError("openapi_response_invalid")
+                    if score == -1:
+                        item[target] = None
+                        unclassified.append(target)
+                    else:
+                        item[target] = score
+            if unclassified:
+                item["unclassified_minus_one_fields"] = unclassified
+            items.append(item)
+        return {"status": "ok", "resource": "site_health_timeline", "site_ref": site_ref,
+                "window_start_ms": start_ms, "window_end_ms": end_ms,
+                "discarded_outside_window": discarded_outside_window, "count": len(items), "items": items}
+
+    @_track_capability("site_client_health_timeline")
+    def read_site_client_health_timeline(self, site_ref: str) -> dict[str, object]:
+        """Read the bounded, aggregate client health distribution for the last day."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        start_ms = end_ms - 86_400_000
+        query = urlencode({"start": start_ms, "end": end_ms})
+        path = self._SITE_CLIENT_HEALTH_TIMELINE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id) + "?" + query
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_site_client_health_timeline(result, start_ms, end_ms)
+        except SiteClientHealthTimelineError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**projected, "site_ref": site_ref,
+                "window_start_ms": start_ms, "window_end_ms": end_ms}
+
+    @_track_capability("experience_index")
+    def read_experience_index(self, site_ref: str) -> dict[str, object]:
+        """Read the controller's existing WLAN optimization results."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._EXPERIENCE_INDEX_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_experience_index(result)
+        except ExperienceIndexError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**projected, "site_ref": site_ref}
+
+    @_track_capability("rf_planning_result")
+    def read_rf_planning_result(self, site_ref: str) -> dict[str, object]:
+        """Read status from a previous WLAN optimization, without starting one."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._RF_PLANNING_RESULT_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_rf_planning_result(result)
+        except RfPlanningResultError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**projected, "site_ref": site_ref}
+
+    @_track_capability("rf_planning_dashboard")
+    def read_rf_planning_dashboard(self, site_ref: str) -> dict[str, object]:
+        """Read existing RF planning telemetry and aggregate away AP identities."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._RF_PLANNING_DASHBOARD_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_rf_planning_dashboard(result)
+        except RfPlanningDashboardError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**projected, "site_ref": site_ref}
+
+    @_track_capability("rf_planning_dashboard_current")
+    def read_rf_planning_dashboard_current(self, site_ref: str) -> dict[str, object]:
+        """Read the separately documented RF dashboard representation."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._RF_PLANNING_DASHBOARD_CURRENT_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_rf_planning_dashboard(result)
+        except RfPlanningDashboardError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**projected, "resource": "rf_planning_dashboard_current", "site_ref": site_ref}
+
+    @_track_capability("rf_planning_dashboard_history")
+    def read_rf_planning_dashboard_history(self, site_ref: str) -> dict[str, object]:
+        """Read saved WLAN interference and AP-density trends over 24 hours."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        start_ms = end_ms - 86_400_000
+        query = urlencode({"start": start_ms, "end": end_ms})
+        path = (self._RF_PLANNING_DASHBOARD_HISTORY_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id) + "?" + query)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_rf_planning_dashboard(
+                result, start_ms=start_ms, end_ms=end_ms)
+        except RfPlanningDashboardError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**projected, "site_ref": site_ref,
+                "window_start_ms": start_ms, "window_end_ms": end_ms}
+
+    @_track_capability("rf_planning_detail")
+    def read_rf_planning_detail(self, site_ref: str) -> dict[str, object]:
+        """Read stored WLAN optimization details without applying them."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._RF_PLANNING_DETAIL_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_rf_planning_detail(result)
+        except RfPlanningDetailError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**projected, "site_ref": site_ref}
+
+    @_track_capability("rf_planning_history")
+    def read_rf_planning_history(self, site_ref: str) -> dict[str, object]:
+        """Read one bounded page of stored WLAN optimization history."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = (self._RF_PLANNING_HISTORY_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id) + "?page=1&pageSize=100")
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        history_ids, ref_for_id = self._rf_history_ref_mapper(site_id)
+        try:
+            projected = project_rf_planning_history(result, history_ref_for_id=ref_for_id)
+        except RfPlanningHistoryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        self._rf_history_ids_by_site_ref[site_ref] = history_ids
+        return {**projected, "site_ref": site_ref}
+
+    @_track_capability("rf_planning_history_detail")
+    def read_rf_planning_history_detail(self, site_ref: str, history_ref: str) -> dict[str, object]:
+        """Read one history record using a reference issued by a recent list call."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        if not isinstance(history_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", history_ref):
+            raise OpenApiError("history_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        history_id = self._rf_history_ids_by_site_ref.get(site_ref, {}).get(history_ref, "")
+        if not history_id or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", history_id):
+            raise OpenApiError("history_ref_unknown")
+        path = self._RF_PLANNING_HISTORY_DETAIL_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, history_id=history_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_rf_planning_detail(result)
+        except RfPlanningDetailError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**projected, "resource": "rf_planning_history_detail",
+                "site_ref": site_ref, "history_ref": history_ref}
+
+    @_track_capability("rf_planning_recent_history")
+    def read_rf_planning_recent_history(self, site_ref: str) -> dict[str, object]:
+        """Read one bounded page of stored optimization history from the last 30 days."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        start_ms = end_ms - 30 * 86_400_000
+        query = urlencode({"currentPage": 1, "currentPageSize": 100,
+                           "start": start_ms, "end": end_ms})
+        path = (self._RF_PLANNING_RECENT_HISTORY_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id) + "?" + query)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        history_ids, ref_for_id = self._rf_history_ref_mapper(site_id)
+        try:
+            projected = project_rf_planning_history(
+                result, start_ms=start_ms, end_ms=end_ms, history_ref_for_id=ref_for_id)
+        except RfPlanningHistoryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        self._rf_history_ids_by_site_ref[site_ref] = history_ids
+        return {**projected, "site_ref": site_ref,
+                "window_start_ms": start_ms, "window_end_ms": end_ms}
+
+    @_track_capability("rf_excluded_aps")
+    def read_rf_excluded_aps(self, site_ref: str) -> dict[str, object]:
+        """Read RF-planning exclusions and map identities to opaque AP references."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        self.list_devices(site_ref)
+        ap_refs_by_mac: dict[str, list[str]] = {}
+        for ap_ref, mac in self._device_macs_by_site_ref.get(site_ref, {}).items():
+            if not re.fullmatch(r"[0-9a-f]{24}", ap_ref) or not self._MAC.fullmatch(mac):
+                raise OpenApiError("openapi_response_invalid")
+            ap_refs_by_mac.setdefault(re.sub(r"[:-]", "", mac).lower(), []).append(ap_ref)
+        path = self._RF_EXCLUDED_APS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            return {**project_rf_excluded_aps(result, ap_refs_by_mac), "site_ref": site_ref}
+        except RfExcludedApsError:
+            raise OpenApiError("openapi_response_invalid") from None
+
+    @_track_capability("rf_deploy_history")
+    def read_rf_deploy_history(self, site_ref: str) -> dict[str, object]:
+        """Read whether WLAN optimization has completed successfully before."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        path = self._RF_DEPLOY_HISTORY_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_rf_deploy_history(result)
+        except RfDeployHistoryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**projected, "site_ref": site_ref}
+
+    @_track_capability("site_events")
+    def list_site_events(self, site_ref: str) -> dict[str, object]:
+        return self._list_site_log(site_ref, "events")
+
+    @_track_capability("site_alerts")
+    def list_site_alerts(self, site_ref: str) -> dict[str, object]:
+        return self._list_site_log(site_ref, "alerts")
+
+    def read_site_log_window_summary(self, site_ref: str, kind: str,
+                                     start_ms: int, end_ms: int) -> dict[str, object]:
+        if kind not in {"events", "alerts"}:
+            raise OpenApiError("site_log_kind_invalid")
+        try:
+            start_ms, end_ms = validate_site_log_window(start_ms, end_ms)
+        except SiteLogWindowError:
+            raise OpenApiError("time_window_invalid") from None
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        template = self._SITE_EVENT_PATH if kind == "events" else self._SITE_ALERT_PATH
+        base = template.format(controller_id=self.config.controller_id, site_id=site_id)
+        rows, total_count, module_totals = self._read_site_log_pages(
+            base, self._access_token(), start_ms, end_ms,
+            use_event_summary=(kind == "events"), allow_partial=True)
+        try:
+            result = summarize_site_log_window(
+                rows, kind, start_ms, end_ms, total_count, module_totals)
+        except SiteLogWindowError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**result, "site_ref": site_ref}
+
+    def _list_site_log(self, site_ref: str, kind: str) -> dict[str, object]:
+        if kind not in {"events", "alerts"}:
+            raise OpenApiError("site_log_kind_invalid")
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        # The API requires time bounds. Keep the public operation fixed to a
+        # rolling 30-day window to bound data volume and avoid arbitrary queries.
+        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        start_ms = end_ms - int(timedelta(days=30).total_seconds() * 1000)
+        template = self._SITE_EVENT_PATH if kind == "events" else self._SITE_ALERT_PATH
+        base = template.format(controller_id=self.config.controller_id, site_id=site_id)
+        rows, total_count, module_totals = self._read_site_log_pages(
+            base, self._access_token(), start_ms, end_ms,
+            use_event_summary=(kind == "events"))
+        items = []
+        modules = {"system", "device", "client"}
+        levels = {"info", "warning", "error", "critical"}
+        for row in rows:
+            if not isinstance(row, dict):
+                raise OpenApiError("openapi_response_invalid")
+            raw_id = row.get("id")
+            raw_time = row.get("time")
+            if (not isinstance(raw_id, str) or not raw_id or len(raw_id) > 256 or
+                    any(ord(c) < 0x21 or ord(c) > 0x7e for c in raw_id) or
+                    isinstance(raw_time, bool) or not isinstance(raw_time, int) or
+                    not start_ms <= raw_time <= end_ms):
+                raise OpenApiError("openapi_response_invalid")
+            raw_module = row.get("module")
+            if not isinstance(raw_module, str) or len(raw_module) > 64:
+                raise OpenApiError("openapi_response_invalid")
+            module = raw_module.casefold()
+            item: dict[str, object] = {
+                ("event_ref" if kind == "events" else "alert_ref"):
+                    self._opaque_ref(kind + "_log", site_id + ":" + raw_id),
+                "time_ms": raw_time,
+                "module": module if module in modules else "other",
+            }
+            if kind == "alerts":
+                raw_level = row.get("level")
+                if not isinstance(raw_level, str) or len(raw_level) > 32:
+                    raise OpenApiError("openapi_response_invalid")
+                level = raw_level.casefold()
+                item["severity"] = level if level in levels else "other"
+            items.append(item)
+        result: dict[str, object] = {
+            "status": "ok", "resource": "site_" + kind, "count": len(items),
+            "total_count": total_count, "partial": len(items) < total_count,
+            "window_start_ms": start_ms, "window_end_ms": end_ms, "items": items,
+        }
+        if module_totals is not None:
+            result["module_counts"] = module_totals
+        return result
+
+    def _read_site_log_pages(self, base_path: str, token: str,
+                             start_ms: int, end_ms: int, *,
+                             use_event_summary: bool = False,
+                             allow_partial: bool = False
+                             ) -> tuple[list[object], int, dict[str, int] | None]:
+        rows: list[object] = []
+        expected_total: int | None = None
+        module_totals: dict[str, int] | None = None
+        for page in range(1, self.config.max_pages + 1):
+            query = urlencode({"page": page, "pageSize": self.config.page_size,
+                               "filters.timeStart": start_ms, "filters.timeEnd": end_ms})
+            payload = self._request_json("GET", base_path + "?" + query, token=token)
+            result = payload.get("result")
+            data = result.get("data") if isinstance(result, dict) else None
+            total = result.get("totalRows") if isinstance(result, dict) else None
+            current_page = result.get("currentPage") if isinstance(result, dict) else None
+            current_size = result.get("currentSize") if isinstance(result, dict) else None
+            if (not isinstance(data, list) or len(data) > self.config.page_size or
+                    isinstance(total, bool) or not isinstance(total, int) or total < 0 or
+                    type(current_page) is not int or current_page != page or
+                    isinstance(current_size, bool) or not isinstance(current_size, int) or
+                    current_size not in (len(data), self.config.page_size)):
+                raise OpenApiError("openapi_response_invalid")
+            if expected_total is None:
+                expected_total = total
+            elif total != expected_total:
+                raise OpenApiError("openapi_response_invalid")
+            rows.extend(data)
+            if len(rows) > expected_total:
+                raise OpenApiError("openapi_response_invalid")
+            if use_event_summary and page == 1:
+                summary = result.get("eventLogStat")
+                if summary is not None:
+                    fields = {
+                        "totalLogNum": "total",
+                        "systemLogNum": "system",
+                        "deviceLogNum": "device",
+                        "clientLogNum": "client",
+                    }
+                    if (not isinstance(summary, dict) or len(summary) > 16 or
+                            not set(fields).issubset(summary) or
+                            any(type(summary[key]) is not int or
+                                not 0 <= summary[key] <= 2**63 - 1
+                                for key in fields) or
+                            summary["totalLogNum"] != total or
+                            sum(summary[key] for key in fields if key != "totalLogNum") != total):
+                        raise OpenApiError("openapi_response_invalid")
+                    module_totals = {target: summary[source]
+                                     for source, target in fields.items()
+                                     if target != "total"}
+                    module_totals = {
+                        target: summary[source]
+                        for source, target in fields.items() if target != "total"
+                    }
+            if len(rows) >= expected_total:
+                return rows, expected_total, module_totals
+        if allow_partial and expected_total is not None:
+            return rows, expected_total, module_totals
+        raise OpenApiError("openapi_page_limit_reached")
+
+    def patch_ap_radio_power(self, site_ref: str, device_ref: str,
+                             changes: dict[str, object]) -> None:
+        """Send only validated power-level fields to the fixed radio-config route."""
+        try:
+            from .changes import validate_changes
+        except ImportError:
+            from changes import validate_changes
+        try:
+            clean = validate_changes(changes)
+        except Exception as exc:
+            raise OpenApiError("changes_invalid") from exc
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        mac = self._device_macs_by_site_ref.get(site_ref, {}).get(device_ref)
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        if not mac:
+            raise OpenApiError("device_ref_unknown")
+        token = self._access_token()
+        path = self._AP_READ_PATHS["radio_config"].format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        body = json.dumps(clean, separators=(",", ":"), allow_nan=False).encode("utf-8")
+        self._request_json("PATCH", path, body=body, token=token)
+
+    def patch_ap_radio_config(self, site_ref: str, device_ref: str,
+                              changes: dict[str, object]) -> None:
+        """Apply only a channel and its matching documented frequency, or power level."""
+        if not isinstance(changes, dict) or not changes or len(changes) > 5:
+            raise OpenApiError("changes_invalid")
+        bands = {"radioSetting2g", "radioSetting5g", "radioSetting5g1", "radioSetting5g2", "radioSetting6g"}
+        clean: dict[str, dict[str, object]] = {}
+        for band, fields in changes.items():
+            if band not in bands or not isinstance(fields, dict):
+                raise OpenApiError("changes_invalid")
+            if set(fields) == {"txPowerLevel"}:
+                level = fields["txPowerLevel"]
+                if type(level) is not int or level not in (0, 1, 2, 4):
+                    raise OpenApiError("changes_invalid")
+                clean[band] = {"txPowerLevel": level}
+            elif set(fields) == {"channel"} and fields["channel"] == "0":
+                clean[band] = {"channel": "0"}
+            elif set(fields) == {"channel", "freq"}:
+                channel, freq = fields["channel"], fields["freq"]
+                if (not isinstance(channel, str) or not re.fullmatch(r"[1-9][0-9]{0,3}", channel)
+                        or type(freq) is not int or not 100 <= freq <= 100000):
+                    raise OpenApiError("changes_invalid")
+                clean[band] = {"channel": channel, "freq": freq}
+            else:
+                raise OpenApiError("changes_invalid")
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_READ_PATHS["radio_config"].format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        body = json.dumps(clean, separators=(",", ":"), allow_nan=False).encode("utf-8")
+        self._request_json("PATCH", path, body=body, token=self._access_token())
+
+    @classmethod
+    def _sanitize_ap_entity(cls, kind: str, entity: dict[str, object]) -> object:
+        setting_fields = {"channel", "channelWidth", "freq", "txPower", "txPowerLevel", "radioEnable"}
+        channel_fields = {"actualChannel", "bandWidth", "txPower", "txUtil", "rxUtil",
+                          "interUtil", "busyUtil"}
+        traffic_fields = {"rxPkts", "txPkts", "rxDropPkts", "txDropPkts", "rxErrPkts",
+                          "txErrPkts", "rxRetryPkts", "txRetryPkts"}
+        if kind == "radio_config":
+            return cls._clean_nested(entity,
+                ("radioSetting2g", "radioSetting5g", "radioSetting5g1", "radioSetting5g2", "radioSetting6g"),
+                setting_fields)
+        if kind == "radios":
+            out: dict[str, object] = {}
+            for band in ("2g", "5g", "5g2", "6g"):
+                for prefix, allowed in (("radioTraffic", traffic_fields), ("wp", channel_fields)):
+                    key = prefix + band
+                    if key in entity:
+                        child = entity[key]
+                        out[key] = cls._clean_fields(child, allowed)
+            return out
+        if kind == "scan_status":
+            return cls._clean_fields(entity, {"status", "wifiInterfStatus", "interfStatus",
+                                              "channelLoadStatus", "lastSeen", "fromGlobal"})
+        if kind == "channel_load":
+            out = {}
+            for band in ("2g", "5g", "6g"):
+                key = "channelLoads" + band
+                if key in entity:
+                    rows = entity[key]
+                    if not isinstance(rows, list) or len(rows) > cls._ARRAY_LIMIT:
+                        raise OpenApiError("openapi_response_invalid")
+                    cleaned_rows = []
+                    for row in rows:
+                        if not isinstance(row, dict):
+                            raise OpenApiError("openapi_response_invalid")
+                        channel, load = row.get("channel"), row.get("load")
+                        if (isinstance(channel, bool) or not isinstance(channel, int) or
+                                isinstance(load, bool) or not isinstance(load, int)):
+                            raise OpenApiError("openapi_response_invalid")
+                        cleaned_rows.append({"channel": channel, "load": load})
+                    out[key] = cleaned_rows
+            return out
+        raise OpenApiError("openapi_response_invalid")
+
+    @classmethod
+    def _clean_nested(cls, entity: dict[str, object], names: tuple[str, ...],
+                      allowed: set[str]) -> dict[str, object]:
+        out: dict[str, object] = {}
+        for name in names:
+            if name in entity:
+                out[name] = cls._clean_fields(entity[name], allowed)
+        return out
+
+    @classmethod
+    def _clean_fields(cls, entity: object, allowed: set[str]) -> dict[str, object]:
+        if not isinstance(entity, dict):
+            raise OpenApiError("openapi_response_invalid")
+        out: dict[str, object] = {}
+        for key in allowed:
+            if key in entity:
+                value = entity[key]
+                if not cls._safe_scalar(value):
+                    raise OpenApiError("openapi_response_invalid")
+                out[key] = value
+        return out
+
+    @staticmethod
+    def _safe_scalar(value: object) -> bool:
+        if value is None or isinstance(value, bool):
+            return True
+        if isinstance(value, int):
+            return -(2**63) <= value <= 2**63 - 1
+        if isinstance(value, float):
+            return math.isfinite(value)
+        if isinstance(value, str):
+            return len(value) <= 96 and all(0x20 <= ord(char) <= 0x7e for char in value)
+        return False
+
+    @staticmethod
+    def _first_string(data: dict[str, object], keys: tuple[str, ...]) -> str | None:
+        for key in keys:
+            value = data.get(key)
+            if isinstance(value, str) and value:
+                return value
+        return None
+
+    @staticmethod
+    def _display_name(row: dict[str, object], maximum: int) -> str | None:
+        """Return only a bounded, printable Unicode value from the documented name field."""
+        value = row.get("name")
+        if not isinstance(value, str) or not value or len(value) > maximum or not value.strip():
+            return None
+        # Reject control, formatting, surrogate, private-use, unassigned and
+        # line/paragraph separator characters rather than returning invisible
+        # or malformed labels. Valid international scripts remain supported.
+        for char in value:
+            category = unicodedata.category(char)
+            if category.startswith("C") or category in {"Zl", "Zp"}:
+                return None
+        try:
+            value.encode("utf-8", errors="strict")
+        except UnicodeEncodeError:
+            return None
+        return value
+
+    def _opaque_ref(self, kind: str, value: str) -> str:
+        if self.config.reference_key_file is None:
+            context = "omada-ref-v1:" + kind + ":" + value
+        else:
+            context = ("omada-ref-v2:" + self.config.controller_id + ":" + kind + ":" + value)
+        digest = hmac.new(self._ref_key, context.encode(),
+                          hashlib.sha256).hexdigest()
+        return digest[:24]
+
+    def _rf_history_ref_mapper(self, site_id: str) -> tuple[dict[str, str], Callable[[str], str]]:
+        history_ids: dict[str, str] = {}
+
+        def reference_for(history_id: str) -> str:
+            ref = self._opaque_ref("rf-planning-history", site_id + ":" + history_id)
+            history_ids[ref] = history_id
+            return ref
+
+        return history_ids, reference_for
+
+    def _batch_interference_history_ref_mapper(
+            self, site_id: str) -> tuple[dict[str, str], Callable[[str], str]]:
+        history_ids: dict[str, str] = {}
+
+        def reference_for(history_id: str) -> str:
+            ref = self._opaque_ref(
+                "site-batch-interference-history", site_id + ":" + history_id)
+            history_ids[ref] = history_id
+            return ref
+
+        return history_ids, reference_for
+
+    @staticmethod
+    def _read_secret(path_value: str) -> str:
+        if (not isinstance(path_value, str) or not path_value.startswith("/") or
+                not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "O_DIRECTORY")):
+            raise OpenApiError("credential_file_invalid")
+        parts = path_value.split("/")
+        if len(parts) < 3 or any(part in {"", ".", ".."} for part in parts[1:]):
+            raise OpenApiError("credential_file_invalid")
+        dir_flags = (os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW |
+                     getattr(os, "O_CLOEXEC", 0))
+        file_flags = (os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_NONBLOCK", 0) |
+                      getattr(os, "O_CLOEXEC", 0))
+        dir_fd = -1
+        fd = -1
+        try:
+            dir_fd = os.open("/", dir_flags)
+            for component in parts[1:-1]:
+                next_fd = os.open(component, dir_flags, dir_fd=dir_fd)
+                os.close(dir_fd)
+                dir_fd = next_fd
+            fd = os.open(parts[-1], file_flags, dir_fd=dir_fd)
+            info = os.fstat(fd)
+            mode = stat.S_IMODE(info.st_mode)
+            if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or
+                    info.st_nlink != 1 or mode not in {0o400, 0o600} or
+                    info.st_size > 16_384):
+                raise OpenApiError("credential_file_invalid")
+            raw = bytearray()
+            while len(raw) <= 16_384:
+                chunk = os.read(fd, 16_385 - len(raw))
+                if not chunk:
+                    break
+                raw.extend(chunk)
+            data = bytes(raw)
+        except OpenApiError:
+            raise
+        except OSError as exc:
+            raise OpenApiError("credential_file_unavailable") from exc
+        finally:
+            if fd >= 0:
+                os.close(fd)
+            if dir_fd >= 0:
+                os.close(dir_fd)
+        if not data or len(data) > 16_384 or b"\x00" in data:
+            raise OpenApiError("credential_file_invalid")
+        try:
+            value = data.decode("utf-8").strip()
+        except UnicodeDecodeError as exc:
+            raise OpenApiError("credential_file_invalid") from exc
+        if not value or "\n" in value or "\r" in value:
+            raise OpenApiError("credential_file_invalid")
+        return value
+
+    def _connection(self) -> http.client.HTTPSConnection:
+        conn: http.client.HTTPSConnection | None = None
+        try:
+            parsed = urlsplit(self.config.base_url)
+            if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+                raise OpenApiError("controller_https_required")
+            if parsed.path not in ("", "/") or parsed.query or parsed.fragment:
+                raise OpenApiError("controller_url_rejected")
+            if self.config.tls_trust == "system_ca":
+                context = ssl.create_default_context()
+            elif self.config.tls_trust == "pin_sha256":
+                context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+                # Pin mode retains the existing explicit SHA-256 policy for
+                # controllers using a local self-signed certificate.
+                context.check_hostname = False
+                context.verify_mode = ssl.CERT_NONE
+            else:  # Protect against invalid config objects bypassing validation.
+                raise OpenApiError("tls_trust_mode_invalid")
+            conn = http.client.HTTPSConnection(
+                parsed.hostname, parsed.port or 443, context=context,
+                timeout=self.config.timeout_seconds,
+            )
+            conn.connect()
+            if self.config.tls_trust == "pin_sha256" or self.config.cert_sha256:
+                cert = conn.sock.getpeercert(binary_form=True) if conn.sock else b""
+                if not cert or hashlib.sha256(cert).hexdigest() != self.config.cert_sha256.lower():
+                    raise OpenApiError("controller_certificate_changed")
+            conn._omada_tls_verified = True
+            return conn
+        except OpenApiError:
+            if conn is not None:
+                conn.close()
+            raise
+        except (OSError, ssl.SSLError, ValueError) as exc:
+            if conn is not None:
+                conn.close()
+            raise OpenApiError("controller_unreachable") from exc
+
+    def _request_json(self, method: str, path: str, body: bytes | None = None,
+                      token: str | None = None) -> dict[str, object]:
+        # Only explicitly listed reads, OAuth, and fixed mutation paths pass.
+        allowed = (
+            method == "POST" and path == self.TOKEN_PATH
+        ) or (
+            method == "POST" and self._site_batch_interference_status_request_valid(path, body)
+        ) or (
+            method == "POST" and self._valid_switch_cable_test_action(path, body)
+        ) or (
+            method == "GET" and (self._SITE_REQUEST.fullmatch(path) or
+                                  (self._SITE_TEMPLATE_REQUEST.fullmatch(path) and
+                                   self._SITE_TEMPLATE_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  self._DEVICE_REQUEST.fullmatch(path) or
+                                  self._DEVICE_FIRMWARE_REQUEST.fullmatch(path) or
+                                  self._device_adopt_result_request_valid(path) or
+                                  self._device_mac_type_request_valid(path) or
+                                  self._device_link_topology_request_valid(path) or
+                                  self._device_radsec_support_request_valid(path) or
+                                  self._device_upgrade_result_request_valid(path) or
+                                  self._device_timeline_request_valid(path) or
+                                  self._device_all_request_valid(path) or
+                                  self._olt_detail_request_valid(path) or
+                                  self._olt_eth_pon_list_request_valid(path) or
+                                  self._olt_onu_global_status_request_valid(path) or
+                                  self._olt_onu_isolation_status_request_valid(path) or
+                                  self._olt_eth_config_list_request_valid(path) or
+                                  self._olt_lag_config_list_request_valid(path) or
+                                  self._olt_auto_refresh_request_valid(path) or
+                                  self._olt_pon_information_request_valid(path) or
+                                  self._olt_pon_port_config_request_valid(path) or
+                                  self._olt_pon_port_config_page_request_valid(path) or
+                                  self._olt_service_port_profiles_request_valid(path) or
+                                  self._olt_onu_auto_auth_request_valid(path) or
+                                  self._olt_onu_autofind_request_valid(path) or
+                                  self._olt_onu_autofind_list_request_valid(path) or
+                                  self._olt_onu_inventory_request_valid(path) or
+                                  self._olt_onu_reboot_status_request_valid(path) or
+                                  self._olt_system_info_request_valid(path) or
+                                  self._olt_system_info_msp_request_valid(path) or
+                                  self._msp_health_timeline_request_valid(path) or
+                                  self._msp_health_detail_request_valid(path) or
+                                  self._msp_olt_device_request_valid(path) or
+                                  self._msp_olt_site_ports_request_valid(path) or
+                                  self._olt_management_interfaces_request_valid(path) or
+                                  self._AP_OVERVIEW_REQUEST.fullmatch(path) or
+                                  self._CLIENT_REQUEST.fullmatch(path) or
+                                  self._CLIENT_DETAIL_REQUEST.fullmatch(path) or
+                                  self._CLIENT_CONNECTION_REQUEST.fullmatch(path) or
+                                  self._client_history_request_valid(path) or
+                                  self._ap_port_vlans_request_valid(path) or
+                                  self._ap_mesh_candidates_request_valid(path) or
+                                  (self._AP_GENERAL_CONFIG_REQUEST.fullmatch(path) is not None and
+                                   self._AP_GENERAL_CONFIG_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  (self._AP_IP_SETTING_REQUEST.fullmatch(path) is not None and
+                                   self._AP_IP_SETTING_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  (self._AP_IPV6_SETTING_REQUEST.fullmatch(path) is not None and
+                                   self._AP_IPV6_SETTING_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  (self._AP_P2P_INFO_REQUEST.fullmatch(path) is not None and
+                                   self._AP_P2P_INFO_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  (self._AP_L3_ACCESS_REQUEST.fullmatch(path) is not None and
+                                   self._AP_L3_ACCESS_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  (self._AP_LAG_CONFIG_REQUEST.fullmatch(path) is not None and
+                                   self._AP_LAG_CONFIG_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  (self._AP_PARING_WINDOW_REQUEST.fullmatch(path) is not None and
+                                   self._AP_PARING_WINDOW_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  (self._AP_MANAGEMENT_SSID_REQUEST.fullmatch(path) is not None and
+                                   self._AP_MANAGEMENT_SSID_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  self._client_timeline_request_valid(path) or
+                                  self._CLIENT_HEALTH_REQUEST.fullmatch(path) or
+                                  self._client_health_timeline_request_valid(path) or
+                                  self._site_client_health_timeline_request_valid(path) or
+                                  self._site_wifi_summary_request_valid(path) or
+                                  self._site_6ghz_ap_presence_request_valid(path) or
+                                  self._site_setting_existence_request_valid(path) or
+                                  self._site_entity_request_valid(path) or
+                                  self._site_upnp_request_valid(path) or
+                                  self._site_iot_aging_time_request_valid(path) or
+                                  self._site_iot_radio_request_valid(path) or
+                                  self._site_iot_transmit_power_request_valid(path) or
+                                  self._site_remember_setting_request_valid(path) or
+                                  self._site_client_connection_request_valid(path) or
+                                  self._site_poe_usage_request_valid(path) or
+                                  self._site_device_counts_request_valid(path) or
+                                  self._site_ipsec_tunnel_request_valid(path) or
+                                  self._site_client_association_time_request_valid(path) or
+                                  self._site_network_activity_request_valid(path) or
+                                  self._site_client_rssi_distribution_request_valid(path) or
+                                  self._site_ap_rssi_density_request_valid(path) or
+                                  self._site_client_attachment_distribution_request_valid(path) or
+                                  self._site_client_frequency_distribution_request_valid(path) or
+                                  self._site_device_traffic_request_valid(path) or
+                                  self._site_past_client_request_valid(path) or
+                                  self._site_current_client_request_valid(path) or
+                                  self._site_gateway_isp_request_valid(path) or
+                                  self._site_top_ap_request_valid(path) or
+                                  self._site_active_ap_request_valid(path) or
+                                  self._site_active_ap_v2_request_valid(path) or
+                                  self._site_specific_client_info_request_valid(path) or
+                                  self._site_specific_app_info_request_valid(path) or
+                                  self._site_application_traffic_request_valid(path) or
+                                  self._site_wan_lan_status_request_valid(path) or
+                                  self._site_arp_detect_status_request_valid(path) or
+                                  self._site_disaster_mode_status_request_valid(path) or
+                                  self._site_specification_request_valid(path) or
+                                  self._site_portal_logout_request_valid(path) or
+                                  self._site_wids_config_request_valid(path) or
+                                  self._site_wips_config_request_valid(path) or
+                                  self._site_acl_config_mode_request_valid(path) or
+                                  self._site_attack_defense_request_valid(path) or
+                                  self._site_attack_defense_defaults_request_valid(path) or
+                                  self._site_alg_config_request_valid(path) or
+                                  self._site_firewall_settings_request_valid(path) or
+                                  self._site_firewall_defaults_request_valid(path) or
+                                  self._site_bandwidth_control_request_valid(path) or
+                                  self._site_wan_ports_request_valid(path) or
+                                  self._site_vlan_network_request_valid(path) or
+                                  self._site_lan_networks_v3_request_valid(path) or
+                                  self._site_lan_network_inventory_request_valid(path) or
+                                  self._site_internet_request_valid(path) or
+                                  self._site_internet_load_balance_request_valid(path) or
+                                  self._site_internet_basic_info_request_valid(path) or
+                                  self._site_vpn_session_request_valid(path) or
+                                  self._site_dhcp_candidates_request_valid(path) or
+                                  self._site_network_reservation_request_valid(path) or
+                                  self._site_dhcp_reservations_request_valid(path) or
+                                  self._site_dhcp_snoop_status_request_valid(path) or
+                                  self._site_dhcp_snoops_request_valid(path) or
+                                  self._site_mdns_rules_request_valid(path) or
+                                  self._site_ddns_request_valid(path) or
+                                  self._site_snmp_request_valid(path) or
+                                  self._controller_gateway_wan_status_request_valid(path) or
+                                  self._site_dashboard_tabs_request_valid(path) or
+                                  self._site_application_access_request_valid(path) or
+                                  self._site_hotspot_statistics_request_valid(path) or
+                                  self._site_active_switch_request_valid(path) or
+                                  self._site_device_memory_request_valid(path) or
+                                  self._site_switch_dashboard_request_valid(path) or
+                                  self._site_ap_interference_request_valid(path) or
+                                  self._site_application_category_request_valid(path) or
+                                  self._site_category_application_request_valid(path) or
+                                  self._site_category_client_request_valid(path) or
+                                  self._site_active_application_request_valid(path) or
+                                  self._site_active_client_request_valid(path) or
+                                  self._site_cpu_usage_request_valid(path) or
+                                  self._site_client_bubble_request_valid(path) or
+                                  self._site_traffic_activity_request_valid(path) or
+                                  self._site_isp_load_request_valid(path) or
+                                  self._site_vpn_tunnel_request_valid(path) or
+                                  self._site_open_vpn_tunnel_request_valid(path) or
+                                  self._site_client_activity_request_valid(path) or
+                                  self._site_client_association_activity_request_valid(path) or
+                                  self._site_client_traffic_request_valid(path) or
+                                  self._site_mesh_request_valid(path) or
+                                  self._site_multicast_rate_limit_request_valid(path) or
+                                  self._site_gre_tunnel_request_valid(path) or
+                                  self._site_ssl_vpn_request_valid(path) or
+                                  self._site_ssh_request_valid(path) or
+                                  self._site_mld_request_valid(path) or
+                                  self._site_igmp_request_valid(path) or
+                                  self._site_template_igmp_request_valid(path) or
+                                  self._site_template_upnp_request_valid(path) or
+                                  self._site_template_ssh_request_valid(path) or
+                                  self._site_template_iptv_request_valid(path) or
+                                  self._site_template_iptv_service_request_valid(path) or
+                                  self._site_iptv_request_valid(path) or
+                                  self._site_capabilities_request_valid(path) or
+                                  self._site_duplicate_ssid_request_valid(path) or
+                                  self._ssid_ap_groups_request_valid(path) or
+                                  self._site_topology_network_summary_request_valid(path) or
+                                  self._site_topology_vlan_summary_request_valid(path) or
+                                  self._site_unresolved_incident_count_request_valid(path) or
+                                  self._site_incident_overview_request_valid(path) or
+                                  self._site_incident_distribution_request_valid(path) or
+                                  self._site_incident_category_counts_request_valid(path) or
+                                  self._site_incident_list_request_valid(path) or
+                                  self._site_batch_interference_history_request_valid(path) or
+                                  self._site_batch_interference_ap_request_valid(path) or
+                                  self._site_batch_wifi_interference_request_valid(path) or
+                                  self._site_batch_channel_load_request_valid(path) or
+                                  self._site_batch_interference_result_request_valid(path) or
+                                  self._ap_full_channel_detect_status_request_valid(path) or
+                                  self._device_health_incidents_request_valid(path) or
+                                  self._site_incident_detail_request_valid(path) or
+                                  self._site_incident_notification_request_valid(path) or
+                                  self._site_anomaly_event_settings_request_valid(path) or
+                                  self._site_incident_influences_request_valid(path) or
+                                  self._site_wlan_group_capacity_request_valid(path) or
+                                  self._site_ap_group_capacity_request_valid(path) or
+                                  self._site_ap_group_summary_request_valid(path) or
+                                  self._site_ap_oui_vlan_rules_request_valid(path) or
+                                  self._site_vlan_ssid_usage_request_valid(path) or
+                                  self._site_vlan_device_usage_request_valid(path) or
+                                  self._site_wifi_calling_profiles_request_valid(path) or
+                                  self._site_client_filter_options_request_valid(path) or
+                                  self._site_eap_dot1x_candidates_request_valid(path) or
+                                  self._site_switch_dot1x_candidates_request_valid(path) or
+                                  self._site_switch_support_request_valid(path) or
+                                  self._experience_index_request_valid(path) or
+                                  self._rf_planning_result_request_valid(path) or
+                                  self._rf_planning_dashboard_request_valid(path) or
+                                  self._rf_planning_dashboard_current_request_valid(path) or
+                                  self._rf_planning_dashboard_history_request_valid(path) or
+                                  self._rf_excluded_aps_request_valid(path) or
+                                  self._rf_deploy_history_request_valid(path) or
+                                  self._rf_planning_detail_request_valid(path) or
+                                  self._rf_planning_history_request_valid(path) or
+                                  self._rf_planning_history_detail_request_valid(path) or
+                                  self._rf_planning_recent_history_request_valid(path) or
+                                  self._NETWORK_REQUEST.fullmatch(path) or
+                                  self._network_dhcp_capabilities_request_valid(path) or
+                                  self._network_dhcp_server_info_request_valid(path) or
+                                  self._site_mac_auth_ssid_inventory_request_valid(path) or
+                                  self._SSID_REQUEST.fullmatch(path) or
+                                  self._SSID_DETAIL_REQUEST.fullmatch(path) or
+                                  self._WLAN_GROUP_REQUEST.fullmatch(path) or
+                                  self._site_wlan_group_request_valid(path) or
+                                  self._site_wlan_group_ssids_request_valid(path) or
+                                  self._site_wlan_group_detail_request_valid(path) or
+                                  self._site_lock_to_ap_brief_request_valid(path) or
+                                  self._site_ineligible_interference_ap_request_valid(path) or
+                                  self._site_interference_scan_eligible_request_valid(path) or
+                                  self._GATEWAY_WAN_REQUEST.fullmatch(path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/gateways/{self._MAC.pattern}/lan-status", path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/gateways/{self._MAC.pattern}/ports", path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/gateways/{self._MAC.pattern}/speedTestResult", path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/gateways/{self._MAC.pattern}/internet", path) or
+                                  self._gateway_health_request_valid(path) or
+                                  self._gateway_health_timeline_request_valid(path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/gateways/{self._MAC.pattern}/network/ipv6",
+                                      path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/health/gateways/{self._MAC.pattern}/wans/details",
+                                      path) or
+                                  (self._AP_RF_SCAN_REQUEST.fullmatch(path) is not None and
+                                   self._AP_RF_SCAN_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  (self._AP_RF_SCAN_V2_REQUEST.fullmatch(path) is not None and
+                                   self._AP_RF_SCAN_V2_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  ((self._AP_SPEED_TEST_RESULT_REQUEST.fullmatch(path) is not None) and
+                                   self._AP_SPEED_TEST_RESULT_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  self._AP_WIFI_INTERFERENCE_REQUEST.fullmatch(path) or
+                                  self._AP_AVAILABLE_CHANNEL_REQUEST.fullmatch(path) or
+                                  (self._AP_UPLINK_CONFIG_REQUEST.fullmatch(path) is not None and
+                                   self._AP_UPLINK_CONFIG_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  self._AP_MESH_STATISTICS_REQUEST.fullmatch(path) or
+                                  self._msp_ap_mesh_statistics_request_valid(path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/aps/{self._MAC.pattern}/wired-uplink", path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/aps/{self._MAC.pattern}/bridge", path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/aps/{self._MAC.pattern}/wired-downlink", path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v2/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/aps/{self._MAC.pattern}/vlan", path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/aps/{self._MAC.pattern}/afc-config", path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/aps/{self._MAC.pattern}/afc", path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/(?:aps/{self._MAC.pattern}/)?channel-limit", path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/aps/{self._MAC.pattern}/ofdma", path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/aps/{self._MAC.pattern}/qos", path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/aps/{self._MAC.pattern}/trunk-setting", path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/aps/{self._MAC.pattern}/load-balance", path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/aps/{self._MAC.pattern}/ant-switch", path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/aps/{self._MAC.pattern}/antenna-gain", path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/aps/{self._MAC.pattern}/power-saving", path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/aps/{self._MAC.pattern}/lan-traffic-info", path) or
+                                  self._ap_health_request_valid(path) or
+                                  self._ap_health_timeline_request_valid(path) or
+                                  self._ap_retry_drop_request_valid(path) or
+                                  self._SWITCH_PORTS_REQUEST.fullmatch(path) or
+                                  self._switch_port_counters_request_valid(path) or
+                                  self._switch_port_poe_info_request_valid(path) or
+                                  self._switch_health_request_valid(path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/switches/{self._MAC.pattern}/sdm-used", path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/cable-test/switches/{self._MAC.pattern}/logs", path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/cable-test/switches/{self._MAC.pattern}/full-results", path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/cable-test/switches/{self._MAC.pattern}/increment-results", path) or
+                                  (self._SWITCH_LLDP_REQUEST.fullmatch(path) and
+                                   self._SWITCH_LLDP_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  self._SWITCH_NETWORKS_DETAIL_REQUEST.fullmatch(path) or
+                                  self._GATEWAY_ACL_REQUEST.fullmatch(path) or
+                                  self._SWITCH_ACL_REQUEST.fullmatch(path) or
+                                  self._AP_ACL_REQUEST.fullmatch(path) or
+                                  self._DHCP_USERS_REQUEST.fullmatch(path) or
+                                  self._GATEWAY_DHCP_USERS_REQUEST.fullmatch(path) or
+                                  (self._SWITCH_DHCP_USERS_REQUEST.fullmatch(path) and
+                                   self._SWITCH_DHCP_USERS_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  (self._SWITCH_OSPF_NEIGHBORS_REQUEST.fullmatch(path) and
+                                   self._SWITCH_OSPF_NEIGHBORS_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  (self._SWITCH_PORT_NETWORKS_REQUEST.fullmatch(path) and
+                                   self._SWITCH_PORT_NETWORKS_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  (self._SWITCH_EXIST_NETWORKS_REQUEST.fullmatch(path) and
+                                   self._SWITCH_EXIST_NETWORKS_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  (self._SWITCH_NETWORKS_REQUEST.fullmatch(path) and
+                                   self._SWITCH_NETWORKS_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  (self._SWITCH_INTERFACES_REQUEST.fullmatch(path) and
+                                   self._SWITCH_INTERFACES_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  (self._SWITCH_ROUTING_TABLE_REQUEST.fullmatch(path) and
+                                   self._SWITCH_ROUTING_TABLE_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  (self._SWITCH_STATIC_ROUTES_REQUEST.fullmatch(path) and
+                                   self._SWITCH_STATIC_ROUTES_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  (self._SWITCH_VRFS_REQUEST.fullmatch(path) and
+                                   self._SWITCH_VRFS_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  (self._SWITCH_VLAN_INTERFACES_REQUEST.fullmatch(path) and
+                                   self._SWITCH_VLAN_INTERFACES_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  (self._SWITCH_STATISTICS_REQUEST.fullmatch(path) and
+                                   self._SWITCH_STATISTICS_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  (self._SWITCH_PORT_TAGS_REQUEST.fullmatch(path) and
+                                   self._SWITCH_PORT_TAGS_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  self._DNS_CACHE_REQUEST.fullmatch(path) or
+                                  self._DNS_PROXY_REQUEST.fullmatch(path) or
+                                  self._LAN_DNS_REQUEST.fullmatch(path) or
+                                  self._CONTROLLER_HEALTH_REQUEST.fullmatch(path) or
+                                  self._CONTROLLER_SCENARIOS_REQUEST.fullmatch(path) or
+                                  self._CONTROLLER_SCENARIO_DIFFERENCE_REQUEST.fullmatch(path) or
+                                  self._controller_threat_severity_request_valid(path) or
+                                  self._site_threat_window_request_valid(path) or
+                                  self._controller_client_recognition_request_valid(path) or
+                                  self._controller_device_statistics_request_valid(path) or
+                                  self._controller_client_active_timeout_request_valid(path) or
+                                  self._controller_client_history_retention_request_valid(path) or
+                                  self._controller_audit_notification_request_valid(path) or
+                                  self._controller_ui_interface_request_valid(path) or
+                                  self._controller_retention_request_valid(path) or
+                                  self._controller_dst_request_valid(path) or
+                                  self._controller_experience_request_valid(path) or
+                                  self._controller_client_detail_info_request_valid(path) or
+                                  self._controller_general_settings_request_valid(path) or
+                                  self._controller_device_access_request_valid(path) or
+                                  self._controller_backup_schedule_request_valid(path) or
+                                  self._controller_cloud_access_request_valid(path) or
+                                  self._controller_device_management_request_valid(path) or
+                                  self._controller_remote_binding_request_valid(path) or
+                                  self._controller_backup_result_request_valid(path) or
+                                  self._controller_restore_result_request_valid(path) or
+                                  self._controller_privacy_policy_request_valid(path) or
+                                  self._controller_mail_status_request_valid(path) or
+                                  self._controller_global_mfa_status_request_valid(path) or
+                                  self._msp_cloud_access_request_valid(path) or
+                                  self._msp_privacy_policy_request_valid(path) or
+                                  self._msp_client_detail_info_request_valid(path) or
+                                  self._msp_audit_notification_request_valid(path) or
+                                  self._msp_device_link_topology_request_valid(path) or
+                                  self._msp_device_tags_request_valid(path) or
+                                  self._msp_mfa_status_request_valid(path) or
+                                  self._msp_license_auto_active_request_valid(path) or
+                                  self._msp_customer_roles_request_valid(path) or
+                                  self._msp_dst_info_request_valid(path) or
+                                  self._msp_remote_logging_request_valid(path) or
+                                  self._msp_mail_server_request_valid(path) or
+                                  self._msp_general_settings_request_valid(path) or
+                                  self._msp_log_notification_request_valid(path) or
+                                  self._msp_data_retention_request_valid(path) or
+                                  self._msp_ui_interface_request_valid(path) or
+                                  self._msp_user_interface_request_valid(path) or
+                                  self._msp_available_roles_request_valid(path) or
+                                  self._msp_available_customer_roles_request_valid(path) or
+                                  self._msp_dashboard_overall_request_valid(path) or
+                                  self._msp_cluster_nodes_request_valid(path) or
+                                  self._msp_adopt_tip_request_valid(path) or
+                                  self._msp_roles_request_valid(path) or
+                                  self._controller_remote_logging_request_valid(path) or
+                                  self._controller_remote_logging_tip_request_valid(path) or
+                                  self._controller_radius_proxy_request_valid(path) or
+                                  self._controller_radius_server_request_valid(path) or
+                                  self._controller_upgrade_port_request_valid(path) or
+                                  self._controller_portal_port_request_valid(path) or
+                                  self._controller_port_settings_request_valid(path) or
+                                  self._controller_status_request_valid(path) or
+                                  self._controller_logging_request_valid(path) or
+                                  self._controller_certificate_request_valid(path) or
+                                  self._controller_roles_request_valid(path) or
+                                  self._controller_available_roles_request_valid(path) or
+                                  self._controller_known_devices_request_valid(path) or
+                                  self._controller_unknown_devices_request_valid(path) or
+                                  self._controller_batch_adopt_info_request_valid(path) or
+                                  self._site_pending_devices_request_valid(path) or
+                                  (self._SITE_RADIUS_USERS_REQUEST.fullmatch(path) and
+                                   self._SITE_RADIUS_USERS_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  (self._SITE_DEVICE_TAGS_REQUEST.fullmatch(path) and
+                                   self._SITE_DEVICE_TAGS_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  self._SITE_OVERVIEW_REQUEST.fullmatch(path) or
+                                  (self._SITE_SWITCH_QOS_MODE_REQUEST.fullmatch(path) and
+                                   self._SITE_SWITCH_QOS_MODE_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  (self._SITE_SWITCH_QOS_SCHEDULER_REQUEST.fullmatch(path) and
+                                   self._SITE_SWITCH_QOS_SCHEDULER_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  (self._SITE_SWITCH_QOS_DSCP_REQUEST.fullmatch(path) and
+                                   self._SITE_SWITCH_QOS_DSCP_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  self._SITE_TOPOLOGY_REQUEST.fullmatch(path) or
+                                  self._SITE_HEALTH_TIMELINE_REQUEST.fullmatch(path) or
+                                  self._site_longest_client_uptime_request_valid(path) or
+                                  self._rrm_incompatible_request_valid(path) or
+                                  self._wifi_health_request_valid(path) or
+                                  self._wifi_subhealth_request_valid(path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/band-steering", path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/rrm/config", path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/dashboard/channels", path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/dashboard/client-signal-distribution", path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/roaming", path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/led", path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/lldp", path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/applicationControl/status", path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/qos/gateway/voip-prioritization", path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/qos/gateway/tag-outbound-traffic", path) or
+                                  self._SITE_LOG_REQUEST.fullmatch(path) or
+                                  (self._SITE_ROGUE_AP_RESULTS_REQUEST.fullmatch(path) and
+                                   self._SITE_ROGUE_AP_RESULTS_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  (self._SITE_WIDS_SUMMARY_REQUEST.fullmatch(path) and
+                                   self._SITE_WIDS_SUMMARY_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  (self._SITE_WIDS_BLACKLIST_REQUEST.fullmatch(path) and
+                                   self._SITE_WIDS_BLACKLIST_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  re.fullmatch(self._AP_LLDP_PATH.format(
+                                      controller_id=re.escape(self.config.controller_id),
+                                      site_id=r"[A-Za-z0-9_-]{1,128}",
+                                      ap_mac=self._MAC.pattern), path) or
+                                  any(re.fullmatch(template.format(
+                                      controller_id=r"[A-Za-z0-9_-]{1,128}",
+                                      site_id=r"[A-Za-z0-9_-]{1,128}",
+                                      ap_mac=self._MAC.pattern
+                                  ), path) for template in self._AP_READ_PATHS.values()) or
+                                  re.fullmatch(self._AP_PORTS_PATH.format(
+                                      controller_id=re.escape(self.config.controller_id),
+                                      site_id=r"[A-Za-z0-9_-]{1,128}",
+                                      ap_mac=self._MAC.pattern), path) or
+                                  re.fullmatch(self._AP_SNMP_CONFIG_PATH.format(
+                                      controller_id=re.escape(self.config.controller_id),
+                                      site_id=r"[A-Za-z0-9_-]{1,128}",
+                                      ap_mac=self._MAC.pattern), path) or
+                                  re.fullmatch(self._AP_VLAN_V1_PATH.format(
+                                      controller_id=re.escape(self.config.controller_id),
+                                      site_id=r"[A-Za-z0-9_-]{1,128}",
+                                      ap_mac=self._MAC.pattern), path) or
+                                  re.fullmatch(self._AP_WLAN_OVERRIDES_PATH.format(
+                                      controller_id=re.escape(self.config.controller_id),
+                                      site_id=r"[A-Za-z0-9_-]{1,128}",
+                                      ap_mac=self._MAC.pattern), path))
+        ) or (
+            method == "PATCH" and re.fullmatch(
+                rf"/openapi/v1/{re.escape(self.config.controller_id)}/global/controller/setting/network/radius-proxy",
+                path) and self._valid_controller_radius_proxy_body(body)
+        ) or (
+            method == "PATCH" and re.fullmatch(
+                rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/[A-Za-z0-9_-]{{1,128}}/aps/{self._MAC.pattern}/radio-config",
+                path)
+        ) or (
+            method == "PUT" and re.fullmatch(
+                rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/[A-Za-z0-9_-]{{1,128}}/setting/service/dns-cache",
+                path) and
+            self._valid_dns_cache_put_body(body)
+        ) or (
+            method == "PUT" and re.fullmatch(
+                rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/[A-Za-z0-9_-]{{1,128}}/rrm/config",
+                path) and self._valid_rrm_mode_body(body)
+        ) or (
+            method == "PUT" and re.fullmatch(
+                rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/[A-Za-z0-9_-]{{1,128}}/led",
+                path) and self._valid_single_enable_body(body)
+        ) or (
+            method == "PUT" and re.fullmatch(
+                rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/[A-Za-z0-9_-]{{1,128}}/applicationControl/status",
+                path) and self._valid_site_dpi_logging_body(body)
+        ) or (
+            method == "PUT" and re.fullmatch(
+                rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/[A-Za-z0-9_-]{{1,128}}/qos/gateway/voip-prioritization",
+                path) and self._valid_gateway_voip_body(body)
+        ) or (
+            method == "PUT" and re.fullmatch(
+                rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/[A-Za-z0-9_-]{{1,128}}/qos/gateway/tag-outbound-traffic",
+                path) and self._valid_gateway_tag_qos_body(body)
+        ) or (
+            method == "PUT" and re.fullmatch(
+                rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/[A-Za-z0-9_-]{{1,128}}/aps/{self._MAC.pattern}/afc-config",
+                path) and self._valid_single_enable_body(body)
+        ) or (
+            method == "PUT" and re.fullmatch(
+                rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/[A-Za-z0-9_-]{{1,128}}/aps/{self._MAC.pattern}/channel-limit",
+                path) and self._valid_channel_limit_body(body)
+        ) or (
+            method == "PATCH" and re.fullmatch(
+                rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/[A-Za-z0-9_-]{{1,128}}/aps/{self._MAC.pattern}/ofdma",
+                path) and self._valid_ap_ofdma_body(body)
+        ) or (
+            method == "PATCH" and re.fullmatch(
+                rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/[A-Za-z0-9_-]{{1,128}}/aps/{self._MAC.pattern}/qos",
+                path) and self._valid_ap_qos_body(body)
+        ) or (
+            method == "PATCH" and re.fullmatch(
+                rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/[A-Za-z0-9_-]{{1,128}}/wireless-network/ssids/[A-Za-z0-9_-]{{1,128}}/enable",
+                path) and
+            self._valid_ssid_enable_body(body)
+        ) or (
+            method == "PATCH" and re.fullmatch(
+                rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/[A-Za-z0-9_-]{{1,128}}/band-steering",
+                path) and self._valid_band_steering_body(body)
+        ) or (
+            method == "PATCH" and re.fullmatch(
+                rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/[A-Za-z0-9_-]{{1,128}}/lldp",
+                path) and self._valid_site_lldp_body(body)
+        ) or (
+            method == "PATCH" and re.fullmatch(
+                rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/[A-Za-z0-9_-]{{1,128}}/gateways/{self._MAC.pattern}/network/ipv6",
+                path) and
+            self._valid_single_enable_body(body)
+        ) or (
+            method == "PUT" and re.fullmatch(
+                rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/[A-Za-z0-9_-]{{1,128}}/switches/{self._MAC.pattern}/ports/(?:0|[1-9][0-9]{{0,2}}|[1-3][0-9]{{3}}|40[0-8][0-9]|409[0-6])/poe-mode",
+                path) and self._valid_switch_port_poe_mode_body(body)
+        ) or (
+            method == "PUT" and re.fullmatch(
+                rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/[A-Za-z0-9_-]{{1,128}}/switches/{self._MAC.pattern}/ports/(?:0|[1-9][0-9]{{0,2}}|[1-3][0-9]{{3}}|40[0-8][0-9]|409[0-6])/status",
+                path) and self._valid_switch_port_status_body(body)
+        ) or (
+            method == "PUT" and re.fullmatch(
+                rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/[A-Za-z0-9_-]{{1,128}}/switches/{self._MAC.pattern}/ports/(?:0|[1-9][0-9]{{0,2}}|[1-3][0-9]{{3}}|40[0-8][0-9]|409[0-6])/name",
+                path) and self._valid_switch_port_name_body(body)
+        )
+        if not allowed:
+            raise OpenApiError("openapi_path_rejected")
+        mutating = (method in ("PUT", "PATCH") or
+                    (method == "POST" and self._switch_cable_test_action_path(path)))
+        write_guard = getattr(self, "_write_dispatch_guard", None) if mutating else None
+        if mutating and not callable(write_guard):
+            raise OpenApiError("operator_approval_required")
+        conn = self._connection()
+        headers = {"Accept": "application/json", "Connection": "close"}
+        if body is not None:
+            headers["Content-Type"] = "application/json"
+        if token is not None:
+            # TP-Link's guide specifies AccessToken=; the header also passed
+            # a read-only live check on one Hardware Controller 6.3.
+            headers["Authorization"] = "AccessToken=" + token
+        try:
+            if write_guard is not None:
+                # Recheck after connection/TLS setup, immediately before send.
+                write_guard()
+            conn.request(method, path, body=body, headers=headers)
+            response = conn.getresponse()
+            if method == "GET" and getattr(conn, "_omada_tls_verified", False) is True:
+                capture = getattr(self._capability_local, "capture", None)
+                if isinstance(capture, dict):
+                    capture["controller_responses"] += 1
+            raw = response.read(self.config.max_response_bytes + 1)
+            status = response.status
+            content_type = response.getheader("Content-Type", "")
+        except (OSError, TimeoutError, http.client.HTTPException) as exc:
+            raise OpenApiError("controller_unreachable") from exc
+        finally:
+            conn.close()
+        if len(raw) > self.config.max_response_bytes:
+            raise OpenApiError("openapi_response_too_large")
+        if status == 401:
+            raise OpenApiError("openapi_authentication_failed", upstream_http_status=status)
+        if status == 403:
+            raise OpenApiError("openapi_permission_denied", upstream_http_status=status)
+        if status != 200:
+            raise OpenApiError("openapi_http_error", upstream_http_status=status)
+        if not isinstance(content_type, str) or content_type.split(";", 1)[0].strip().lower() != "application/json":
+            raise OpenApiError("openapi_content_type_invalid")
+        def reject_constant(_value: str):
+            raise ValueError("nonstandard_json_constant")
+
+        def finite_float(value: str) -> float:
+            parsed = float(value)
+            if not math.isfinite(parsed):
+                raise ValueError("nonfinite_json_number")
+            return parsed
+
+        def reject_duplicate_keys(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError("duplicate_json_key")
+                result[key] = value
+            return result
+
+        try:
+            payload = json.loads(raw, parse_constant=reject_constant, parse_float=finite_float,
+                                 object_pairs_hook=reject_duplicate_keys)
+        except (json.JSONDecodeError, UnicodeDecodeError, RecursionError, ValueError, OverflowError) as exc:
+            raise OpenApiError("openapi_response_invalid") from exc
+        if not isinstance(payload, dict):
+            raise OpenApiError("openapi_response_invalid")
+        if payload.get("errorCode") in (-1200, -1202):
+            raise OpenApiError("openapi_permission_denied",
+                               upstream_error_code=payload["errorCode"],
+                               upstream_http_status=status)
+        if payload.get("errorCode") == -44106:
+            raise OpenApiError("openapi_authentication_failed",
+                               upstream_error_code=payload["errorCode"],
+                               upstream_http_status=status)
+        if payload.get("errorCode") not in (None, 0):
+            upstream = payload.get("errorCode")
+            raise OpenApiError(
+                "openapi_rejected",
+                upstream_error_code=upstream if isinstance(upstream, int) and
+                not isinstance(upstream, bool) else None,
+                upstream_http_status=status)
+        return payload
+
+    def _switch_cable_test_action_path(self, path: str) -> bool:
+        return re.fullmatch(
+            rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+            rf"[A-Za-z0-9_-]{{1,128}}/cable-test/switches/{self._MAC.pattern}/"
+            r"(?:start|cancel)", path) is not None
+
+    def _valid_switch_cable_test_action(self, path: str, body: bytes | None) -> bool:
+        match = re.fullmatch(
+            rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+            rf"[A-Za-z0-9_-]{{1,128}}/cable-test/switches/{self._MAC.pattern}/(start|cancel)",
+            path)
+        if match is None:
+            return False
+        if match.group(1) == "cancel":
+            return body is None
+        if not isinstance(body, bytes):
+            return False
+        try:
+            value = json.loads(body.decode("ascii"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return False
+        if not isinstance(value, dict) or set(value) != {"portList"}:
+            return False
+        rows = value.get("portList")
+        if (not isinstance(rows, list) or
+                not all(isinstance(row, dict) and set(row) == {"port"} for row in rows)):
+            return False
+        return self._valid_cable_test_ports([row["port"] for row in rows])
+
+    @staticmethod
+    def _valid_dns_cache_put_body(body: bytes | None) -> bool:
+        if not isinstance(body, bytes) or len(body) > 256:
+            return False
+
+        def no_duplicates(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError("duplicate_key")
+                result[key] = value
+            return result
+
+        try:
+            value = json.loads(body, object_pairs_hook=no_duplicates)
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError):
+            return False
+        return (isinstance(value, dict) and set(value) == {"enable", "ttl"} and
+                type(value["enable"]) is bool and type(value["ttl"]) is int and
+                1 <= value["ttl"] <= 86400)
+
+    @staticmethod
+    def _valid_ssid_enable_body(body: bytes | None) -> bool:
+        if not isinstance(body, bytes) or len(body) > 128:
+            return False
+
+        def no_duplicates(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError("duplicate_key")
+                result[key] = value
+            return result
+
+        try:
+            value = json.loads(body, object_pairs_hook=no_duplicates)
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError):
+            return False
+        return isinstance(value, dict) and set(value) == {"ssidEnable"} and type(value["ssidEnable"]) is bool
+
+    @staticmethod
+    def _valid_controller_radius_proxy_state(value: object) -> bool:
+        if not isinstance(value, dict) or not {"enable", "port"}.issubset(value):
+            return False
+        allowed = {"enable", "port", "requireMessageAuthenticator", "limitProxyState"}
+        return (not (set(value) - allowed) and type(value["enable"]) is bool and
+                type(value["port"]) is int and -(2**31) <= value["port"] < 2**31 and
+                all(type(value[key]) is bool for key in
+                    set(value) & {"requireMessageAuthenticator", "limitProxyState"}))
+
+    @classmethod
+    def _valid_controller_radius_proxy_body(cls, body: bytes | None) -> bool:
+        if not isinstance(body, bytes) or len(body) > 256:
+            return False
+        def no_duplicates(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError("duplicate_key")
+                result[key] = value
+            return result
+        try:
+            value = json.loads(body, object_pairs_hook=no_duplicates)
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError):
+            return False
+        return cls._valid_controller_radius_proxy_state(value)
+
+    @staticmethod
+    def _valid_single_enable_body(body: bytes | None) -> bool:
+        if not isinstance(body, bytes) or len(body) > 64:
+            return False
+
+        def no_duplicates(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError("duplicate_key")
+                result[key] = value
+            return result
+
+        try:
+            value = json.loads(body, object_pairs_hook=no_duplicates)
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError):
+            return False
+        return isinstance(value, dict) and set(value) == {"enable"} and type(value["enable"]) is bool
+
+    @classmethod
+    def _valid_site_dpi_logging_body(cls, body: bytes | None) -> bool:
+        if not isinstance(body, bytes) or len(body) > 128:
+            return False
+
+        def no_duplicates(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError("duplicate_key")
+                result[key] = value
+            return result
+
+        try:
+            value = json.loads(body, object_pairs_hook=no_duplicates)
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError):
+            return False
+        return cls._valid_site_dpi_logging_state(value)
+
+    @classmethod
+    def _valid_gateway_voip_body(cls, body: bytes | None) -> bool:
+        if not isinstance(body, bytes) or len(body) > 128:
+            return False
+
+        def no_duplicates(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError("duplicate_key")
+                result[key] = value
+            return result
+
+        try:
+            value = json.loads(body, object_pairs_hook=no_duplicates)
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError):
+            return False
+        return cls._valid_gateway_voip_state(value)
+
+    @classmethod
+    def _valid_gateway_tag_qos_body(cls, body: bytes | None) -> bool:
+        if not isinstance(body, bytes) or len(body) > 1024:
+            return False
+
+        def no_duplicates(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError("duplicate_key")
+                result[key] = value
+            return result
+
+        try:
+            value = json.loads(body, object_pairs_hook=no_duplicates)
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError):
+            return False
+        return cls._valid_gateway_tag_qos_state(value)
+
+    @staticmethod
+    def _valid_site_lldp_body(body: bytes | None) -> bool:
+        if not isinstance(body, bytes) or len(body) > 128:
+            return False
+        def no_duplicates(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError("duplicate_key")
+                result[key] = value
+            return result
+        try:
+            value = json.loads(body, object_pairs_hook=no_duplicates)
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError):
+            return False
+        if not isinstance(value, dict) or set(value) != {"lldp"}:
+            return False
+        setting = value["lldp"]
+        return (isinstance(setting, dict) and set(setting) == {"enable"} and
+                type(setting.get("enable")) is bool)
+
+    @staticmethod
+    def _valid_rrm_mode_body(body: bytes | None) -> bool:
+        if not isinstance(body, bytes) or len(body) > 256:
+            return False
+        def no_duplicates(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError("duplicate_key")
+                result[key] = value
+            return result
+        try:
+            value = json.loads(body, object_pairs_hook=no_duplicates)
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError):
+            return False
+        return OmadaOpenApiClient._valid_rrm_mode_state(value)
+
+    @staticmethod
+    def _valid_band_steering_body(body: bytes | None) -> bool:
+        if not isinstance(body, bytes) or len(body) > 128:
+            return False
+        def no_duplicates(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError("duplicate_key")
+                result[key] = value
+            return result
+        try:
+            value = json.loads(body, object_pairs_hook=no_duplicates)
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError):
+            return False
+        if not isinstance(value, dict) or set(value) != {"bandSteeringForMultiBand"}:
+            return False
+        setting = value["bandSteeringForMultiBand"]
+        return (isinstance(setting, dict) and set(setting) == {"mode"} and
+                type(setting.get("mode")) is int and setting["mode"] in (0, 1, 2))
+
+    @staticmethod
+    def _valid_ap_ofdma_body(body: bytes | None) -> bool:
+        if not isinstance(body, bytes) or len(body) > 96:
+            return False
+        def no_duplicates(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError("duplicate_key")
+                result[key] = value
+            return result
+        try:
+            value = json.loads(body, object_pairs_hook=no_duplicates)
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError):
+            return False
+        fields = {"ofdmaEnable2g", "ofdmaEnable5g", "ofdmaEnable5g2", "ofdmaEnable6g"}
+        return (isinstance(value, dict) and len(value) == 1 and set(value) <= fields and
+                type(next(iter(value.values()))) is bool)
+
+    @staticmethod
+    def _valid_ap_qos_body(body: bytes | None) -> bool:
+        if not isinstance(body, bytes) or len(body) > 192:
+            return False
+        def no_duplicates(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError("duplicate_key")
+                result[key] = value
+            return result
+        try:
+            value = json.loads(body, object_pairs_hook=no_duplicates)
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError):
+            return False
+        fields = {"deliveryEnable2g", "deliveryEnable5g", "deliveryEnable5g1",
+                  "deliveryEnable5g2", "deliveryEnable6g"}
+        return (isinstance(value, dict) and bool(value) and set(value) <= fields and
+                all(type(item) is bool for item in value.values()))
+
+    @staticmethod
+    def _valid_channel_limit_body(body: bytes | None) -> bool:
+        if not isinstance(body, bytes) or len(body) > 64:
+            return False
+        def no_duplicates(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError("duplicate_key")
+                result[key] = value
+            return result
+        try:
+            value = json.loads(body, object_pairs_hook=no_duplicates)
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError):
+            return False
+        return (isinstance(value, dict) and set(value) == {"channelLimitType"} and
+                type(value["channelLimitType"]) is int and value["channelLimitType"] in (0, 1, 2))
+
+    @staticmethod
+    def _valid_switch_port_status_body(body: bytes | None) -> bool:
+        if not isinstance(body, bytes) or len(body) > 64:
+            return False
+        def no_duplicates(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError("duplicate_key")
+                result[key] = value
+            return result
+        try:
+            value = json.loads(body, object_pairs_hook=no_duplicates)
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError):
+            return False
+        return (isinstance(value, dict) and set(value) == {"status"} and
+                type(value["status"]) is int and value["status"] in (0, 1))
+
+    @classmethod
+    def _valid_switch_port_name_body(cls, body: bytes | None) -> bool:
+        if not isinstance(body, bytes) or len(body) > 2048:
+            return False
+        def no_duplicates(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError("duplicate_key")
+                result[key] = value
+            return result
+        try:
+            value = json.loads(body, object_pairs_hook=no_duplicates)
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError):
+            return False
+        return (isinstance(value, dict) and set(value) == {"name"} and
+                cls._valid_switch_port_name(value.get("name")))
+
+    @staticmethod
+    def _valid_switch_port_poe_mode_body(body: bytes | None) -> bool:
+        if not isinstance(body, bytes) or len(body) > 64:
+            return False
+
+        def no_duplicates(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError("duplicate_key")
+                result[key] = value
+            return result
+
+        try:
+            value = json.loads(body, object_pairs_hook=no_duplicates)
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError):
+            return False
+        return (isinstance(value, dict) and set(value) == {"poeMode"} and
+                type(value["poeMode"]) is int and value["poeMode"] in (0, 1))
+
+    @classmethod
+    def _ap_health_request_valid(cls, path: str) -> bool:
+        match = cls._AP_HEALTH_REQUEST.fullmatch(path)
+        if not match:
+            return False
+        try:
+            return int(match.group(2)) - int(match.group(1)) == 86_400_000
+        except ValueError:
+            return False
+
+    def _ap_health_timeline_request_valid(self, path: str) -> bool:
+        match = self._AP_HEALTH_TIMELINE_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(3)) - int(match.group(2)) == 86_400_000
+        except ValueError:
+            return False
+
+    def _client_timeline_request_valid(self, path: str) -> bool:
+        match = self._CLIENT_TIMELINE_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(3)) - int(match.group(2)) == 86_400_000
+        except ValueError:
+            return False
+
+    def _client_history_request_valid(self, path: str) -> bool:
+        match = self._CLIENT_HISTORY_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            page, page_size = int(match.group(3)), int(match.group(4))
+            return 1 <= page <= self.config.max_pages and page_size == self.config.page_size
+        except (ValueError, OverflowError):
+            return False
+
+    def _ap_port_vlans_request_valid(self, path: str) -> bool:
+        match = self._AP_PORT_VLANS_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return 1 <= int(match.group(2)) <= self.config.max_pages
+        except (ValueError, OverflowError):
+            return False
+
+    def _ap_mesh_candidates_request_valid(self, path: str) -> bool:
+        match = self._AP_MESH_CANDIDATES_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            page, page_size = int(match.group(2)), int(match.group(3))
+            return 1 <= page <= self.config.max_pages and page_size == self.config.page_size
+        except (ValueError, OverflowError):
+            return False
+
+    def _client_health_timeline_request_valid(self, path: str) -> bool:
+        match = self._CLIENT_HEALTH_TIMELINE_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(3)) - int(match.group(2)) == 86_400_000
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_client_health_timeline_request_valid(self, path: str) -> bool:
+        match = self._SITE_CLIENT_HEALTH_TIMELINE_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(3)) - int(match.group(2)) == 86_400_000
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_wifi_summary_request_valid(self, path: str) -> bool:
+        match = self._SITE_WIFI_SUMMARY_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(3)) - int(match.group(2)) == 86_400
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_6ghz_ap_presence_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/"
+            r"wireless-network/multi-band-6g/exist", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_setting_existence_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/setting/exist", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_entity_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_upnp_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/upnp", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_iot_aging_time_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/setting/iot/aging-time", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_iot_radio_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/setting/iot/radio", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_iot_transmit_power_request_valid(self, path: str) -> bool:
+        match = self._SITE_IOT_TRANSMIT_POWER_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_remember_setting_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/remember-device", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_client_connection_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/"
+            r"dashboard/client-ssid-distribution", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_poe_usage_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/"
+            r"dashboard/poe-usage", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_device_counts_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/"
+            r"dashboard/card/overview", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_ipsec_tunnel_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/"
+            r"dashboard/lpset-tunnel-stats", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_client_association_time_request_valid(self, path: str) -> bool:
+        match = self._SITE_CLIENT_ASSOCIATION_TIME_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(3)) - int(match.group(2)) == 86_400
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_network_activity_request_valid(self, path: str) -> bool:
+        match = self._SITE_NETWORK_ACTIVITY_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(3)) - int(match.group(2)) == 86_400
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_client_rssi_distribution_request_valid(self, path: str) -> bool:
+        match = self._SITE_CLIENT_RSSI_DISTRIBUTION_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_ap_rssi_density_request_valid(self, path: str) -> bool:
+        match = self._SITE_AP_RSSI_DENSITY_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_client_attachment_distribution_request_valid(self, path: str) -> bool:
+        match = self._SITE_CLIENT_ATTACHMENT_DISTRIBUTION_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_client_frequency_distribution_request_valid(self, path: str) -> bool:
+        match = self._SITE_CLIENT_FREQUENCY_DISTRIBUTION_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_device_traffic_request_valid(self, path: str) -> bool:
+        match = self._SITE_DEVICE_TRAFFIC_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(3)) - int(match.group(2)) == 86_400
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_past_client_request_valid(self, path: str) -> bool:
+        match = self._SITE_PAST_CLIENT_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(3)) - int(match.group(2)) == 86_400
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_current_client_request_valid(self, path: str) -> bool:
+        match = self._SITE_CURRENT_CLIENT_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_gateway_isp_request_valid(self, path: str) -> bool:
+        match = self._SITE_GATEWAY_ISP_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_top_ap_request_valid(self, path: str) -> bool:
+        match = self._SITE_TOP_AP_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(3)) - int(match.group(2)) == 86_400
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_active_ap_request_valid(self, path: str) -> bool:
+        return self._site_active_device_request_valid(path, self._SITE_ACTIVE_AP_REQUEST)
+
+    def _site_active_switch_request_valid(self, path: str) -> bool:
+        return self._site_active_device_request_valid(path, self._SITE_ACTIVE_SWITCH_REQUEST)
+
+    def _site_active_device_request_valid(self, path: str, pattern: re.Pattern[str]) -> bool:
+        match = pattern.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(3)) - int(match.group(2)) == 86_400
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_active_ap_v2_request_valid(self, path: str) -> bool:
+        match = self._SITE_ACTIVE_AP_V2_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(3)) - int(match.group(2)) == 86_400
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_specific_client_info_request_valid(self, path: str) -> bool:
+        match = self._SITE_SPECIFIC_CLIENT_INFO_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(3)) - int(match.group(2)) == 86_400
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_specific_app_info_request_valid(self, path: str) -> bool:
+        match = self._SITE_SPECIFIC_APP_INFO_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(3)) - int(match.group(2)) == 86_400
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_dashboard_tabs_request_valid(self, path: str) -> bool:
+        match = self._SITE_DASHBOARD_TABS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_application_access_request_valid(self, path: str) -> bool:
+        match = self._SITE_APPLICATION_ACCESS_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(3)) - int(match.group(2)) == 86_400
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_application_traffic_request_valid(self, path: str) -> bool:
+        match = self._SITE_APPLICATION_TRAFFIC_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(3)) - int(match.group(2)) == 86_400
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_wan_lan_status_request_valid(self, path: str) -> bool:
+        match = self._SITE_WAN_LAN_STATUS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_arp_detect_status_request_valid(self, path: str) -> bool:
+        match = self._SITE_ARP_DETECT_STATUS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_disaster_mode_status_request_valid(self, path: str) -> bool:
+        match = self._SITE_DISASTER_MODE_STATUS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_specification_request_valid(self, path: str) -> bool:
+        match = self._SITE_SPECIFICATION_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_portal_logout_request_valid(self, path: str) -> bool:
+        match = self._SITE_PORTAL_LOGOUT_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_wids_config_request_valid(self, path: str) -> bool:
+        match = self._SITE_WIDS_CONFIG_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_wips_config_request_valid(self, path: str) -> bool:
+        match = self._SITE_WIPS_CONFIG_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_acl_config_mode_request_valid(self, path: str) -> bool:
+        match = self._SITE_ACL_CONFIG_MODE_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_attack_defense_request_valid(self, path: str) -> bool:
+        match = self._SITE_ATTACK_DEFENSE_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_attack_defense_defaults_request_valid(self, path: str) -> bool:
+        match = self._SITE_ATTACK_DEFENSE_DEFAULTS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_alg_config_request_valid(self, path: str) -> bool:
+        match = self._SITE_ALG_CONFIG_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_firewall_settings_request_valid(self, path: str) -> bool:
+        match = self._SITE_FIREWALL_SETTINGS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_bandwidth_control_request_valid(self, path: str) -> bool:
+        match = self._SITE_BANDWIDTH_CONTROL_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_wan_ports_request_valid(self, path: str) -> bool:
+        match = self._SITE_WAN_PORTS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_vlan_network_request_valid(self, path: str) -> bool:
+        match = self._SITE_VLAN_NETWORK_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_lan_networks_v3_request_valid(self, path: str) -> bool:
+        match = self._SITE_LAN_NETWORKS_V3_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_lan_network_inventory_request_valid(self, path: str) -> bool:
+        match = self._SITE_LAN_NETWORK_INVENTORY_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_longest_client_uptime_request_valid(self, path: str) -> bool:
+        match = self._SITE_LONGEST_CLIENT_UPTIME_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_internet_request_valid(self, path: str) -> bool:
+        match = self._SITE_INTERNET_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_internet_load_balance_request_valid(self, path: str) -> bool:
+        match = self._SITE_INTERNET_LOAD_BALANCE_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_internet_basic_info_request_valid(self, path: str) -> bool:
+        match = self._SITE_INTERNET_BASIC_INFO_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_wlan_group_request_valid(self, path: str) -> bool:
+        match = self._SITE_WLAN_GROUP_V1_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_mac_auth_ssid_inventory_request_valid(self, path: str) -> bool:
+        match = self._SITE_MAC_AUTH_SSIDS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_wlan_group_ssids_request_valid(self, path: str) -> bool:
+        match = self._SITE_WLAN_GROUP_SSIDS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_wlan_group_detail_request_valid(self, path: str) -> bool:
+        match = self._SITE_WLAN_GROUP_DETAIL_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_lock_to_ap_brief_request_valid(self, path: str) -> bool:
+        match = self._SITE_LOCK_TO_AP_BRIEF_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_ineligible_interference_ap_request_valid(self, path: str) -> bool:
+        match = self._SITE_INELIGIBLE_INTERFERENCE_AP_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_interference_scan_eligible_request_valid(self, path: str) -> bool:
+        match = self._SITE_INTERFERENCE_SCAN_ELIGIBLE_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_vpn_session_request_valid(self, path: str) -> bool:
+        match = self._SITE_VPN_SESSION_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_dhcp_candidates_request_valid(self, path: str) -> bool:
+        match = self._SITE_DHCP_CANDIDATES_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_network_reservation_request_valid(self, path: str) -> bool:
+        match = self._SITE_NETWORK_RESERVATION_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_dhcp_reservations_request_valid(self, path: str) -> bool:
+        match = self._SITE_DHCP_RESERVATIONS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_dhcp_snoop_status_request_valid(self, path: str) -> bool:
+        match = self._SITE_DHCP_SNOOP_STATUS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_dhcp_snoops_request_valid(self, path: str) -> bool:
+        match = self._SITE_DHCP_SNOOPS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_mdns_rules_request_valid(self, path: str) -> bool:
+        match = self._SITE_MDNS_RULES_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_ddns_request_valid(self, path: str) -> bool:
+        match = self._SITE_DDNS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_firewall_defaults_request_valid(self, path: str) -> bool:
+        match = self._SITE_FIREWALL_DEFAULTS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_snmp_request_valid(self, path: str) -> bool:
+        match = self._SITE_SNMP_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_gateway_wan_status_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_GATEWAY_WAN_STATUS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_hotspot_statistics_request_valid(self, path: str) -> bool:
+        match = self._SITE_HOTSPOT_STATISTICS_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(3)) - int(match.group(2)) == 86_400
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_device_memory_request_valid(self, path: str) -> bool:
+        return self._site_active_device_request_valid(path, self._SITE_DEVICE_MEMORY_REQUEST)
+
+    def _site_switch_dashboard_request_valid(self, path: str) -> bool:
+        return self._site_active_device_request_valid(path, self._SITE_SWITCH_DASHBOARD_REQUEST)
+
+    def _site_ap_interference_request_valid(self, path: str) -> bool:
+        match = self._SITE_AP_INTERFERENCE_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_application_category_request_valid(self, path: str) -> bool:
+        match = self._SITE_APPLICATION_CATEGORY_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(3)) - int(match.group(2)) == 86_400
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_category_application_request_valid(self, path: str) -> bool:
+        match = self._SITE_CATEGORY_APPLICATION_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return (int(match.group(2)) <= (1 << 31) - 1 and
+                    int(match.group(4)) - int(match.group(3)) == 86_400)
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_category_client_request_valid(self, path: str) -> bool:
+        match = self._SITE_CATEGORY_CLIENT_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return (int(match.group(2)) <= (1 << 31) - 1 and
+                    int(match.group(4)) - int(match.group(3)) == 86_400)
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_active_application_request_valid(self, path: str) -> bool:
+        match = self._SITE_ACTIVE_APPLICATION_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(3)) - int(match.group(2)) == 86_400
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_active_client_request_valid(self, path: str) -> bool:
+        match = self._SITE_ACTIVE_CLIENT_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_cpu_usage_request_valid(self, path: str) -> bool:
+        match = self._SITE_CPU_USAGE_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(3)) - int(match.group(2)) == 86_400
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_client_bubble_request_valid(self, path: str) -> bool:
+        match = self._SITE_CLIENT_BUBBLE_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_traffic_activity_request_valid(self, path: str) -> bool:
+        match = self._SITE_TRAFFIC_ACTIVITY_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(3)) - int(match.group(2)) == 86_400
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_isp_load_request_valid(self, path: str) -> bool:
+        match = self._SITE_ISP_LOAD_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(3)) - int(match.group(2)) == 86_400
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_vpn_tunnel_request_valid(self, path: str) -> bool:
+        match = self._SITE_VPN_TUNNEL_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_open_vpn_tunnel_request_valid(self, path: str) -> bool:
+        match = self._SITE_OPEN_VPN_TUNNEL_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_client_activity_request_valid(self, path: str) -> bool:
+        match = self._SITE_CLIENT_ACTIVITY_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(3)) - int(match.group(2)) == 86_400
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_client_association_activity_request_valid(self, path: str) -> bool:
+        match = self._SITE_CLIENT_ASSOCIATION_ACTIVITY_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(3)) - int(match.group(2)) == 86_400
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_client_traffic_request_valid(self, path: str) -> bool:
+        match = self._SITE_CLIENT_TRAFFIC_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return (int(match.group(3)) - int(match.group(2)) == 86_400 and
+                    int(match.group(4)) <= 10_000 and 1 <= int(match.group(5)) <= 100)
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_mesh_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/mesh", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_multicast_rate_limit_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/multicast-rate-limit", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_gre_tunnel_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/vpn/gre-tunnel", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_ssl_vpn_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/vpn/ssl-vpn-server/setting", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_ssh_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/ssh", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_mld_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/setting/service/mld", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_template_upnp_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sitetemplates/[A-Za-z0-9_-]{1,128}/upnp", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_template_igmp_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sitetemplates/[A-Za-z0-9_-]{1,128}/setting/service/iptv/igmp", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_template_ssh_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sitetemplates/[A-Za-z0-9_-]{1,128}/ssh", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_template_iptv_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sitetemplates/[A-Za-z0-9_-]{1,128}/setting/service/iptv/iptv", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_template_iptv_service_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sitetemplates/[A-Za-z0-9_-]{1,128}/setting/service/iptv", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_igmp_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/setting/service/igmp", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_iptv_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/setting/service/iptv", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_client_recognition_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_CLIENT_RECOGNITION_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_device_statistics_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_DEVICE_STATISTICS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_client_active_timeout_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_CLIENT_ACTIVE_TIMEOUT_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_client_history_retention_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_CLIENT_HISTORY_RETENTION_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_audit_notification_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_AUDIT_NOTIFICATION_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_ui_interface_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_UI_INTERFACE_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_retention_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_RETENTION_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_dst_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_DST_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_experience_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_EXPERIENCE_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_client_detail_info_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_CLIENT_DETAIL_INFO_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_general_settings_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_GENERAL_SETTINGS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_device_access_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_DEVICE_ACCESS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_backup_schedule_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_BACKUP_SCHEDULE_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_cloud_access_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_CLOUD_ACCESS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_device_management_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_DEVICE_MANAGEMENT_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_remote_binding_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_REMOTE_BINDING_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_backup_result_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_BACKUP_RESULT_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_restore_result_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_RESTORE_RESULT_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_privacy_policy_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_PRIVACY_POLICY_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_mail_status_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_MAIL_STATUS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_global_mfa_status_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_GLOBAL_MFA_STATUS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _msp_cloud_access_request_valid(self, path: str) -> bool:
+        return bool(self._MSP_CLOUD_ACCESS_REQUEST.fullmatch(path))
+
+    def _msp_privacy_policy_request_valid(self, path: str) -> bool:
+        return bool(self._MSP_PRIVACY_POLICY_REQUEST.fullmatch(path))
+
+    def _msp_client_detail_info_request_valid(self, path: str) -> bool:
+        return bool(self._MSP_CLIENT_DETAIL_INFO_REQUEST.fullmatch(path))
+
+    def _msp_audit_notification_request_valid(self, path: str) -> bool:
+        return bool(self._MSP_AUDIT_NOTIFICATION_REQUEST.fullmatch(path))
+
+    def _msp_device_link_topology_request_valid(self, path: str) -> bool:
+        return bool(self._MSP_DEVICE_LINK_TOPOLOGY_REQUEST.fullmatch(path))
+
+    def _msp_device_tags_request_valid(self, path: str) -> bool:
+        return bool(self._MSP_DEVICE_TAGS_REQUEST.fullmatch(path))
+
+    def _msp_mfa_status_request_valid(self, path: str) -> bool:
+        return bool(self._MSP_MFA_STATUS_REQUEST.fullmatch(path))
+
+    def _msp_license_auto_active_request_valid(self, path: str) -> bool:
+        return bool(self._MSP_LICENSE_AUTO_ACTIVE_REQUEST.fullmatch(path))
+
+    def _msp_customer_roles_request_valid(self, path: str) -> bool:
+        return bool(self._MSP_CUSTOMER_ROLES_REQUEST.fullmatch(path))
+
+    def _msp_dst_info_request_valid(self, path: str) -> bool:
+        return bool(self._MSP_DST_INFO_REQUEST.fullmatch(path))
+
+    def _msp_remote_logging_request_valid(self, path: str) -> bool:
+        return bool(self._MSP_REMOTE_LOGGING_REQUEST.fullmatch(path))
+
+    def _msp_mail_server_request_valid(self, path: str) -> bool:
+        return bool(self._MSP_MAIL_SERVER_REQUEST.fullmatch(path))
+
+    def _msp_general_settings_request_valid(self, path: str) -> bool:
+        return bool(self._MSP_GENERAL_SETTINGS_REQUEST.fullmatch(path))
+
+    def _msp_log_notification_request_valid(self, path: str) -> bool:
+        return bool(self._MSP_LOG_NOTIFICATION_REQUEST.fullmatch(path))
+
+    def _msp_data_retention_request_valid(self, path: str) -> bool:
+        return bool(self._MSP_DATA_RETENTION_REQUEST.fullmatch(path))
+
+    def _msp_ui_interface_request_valid(self, path: str) -> bool:
+        return bool(self._MSP_UI_INTERFACE_REQUEST.fullmatch(path))
+
+    def _msp_user_interface_request_valid(self, path: str) -> bool:
+        return bool(self._MSP_USER_INTERFACE_REQUEST.fullmatch(path))
+
+    def _msp_available_roles_request_valid(self, path: str) -> bool:
+        return bool(self._MSP_AVAILABLE_ROLES_REQUEST.fullmatch(path))
+
+    def _msp_available_customer_roles_request_valid(self, path: str) -> bool:
+        return bool(self._MSP_AVAILABLE_CUSTOMER_ROLES_REQUEST.fullmatch(path))
+
+    def _msp_dashboard_overall_request_valid(self, path: str) -> bool:
+        return bool(self._MSP_DASHBOARD_OVERALL_REQUEST.fullmatch(path))
+
+    def _msp_cluster_nodes_request_valid(self, path: str) -> bool:
+        return bool(self._MSP_CLUSTER_NODES_REQUEST.fullmatch(path))
+
+    def _msp_adopt_tip_request_valid(self, path: str) -> bool:
+        return bool(self._MSP_ADOPT_TIP_REQUEST.fullmatch(path))
+
+    def _msp_roles_request_valid(self, path: str) -> bool:
+        return bool(self._MSP_ROLES_REQUEST.fullmatch(path))
+
+    def _controller_remote_logging_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_REMOTE_LOGGING_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_remote_logging_tip_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_REMOTE_LOGGING_TIP_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_radius_proxy_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_RADIUS_PROXY_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_radius_server_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_RADIUS_SERVER_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_upgrade_port_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_UPGRADE_PORT_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_portal_port_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_PORTAL_PORT_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_port_settings_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_PORT_SETTINGS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_status_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_STATUS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_logging_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_LOGGING_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_certificate_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_CERTIFICATE_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_roles_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_ROLES_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_available_roles_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_AVAILABLE_ROLES_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_known_devices_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_KNOWN_DEVICES_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id and
+                    match.group(2) == "1" and match.group(3) == str(self.config.page_size))
+
+    def _controller_unknown_devices_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_UNKNOWN_DEVICES_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id and
+                    match.group(2) == "1" and match.group(3) == str(self.config.page_size))
+
+    def _controller_batch_adopt_info_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_BATCH_ADOPT_INFO_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id and
+                    match.group(2) == "1" and match.group(3) == str(self.config.page_size))
+
+    def _site_pending_devices_request_valid(self, path: str) -> bool:
+        match = self._SITE_PENDING_DEVICES_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id and
+                    match.group(2) in self._site_ids_by_ref.values() and
+                    match.group(3) == "1" and match.group(4) == str(self.config.page_size))
+
+    def _device_adopt_result_request_valid(self, path: str) -> bool:
+        match = self._DEVICE_ADOPT_RESULT_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _device_mac_type_request_valid(self, path: str) -> bool:
+        match = self._DEVICE_MAC_TYPE_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _device_link_topology_request_valid(self, path: str) -> bool:
+        match = self._DEVICE_LINK_TOPOLOGY_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _device_radsec_support_request_valid(self, path: str) -> bool:
+        match = self._DEVICE_RADSEC_SUPPORT_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _device_upgrade_result_request_valid(self, path: str) -> bool:
+        match = self._DEVICE_UPGRADE_RESULT_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _device_timeline_request_valid(self, path: str) -> bool:
+        match = self._DEVICE_TIMELINE_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id and
+                    int(match.group(3)) - int(match.group(2)) == 86_400)
+
+    def _device_all_request_valid(self, path: str) -> bool:
+        match = self._DEVICE_ALL_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _olt_detail_request_valid(self, path: str) -> bool:
+        match = self._OLT_DETAIL_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _olt_eth_pon_list_request_valid(self, path: str) -> bool:
+        match = self._OLT_ETH_PON_LIST_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _olt_onu_global_status_request_valid(self, path: str) -> bool:
+        match = self._OLT_ONU_GLOBAL_STATUS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _olt_onu_isolation_status_request_valid(self, path: str) -> bool:
+        match = self._OLT_ONU_ISOLATION_STATUS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _olt_eth_config_list_request_valid(self, path: str) -> bool:
+        match = self._OLT_ETH_CONFIG_LIST_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _olt_lag_config_list_request_valid(self, path: str) -> bool:
+        match = self._OLT_LAG_CONFIG_LIST_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _olt_auto_refresh_request_valid(self, path: str) -> bool:
+        match = self._OLT_AUTO_REFRESH_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _olt_pon_information_request_valid(self, path: str) -> bool:
+        match = self._OLT_PON_INFORMATION_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _olt_pon_port_config_page_request_valid(self, path: str) -> bool:
+        parsed = urlsplit(path)
+        match = self._OLT_PON_PORT_CONFIG_PAGE_REQUEST.fullmatch(parsed.path)
+        if not match or match.group(1) != self.config.controller_id or parsed.fragment:
+            return False
+        try:
+            query = parse_qs(parsed.query, keep_blank_values=True, strict_parsing=True)
+            if set(query) != {"number", "size"} or any(len(v) != 1 for v in query.values()):
+                return False
+            number, size = int(query["number"][0]), int(query["size"][0])
+            return (str(number) == query["number"][0] and str(size) == query["size"][0] and
+                    0 <= number <= 10_000 and 1 <= size <= 100)
+        except (ValueError, TypeError):
+            return False
+
+    def _olt_service_port_profiles_request_valid(self, path: str) -> bool:
+        match = self._OLT_SERVICE_PORT_PROFILES_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _olt_pon_port_config_request_valid(self, path: str) -> bool:
+        match = self._OLT_PON_PORT_CONFIG_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _olt_onu_auto_auth_request_valid(self, path: str) -> bool:
+        match = self._OLT_ONU_AUTO_AUTH_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _olt_onu_autofind_request_valid(self, path: str) -> bool:
+        match = self._OLT_ONU_AUTOFIND_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _olt_onu_autofind_list_request_valid(self, path: str) -> bool:
+        parsed = urlsplit(path)
+        match = self._OLT_ONU_AUTOFIND_LIST_REQUEST.fullmatch(parsed.path)
+        if not match or match.group(1) != self.config.controller_id or parsed.fragment:
+            return False
+        try:
+            query = parse_qs(parsed.query, keep_blank_values=True, strict_parsing=True)
+            if set(query) != {"ponPort", "number", "size"} or any(len(v) != 1 for v in query.values()):
+                return False
+            validate_pon_port_selector(query["ponPort"][0])
+            number, size = int(query["number"][0]), int(query["size"][0])
+            return (str(number) == query["number"][0] and str(size) == query["size"][0] and
+                    0 <= number <= 10_000 and 1 <= size <= 100)
+        except (OltOnuInventoryError, TypeError, ValueError):
+            return False
+
+    def _olt_onu_inventory_request_valid(self, path: str) -> bool:
+        parsed = urlsplit(path)
+        match = self._OLT_ONU_INVENTORY_REQUEST.fullmatch(parsed.path)
+        if not match or match.group(1) != self.config.controller_id or parsed.fragment:
+            return False
+        try:
+            query = parse_qs(parsed.query, keep_blank_values=True, strict_parsing=True)
+            if set(query) != {"ponPort"} or len(query["ponPort"]) != 1:
+                return False
+            validate_pon_port_selector(query["ponPort"][0])
+        except (ValueError, OltOnuInventoryError):
+            return False
+        return True
+
+    def _olt_onu_reboot_status_request_valid(self, path: str) -> bool:
+        match = self._OLT_ONU_REBOOT_STATUS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _olt_system_info_request_valid(self, path: str) -> bool:
+        match = self._OLT_SYSTEM_INFO_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _olt_system_info_msp_request_valid(self, path: str) -> bool:
+        return bool(self._OLT_SYSTEM_INFO_MSP_REQUEST.fullmatch(path))
+
+    def _msp_health_detail_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/msp/[A-Za-z0-9_-]{1,128}/customers/[A-Za-z0-9_-]{1,128}/"
+            r"sites/[A-Za-z0-9_-]{1,128}/(?:eaps|gateways|switches)/"
+            r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/"
+            r"health/detail\?start=([0-9]{1,16})&end=([0-9]{1,16})", path)
+        return bool(match and int(match.group(2)) - int(match.group(1)) == 86_400_000)
+
+    def _msp_health_timeline_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/msp/[A-Za-z0-9_-]{1,128}/customers/[A-Za-z0-9_-]{1,128}/"
+            r"sites/[A-Za-z0-9_-]{1,128}/(?:eaps|gateways|switches)/"
+            r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/"
+            r"health/timeline\?start=([0-9]{1,16})&end=([0-9]{1,16})", path)
+        return bool(match and int(match.group(2)) - int(match.group(1)) == 86_400_000)
+
+    def _msp_ap_mesh_statistics_request_valid(self, path: str) -> bool:
+        return bool(self._MSP_AP_MESH_STATISTICS_REQUEST.fullmatch(path))
+
+    def _msp_olt_device_request_valid(self, path: str) -> bool:
+        return bool(self._MSP_OLT_DEVICE_READ_REQUEST.fullmatch(path))
+
+    def _msp_olt_site_ports_request_valid(self, path: str) -> bool:
+        return bool(self._MSP_OLT_SITE_PORTS_REQUEST.fullmatch(path))
+
+    def _olt_management_interfaces_request_valid(self, path: str) -> bool:
+        match = self._OLT_MANAGEMENT_INTERFACES_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_capabilities_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/capacity", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_duplicate_ssid_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/"
+            r"wireless-network/ssids/duplicate-name", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _ssid_ap_groups_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/"
+            r"wireless-network/ssids/[A-Za-z0-9_.:-]{1,128}/ap-groups", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_topology_network_summary_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v2/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/"
+            r"topology/available-network", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_topology_vlan_summary_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v2/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/"
+            r"topology/available-vlans", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_unresolved_incident_count_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/"
+            r"anomaly/unresolved-incidents", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_incident_overview_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/"
+            r"anomaly/overview/statistics\?filters\.startTime=([1-9][0-9]{0,18})"
+            r"&filters\.endTime=([1-9][0-9]{0,18})", path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        start_ms, end_ms = int(match.group(2)), int(match.group(3))
+        return (end_ms <= 9_223_372_036_854_775_807 and
+                end_ms > start_ms and end_ms - start_ms == INCIDENT_OVERVIEW_WINDOW_MS)
+
+    def _site_incident_distribution_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/"
+            r"anomaly/overview/incident-distribution\?filters\.startTime=([1-9][0-9]{0,18})"
+            r"&filters\.endTime=([1-9][0-9]{0,18})", path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        start_ms, end_ms = int(match.group(2)), int(match.group(3))
+        return (end_ms <= 9_223_372_036_854_775_807 and
+                end_ms > start_ms and
+                end_ms - start_ms == INCIDENT_DISTRIBUTION_WINDOW_MS)
+
+    def _site_incident_category_counts_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/"
+            r"anomaly/category", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_incident_list_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/"
+            rf"anomaly/incidents\?page=1&pageSize={INCIDENT_PAGE_SIZE}"
+            r"&filters\.startTime=([1-9][0-9]{0,18})"
+            r"&filters\.endTime=([1-9][0-9]{0,18})", path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        start_ms, end_ms = int(match.group(2)), int(match.group(3))
+        return (end_ms <= 9_223_372_036_854_775_807 and
+                end_ms > start_ms and end_ms - start_ms == INCIDENT_LIST_WINDOW_MS)
+
+    def _site_batch_interference_history_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/"
+            r"full-channel-detect/grid/scan-history\?page=1&pageSize=100", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_batch_interference_ap_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/"
+            r"full-channel-detect/(?:[A-Za-z0-9._~-]|%[0-9A-F]{2}){1,768}/ap-list",
+            path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_batch_wifi_interference_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/"
+            r"full-channel-detect/(?:[A-Za-z0-9._~-]|%[0-9A-F]{2}){1,768}/"
+            r"grid/wifi-interference\?page=1&pageSize=100&filters\.type=0", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_batch_channel_load_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/"
+            r"full-channel-detect/(?:[A-Za-z0-9._~-]|%[0-9A-F]{2}){1,768}/"
+            r"channel-load\?mac=(?:[A-Fa-f0-9:-]|%[0-9A-F]{2}){12,96}", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_batch_interference_result_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/"
+            r"full-channel-detect/(?:[A-Za-z0-9._~-]|%[0-9A-F]{2}){1,768}/"
+            r"grid/interference\?page=1&pageSize=100", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_batch_interference_status_request_valid(
+            self, path: str, body: bytes | None) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/"
+            r"full-channel-detect/status", path)
+        if not match or match.group(1) != self.config.controller_id or not isinstance(body, bytes):
+            return False
+        try:
+            value = json.loads(body)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return False
+        ids = value.get("idList") if isinstance(value, dict) and set(value) == {"idList"} else None
+        return (isinstance(ids, list) and len(ids) == 1 and isinstance(ids[0], str) and
+                1 <= len(ids[0]) <= 768 and
+                not any(ord(char) < 32 or ord(char) == 127 for char in ids[0]))
+
+    def _ap_full_channel_detect_status_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            rf"/openapi/v1/([A-Za-z0-9_-]{{1,128}})/sites/[A-Za-z0-9_-]{{1,128}}/"
+            rf"aps/{self._MAC.pattern}/full-channel-detect/status", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _device_health_incidents_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})/"
+            r"health/incident/([0-9A-Fa-f:-]{17})", path)
+        return bool(match and match.group(1) == self.config.controller_id and
+                    self._MAC.fullmatch(match.group(3)))
+
+    def _site_incident_detail_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/"
+            r"anomaly/incident/[A-Za-z0-9_.:-]{1,128}", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_incident_notification_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/"
+            r"anomaly/notification", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_anomaly_event_settings_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/"
+            r"anomaly/setting\?page=1&pageSize=100", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_incident_influences_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            rf"/openapi/v1/([A-Za-z0-9_-]{{1,128}})/sites/[A-Za-z0-9_-]{{1,128}}/"
+            rf"anomaly/{self._MAC.pattern}/influencing-(?:clients|devices)\?"
+            r"anomalyCode=[A-Za-z0-9_.-]{1,64}&page=1&pageSize=100", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_wlan_group_capacity_request_valid(self, path: str) -> bool:
+        return bool(re.fullmatch(
+            rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+            r"[A-Za-z0-9_-]{1,128}/wireless-network/cmd/countWlans", path))
+
+    def _site_ap_group_capacity_request_valid(self, path: str) -> bool:
+        return bool(re.fullmatch(
+            rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+            r"[A-Za-z0-9_-]{1,128}/count-ap-groups", path))
+
+    def _site_ap_group_summary_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+            r"[A-Za-z0-9_-]{1,128}/ap-groups\?page=([1-9][0-9]*)&pageSize=([1-9][0-9]*)",
+            path)
+        if not match:
+            return False
+        try:
+            page, page_size = int(match.group(1)), int(match.group(2))
+        except ValueError:
+            return False
+        return (page <= self.config.max_pages and page_size == self.config.page_size and
+                page_size <= 1000)
+
+    def _site_ap_oui_vlan_rules_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+            r"[A-Za-z0-9_-]{1,128}/ap-oui-rules\?page=([1-9][0-9]*)&pageSize=([1-9][0-9]*)",
+            path)
+        if not match:
+            return False
+        try:
+            page, page_size = int(match.group(1)), int(match.group(2))
+        except ValueError:
+            return False
+        return (page <= self.config.max_pages and page_size == self.config.page_size and
+                page_size <= 1000)
+
+    def _site_vlan_ssid_usage_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+            r"[A-Za-z0-9_-]{1,128}/networks/[A-Za-z0-9_-]{1,128}/vlan/"
+            r"([1-9][0-9]{0,3})/ssids\?page=([1-9][0-9]*)&pageSize=([1-9][0-9]*)",
+            path)
+        if not match:
+            return False
+        try:
+            vlan_id, page, page_size = map(int, match.groups())
+        except ValueError:
+            return False
+        return (1 <= vlan_id <= 4094 and page <= self.config.max_pages and
+                page_size == self.config.page_size and page_size <= 1000)
+
+    def _site_vlan_device_usage_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+            r"[A-Za-z0-9_-]{1,128}/networks/[A-Za-z0-9_-]{1,128}/vlan/"
+            r"([1-9][0-9]{0,3})/devices",
+            path)
+        if not match:
+            return False
+        try:
+            return 1 <= int(match.group(1)) <= 4094
+        except ValueError:
+            return False
+
+    def _site_wifi_calling_profiles_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+            r"/profiles/wifi-calling", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_client_filter_options_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+            r"/clients/search-fields-options", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_eap_dot1x_candidates_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+            r"/dot1x/eap/candidates", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_switch_dot1x_candidates_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+            r"/dot1x/candidates", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_switch_support_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/switch-support", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _network_dhcp_capabilities_request_valid(self, path: str) -> bool:
+        match = self._NETWORK_DHCP_CAPABILITIES_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _network_dhcp_server_info_request_valid(self, path: str) -> bool:
+        match = self._NETWORK_DHCP_SERVER_INFO_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _experience_index_request_valid(self, path: str) -> bool:
+        match = self._EXPERIENCE_INDEX_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _rf_planning_result_request_valid(self, path: str) -> bool:
+        match = self._RF_PLANNING_RESULT_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _rf_planning_dashboard_request_valid(self, path: str) -> bool:
+        match = self._RF_PLANNING_DASHBOARD_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _rf_planning_dashboard_current_request_valid(self, path: str) -> bool:
+        match = self._RF_PLANNING_DASHBOARD_CURRENT_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _rf_planning_dashboard_history_request_valid(self, path: str) -> bool:
+        match = self._RF_PLANNING_DASHBOARD_HISTORY_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(3)) - int(match.group(2)) == 86_400_000
+        except (ValueError, OverflowError):
+            return False
+
+    def _rf_excluded_aps_request_valid(self, path: str) -> bool:
+        match = self._RF_EXCLUDED_APS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _rf_deploy_history_request_valid(self, path: str) -> bool:
+        match = self._RF_DEPLOY_HISTORY_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _rf_planning_detail_request_valid(self, path: str) -> bool:
+        match = self._RF_PLANNING_DETAIL_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _rf_planning_history_request_valid(self, path: str) -> bool:
+        match = self._RF_PLANNING_HISTORY_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _rf_planning_history_detail_request_valid(self, path: str) -> bool:
+        match = self._RF_PLANNING_HISTORY_DETAIL_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _rf_planning_recent_history_request_valid(self, path: str) -> bool:
+        match = self._RF_PLANNING_RECENT_HISTORY_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(3)) - int(match.group(2)) == 30 * 86_400_000
+        except (ValueError, OverflowError):
+            return False
+
+    def _ap_retry_drop_request_valid(self, path: str) -> bool:
+        match = self._AP_RETRY_DROP_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(3)) - int(match.group(2)) == 86_400
+        except ValueError:
+            return False
+
+    def _switch_health_request_valid(self, path: str) -> bool:
+        match = self._SWITCH_HEALTH_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        return int(match.group(3)) - int(match.group(2)) == 86_400_000
+
+    def _switch_port_counters_request_valid(self, path: str) -> bool:
+        match = self._SWITCH_PORT_COUNTERS_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return 1 <= int(match.group(2)) <= self.config.max_pages and int(match.group(3)) == self.config.page_size
+        except (ValueError, OverflowError):
+            return False
+
+    def _switch_port_poe_info_request_valid(self, path: str) -> bool:
+        match = self._SWITCH_PORT_POE_INFO_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return 1 <= int(match.group(2)) <= self.config.max_pages and int(match.group(3)) == self.config.page_size
+        except (ValueError, OverflowError):
+            return False
+
+    def _rrm_incompatible_request_valid(self, path: str) -> bool:
+        match = self._RRM_INCOMPATIBLE_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        page = int(match.group(2))
+        page_size = int(match.group(3))
+        return 1 <= page <= self.config.max_pages and page_size == self.config.page_size
+
+    def _wifi_health_request_valid(self, path: str) -> bool:
+        match = self._WIFI_HEALTH_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        return int(match.group(3)) - int(match.group(2)) == 86_400_000
+
+    def _wifi_subhealth_request_valid(self, path: str) -> bool:
+        match = self._WIFI_SUBHEALTH_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(3)) - int(match.group(2)) == 86_400_000
+        except ValueError:
+            return False
+
+    def _gateway_health_request_valid(self, path: str) -> bool:
+        match = self._GATEWAY_HEALTH_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(3)) - int(match.group(2)) == 86_400_000
+        except ValueError:
+            return False
+
+    def _gateway_health_timeline_request_valid(self, path: str) -> bool:
+        match = self._GATEWAY_HEALTH_TIMELINE_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(3)) - int(match.group(2)) == 86_400_000
+        except ValueError:
+            return False
+
+    def _access_token(self) -> str:
+        client_id = self._read_secret(self.config.client_id_file)
+        client_secret = self._read_secret(self.config.client_secret_file)
+        body = json.dumps({
+            "omadacId": self.config.controller_id,
+            "client_id": client_id,
+            "client_secret": client_secret,
+        }, separators=(",", ":")).encode("utf-8")
+        payload = self._request_json("POST", self.TOKEN_PATH, body=body)
+        result = payload.get("result")
+        token = result.get("accessToken") if isinstance(result, dict) else None
+        if not isinstance(token, str) or not token or len(token) > 8_192:
+            raise OpenApiError("openapi_authentication_failed")
+        if not token.isascii() or any(not (0x21 <= ord(char) <= 0x7e) for char in token):
+            raise OpenApiError("openapi_authentication_failed")
+        return token
+
+    def _read_pages_result(self, base_path: str, token: str, *,
+                           max_items: int | None = None) -> dict[str, object]:
+        rows: list[object] = []
+        expected_total: int | None = None
+        first_result: dict[str, object] | None = None
+        for page in range(1, self.config.max_pages + 1):
+            query = urlencode({"page": page, "pageSize": self.config.page_size})
+            payload = self._request_json("GET", base_path + "?" + query, token=token)
+            result = payload.get("result")
+            data = result.get("data") if isinstance(result, dict) else None
+            total = result.get("totalRows") if isinstance(result, dict) else None
+            current_page = result.get("currentPage") if isinstance(result, dict) else None
+            current_size = result.get("currentSize") if isinstance(result, dict) else None
+            if (not isinstance(data, list) or len(data) > self.config.page_size or
+                    isinstance(total, bool) or not isinstance(total, int) or total < 0 or
+                    type(current_page) is not int or current_page != page or
+                    isinstance(current_size, bool) or not isinstance(current_size, int) or
+                    current_size not in (len(data), self.config.page_size)):
+                raise OpenApiError("openapi_response_invalid")
+            if expected_total is None:
+                if max_items is not None and total > max_items:
+                    raise OpenApiError("openapi_response_limit_exceeded")
+                expected_total = total
+                first_result = result
+            elif total != expected_total:
+                raise OpenApiError("openapi_response_invalid")
+            rows.extend(data)
+            if len(rows) > expected_total:
+                raise OpenApiError("openapi_response_invalid")
+            if len(rows) >= expected_total:
+                if first_result is None:
+                    raise OpenApiError("openapi_response_invalid")
+                return {**first_result, "data": rows}
+        raise OpenApiError("openapi_page_limit_reached")
+
+    def _read_pages(self, base_path: str, token: str) -> list[object]:
+        rows: list[object] = []
+        expected_total: int | None = None
+        for page in range(1, self.config.max_pages + 1):
+            query = urlencode({"page": page, "pageSize": self.config.page_size})
+            payload = self._request_json("GET", base_path + "?" + query, token=token)
+            result = payload.get("result")
+            data = result.get("data") if isinstance(result, dict) else None
+            total = result.get("totalRows") if isinstance(result, dict) else None
+            current_page = result.get("currentPage") if isinstance(result, dict) else None
+            current_size = result.get("currentSize") if isinstance(result, dict) else None
+            if (not isinstance(data, list) or len(data) > self.config.page_size or
+                    isinstance(total, bool) or not isinstance(total, int) or total < 0 or
+                    type(current_page) is not int or current_page != page or
+                    isinstance(current_size, bool) or not isinstance(current_size, int) or
+                    current_size not in (len(data), self.config.page_size)):
+                raise OpenApiError("openapi_response_invalid")
+            if expected_total is None:
+                expected_total = total
+            elif total != expected_total:
+                raise OpenApiError("openapi_response_invalid")
+            rows.extend(data)
+            if len(rows) > expected_total:
+                raise OpenApiError("openapi_response_invalid")
+            if len(rows) >= expected_total:
+                return rows
+        # Avoid silently presenting a truncated inventory as complete.
+        raise OpenApiError("openapi_page_limit_reached")
