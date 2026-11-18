@@ -2513,6 +2513,8 @@ class OmadaOpenApiClient:
         ("client_timeline_disconnect", "GET /v1/sites/{site_ref}/clients/{client_ref}/timeline/disconnect"),
         ("client_health", "GET /v1/sites/{site_ref}/clients/{client_ref}/health"),
         ("client_health_timeline", "GET /v1/sites/{site_ref}/clients/{client_ref}/health/timeline"),
+        ("client_outage_timeline",
+         "GET /v1/sites/{site_ref}/clients/{client_ref}/outage-timeline"),
         ("networks", "GET /v1/sites/{site_ref}/networks"),
         ("network_dhcp_server_capabilities",
          "GET /v1/sites/{site_ref}/networks/{network_ref}/dhcp-server/capabilities"),
