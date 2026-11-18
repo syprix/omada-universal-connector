@@ -14,6 +14,15 @@ The local [WLAN diagnostic CLI](../README.md#local-wlan-summary) and MCP workflo
 | Claude Code | Setup example is documented. | Not tested end to end; the CLI was unavailable in the test environment. |
 | Other MCP clients | Use the documented endpoint and authentication contract. | Not tested end to end. |
 
+The local guided setup check is a connector-side protocol smoke test. It checks
+`initialize`, paginated `tools/list`, the read-only advertisement and one
+`omada_sites` read, then confirms the expected unknown-tool error. Its
+automated tests use mocked connector responses; they do not count as a live
+connector run or a third-party client integration test. In the current
+development environment, the Codex command-line client is available, while
+Claude Code and Hermes client runtimes are not installed. No new client setup
+or end-to-end run was performed for this check.
+
 The Codex run used a temporary loopback-only tunnel to the connector. A separate verifier parsed the actual `tools/call` results and checked `isError=false`, valid connector JSON, the expected resource and matching item counts: one site, four devices and 31 clients. No names, references, addresses or raw rows were retained. Temporary client configuration, tunnel, container and credential files were removed. This proves those calls for that setup only.
 
 The 18 MCP and 65 HTTP tests use a fake controller. They are protocol/connector fixture checks, not real agent-client or live-controller tests. See [MCP setup](MCP.md), [controller compatibility](CONTROLLER_COMPATIBILITY.md) and [current status](STATUS.md).
