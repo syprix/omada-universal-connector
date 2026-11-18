@@ -50,6 +50,11 @@ class McpTests(unittest.TestCase):
         self.assertTrue(devices["annotations"]["readOnlyHint"])
         self.assertFalse(devices["annotations"]["destructiveHint"])
         self.assertEqual(devices["inputSchema"]["required"], ["site_ref"])
+        switch_anomalies = next(item for item in result["tools"]
+                                if item["name"] == "omada_site_switch_port_anomaly_summary")
+        self.assertTrue(switch_anomalies["annotations"]["readOnlyHint"])
+        self.assertFalse(switch_anomalies["annotations"]["destructiveHint"])
+        self.assertIn("does not provide drop counts", switch_anomalies["description"])
         diagnosis = next(item for item in result["tools"]
                          if item["name"] == "omada_wifi_diagnose_site")
         self.assertTrue(diagnosis["annotations"]["readOnlyHint"])
