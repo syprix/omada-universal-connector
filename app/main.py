@@ -1667,6 +1667,14 @@ class Handler(BaseHTTPRequestHandler):
                     return _openapi_client().read_site_ap_quality_window(arguments["site_ref"])
             except OpenApiError as exc:
                 return {"status": "error", "error": exc.code}
+        if operation_id == "site_firmware_summary":
+            if set(arguments) != {"site_ref"}:
+                return {"status": "error", "error": "arguments_invalid"}
+            try:
+                with _OPENAPI_LOCK:
+                    return _openapi_client().read_site_firmware_summary(arguments["site_ref"])
+            except OpenApiError as exc:
+                return {"status": "error", "error": exc.code}
         if operation_id == "ssid_network_summary":
             return self._mcp_ssid_network_summary(arguments)
         try:
@@ -2208,6 +2216,18 @@ class Handler(BaseHTTPRequestHandler):
                 "site_ref_invalid", "site_ref_unknown"} else HTTPStatus.BAD_GATEWAY)
             self._send(status, {"status": "error", "error": exc.code})
 
+    def _serve_site_firmware_summary(self, site_ref: str) -> None:
+        if not self._authorized():
+            return
+        try:
+            with _OPENAPI_LOCK:
+                result = _openapi_client().read_site_firmware_summary(site_ref)
+            self._send(HTTPStatus.OK, result)
+        except OpenApiError as exc:
+            status = (HTTPStatus.BAD_REQUEST if exc.code in {
+                "site_ref_invalid", "site_ref_unknown"} else HTTPStatus.BAD_GATEWAY)
+            self._send(status, {"status": "error", "error": exc.code})
+
     def _openapi_get(self) -> None:
         registry_match = None
         try:
@@ -2232,6 +2252,11 @@ class Handler(BaseHTTPRequestHandler):
                 r"/v1/sites/([0-9a-f]{24})/aps/quality-window", parsed_request.path)
             if ap_quality_match is not None:
                 self._serve_site_ap_quality_window(ap_quality_match.group(1))
+                return
+            firmware_summary_match = re.fullmatch(
+                r"/v1/sites/([0-9a-f]{24})/firmware-summary", parsed_request.path)
+            if firmware_summary_match is not None:
+                self._serve_site_firmware_summary(firmware_summary_match.group(1))
                 return
             registry_match = REGISTRY.match("GET", parsed_request.path)
             operation = registry_match[0]
