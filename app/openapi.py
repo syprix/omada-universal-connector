@@ -4967,11 +4967,17 @@ class OmadaOpenApiClient:
                 "window_end_ms": end_ms, "partial": partial, "data": data}
 
     @_track_capability("ap_health_timeline")
-    def read_ap_health_timeline(self, site_ref: str, device_ref: str) -> dict[str, object]:
-        """Read a fixed 24-hour AP health-score history for a known AP."""
+    def read_ap_health_timeline(self, site_ref: str, device_ref: str,
+                                start_ms: int | None = None,
+                                end_ms: int | None = None) -> dict[str, object]:
+        """Read a bounded AP health-score history, fixed to 24 hours by default."""
         site_id, mac = self._known_ap_mac(site_ref, device_ref)
-        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
-        start_ms = end_ms - 24 * 60 * 60 * 1000
+        if start_ms is None and end_ms is None:
+            end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+            start_ms = end_ms - 86_400_000
+        elif (type(start_ms) is not int or type(end_ms) is not int or start_ms < 0 or
+              end_ms < start_ms or end_ms - start_ms > 86_400_000):
+            raise OpenApiError("time_window_invalid")
         query = urlencode({"start": start_ms, "end": end_ms})
         path = self._AP_HEALTH_TIMELINE_PATH.format(
             controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac
@@ -5045,8 +5051,9 @@ class OmadaOpenApiClient:
                 "site_ref": site_ref, "device_ref": device_ref, "data": data}
 
     @_track_capability("ap_retry_drop")
-    def read_ap_retry_drop(self, site_ref: str) -> dict[str, object]:
-        """Read the site dashboard retry/drop report over a fixed 24-hour window."""
+    def read_ap_retry_drop(self, site_ref: str, start_seconds: int | None = None,
+                           end_seconds: int | None = None) -> dict[str, object]:
+        """Read the site dashboard retry/drop report over a bounded 24-hour window."""
         if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
             raise OpenApiError("site_ref_invalid")
         site_id = self._site_ids_by_ref.get(site_ref, "")
@@ -5065,8 +5072,13 @@ class OmadaOpenApiClient:
             # must remain so for the projector.
             ap_refs_by_mac.setdefault(canonical_mac, []).append(ap_ref)
 
-        end_seconds = int(datetime.now(timezone.utc).timestamp())
-        start_seconds = end_seconds - 86_400
+        if start_seconds is None and end_seconds is None:
+            end_seconds = int(datetime.now(timezone.utc).timestamp())
+            start_seconds = end_seconds - 86_400
+        elif (type(start_seconds) is not int or type(end_seconds) is not int or
+              start_seconds < 0 or end_seconds < start_seconds or
+              end_seconds - start_seconds > 86_400):
+            raise OpenApiError("time_window_invalid")
         query = urlencode({"start": start_seconds, "end": end_seconds})
         path = self._AP_RETRY_DROP_PATH.format(
             controller_id=self.config.controller_id, site_id=site_id) + "?" + query
@@ -5079,6 +5091,56 @@ class OmadaOpenApiClient:
         return {"status": "ok", "resource": "ap_retry_drop", "site_ref": site_ref,
                 "window_start_seconds": start_seconds,
                 "window_end_seconds": end_seconds, "data": data}
+
+    def read_site_ap_quality_window(self, site_ref: str) -> dict[str, object]:
+        """Bundle existing AP health scores, radio settings, and retry/drop rates."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        if site_ref not in self._site_ids_by_ref:
+            raise OpenApiError("site_ref_unknown")
+        try:
+            from .ap_quality_window import project_ap_quality_window
+        except ImportError:  # direct execution in the image
+            from ap_quality_window import project_ap_quality_window
+
+        inventory = self.list_devices(site_ref)
+        items = inventory.get("items")
+        if not isinstance(items, list):
+            raise OpenApiError("openapi_response_invalid")
+        ap_refs = []
+        for item in items:
+            if (isinstance(item, Mapping) and isinstance(item.get("device_type"), str) and
+                    item["device_type"].strip().casefold() in {"ap", "access point", "accesspoint"}):
+                ref = item.get("device_ref")
+                if not isinstance(ref, str) or not re.fullmatch(r"[0-9a-f]{24}", ref):
+                    raise OpenApiError("openapi_response_invalid")
+                ap_refs.append(ref)
+
+        end_seconds = int(datetime.now(timezone.utc).timestamp())
+        start_seconds = end_seconds - 86_400
+        start_ms, end_ms = start_seconds * 1000, end_seconds * 1000
+
+        health: dict[str, object] = {}
+        radios: dict[str, object] = {}
+        for device_ref in ap_refs[:32]:
+            try:
+                health[device_ref] = self.read_ap_health_timeline(
+                    site_ref, device_ref, start_ms, end_ms)
+            except OpenApiError as exc:
+                health[device_ref] = {"status": "error", "error": exc.code}
+            try:
+                radios[device_ref] = self.read_ap_radio_part(site_ref, device_ref, "radio_config")
+            except OpenApiError as exc:
+                radios[device_ref] = {"status": "error", "error": exc.code}
+        try:
+            retry_drop: object = self.read_ap_retry_drop(site_ref, start_seconds, end_seconds)
+        except OpenApiError:
+            retry_drop = None
+        try:
+            return project_ap_quality_window(site_ref, inventory, health, radios, retry_drop,
+                                             start_ms, end_ms)
+        except ValueError:
+            raise OpenApiError("openapi_response_invalid") from None
 
     @staticmethod
     def _valid_rrm_mode_state(value: object) -> bool:

@@ -310,6 +310,24 @@ _SITE_DHCP_POOL_UTILIZATION_TOOL = {
                     "idempotentHint": True, "openWorldHint": False},
 }
 _SITE_DHCP_POOL_UTILIZATION_NAME = str(_SITE_DHCP_POOL_UTILIZATION_TOOL["name"])
+_SITE_AP_QUALITY_WINDOW_TOOL = {
+    "name": "omada_site_ap_quality_window",
+    "description": (
+        "Compare the last 24 hours of existing AP health-score and retry/drop samples, with current "
+        "radio settings, for up to 32 inventoried access points. Results use separate source windows; "
+        "the source does not map retry/drop values to bands or define their numeric scale. Missing "
+        "rows mean not listed, not zero. This read-only report does not run a scan."
+    ),
+    "inputSchema": {
+        "type": "object",
+        "properties": {"site_ref": {"type": "string", "pattern": "^[0-9a-f]{24}$"}},
+        "required": ["site_ref"],
+        "additionalProperties": False,
+    },
+    "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                    "idempotentHint": True, "openWorldHint": False},
+}
+_SITE_AP_QUALITY_WINDOW_NAME = str(_SITE_AP_QUALITY_WINDOW_TOOL["name"])
 _SWITCH_CABLE_TEST_TOOL = {
     "name": "omada_switch_cable_test",
     "description": (
@@ -553,6 +571,7 @@ def _tools_page(registry: Any, cursor: object) -> dict[str, object]:
     tools.append(_SSID_NETWORK_SUMMARY_TOOL)
     tools.append(_GATEWAY_WAN_INCIDENT_WINDOW_TOOL)
     tools.append(_SITE_DHCP_POOL_UTILIZATION_TOOL)
+    tools.append(_SITE_AP_QUALITY_WINDOW_TOOL)
     tools.append(_DIAGNOSTIC_CAPABILITY_SUMMARY_TOOL)
     tools.append(_SWITCH_CABLE_TEST_TOOL)
     tools.append(_CONTROLLER_RADIUS_PROXY_CHANGE_TOOL)
@@ -862,6 +881,18 @@ def _invoke_tool(registry: Any, name: object, arguments: object,
             raise McpRequestError("arguments_invalid")
         value = invoke_read("site_dhcp_pool_utilization", {
             "site_ref": arguments["site_ref"]})
+        return {
+            "content": [{"type": "text", "text": json.dumps(value, ensure_ascii=False,
+                                                                separators=(",", ":"))}],
+            "structuredContent": value,
+            "isError": value.get("status") == "error",
+        }
+    if name == _SITE_AP_QUALITY_WINDOW_NAME:
+        if (not isinstance(arguments, dict) or set(arguments) != {"site_ref"} or
+                not isinstance(arguments["site_ref"], str) or
+                not _SAFE_REF.fullmatch(arguments["site_ref"])):
+            raise McpRequestError("arguments_invalid")
+        value = invoke_read("site_ap_quality_window", {"site_ref": arguments["site_ref"]})
         return {
             "content": [{"type": "text", "text": json.dumps(value, ensure_ascii=False,
                                                                 separators=(",", ":"))}],

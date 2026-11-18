@@ -48,6 +48,17 @@ The report defaults to aggregate counts for lower token use. `--include-observat
 
 A synthetic 48-sample file measured 3,370 `o200k_base` tokens before summarization and 339 in the default aggregate report (3,031 fewer; 89.94%) using `js-tiktoken` 1.0.21. This is serialized fixture size only, not billed agent use; optional context and per-sample detail are excluded.
 
+## AP quality history and passive-session comparison
+
+`GET /v1/sites/{site_ref}/aps/quality-window` and MCP tool `omada_site_ap_quality_window` use a common, second-aligned 24-hour window for AP health scores and the site dashboard retry/drop lists. They include current radio settings by band, but never start a scan. Health-score and rate scales remain unclassified where the exports do not define them. Retry/drop rows have no band mapping, and absence from the bounded dashboard list is not zero. Per-hour buckets retain each source's sample count and minimum, maximum and last value; missing or malformed data stays partial.
+
+Save that response as a local JSON file, then run `python3 tools/compare_ap_quality_session.py --quality-report ./ap-quality.json --session ./walk-session.jsonl` to show matching passive RSSI/SNR and categorical radio observations beside each AP's health and retry/drop summary. The join uses exact opaque AP references. The session file does not record its site, so the report says site binding is unavailable. This CLI uses only owner-owned saved files, makes no controller request, and does not infer an outage cause. Missing references and unassigned samples remain separate.
+
+For a synthetic eight-AP case with 24 hourly source points per AP, the separate
+source-response JSON used 11,527 tokens and the combined report used 10,196
+(1,331 fewer; 11.55%), measured with `js-tiktoken` 1.0.21 and `o200k_base`.
+This compares serialized data only, not billed agent usage or live responses.
+
 ## Site outage context
 
 `GET /v1/sites/{site_ref}/outage-summary?start_ms=…&end_ms=…` and `omada_site_outage_summary` combine the current site reachability counters with bounded event and alert summaries for one UTC window of at most 24 hours. The current counters are timestamped separately from the requested log period. The workflow omits event details and identifiers, reports partial log pagination, and leaves site-wide scope indeterminate when sources cannot establish device correlation or cause. Fixture-backed HTTP and MCP dispatch are tested; no controller was queried.
