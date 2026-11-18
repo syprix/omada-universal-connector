@@ -7743,6 +7743,35 @@ class OpenApiHttpTests(unittest.TestCase):
                          "gateway_wan_incident_window")
         self.assertEqual(calls, [(site_ref, gateway_ref, start_ms, end_ms)] * 2)
 
+    def test_site_dhcp_pool_utilization_is_available_over_http_and_mcp(self) -> None:
+        site_ref = "a" * 24
+        calls = []
+
+        def report(ref):
+            calls.append(ref)
+            return {"status": "ok", "resource": "site_dhcp_pool_utilization",
+                    "partial": False, "summary": {
+                        "network_count": 1, "pool_capacity_address_count": 10,
+                        "available_address_count": 2, "depleted_network_count": 0}}
+
+        self.fake.read_site_dhcp_pool_utilization = report
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/dhcp/pool-utilization", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_dhcp_pool_utilization")
+        self.assertEqual(response["summary"]["available_address_count"], 2)
+        self.assertEqual(calls, [site_ref])
+
+        status, response = self.request_post("/mcp", {
+            "jsonrpc": "2.0", "id": 192, "method": "tools/call",
+            "params": {"name": "omada_site_dhcp_pool_utilization",
+                       "arguments": {"site_ref": site_ref}},
+        }, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"]["resource"],
+                         "site_dhcp_pool_utilization")
+        self.assertEqual(calls, [site_ref, site_ref])
+
 
 
 if __name__ == "__main__":

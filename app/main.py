@@ -1650,6 +1650,15 @@ class Handler(BaseHTTPRequestHandler):
             except (KeyError, ValueError, OpenApiError) as exc:
                 code = str(exc) if isinstance(exc, OpenApiError) else "arguments_invalid"
                 return {"status": "error", "error": code}
+        if operation_id == "site_dhcp_pool_utilization":
+            if set(arguments) != {"site_ref"}:
+                return {"status": "error", "error": "arguments_invalid"}
+            try:
+                with _OPENAPI_LOCK:
+                    return _openapi_client().read_site_dhcp_pool_utilization(
+                        arguments["site_ref"])
+            except OpenApiError as exc:
+                return {"status": "error", "error": exc.code}
         if operation_id == "ssid_network_summary":
             return self._mcp_ssid_network_summary(arguments)
         try:
@@ -2167,6 +2176,18 @@ class Handler(BaseHTTPRequestHandler):
                 else HTTPStatus.BAD_GATEWAY)
             self._send(status, {"status": "error", "error": exc.code})
 
+    def _serve_site_dhcp_pool_utilization(self, site_ref: str) -> None:
+        if not self._authorized():
+            return
+        try:
+            with _OPENAPI_LOCK:
+                result = _openapi_client().read_site_dhcp_pool_utilization(site_ref)
+            self._send(HTTPStatus.OK, result)
+        except OpenApiError as exc:
+            status = (HTTPStatus.BAD_REQUEST if exc.code in {
+                "site_ref_invalid", "site_ref_unknown"} else HTTPStatus.BAD_GATEWAY)
+            self._send(status, {"status": "error", "error": exc.code})
+
     def _openapi_get(self) -> None:
         registry_match = None
         try:
@@ -2181,6 +2202,11 @@ class Handler(BaseHTTPRequestHandler):
                 parsed_request.path)
             if wan_window_match is not None:
                 self._serve_gateway_wan_incident_window(parsed_request, wan_window_match)
+                return
+            dhcp_pool_match = re.fullmatch(
+                r"/v1/sites/([0-9a-f]{24})/dhcp/pool-utilization", parsed_request.path)
+            if dhcp_pool_match is not None:
+                self._serve_site_dhcp_pool_utilization(dhcp_pool_match.group(1))
                 return
             registry_match = REGISTRY.match("GET", parsed_request.path)
             operation = registry_match[0]

@@ -11,6 +11,7 @@ The current development build includes:
 - Fixed, authenticated HTTP reads for selected controller, site, device, client, WLAN, gateway and switch data.
 - A stateless MCP Streamable HTTP endpoint at `POST /mcp`, with fixed reads and bounded diagnostic workflows.
 - Reusable WLAN and network summaries that combine selected existing controller data and omit many raw identifiers. These workflows do not start scans or change settings.
+- A DHCP pool utilization workflow that reports documented pool capacity, available addresses and dynamic/static lease counts by opaque network reference, without returning address ranges or estimating lease-to-pool occupancy.
 - Selected, narrowly scoped configuration previews and separately approved changes. Writes are disabled by default. Each operation has its own implementation and evidence status; see [controlled changes](docs/CONTROLLED_CHANGES.md).
 - An offline reader for user-supplied OpenAPI exports. Its catalog is reference metadata, not a list of implemented or live-tested connector features.
 

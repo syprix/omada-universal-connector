@@ -25378,6 +25378,7 @@
       "source_map_label": "implemented_read",
       "static_test_references": [
         "test_config_snapshots.py",
+        "test_dhcp_pool_utilization.py",
         "test_full_api_matrix.py",
         "test_network_dhcp_capabilities_integration.py",
         "test_network_dhcp_server_info_integration.py",

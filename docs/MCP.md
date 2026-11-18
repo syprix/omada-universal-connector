@@ -388,6 +388,17 @@ addresses and bounded DHCP range counts for a network returned by the selected
 site's inventory. It omits range addresses. The route is a fixed GET; HTTP/MCP
 dispatch and reference binding are fixture-tested, while live support remains
 unknown.
+
+`omada_site_dhcp_pool_utilization` bundles the documented DHCP server-info
+read for up to 64 inventory networks with the complete, fixed-page site DHCP
+user list. It reports validated IPv4 pool capacity and available-address
+counts, plus dynamic/static binding counts keyed by opaque network references.
+It omits pool boundaries, network names, addresses and hardware identifiers.
+The source does not associate leases with configured pool ranges, so lease
+counts are not used to estimate pool occupancy. Missing, overlapping,
+inconsistent or unclassified data remains partial or unknown. The route is a
+read-only HTTP/MCP workflow; fixture dispatch and projection are tested, while
+live support remains unknown.
 `omada_msp_device_link_topology` is documented by CBC Standard with
 `Site Settings Manager View Only` or `MSP Device Manager View Only`. The
 connector resolves the selected site and device from inventory and returns

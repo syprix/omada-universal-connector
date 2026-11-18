@@ -475,6 +475,9 @@ try:
     from .network_dhcp_server_info import (
         NetworkDhcpServerInfoError, project_network_dhcp_server_info,
     )
+    from .dhcp_pool_utilization import (
+        DhcpPoolUtilizationError, project_dhcp_pool_utilization,
+    )
     from .controller_client_recognition import (
         ControllerClientRecognitionError, project_controller_client_recognition,
     )
@@ -670,6 +673,9 @@ except ImportError:  # direct execution in the image
     )
     from network_dhcp_server_info import (
         NetworkDhcpServerInfoError, project_network_dhcp_server_info,
+    )
+    from dhcp_pool_utilization import (
+        DhcpPoolUtilizationError, project_dhcp_pool_utilization,
     )
     from controller_client_recognition import (
         ControllerClientRecognitionError, project_controller_client_recognition,
@@ -8636,6 +8642,105 @@ class OmadaOpenApiClient:
         base = self._DHCP_USERS_PATH.format(controller_id=self.config.controller_id, site_id=site_id)
         rows = self._read_pages(base, self._access_token())
         return self._project_dhcp_lease_rows(site_id, rows, "dhcp_leases")
+
+    def read_site_dhcp_pool_utilization(self, site_ref: str) -> dict[str, object]:
+        """Summarize complete per-network DHCP pool availability and lease counts."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+
+        inventory = self.list_networks(site_ref)
+        network_map = self._network_ids_by_site_ref.get(site_ref, {})
+        network_items = inventory.get("items")
+        if not isinstance(network_items, list) or len(network_items) != len(network_map):
+            raise OpenApiError("openapi_response_invalid")
+        token = self._access_token()
+        lease_base = self._DHCP_USERS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        lease_rows = self._read_pages(lease_base, token)
+
+        known_network_ids = set(network_map.values())
+        leases_by_network: dict[str, list[object]] = {value: [] for value in known_network_ids}
+        unassociated_lease_count = invalid_unassociated_lease_count = 0
+        for row in lease_rows:
+            if not isinstance(row, Mapping) or len(row) > 16:
+                invalid_unassociated_lease_count += 1
+                continue
+            network_id = row.get("netId")
+            if not isinstance(network_id, str) or network_id not in known_network_ids:
+                unassociated_lease_count += 1
+                continue
+            leases_by_network[network_id].append(row)
+
+        max_networks = 64
+        included = network_items[:max_networks]
+        omitted_network_count = len(network_items) - len(included)
+        results: list[dict[str, object]] = []
+        pool_capacity_total = available_total = known_pools = 0
+        depleted_network_count = valid_lease_count = 0
+        source_failure_count = 0
+        for item in included:
+            if not isinstance(item, Mapping):
+                source_failure_count += 1
+                continue
+            network_ref = item.get("network_ref")
+            network_id = network_map.get(network_ref) if isinstance(network_ref, str) else None
+            if not isinstance(network_id, str) or not network_id:
+                source_failure_count += 1
+                continue
+            path = self._NETWORK_DHCP_SERVER_INFO_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id,
+                network_id=network_id)
+            try:
+                raw_result = self._request_json("GET", path, token=token).get("result")
+                projected = project_dhcp_pool_utilization(
+                    raw_result, leases_by_network.get(network_id, ()), network_id)
+            except (OpenApiError, DhcpPoolUtilizationError):
+                source_failure_count += 1
+                results.append({"network_ref": network_ref, "status": "unavailable",
+                                "partial": True})
+                continue
+            data = projected["data"]
+            if not isinstance(data, Mapping):
+                source_failure_count += 1
+                results.append({"network_ref": network_ref, "status": "invalid",
+                                "partial": True})
+                continue
+            if data.get("pool_state") in {"complete", "no_configured_ranges"}:
+                known_pools += 1
+                pool_capacity_total += data.get("pool_capacity_address_count") or 0
+                available_total += data.get("available_address_count") or 0
+            if data.get("pool_exhausted") is True:
+                depleted_network_count += 1
+            valid_lease_count += data.get("lease_count", 0) if type(data.get("lease_count")) is int else 0
+            results.append({"network_ref": network_ref, "status": "ok", **projected})
+
+        complete = (not omitted_network_count and not source_failure_count and
+                    known_pools == len(network_items) and not unassociated_lease_count and
+                    not invalid_unassociated_lease_count)
+        return {
+            "status": "ok", "resource": "site_dhcp_pool_utilization",
+            "site_ref": site_ref,
+            "summary": {
+                "network_count": len(network_items),
+                "checked_network_count": len(included),
+                "omitted_network_count": omitted_network_count,
+                "complete_pool_network_count": known_pools,
+                "pool_capacity_address_count": pool_capacity_total if known_pools == len(network_items) else None,
+                "available_address_count": available_total if known_pools == len(network_items) else None,
+                "depleted_network_count": depleted_network_count if known_pools == len(network_items) else None,
+                "classified_lease_count": valid_lease_count,
+                "unassociated_lease_count": unassociated_lease_count,
+                "invalid_unassociated_lease_count": invalid_unassociated_lease_count,
+                "unavailable_pool_read_count": source_failure_count,
+            },
+            "lease_list_completeness": "complete_total_rows_verified",
+            "lease_pool_membership": "not_returned_by_source",
+            "networks": results,
+            "partial": not complete or any(row.get("partial") is True for row in results),
+        }
 
     @_track_capability("gateway_dhcp_leases")
     def list_gateway_dhcp_leases(self, site_ref: str, gateway_ref: str) -> dict[str, object]:
