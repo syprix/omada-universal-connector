@@ -7706,6 +7706,72 @@ class OpenApiHttpTests(unittest.TestCase):
                          "site_outage_summary")
         self.assertEqual(calls, [(site_ref, start_ms, end_ms)] * 2)
 
+    def test_gateway_wan_incident_window_is_available_over_http_and_mcp(self) -> None:
+        site_ref, gateway_ref = "a" * 24, "b" * 24
+        start_ms, end_ms = 1_790_000_000_000, 1_790_000_030_000
+        calls = []
+
+        def report(site, gateway, start, end):
+            calls.append((site, gateway, start, end))
+            return {"status": "ok", "resource": "gateway_wan_incident_window",
+                    "partial": True,
+                    "load_balance_participation": {"status": "unknown"}}
+
+        self.fake.read_gateway_wan_incident_window = report
+        path = (f"/v1/sites/{site_ref}/gateways/{gateway_ref}/wan-incident-window?" +
+                urlencode({"start_ms": str(start_ms), "end_ms": str(end_ms)}))
+        status, response = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "gateway_wan_incident_window")
+        self.assertEqual(response["load_balance_participation"]["status"], "unknown")
+        self.assertEqual(calls, [(site_ref, gateway_ref, start_ms, end_ms)])
+
+        status, _ = self.request(
+            f"/v1/sites/{site_ref}/gateways/{gateway_ref}/wan-incident-window?start_ms={start_ms}",
+            self.token)
+        self.assertEqual(status, 400)
+        self.assertEqual(len(calls), 1)
+
+        status, rpc = self.request_post("/mcp", {
+            "jsonrpc": "2.0", "id": 191, "method": "tools/call",
+            "params": {"name": "omada_gateway_wan_incident_window", "arguments": {
+                "site_ref": site_ref, "gateway_ref": gateway_ref,
+                "start_ms": start_ms, "end_ms": end_ms}},
+        }, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"]["resource"],
+                         "gateway_wan_incident_window")
+        self.assertEqual(calls, [(site_ref, gateway_ref, start_ms, end_ms)] * 2)
+
+    def test_site_dhcp_pool_utilization_is_available_over_http_and_mcp(self) -> None:
+        site_ref = "a" * 24
+        calls = []
+
+        def report(ref):
+            calls.append(ref)
+            return {"status": "ok", "resource": "site_dhcp_pool_utilization",
+                    "partial": False, "summary": {
+                        "network_count": 1, "pool_capacity_address_count": 10,
+                        "available_address_count": 2, "depleted_network_count": 0}}
+
+        self.fake.read_site_dhcp_pool_utilization = report
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/dhcp/pool-utilization", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_dhcp_pool_utilization")
+        self.assertEqual(response["summary"]["available_address_count"], 2)
+        self.assertEqual(calls, [site_ref])
+
+        status, response = self.request_post("/mcp", {
+            "jsonrpc": "2.0", "id": 192, "method": "tools/call",
+            "params": {"name": "omada_site_dhcp_pool_utilization",
+                       "arguments": {"site_ref": site_ref}},
+        }, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"]["resource"],
+                         "site_dhcp_pool_utilization")
+        self.assertEqual(calls, [site_ref, site_ref])
+
 
 
 if __name__ == "__main__":

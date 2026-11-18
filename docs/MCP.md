@@ -347,6 +347,8 @@ The gateway network diagnostic now includes the documented gateway port inventor
 
 `omada_gateway_wan_status` reads the existing whitelisted WAN port and link values for one inventoried gateway. It uses a fixed GET and returns at most 64 rows without assigning undocumented meanings to raw values. Fixture-backed HTTP and MCP dispatch are tested; no live MCP request was made.
 
+`omada_gateway_wan_incident_window` accepts an inventoried `site_ref`, `gateway_ref`, and UTC epoch-millisecond `start_ms`/`end_ms` covering at most 24 hours. One call reads current WAN status codes, the same-window gateway health details and score timeline, and saved speed-test results. It summarizes timestamped health values, keeps undocumented codes undecoded, places current values in a separate section, and marks incident counts and speed tests without a documented time unit as undated. The load-balancing status response has no documented result fields, so participation remains `unknown`; the workflow makes no failover or cause claim. Fixture-backed HTTP and MCP dispatch and the source-reader composition have local tests; no controller request or live MCP request was made.
+
 `omada_gateway_ipv6_ip_passthrough` reads only the documented enable Boolean for an inventoried gateway. It uses a fixed GET and does not include address-bearing configuration or call the separate PATCH change path. The HTTP and MCP dispatch are fixture-tested; no live MCP request was made.
 
 `omada_ap_wired_uplink` exposes the existing redacted AP wired-uplink read as an individual fixed GET tool. It requires the site's opaque AP reference and uses the same bounded projection as HTTP, including partial-result reporting and removal of controller identifiers. Fixture-backed MCP dispatch has been tested; no live MCP request was made.
@@ -386,6 +388,17 @@ addresses and bounded DHCP range counts for a network returned by the selected
 site's inventory. It omits range addresses. The route is a fixed GET; HTTP/MCP
 dispatch and reference binding are fixture-tested, while live support remains
 unknown.
+
+`omada_site_dhcp_pool_utilization` bundles the documented DHCP server-info
+read for up to 64 inventory networks with the complete, fixed-page site DHCP
+user list. It reports validated IPv4 pool capacity and available-address
+counts, plus dynamic/static binding counts keyed by opaque network references.
+It omits pool boundaries, network names, addresses and hardware identifiers.
+The source does not associate leases with configured pool ranges, so lease
+counts are not used to estimate pool occupancy. Missing, overlapping,
+inconsistent or unclassified data remains partial or unknown. The route is a
+read-only HTTP/MCP workflow; fixture dispatch and projection are tested, while
+live support remains unknown.
 `omada_msp_device_link_topology` is documented by CBC Standard with
 `Site Settings Manager View Only` or `MSP Device Manager View Only`. The
 connector resolves the selected site and device from inventory and returns

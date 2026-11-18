@@ -266,6 +266,50 @@ _SSID_NETWORK_SUMMARY_TOOL = {
                      "idempotentHint": True, "openWorldHint": False},
 }
 _SSID_NETWORK_SUMMARY_NAME = str(_SSID_NETWORK_SUMMARY_TOOL["name"])
+_GATEWAY_WAN_INCIDENT_WINDOW_TOOL = {
+    "name": "omada_gateway_wan_incident_window",
+    "description": (
+        "Summarize one gateway's current WAN status codes and saved health observations for a UTC window. "
+        "The report separates current status from historical time-stamped data, keeps unknown codes "
+        "undecoded, and marks incident counts and saved speed tests without reliable timestamps as "
+        "unplaced. Load-balancing participation and outage cause remain unknown."
+    ),
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "site_ref": {"type": "string", "pattern": "^[0-9a-f]{24}$"},
+            "gateway_ref": {"type": "string", "pattern": "^[0-9a-f]{24}$"},
+            "start_ms": {"type": "integer", "minimum": 946684800000,
+                         "maximum": 4102444800000},
+            "end_ms": {"type": "integer", "minimum": 946684800000,
+                       "maximum": 4102444800000},
+        },
+        "required": ["site_ref", "gateway_ref", "start_ms", "end_ms"],
+        "additionalProperties": False,
+    },
+    "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                    "idempotentHint": True, "openWorldHint": False},
+}
+_GATEWAY_WAN_INCIDENT_WINDOW_NAME = str(_GATEWAY_WAN_INCIDENT_WINDOW_TOOL["name"])
+_SITE_DHCP_POOL_UTILIZATION_TOOL = {
+    "name": "omada_site_dhcp_pool_utilization",
+    "description": (
+        "Summarize documented IPv4 DHCP pool capacity and available-address counts by network, with "
+        "dynamic/static lease counts kept separate. Pool boundaries, network names, client addresses "
+        "and hardware identifiers are omitted. Lease membership in pool ranges is not exposed by the "
+        "source, so leases are not used to calculate occupancy. A network is marked depleted only "
+        "when complete documented range and available-address data report zero addresses remaining."
+    ),
+    "inputSchema": {
+        "type": "object",
+        "properties": {"site_ref": {"type": "string", "pattern": "^[0-9a-f]{24}$"}},
+        "required": ["site_ref"],
+        "additionalProperties": False,
+    },
+    "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                    "idempotentHint": True, "openWorldHint": False},
+}
+_SITE_DHCP_POOL_UTILIZATION_NAME = str(_SITE_DHCP_POOL_UTILIZATION_TOOL["name"])
 _SWITCH_CABLE_TEST_TOOL = {
     "name": "omada_switch_cable_test",
     "description": (
@@ -507,6 +551,8 @@ def _tools_page(registry: Any, cursor: object) -> dict[str, object]:
     tools.append(_NETWORK_OVERVIEW_TOOL)
     tools.append(_SITE_OUTAGE_SUMMARY_TOOL)
     tools.append(_SSID_NETWORK_SUMMARY_TOOL)
+    tools.append(_GATEWAY_WAN_INCIDENT_WINDOW_TOOL)
+    tools.append(_SITE_DHCP_POOL_UTILIZATION_TOOL)
     tools.append(_DIAGNOSTIC_CAPABILITY_SUMMARY_TOOL)
     tools.append(_SWITCH_CABLE_TEST_TOOL)
     tools.append(_CONTROLLER_RADIUS_PROXY_CHANGE_TOOL)
@@ -787,6 +833,35 @@ def _invoke_tool(registry: Any, name: object, arguments: object,
                     for key in keys)):
             raise McpRequestError("arguments_invalid")
         value = invoke_read("ssid_network_summary", {"site_ref": arguments["site_ref"]})
+        return {
+            "content": [{"type": "text", "text": json.dumps(value, ensure_ascii=False,
+                                                                separators=(",", ":"))}],
+            "structuredContent": value,
+            "isError": value.get("status") == "error",
+        }
+    if name == _GATEWAY_WAN_INCIDENT_WINDOW_NAME:
+        keys = ("site_ref", "gateway_ref", "start_ms", "end_ms")
+        if (not isinstance(arguments, dict) or set(arguments) != set(keys) or
+                any(not isinstance(arguments[key], str) or not _SAFE_REF.fullmatch(arguments[key])
+                    for key in ("site_ref", "gateway_ref")) or
+                any(type(arguments[key]) is not int for key in ("start_ms", "end_ms"))):
+            raise McpRequestError("arguments_invalid")
+        value = invoke_read("gateway_wan_incident_window", {
+            "site_ref": arguments["site_ref"], "gateway_ref": arguments["gateway_ref"],
+            "start_ms": str(arguments["start_ms"]), "end_ms": str(arguments["end_ms"])})
+        return {
+            "content": [{"type": "text", "text": json.dumps(value, ensure_ascii=False,
+                                                                separators=(",", ":"))}],
+            "structuredContent": value,
+            "isError": value.get("status") == "error",
+        }
+    if name == _SITE_DHCP_POOL_UTILIZATION_NAME:
+        if (not isinstance(arguments, dict) or set(arguments) != {"site_ref"} or
+                not isinstance(arguments["site_ref"], str) or
+                not _SAFE_REF.fullmatch(arguments["site_ref"])):
+            raise McpRequestError("arguments_invalid")
+        value = invoke_read("site_dhcp_pool_utilization", {
+            "site_ref": arguments["site_ref"]})
         return {
             "content": [{"type": "text", "text": json.dumps(value, ensure_ascii=False,
                                                                 separators=(",", ":"))}],

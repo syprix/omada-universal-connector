@@ -11,6 +11,7 @@ The current development build includes:
 - Fixed, authenticated HTTP reads for selected controller, site, device, client, WLAN, gateway and switch data.
 - A stateless MCP Streamable HTTP endpoint at `POST /mcp`, with fixed reads and bounded diagnostic workflows.
 - Reusable WLAN and network summaries that combine selected existing controller data and omit many raw identifiers. These workflows do not start scans or change settings.
+- A DHCP pool utilization workflow that reports documented pool capacity, available addresses and dynamic/static lease counts by opaque network reference, without returning address ranges or estimating lease-to-pool occupancy.
 - Selected, narrowly scoped configuration previews and separately approved changes. Writes are disabled by default. Each operation has its own implementation and evidence status; see [controlled changes](docs/CONTROLLED_CHANGES.md).
 - An offline reader for user-supplied OpenAPI exports. Its catalog is reference metadata, not a list of implemented or live-tested connector features.
 
@@ -108,6 +109,16 @@ python3 tools/wifi_compare_sessions.py \
 ```
 
 The comparison aligns samples only when their duration, interval and sample limits match. It reports raw signal differences, per-session AP change counts and missing/non-wireless samples; it does not match AP references across separate files or infer an outage cause.
+
+### Import device measurements
+
+Import an explicitly documented CSV or JSON export offline with `python3 tools/import_device_measurements.py --input ./measurements.json --format json`. The importer limits file size and row count, requires timezone-qualified timestamps, drops names, addresses and raw identifiers, and labels declared source types as unverified. It makes no controller calls or network probes; see [the input format](docs/CORE_READ_WORKFLOWS.md#device-measurement-import).
+
+Compare those observations with a saved `wifi_diagnose.py --client-timeline` JSON report and a passive WLAN session using an explicit UTC-millisecond window and tolerance: `python3 tools/compare_device_measurements.py --device-input ./measurements.json --device-format json --client-timeline ./client-timeline.json --session ./walk-session.jsonl --start-ms 1800000000000 --end-ms 1800000300000 --tolerance-ms 5000`. This offline comparison reports source coverage and age, and only compares device Wi-Fi state with an explicit passive wireless/not-wireless sample; it does not infer a cause.
+
+For an offline DNS incident summary, run `python3 tools/diagnose_dns_incident.py --measurements ./measurements.json --format json` and optionally provide a redacted settings snapshot and saved WLAN/network summary. It defaults to compact aggregate counts; use `--include-observations` for allow-listed sample detail. It keeps site-wide settings separate and does not claim an unverified cause. It makes no DNS probes or controller changes; see [the DNS workflow notes](docs/CORE_READ_WORKFLOWS.md#offline-dns-incident-diagnosis).
+
+For a gateway incident review, call `GET /v1/sites/{site_ref}/gateways/{gateway_ref}/wan-incident-window?start_ms=...&end_ms=...` or MCP tool `omada_gateway_wan_incident_window`. It bundles current WAN codes, the gateway's timestamped health history and score timeline, and saved speed-test counts. Unknown codes remain undecoded; undated incident counts and saved tests are not placed on the timeline. Load-balancing participation and outage cause remain unknown where the API response does not define them.
 
 ## Project documents
 
