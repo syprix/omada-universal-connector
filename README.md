@@ -109,6 +109,12 @@ python3 tools/wifi_compare_sessions.py \
 
 The comparison aligns samples only when their duration, interval and sample limits match. It reports raw signal differences, per-session AP change counts and missing/non-wireless samples; it does not match AP references across separate files or infer an outage cause.
 
+### Import device measurements
+
+Import an explicitly documented CSV or JSON export offline with `python3 tools/import_device_measurements.py --input ./measurements.json --format json`. The importer limits file size and row count, requires timezone-qualified timestamps, drops names, addresses and raw identifiers, and labels declared source types as unverified. It makes no controller calls or network probes; see [the input format](docs/CORE_READ_WORKFLOWS.md#device-measurement-import).
+
+Compare those observations with a saved `wifi_diagnose.py --client-timeline` JSON report and a passive WLAN session using an explicit UTC-millisecond window and tolerance: `python3 tools/compare_device_measurements.py --device-input ./measurements.json --device-format json --client-timeline ./client-timeline.json --session ./walk-session.jsonl --start-ms 1800000000000 --end-ms 1800000300000 --tolerance-ms 5000`. This offline comparison reports source coverage and age, and only compares device Wi-Fi state with an explicit passive wireless/not-wireless sample; it does not infer a cause.
+
 ## Project documents
 
 - [Current architecture](docs/CURRENT_ARCHITECTURE.md)

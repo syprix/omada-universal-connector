@@ -10,8 +10,10 @@ The current local development branch also contains these read-only workflows:
 - Diagnostic capability report: available over authenticated HTTP and MCP, reusing existing evidence without probing routes.
 - Configuration snapshots: captures selected radio, SSID, LAN and DNS projection fields in versioned owner-only files; comparisons mark incomplete data as not comparable. No live snapshot was captured.
 - WLAN network mapping: available over authenticated HTTP and MCP; checks up to 64 SSIDs, 32 matched networks and four gateway records. DNS-to-WLAN and gateway-to-network links remain unknown when the source does not expose them. No live controller workflow was run.
+- Device measurement import: accepts a bounded v1 CSV/JSON format with timezone-qualified timestamps and field-specific declared source kinds. Identifiers and addresses are omitted. Fixture tests pass; no device export was provided or used.
+- Device/Omada comparison: aligns imported observations with saved client timelines and passive WLAN sessions using an explicit window and tolerance. It reports freshness, coverage and disagreements without interpreting numeric event codes or inferring causes. Fixture tests pass; no controller or network was queried.
 
-The final local check for this code and its API-contract evidence ran 302 offline tests successfully. The synthetic four-SSID token comparison is recorded below. There is no hosted CI result or live controller evidence for these follow-on workflows.
+The #7–10 baseline was checked with 302 offline tests and hosted CI. The combined local gate for the #11–12 changes ran 300 offline tests successfully, including the operation registry, full API matrix and evidence checks. The synthetic four-SSID token comparison is recorded below. This branch has not yet completed hosted CI or any live controller check.
 
 ## Core functions
 

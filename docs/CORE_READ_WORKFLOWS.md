@@ -20,6 +20,24 @@ The event and alert window endpoints accept UTC epoch milliseconds with a maximu
 
 `tools/wifi_compare_sessions.py` reads two local session files and does not contact the connector. It aligns numeric samples only when duration, interval and sample limits match. It reports per-session AP changes and observed read gaps, but does not compare opaque AP references across files or infer that a read gap was a network outage. If sampling conditions differ or data is partial, the result says so and omits aligned deltas.
 
+## Device measurement import
+
+`python3 tools/import_device_measurements.py --input ./measurements.json --format json` and `--format csv` read local, owner-owned regular files only. The input is limited to 2 MiB and 10,000 samples; symlinks, extra fields, duplicate JSON keys and unbounded records are rejected. No controller route or network probe is used. The normalized result is printed to stdout and omits device/application names, addresses, MACs, SSIDs and arbitrary input identifiers.
+
+The JSON v1 format is an object containing only `schema_version: 1` and `samples`. Each sample requires an ISO-8601 `timestamp` with a numeric timezone offset or `Z`, a boolean `wifi_connected`, and a fixed `wifi_source` (`system_log` or `diagnostic_export`). Rows must be strictly increasing in time, and timestamp precision must be an exact millisecond. The CSV v1 format uses the same fields in columns; its required header is `timestamp,wifi_connected,wifi_source`.
+
+Optional observations must carry their own fixed source column/value pair: `local_reachability` (`reachable`/`unreachable`) with `local_reachability_source` (`reachability_check`/`diagnostic_export`); `dns_status` (`resolved`/`failed`) with `dns_source` (`dns_resolution_check`/`diagnostic_export`); `ipv4_status` and `ipv6_status` (`available`/`unavailable`) with their respective source (`interface_status`/`diagnostic_export`); and `cellular_transition` (`wifi_to_cellular`/`cellular_to_wifi`) with `cellular_transition_source` (`system_log`/`diagnostic_export`). A value without its matching source is rejected. Source kinds are declared by the file and are not independently verified, so output marks every observation `imported_unverified` and reports per-field coverage.
+
+The CSV header may include any complete set of optional value/source pairs; unknown columns are rejected. For JSON, optional values and their matching source may be omitted together. Neither format accepts arbitrary source labels, host names, interface names or addresses.
+
+## Device measurements and Omada timeline comparison
+
+`python3 tools/compare_device_measurements.py` takes three saved local files: the v1 CSV/JSON device export, the JSON result from `tools/wifi_diagnose.py --client-timeline` (without compact mode), and a JSONL file from `tools/wifi_measurement_session.py`. The comparison requires explicit `--start-ms`, `--end-ms` and `--tolerance-ms`; the window is limited to 24 hours and tolerance to 30 seconds. It excludes every sample outside the requested interval. Ties at the nearest timestamp are marked ambiguous; timestamps without a sample inside tolerance are left unmatched.
+
+The report keeps imported Wi-Fi and optional local reachability/DNS/IP/cellular observations separate from Omada timeline event families and passive session samples. It preserves the timeline route family and numeric event code without interpreting the code. A Wi-Fi state agreement or disagreement is counted only when an explicit passive sample says wireless or not-wireless. Local reachability, DNS, IP and cellular observations are shown as imported facts; they are not correlated with Omada because these inputs contain no matching Omada observations. Source ages are calculated from the newest timestamped data relative to `as_of_ms`; the current client-timeline export has no capture timestamp, so its age is explicitly unavailable. Declared device source kinds are not independently verified. Missing windows, partial inputs, session gaps and unmatched/ambiguous observations remain visible, and no outage cause is inferred.
+
+The comparison tool reads all inputs locally, uses only bounded existing file parsers, and makes no controller request or network probe. It projects only timestamps, categorical measurements, documented event kinds/codes, and allow-listed signal metrics; it never echoes site/client/AP references, labels, SSIDs, IP/MAC addresses or arbitrary source-file fields.
+
 For a synthetic 30-sample walk session, the two JSONL inputs used 2,622 and 2,631 tokens; the comparison JSON used 741 tokens. That is 4,512 fewer tokens (85.90%) than passing both input files onward with the result. Counts use `js-tiktoken` 1.0.21 and `o200k_base`. This fixture measure covers serialized payloads only; it excludes tool schemas, requests, host framing and billed agent usage.
 
 ## Site outage context
