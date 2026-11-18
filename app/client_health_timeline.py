@@ -22,13 +22,13 @@ def project_client_health_timeline(raw: object, start_ms: int,
                                    end_ms: int) -> dict[str, object]:
     """Project only in-window timestamps and raw scores, without a scale claim.
 
-    The caller supplies the fixed query interval in milliseconds. Missing,
+    The caller supplies a bounded query interval in milliseconds. Missing,
     null, invalid and out-of-window values mark the result partial. Unknown
     source fields are counted but their names and values are not returned.
     """
     if (type(start_ms) is not int or type(end_ms) is not int or
             not 0 <= start_ms <= end_ms <= _INT64_MAX or
-            end_ms - start_ms != 86_400_000):
+            end_ms - start_ms > 86_400_000):
         raise ClientHealthTimelineError()
     if not isinstance(raw, dict) or len(raw) > _MAX_FIELDS:
         raise ClientHealthTimelineError()

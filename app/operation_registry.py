@@ -106,7 +106,7 @@ class OperationRegistry:
                 ("client_name", "ssid_name"): {"site_client_identity_match"},
                 ("start_ms", "end_ms"): {
                     "site_events_window_summary", "site_alerts_window_summary",
-                    "controller_threat_severity_summary"},
+                    "controller_threat_severity_summary", "client_outage_timeline"},
                 ("start_ms", "end_ms", "archived"): {
                     "site_threat_window_summary"},
                 ("type",): {"site_mac_auth_ssid_inventory"},
@@ -114,7 +114,8 @@ class OperationRegistry:
             }
             supported_local_alternatives = {
                 ("start_local", "end_local", "time_zone"): {
-                    "site_events_window_summary", "site_alerts_window_summary"},
+                    "site_events_window_summary", "site_alerts_window_summary",
+                    "client_outage_timeline"},
             }
             if (not isinstance(item.local_arguments, tuple) or
                     (item.local_arguments and
@@ -1881,4 +1882,11 @@ REGISTRY = OperationRegistry((
               "/openapi/v1/{controller_id}/sites/{site_id}/clients/{client_mac}/client-timeline",
               (("controller_id", "$config"), ("site_id", "site_ref"),
                ("client_mac", "client_ref"))),
+    Operation("client_outage_timeline", "GET",
+              "/v1/sites/{site_ref}/clients/{client_ref}/outage-timeline", "GET",
+              "/openapi/v1/{controller_id}/sites/{site_id}/clients/{client_mac}/client-timeline",
+              (("controller_id", "$config"), ("site_id", "site_ref"),
+               ("client_mac", "client_ref")),
+              local_arguments=("start_ms", "end_ms"), max_items=2_000,
+              local_argument_alternatives=(("start_local", "end_local", "time_zone"),)),
 ))

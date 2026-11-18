@@ -204,6 +204,11 @@ class SiteIdentityAndLogWindowTests(unittest.TestCase):
         path = Path(__file__).resolve().parents[1] / "docs/CONTRACT_MATRIX.json"
         matrix = json.loads(path.read_text(encoding="utf-8"))
         self.assertEqual(len(matrix["sources"]), 3)
+        flow = matrix["derived_read_flows"][0]
+        self.assertEqual(flow["connector_operation_id"], "client_outage_timeline")
+        self.assertEqual({item["operation_id"] for item in flow["source_operations"]}, {
+            "getClientTimeline", "getClientHealthTimeList",
+            "getEventLogsForSite", "getAlertLogsForSite"})
         expected = {
             "site_client_identity_match": "getGridActiveClients",
             "site_events_window_summary": "getEventLogsForSite",

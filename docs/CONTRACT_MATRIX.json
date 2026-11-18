@@ -1,5 +1,34 @@
 {
   "scope": "documentation_presence_only_not_live_support",
+  "derived_read_flows": [
+    {
+      "connector_operation_id": "client_outage_timeline",
+      "connector_route": "GET /v1/sites/{site_ref}/clients/{client_ref}/outage-timeline",
+      "source_operations": [
+        {
+          "operation_id": "getClientTimeline",
+          "route": "GET /openapi/v1/{omadacId}/sites/{siteId}/clients/{clientMac}/client-timeline",
+          "time_fields": "start/end query and event/session timestamps are documented in milliseconds; event identity text and attributes are omitted"
+        },
+        {
+          "operation_id": "getClientHealthTimeList",
+          "route": "GET /openapi/v1/{omadacId}/sites/{siteId}/clients/{clientMac}/health/timeline",
+          "time_fields": "start/end query and score timestamps are documented in milliseconds; raw score scale is not inferred"
+        },
+        {
+          "operation_id": "getEventLogsForSite",
+          "route": "GET /openapi/v1/{omadacId}/sites/{siteId}/logs/events",
+          "time_fields": "bounded filters and page coverage are retained; response timestamp unit is not stated, so data age and client correlation are not inferred"
+        },
+        {
+          "operation_id": "getAlertLogsForSite",
+          "route": "GET /openapi/v1/{omadacId}/sites/{siteId}/logs/alerts",
+          "time_fields": "bounded filters and page coverage are retained; response timestamp unit is not stated, so data age and client correlation are not inferred"
+        }
+      ],
+      "live_support": "unknown"
+    }
+  ],
   "sources": [
     {
       "label": "Hardware Controller 6.3.0",

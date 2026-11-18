@@ -2378,6 +2378,23 @@ class Handler(BaseHTTPRequestHandler):
                     result = client.resolve_site_client_identity(
                         registry_bindings["site_ref"], registry_bindings["client_name"],
                         registry_bindings["ssid_name"])
+                elif registry_operation == "client_outage_timeline":
+                    if "start_local" in registry_bindings:
+                        start_ms, end_ms, zone_name, local_start, local_end = (
+                            resolve_local_site_log_window(
+                                registry_bindings["start_local"], registry_bindings["end_local"],
+                                registry_bindings["time_zone"]))
+                        result = client.read_client_outage_timeline(
+                            registry_bindings["site_ref"], registry_bindings["client_ref"],
+                            start_ms, end_ms)
+                        result.update({"time_zone": zone_name,
+                                       "window_start_local": local_start.isoformat(),
+                                       "window_end_local": local_end.isoformat()})
+                    else:
+                        result = client.read_client_outage_timeline(
+                            registry_bindings["site_ref"], registry_bindings["client_ref"],
+                            int(registry_bindings["start_ms"]),
+                            int(registry_bindings["end_ms"]))
                 elif registry_operation == "site_events_window_summary":
                     if "start_local" in registry_bindings:
                         result = client.read_site_log_local_window_summary(

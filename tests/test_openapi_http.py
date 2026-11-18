@@ -8,6 +8,7 @@ import threading
 import unittest
 from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
+from urllib.parse import urlencode
 from unittest.mock import patch
 
 from app import main
@@ -3423,6 +3424,37 @@ class OpenApiHttpTests(unittest.TestCase):
             f"/v1/sites/{site_ref}/events/window?" + urlencode(invalid_args), self.token)
         self.assertNotEqual(status, 200)
         self.assertEqual(self.fake.calls[-1][0], "site_events_window_local")
+
+    def test_client_outage_timeline_accepts_local_window_over_http_and_mcp(self) -> None:
+        site_ref, client_ref = "a" * 24, "b" * 24
+        seen = []
+
+        def timeline(site, client, start_ms, end_ms):
+            seen.append((site, client, start_ms, end_ms))
+            return {"status": "ok", "resource": "client_outage_timeline",
+                    "window_start_ms": start_ms, "window_end_ms": end_ms,
+                    "client_events": [], "roaming_events": [], "health_scores": [],
+                    "sources": {}, "partial": False}
+
+        self.fake.read_client_outage_timeline = timeline
+        arguments = {"start_local": "2026-09-14T10:00",
+                     "end_local": "2026-09-14T10:10", "time_zone": "Europe/Berlin"}
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/clients/{client_ref}/outage-timeline?" +
+            urlencode(arguments), self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "client_outage_timeline")
+        self.assertEqual(seen[-1][:2], (site_ref, client_ref))
+        self.assertEqual(response["time_zone"], "Europe/Berlin")
+
+        request = {"jsonrpc": "2.0", "id": 41, "method": "tools/call",
+                   "params": {"name": "omada_client_outage_timeline",
+                              "arguments": {"site_ref": site_ref,
+                                            "client_ref": client_ref, **arguments}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"]["resource"],
+                         "client_outage_timeline")
 
     def test_http_and_mcp_expose_dhcp_and_dns_reads(self) -> None:
         operations = (
