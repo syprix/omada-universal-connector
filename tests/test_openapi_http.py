@@ -1012,6 +1012,12 @@ class FakeOpenApiClient:
         return {"status": "ok", "resource": "site_vlan_device_usage_summary",
                 "device_count": 3, "partial": False}
 
+    def read_site_vlan_port_support_summary(self, site_ref: str, network_ref: str,
+                                            vlan_id: int) -> dict[str, object]:
+        self.calls.append(("site_vlan_port_support_summary", site_ref, network_ref, vlan_id))
+        return {"status": "ok", "resource": "site_vlan_port_support_summary",
+                "supported_port_count": 2, "unsupported_port_count": 1, "partial": False}
+
     def read_site_wifi_calling_profiles_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_wifi_calling_profiles_summary", site_ref))
         return {"status": "ok", "resource": "site_wifi_calling_profiles_summary",
@@ -7762,6 +7768,28 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(body["resource"], "site_vlan_device_usage_summary")
         self.assertEqual(self.fake.calls[-1],
                          ("site_vlan_device_usage_summary", site_ref, network_ref, 24))
+
+    def test_site_vlan_port_support_summary_is_available_over_http_and_mcp(self) -> None:
+        site_ref, network_ref = "a" * 24, "b" * 24
+        route = (f"/v1/sites/{site_ref}/networks/{network_ref}/vlan-port-support/summary"
+                 "?vlan_id=24")
+        status, body = self.request(route, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(body["resource"], "site_vlan_port_support_summary")
+        self.assertEqual(self.fake.calls[-1],
+                         ("site_vlan_port_support_summary", site_ref, network_ref, 24))
+        status, response = self.request_post("/mcp", {
+            "jsonrpc": "2.0", "id": 394, "method": "tools/call",
+            "params": {"name": "omada_site_vlan_port_support_summary",
+                       "arguments": {"site_ref": site_ref, "network_ref": network_ref,
+                                     "vlan_id": 24}},
+        }, self.token)
+        self.assertEqual(status, 200)
+        self.assertNotIn("isError", response)
+        self.assertEqual(response["result"]["structuredContent"]["resource"],
+                         "site_vlan_port_support_summary")
+        self.assertEqual(self.fake.calls[-1],
+                         ("site_vlan_port_support_summary", site_ref, network_ref, 24))
         status, response = self.request_post("/mcp", {
             "jsonrpc": "2.0", "id": 392, "method": "tools/call",
             "params": {"name": "omada_site_vlan_device_usage_summary",

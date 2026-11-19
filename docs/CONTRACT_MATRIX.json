@@ -2130,6 +2130,20 @@
             "response": "GatewayInfo defines showModel (string, gateway model description), firmwareVersion (string, gateway software version), and lastSeen (int64, last-seen time). The lastSeen unit and epoch semantics are unspecified. Other address and port fields are not projected.",
             "projection": "Authenticated HTTP/MCP GET bound to one opaque gateway reference from the selected site inventory. Preserves only bounded model/version strings and the int64 lastSeen source value; reports missing, invalid, and unknown fields. Omits MAC, IP, IPv6, uptime, telemetry, and detailed port values. No live controller request was made."
           }
+        },
+        "site_vlan_port_support_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getVlanNetworkDevicePortSupportVlanInfo",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path_parameters": "Site and network are inventory-bound. The caller-selected VLAN (1–4094) is checked against that network’s current LAN inventory: purpose must be VLAN (0) and vlan must match.",
+            "query": {},
+            "request_body": false,
+            "response": "devicePortSupportVlan maps device MAC keys to device objects with mac, type (gateway/switch/ap/olt), optional stackId, and portList. Each port has optional port/standardPort/lagId/mlagId and support boolean. ER7212PC declares the property as one device object rather than a MAC-keyed map, while its description and example indicate a map.",
+            "connector_projection": "Returns counts by documented device type and support=true/false/unknown, redacts device and port identifiers, reports missing port lists, invalid or unknown fields, and marks the ER single-object schema interpretation partial. Counts represent only returned rows; the source provides no total coverage field.",
+            "live_support": "unknown"
+          }
         }
       }
     },
@@ -4233,6 +4247,20 @@
             "response": "GatewayInfo defines showModel (string, gateway model description), firmwareVersion (string, gateway software version), and lastSeen (int64, last-seen time). The lastSeen unit and epoch semantics are unspecified. Other address and port fields are not projected.",
             "projection": "Authenticated HTTP/MCP GET bound to one opaque gateway reference from the selected site inventory. Preserves only bounded model/version strings and the int64 lastSeen source value; reports missing, invalid, and unknown fields. Omits MAC, IP, IPv6, uptime, telemetry, and detailed port values. No live controller request was made."
           }
+        },
+        "site_vlan_port_support_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getVlanNetworkDevicePortSupportVlanInfo",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path_parameters": "Site and network are inventory-bound. The caller-selected VLAN (1–4094) is checked against that network’s current LAN inventory: purpose must be VLAN (0) and vlan must match.",
+            "query": {},
+            "request_body": false,
+            "response": "devicePortSupportVlan maps device MAC keys to device objects with mac, type (gateway/switch/ap/olt), optional stackId, and portList. Each port has optional port/standardPort/lagId/mlagId and support boolean. ER7212PC declares the property as one device object rather than a MAC-keyed map, while its description and example indicate a map.",
+            "connector_projection": "Returns counts by documented device type and support=true/false/unknown, redacts device and port identifiers, reports missing port lists, invalid or unknown fields, and marks the ER single-object schema interpretation partial. Counts represent only returned rows; the source provides no total coverage field.",
+            "live_support": "unknown"
+          }
         }
       }
     },
@@ -6314,6 +6342,20 @@
             "query": "none",
             "response": "GatewayInfo defines showModel (string, gateway model description), firmwareVersion (string, gateway software version), and lastSeen (int64, last-seen time). The lastSeen unit and epoch semantics are unspecified. Other address and port fields are not projected.",
             "projection": "Authenticated HTTP/MCP GET bound to one opaque gateway reference from the selected site inventory. Preserves only bounded model/version strings and the int64 lastSeen source value; reports missing, invalid, and unknown fields. Omits MAC, IP, IPv6, uptime, telemetry, and detailed port values. No live controller request was made."
+          }
+        },
+        "site_vlan_port_support_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getVlanNetworkDevicePortSupportVlanInfo",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path_parameters": "Site and network are inventory-bound. The caller-selected VLAN (1–4094) is checked against that network’s current LAN inventory: purpose must be VLAN (0) and vlan must match.",
+            "query": {},
+            "request_body": false,
+            "response": "devicePortSupportVlan maps device MAC keys to device objects with mac, type (gateway/switch/ap/olt), optional stackId, and portList. Each port has optional port/standardPort/lagId/mlagId and support boolean. ER7212PC declares the property as one device object rather than a MAC-keyed map, while its description and example indicate a map.",
+            "connector_projection": "Returns counts by documented device type and support=true/false/unknown, redacts device and port identifiers, reports missing port lists, invalid or unknown fields, and marks the ER single-object schema interpretation partial. Counts represent only returned rows; the source provides no total coverage field.",
+            "live_support": "unknown"
           }
         }
       }
