@@ -362,6 +362,29 @@ _SITE_AP_UPLINK_PATH_TOOL = {
                     "idempotentHint": True, "openWorldHint": False},
 }
 _SITE_AP_UPLINK_PATH_NAME = str(_SITE_AP_UPLINK_PATH_TOOL["name"])
+_SITE_CHANNEL_REUSE_TOOL = {
+    "name": "omada_site_channel_reuse_summary",
+    "description": (
+        "Compare currently reported AP channels, reported bandwidth and matching existing channel-load "
+        "values for 1–16 explicitly selected APs. Groups only identical reported channels within a band; "
+        "adjacent-channel overlap is left unknown because occupied channel ranges are not documented. "
+        "Load values do not establish interference or its cause. Read-only; starts no scan."
+    ),
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "site_ref": {"type": "string", "pattern": "^[0-9a-f]{24}$"},
+            "device_refs": {"type": "array", "minItems": 1, "maxItems": 16,
+                            "uniqueItems": True,
+                            "items": {"type": "string", "pattern": "^[0-9a-f]{24}$"}},
+        },
+        "required": ["site_ref", "device_refs"],
+        "additionalProperties": False,
+    },
+    "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                    "idempotentHint": True, "openWorldHint": False},
+}
+_SITE_CHANNEL_REUSE_NAME = str(_SITE_CHANNEL_REUSE_TOOL["name"])
 _SSID_NETWORK_SUMMARY_TOOL = {
     "name": "omada_ssid_network_summary",
     "description": (
@@ -722,6 +745,7 @@ def _tools_page(registry: Any, cursor: object) -> dict[str, object]:
     tools.append(_SITE_CLIENT_OUTAGE_OVERLAP_TOOL)
     tools.append(_SITE_CLIENT_ROAMING_BACKTRACK_TOOL)
     tools.append(_SITE_AP_UPLINK_PATH_TOOL)
+    tools.append(_SITE_CHANNEL_REUSE_TOOL)
     tools.append(_SSID_NETWORK_SUMMARY_TOOL)
     tools.append(_GATEWAY_WAN_INCIDENT_WINDOW_TOOL)
     tools.append(_SITE_DHCP_POOL_UTILIZATION_TOOL)
@@ -1063,6 +1087,18 @@ def _invoke_tool(registry: Any, name: object, arguments: object,
         value = invoke_read("site_ap_uplink_path_summary", {
             "site_ref": arguments["site_ref"], "device_refs": ",".join(refs)})
         return _tool_result(value)
+    if name == _SITE_CHANNEL_REUSE_NAME:
+        keys = {"site_ref", "device_refs"}
+        refs = arguments.get("device_refs") if isinstance(arguments, dict) else None
+        if (not isinstance(arguments, dict) or set(arguments) != keys or
+                not isinstance(arguments.get("site_ref"), str) or
+                not _SAFE_REF.fullmatch(arguments["site_ref"]) or
+                not isinstance(refs, list) or not 1 <= len(refs) <= 16 or
+                any(not isinstance(ref, str) or not _SAFE_REF.fullmatch(ref) for ref in refs) or
+                len(set(refs)) != len(refs)):
+            raise McpRequestError("arguments_invalid")
+        return _tool_result(invoke_read("site_channel_reuse_summary", {
+            "site_ref": arguments["site_ref"], "device_refs": ",".join(refs)}))
     if name == _SSID_NETWORK_SUMMARY_NAME:
         keys = ("site_ref",)
         if (not isinstance(arguments, dict) or set(arguments) != set(keys) or

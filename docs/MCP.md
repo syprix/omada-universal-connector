@@ -834,3 +834,7 @@ omada_site_reboot_schedule_summary reads a bounded site reboot schedule list. It
 The existing `omada_site_topology` result includes the same report under `stack_connections`; partial stack coverage marks the combined topology response partial.
 
 omada_controller_backup_inventory_summary summarizes controller-listed backup metadata, the existing activity status, and safe schedule fields. omada_site_backup_inventory_summary applies the same report to one caller-selected site. The tools omit filenames, paths, URLs, credentials, and source IDs; the site tool does not fan out across the site inventory. Listed backup timestamps do not confirm completeness or restore success. A synthetic 12-file payload measured 459 source JSON tokens and 103 summary tokens (77.56% fewer; js-tiktoken 1.0.21/o200k_base), excluding schemas, prompts and agent framing.
+
+`omada_site_channel_reuse_summary` accepts one site reference and 1–16 selected AP references. It compares reported radio channels and bandwidth with matching values in existing channel-load results. Equal channels are grouped by band. Adjacent-channel overlap and interference cause are left unknown. The tool is read-only and starts no scan.
+
+A synthetic eight-AP fixture with 608 channel-load rows measured 9,324 source JSON tokens and 2,046 report tokens (7,278 fewer; 78.06%) using `js-tiktoken` 1.0.21 / `o200k_base`. It includes inventory plus eight radio-detail and eight existing channel-load responses; schemas, prompts, framing and billed agent usage are excluded.
