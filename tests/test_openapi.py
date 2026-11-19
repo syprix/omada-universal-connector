@@ -57,6 +57,37 @@ class OpenApiClientTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.tempdir.cleanup()
 
+    def test_site_poe_schedule_summary_reads_each_fixed_site_feed(self) -> None:
+        site_ref = "a" * 24
+        switch_ref = "b" * 24
+        mac = "aa:bb:cc:dd:ee:ff"
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        self.client._switch_macs_by_site_ref[site_ref] = {switch_ref: mac}
+        with (patch.object(self.client, "list_devices", return_value={
+                  "items": [{"device_ref": switch_ref, "device_type": "switch"}]}),
+              patch.object(self.client, "_access_token", return_value="token"),
+              patch.object(self.client, "_request_json", side_effect=[
+                  {"result": [{"mac": mac, "poePort": {"poePortIds": [1]}}]},
+                  {"result": [{"mac": mac, "totalPowerUsed": 1, "totalPower": 10}]},
+                  {"result": [{"profileId": "profile"}]},
+              ]) as request,
+              patch.object(self.client, "_read_pages", side_effect=[
+                  [{"status": True, "turnOnTime": "profile", "poePortsMap": {mac: [1]}}],
+                  [{"switchMac": mac, "port": 1, "supportPoe": True,
+                    "poeDisplayType": 1, "poe": 1, "poeStatus": 1,
+                    "power": 1, "voltage": 52, "current": 0.1}],
+              ]) as pages):
+            result = self.client.read_site_poe_schedule_summary(site_ref)
+        self.assertEqual(result["data"]["switches"][0]["power_budget"]["available_watts"], 9)
+        self.assertEqual(request.call_count, 3)
+        paths = [call.args[1] for call in request.call_args_list]
+        self.assertEqual(paths, [
+            "/openapi/v1/controller_1/sites/site-1/poe-ports",
+            "/openapi/v1/controller_1/sites/site-1/dashboard/poe-usage",
+            "/openapi/v1/controller_1/sites/site-1/time-range-profiles",
+        ])
+        self.assertEqual(pages.call_count, 2)
+
     def _secret(self, name: str, value: str) -> str:
         path = os.path.join(self.tempdir.name, name)
         with open(path, "w", encoding="utf-8") as handle:

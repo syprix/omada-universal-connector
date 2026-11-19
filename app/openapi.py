@@ -1321,6 +1321,9 @@ class OmadaOpenApiClient:
     _SITE_REMEMBER_SETTING_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/remember-device"
     _SITE_CLIENT_CONNECTION_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/client-ssid-distribution"
     _SITE_POE_USAGE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/poe-usage"
+    _SITE_POE_PORTS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/poe-ports"
+    _SITE_POE_SCHEDULES_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/poe-schedules"
+    _SITE_TIME_RANGE_PROFILES_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/time-range-profiles"
     _SITE_DEVICE_COUNTS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/card/overview"
     _SITE_IPSEC_TUNNEL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/lpset-tunnel-stats"
     _SITE_CLIENT_ASSOCIATION_TIME_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/client-association-time-distribution"
@@ -2758,6 +2761,7 @@ class OmadaOpenApiClient:
         ("site_remember_setting_summary", "GET /v1/sites/{site_ref}/remember-setting-summary"),
         ("site_client_connection_summary", "GET /v1/sites/{site_ref}/client-connection-summary"),
         ("site_poe_usage_summary", "GET /v1/sites/{site_ref}/poe-usage-summary"),
+        ("site_poe_schedule_summary", "GET /v1/sites/{site_ref}/poe/schedule-summary"),
         ("site_device_counts_summary", "GET /v1/sites/{site_ref}/device-counts-summary"),
         ("site_ipsec_tunnel_summary", "GET /v1/sites/{site_ref}/ipsec-tunnel-summary"),
         ("site_client_association_time_summary", "GET /v1/sites/{site_ref}/client-association-time-summary"),
@@ -9931,6 +9935,59 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {"status": "ok", "resource": "site_client_connection_summary",
                 "site_ref": site_ref, **projected}
+
+    @_track_capability("site_poe_schedule_summary")
+    def read_site_poe_schedule_summary(self, site_ref: str) -> dict[str, object]:
+        """Join documented switch PoE budgets, port telemetry and schedule mappings."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        if site_ref not in self._site_ids_by_ref:
+            raise OpenApiError("site_ref_unknown")
+        try:
+            from .site_poe_schedule_summary import summarize_site_poe_schedule
+        except ImportError:  # direct execution in the image
+            from site_poe_schedule_summary import summarize_site_poe_schedule
+
+        inventory = self.list_devices(site_ref)
+        items = inventory.get("items")
+        if not isinstance(items, list):
+            raise OpenApiError("openapi_response_invalid")
+        site_id = self._site_ids_by_ref[site_ref]
+        token = self._access_token()
+        source_errors: dict[str, str] = {}
+
+        def read_list(label: str, path: str) -> object | None:
+            try:
+                return self._request_json("GET", path, token=token).get("result")
+            except OpenApiError as exc:
+                source_errors[label] = exc.code
+                return None
+
+        poe_port_rows = read_list("poe_port_inventory", self._SITE_POE_PORTS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id))
+        usage_rows = read_list("poe_usage", self._SITE_POE_USAGE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id))
+        time_range_rows = read_list("time_range_profiles", self._SITE_TIME_RANGE_PROFILES_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id))
+        schedule_rows: object | None = None
+        try:
+            schedule_rows = self._read_pages(self._SITE_POE_SCHEDULES_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id), token)
+        except OpenApiError as exc:
+            source_errors["poe_schedules"] = exc.code
+        port_info_rows: object | None = None
+        try:
+            port_info_rows = self._read_pages(self._SWITCH_PORT_POE_INFO_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id), token)
+        except OpenApiError as exc:
+            source_errors["port_poe_info"] = exc.code
+        try:
+            return summarize_site_poe_schedule(
+                items, self._switch_macs_by_site_ref.get(site_ref, {}),
+                poe_port_rows, usage_rows, port_info_rows, schedule_rows, time_range_rows,
+                source_errors=source_errors)
+        except ValueError:
+            raise OpenApiError("openapi_response_invalid") from None
 
     @_track_capability("site_poe_usage_summary")
     def read_site_poe_usage_summary(self, site_ref: str) -> dict[str, object]:
