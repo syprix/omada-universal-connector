@@ -80,6 +80,18 @@ _SITE_CAPABILITY_COMPARISON_TOOL = {
                      "idempotentHint": True, "openWorldHint": False},
 }
 _SITE_CAPABILITY_COMPARISON_NAME = str(_SITE_CAPABILITY_COMPARISON_TOOL["name"])
+_CHANGE_JOURNAL_SUMMARY_TOOL = {
+    "name": "omada_change_journal_summary",
+    "description": (
+        "Summarize status counts from the connector's already-bound local change journal. "
+        "Returns no plan identifiers, target references, before/after settings, or credentials; it does not "
+        "open caller-selected paths, contact the controller, or change journal state."
+    ),
+    "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                     "idempotentHint": True, "openWorldHint": False},
+}
+_CHANGE_JOURNAL_SUMMARY_NAME = str(_CHANGE_JOURNAL_SUMMARY_TOOL["name"])
 _WIFI_DIAGNOSE_TOOL = {
     "name": "omada_wifi_diagnose_site",
     "description": (
@@ -614,6 +626,7 @@ def _tools_page(registry: Any, cursor: object) -> dict[str, object]:
     tools.append(_SITE_FIRMWARE_SUMMARY_TOOL)
     tools.append(_DIAGNOSTIC_CAPABILITY_SUMMARY_TOOL)
     tools.append(_SITE_CAPABILITY_COMPARISON_TOOL)
+    tools.append(_CHANGE_JOURNAL_SUMMARY_TOOL)
     tools.append(_SWITCH_CABLE_TEST_TOOL)
     tools.append(_CONTROLLER_RADIUS_PROXY_CHANGE_TOOL)
     tools.append(_CAPABILITY_SUMMARY_TOOL)
@@ -645,6 +658,11 @@ def _invoke_tool(registry: Any, name: object, arguments: object,
             raise McpRequestError("arguments_invalid")
         value = invoke_read("site_capability_comparison", {
             "site_refs": ",".join(refs)})
+        return _tool_result(value)
+    if name == _CHANGE_JOURNAL_SUMMARY_NAME:
+        if not isinstance(arguments, dict) or arguments:
+            raise McpRequestError("arguments_invalid")
+        value = invoke_read("change_journal_summary", {})
         return _tool_result(value)
     if name == _CAPABILITY_SUMMARY_NAME:
         if (not isinstance(arguments, dict) or

@@ -331,6 +331,19 @@ def _journal_http_failure() -> dict[str, object]:
     return {"status": "error", "error": runtime.error_code or "journal_unavailable"}
 
 
+def _read_change_journal_summary() -> dict[str, object]:
+    """Summarize only the already-open, controller-bound local journal."""
+    runtime = _journal_runtime()
+    if runtime.status == "unconfigured":
+        return {"status": "unavailable", "error": "journal_unconfigured"}
+    if not runtime.ready:
+        return {"status": "unavailable", "error": runtime.error_code or "journal_unavailable"}
+    try:
+        return runtime.journal.summary()
+    except ChangeJournalError as exc:
+        return {"status": "unavailable", "error": exc.code}
+
+
 def _caller_token() -> bytes | None:
     """Read the configured bearer token; missing or invalid config disables routes."""
     path = os.getenv("OMADA_CONNECTOR_TOKEN_FILE", "").strip()
@@ -778,6 +791,14 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(encoded)
 
     def do_GET(self) -> None:  # noqa: N802
+        if self.path == "/v1/change-journal/summary":
+            if not self._authorized():
+                return
+            with _OPENAPI_LOCK:
+                result = _read_change_journal_summary()
+            status = HTTPStatus.OK if result.get("status") == "ok" else HTTPStatus.SERVICE_UNAVAILABLE
+            self._send(status, result)
+            return
         ssid_network_match = re.fullmatch(
             r"/v1/sites/([0-9a-f]{24})/ssid-network-summary", self.path)
         if ssid_network_match:
@@ -1607,6 +1628,9 @@ class Handler(BaseHTTPRequestHandler):
         self._send(HTTPStatus.OK, response)
 
     def _mcp_read(self, operation_id: str, arguments: dict[str, str]) -> dict[str, object]:
+        if operation_id == "change_journal_summary":
+            with _OPENAPI_LOCK:
+                return _read_change_journal_summary()
         if operation_id == "site_capability_comparison":
             refs = arguments.get("site_refs", "").split(",")
             try:

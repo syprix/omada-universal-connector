@@ -818,6 +818,8 @@ A synthetic page of eight gateways, each with one WAN status record, measured 1,
 
 `omada_site_client_filter_options_summary` reports only counts from the selected site's client filter catalog, including whether listed devices include stack membership. Option strings, MAC addresses, names and stack names are omitted. This is a fixed read-only request; live support remains unknown.
 
+`omada_change_journal_summary` reads status counts from the already-open, controller-bound local journal. It returns no plan identifiers, target references, before/after settings, journal records, or credentials. It does not accept a path, contact the controller, or mutate the journal. If the journal is unconfigured or unavailable, the result says so. The same summary is available at authenticated `GET /v1/change-journal/summary`. The integrity marker means the journal passed its hash-chain and schema checks when this process opened it; it does not indicate a fresh disk reread.
+
 # Site outage context
 
 `omada_site_outage_summary` takes a site reference and UTC epoch-millisecond bounds for a window of at most 24 hours. It combines the site overview's AP, gateway and switch reachability counters with redacted event and alert counts. The reachability snapshot includes its own observation time and is not represented as a historical measurement for the requested window. Event counts are not assigned to individual devices; the workflow does not infer an outage cause. Fixture-backed HTTP and MCP dispatch are tested; live support remains unknown.

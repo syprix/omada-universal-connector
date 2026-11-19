@@ -121,3 +121,15 @@ eight-site, 49-feature fixture measured 2,674 tokens across separate projected
 source responses and 1,372 tokens for the aligned compact report (48.69% fewer;
 js-tiktoken 1.0.21/o200k_base). This excludes tool schemas, prompts, framing,
 inventory reads and billed agent usage. No live request was made.
+
+## 2026-11-19 — Local change-journal summary
+
+Added an authenticated HTTP and MCP read for counts of locally stored change-plan
+states. It reads the connector's existing controller-bound journal object and
+returns only total and per-state counts. Plan references, target references,
+before/after values and event payloads are omitted. No caller path is accepted;
+an unconfigured or unavailable journal is reported as unavailable. The integrity
+marker refers to validation when the process opened the journal, not a disk
+refresh. Unit and HTTP/MCP fixture checks pass. No controller call or journal
+mutation was made. Token impact is not claimed because this endpoint returns
+only a few fixed counters and has no repeated-source workflow to compare.

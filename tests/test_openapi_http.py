@@ -3527,6 +3527,36 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(status, 400)
         self.assertEqual(invalid_http["error"], "site_refs_invalid")
 
+    def test_bound_change_journal_summary_is_available_over_http_and_mcp(self) -> None:
+        summary = {"status": "ok", "resource": "change_journal_summary",
+                   "integrity": "validated_at_open", "total_plans": 2,
+                   "counts_by_state": {"in_doubt": 1, "verified": 1,
+                                       "closed_outcome_unknown": 0},
+                   "record_details_included": False}
+        journal = type("Journal", (), {"available": True,
+                                        "summary": lambda _self: summary})()
+        runtime = main.JournalRuntime("ready", journal=journal)
+        with patch.object(main, "_JOURNAL_RUNTIME", runtime):
+            status, response = self.request("/v1/change-journal/summary", self.token)
+            self.assertEqual(status, 200)
+            self.assertEqual(response, summary)
+
+            request = {"jsonrpc": "2.0", "id": 201, "method": "tools/call",
+                       "params": {"name": "omada_change_journal_summary", "arguments": {}}}
+            status, rpc = self.request_post("/mcp", request, self.token)
+            self.assertEqual(status, 200)
+            self.assertEqual(rpc["result"]["structuredContent"], summary)
+
+        self.assertNotIn("plan_id", json.dumps(response))
+        self.assertNotIn("target_refs", json.dumps(response))
+        self.assertEqual(self.fake.calls, [])
+
+    def test_change_journal_summary_reports_unconfigured_without_opening_a_path(self) -> None:
+        with patch.object(main, "_JOURNAL_RUNTIME", main.JournalRuntime("unconfigured")):
+            status, response = self.request("/v1/change-journal/summary", self.token)
+        self.assertEqual(status, 503)
+        self.assertEqual(response, {"status": "unavailable", "error": "journal_unconfigured"})
+
     def test_http_and_mcp_expose_dhcp_and_dns_reads(self) -> None:
         operations = (
             ("dhcp_leases", "dhcp/leases", "list_dhcp_leases"),

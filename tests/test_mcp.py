@@ -45,56 +45,65 @@ class McpTests(unittest.TestCase):
         self.assertIsNone(self.call({"jsonrpc": "2.0", "method": "notifications/initialized"}))
 
     def test_list_tools_and_fixed_read_only_annotations(self):
-        result = self.call({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})["result"]
-        devices = next(item for item in result["tools"] if item["name"] == "omada_devices")
+        request = {"jsonrpc": "2.0", "id": 2, "method": "tools/list"}
+        result = self.call(request)["result"]
+        all_tools = list(result["tools"])
+        while "nextCursor" in result:
+            result = self.call({**request, "params": {"cursor": result["nextCursor"]}})["result"]
+            all_tools.extend(result["tools"])
+        devices = next(item for item in all_tools if item["name"] == "omada_devices")
         self.assertTrue(devices["annotations"]["readOnlyHint"])
         self.assertFalse(devices["annotations"]["destructiveHint"])
         self.assertEqual(devices["inputSchema"]["required"], ["site_ref"])
-        diagnosis = next(item for item in result["tools"]
+        diagnosis = next(item for item in all_tools
                          if item["name"] == "omada_wifi_diagnose_site")
         self.assertTrue(diagnosis["annotations"]["readOnlyHint"])
         self.assertIn("No RF scan", diagnosis["description"])
-        ap_diagnosis = next(item for item in result["tools"]
+        ap_diagnosis = next(item for item in all_tools
                             if item["name"] == "omada_wifi_diagnose_ap")
         self.assertTrue(ap_diagnosis["annotations"]["readOnlyHint"])
         self.assertEqual(ap_diagnosis["inputSchema"]["required"], ["site_ref", "ap_ref"])
-        client_diagnosis = next(item for item in result["tools"]
+        client_diagnosis = next(item for item in all_tools
                                 if item["name"] == "omada_wifi_diagnose_client")
         self.assertTrue(client_diagnosis["annotations"]["readOnlyHint"])
         self.assertEqual(client_diagnosis["inputSchema"]["required"],
                          ["site_ref", "client_ref"])
-        comparison = next(item for item in result["tools"]
+        journal_summary = next(item for item in all_tools
+                               if item["name"] == "omada_change_journal_summary")
+        self.assertTrue(journal_summary["annotations"]["readOnlyHint"])
+        self.assertFalse(journal_summary["annotations"]["destructiveHint"])
+        comparison = next(item for item in all_tools
                           if item["name"] == "omada_wifi_compare_aps")
         self.assertTrue(comparison["annotations"]["readOnlyHint"])
         self.assertEqual(comparison["inputSchema"]["required"],
                          ["site_ref", "ap_ref_a", "ap_ref_b"])
-        network = next(item for item in result["tools"]
+        network = next(item for item in all_tools
                        if item["name"] == "omada_network_diagnose_gateway")
         self.assertTrue(network["annotations"]["readOnlyHint"])
         self.assertEqual(network["inputSchema"]["required"], ["site_ref", "gateway_ref"])
-        ssid_summary = next(item for item in result["tools"]
+        ssid_summary = next(item for item in all_tools
                             if item["name"] == "omada_ssid_network_summary")
         self.assertTrue(ssid_summary["annotations"]["readOnlyHint"])
         self.assertEqual(ssid_summary["inputSchema"]["required"], ["site_ref"])
-        switch_network = next(item for item in result["tools"]
+        switch_network = next(item for item in all_tools
                               if item["name"] == "omada_network_diagnose_switch")
         self.assertTrue(switch_network["annotations"]["readOnlyHint"])
         self.assertEqual(switch_network["inputSchema"]["required"], ["site_ref", "switch_ref"])
-        capability = next(item for item in result["tools"]
+        capability = next(item for item in all_tools
                           if item["name"] == "omada_capability_summary")
         self.assertTrue(capability["annotations"]["readOnlyHint"])
         self.assertEqual(capability["inputSchema"]["additionalProperties"], False)
         self.assertIn("without contacting the controller", capability["description"])
-        ap_scan = next(item for item in result["tools"]
+        ap_scan = next(item for item in all_tools
                        if item["name"] == "omada_ap_scan_status")
         self.assertEqual(ap_scan["inputSchema"]["required"], ["site_ref", "device_ref"])
-        neighbors = next(item for item in result["tools"]
+        neighbors = next(item for item in all_tools
                          if item["name"] == "omada_ap_wifi_interference")
         self.assertEqual(neighbors["inputSchema"]["required"], ["site_ref", "device_ref"])
-        speed_test = next(item for item in result["tools"]
+        speed_test = next(item for item in all_tools
                           if item["name"] == "omada_ap_speed_test_results")
         self.assertEqual(speed_test["inputSchema"]["required"], ["site_ref", "device_ref"])
-        cable_test = next(item for item in result["tools"]
+        cable_test = next(item for item in all_tools
                           if item["name"] == "omada_switch_cable_test")
         self.assertTrue(cable_test["annotations"]["destructiveHint"])
         self.assertIn("exact short-lived operator approval", cable_test["description"])
