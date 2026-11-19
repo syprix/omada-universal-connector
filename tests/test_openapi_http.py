@@ -38,6 +38,14 @@ class FakeOpenApiClient:
         self.calls.append(("controller_health", None))
         return {"status": "ok", "resource": "controller_health", "data": {}}
 
+    def read_client_health_detail_v2(self, site_ref: str, client_ref: str) -> dict[str, object]:
+        self.calls.append(("client_health_detail_v2", site_ref + ":" + client_ref))
+        return {"status": "ok", "resource": "client_health_detail_v2",
+                "site_ref": site_ref, "client_ref": client_ref,
+                "window_start_ms": 1, "window_end_ms": 86_400_001,
+                "health_version": 2, "score": 80, "dimensions": {},
+                "dimension_count": 0, "partial": False}
+
     def read_controller_scenarios(self) -> dict[str, object]:
         self.calls.append(("controller_scenarios", None))
         return {"status": "ok", "resource": "controller_scenarios",
@@ -7387,6 +7395,27 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertNotIn("isError", response)
         self.assertEqual(self.fake.calls[-1], ("site_pending_devices_summary", site_ref))
+
+    def test_http_and_mcp_expose_redacted_client_health_detail_v2(self) -> None:
+        site_ref, client_ref = "a" * 24, "b" * 24
+        path = f"/v1/sites/{site_ref}/clients/{client_ref}/health/detail-v2"
+        status, body = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(body["resource"], "client_health_detail_v2")
+        self.assertEqual(body["health_version"], 2)
+        self.assertEqual(self.fake.calls[-1],
+                         ("client_health_detail_v2", site_ref + ":" + client_ref))
+        status, response = self.request_post("/mcp", {
+            "jsonrpc": "2.0", "id": 389, "method": "tools/call",
+            "params": {"name": "omada_client_health_detail_v2",
+                       "arguments": {"site_ref": site_ref, "client_ref": client_ref}},
+        }, self.token)
+        self.assertEqual(status, 200)
+        self.assertNotIn("isError", response)
+        self.assertEqual(response["result"]["structuredContent"]["resource"],
+                         "client_health_detail_v2")
+        self.assertEqual(self.fake.calls[-1],
+                         ("client_health_detail_v2", site_ref + ":" + client_ref))
 
     def test_site_ap_group_summary_is_available_over_http_and_mcp(self) -> None:
         site_ref = "a" * 24

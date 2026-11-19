@@ -832,6 +832,7 @@ class OperationRegistryTests(unittest.TestCase):
             "client_connection_history",
             "client_history",
             "client_health",
+            "client_health_detail_v2",
             "client_health_timeline",
             "client_timeline_connect",
             "client_timeline_association",

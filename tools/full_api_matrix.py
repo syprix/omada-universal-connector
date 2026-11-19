@@ -234,6 +234,7 @@ IMPLEMENTED: dict[tuple[str, str], str] = {
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/clients/{client_mac}"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/clients/{client_mac}/client-connection"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/clients/{client_mac}/health/detail"): "implemented_read",
+    ("GET", "/openapi/v2/{controller_id}/sites/{site_id}/clients/{client_mac}/health/detail"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/clients/{client_mac}/health/timeline"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/clients/{client_mac}/client-history"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/devices/{device_mac}/latest-firmware-info"): "implemented_read",

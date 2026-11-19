@@ -1135,6 +1135,7 @@ class OmadaOpenApiClient:
     _CLIENT_HISTORY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/clients/{client_mac}/client-history"
     _CLIENT_TIMELINE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/clients/{client_mac}/client-timeline"
     _CLIENT_HEALTH_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/clients/{client_mac}/health/detail"
+    _CLIENT_HEALTH_DETAIL_V2_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/clients/{client_mac}/health/detail"
     _CLIENT_HEALTH_TIMELINE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/clients/{client_mac}/health/timeline"
     _NETWORK_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/lan-networks"
     _NETWORK_DETAIL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/lan-networks/{network_id}"
@@ -2471,6 +2472,11 @@ class OmadaOpenApiClient:
         r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/health/detail"
         r"\?start=[0-9]{1,16}&end=[0-9]{1,16}"
     )
+    _CLIENT_HEALTH_DETAIL_V2_REQUEST = re.compile(
+        r"/openapi/v2/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/clients/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/health/detail"
+        r"\?start=([0-9]{1,16})&end=([0-9]{1,16})"
+    )
     _CLIENT_HEALTH_TIMELINE_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/clients/"
         r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/health/timeline"
@@ -2549,6 +2555,8 @@ class OmadaOpenApiClient:
         ("client_timeline_roaming", "GET /v1/sites/{site_ref}/clients/{client_ref}/timeline/roaming"),
         ("client_timeline_disconnect", "GET /v1/sites/{site_ref}/clients/{client_ref}/timeline/disconnect"),
         ("client_health", "GET /v1/sites/{site_ref}/clients/{client_ref}/health"),
+        ("client_health_detail_v2",
+         "GET /v1/sites/{site_ref}/clients/{client_ref}/health/detail-v2"),
         ("client_health_timeline", "GET /v1/sites/{site_ref}/clients/{client_ref}/health/timeline"),
         ("client_outage_timeline",
          "GET /v1/sites/{site_ref}/clients/{client_ref}/outage-timeline"),
@@ -4283,6 +4291,46 @@ class OmadaOpenApiClient:
             out["incident"] = safe_incident
         return {"status": "ok", "resource": "client_health", "client_ref": client_ref,
                 "window_start_ms": start_ms, "window_end_ms": end_ms, "data": out}
+
+    @_track_capability("client_health_detail_v2")
+    def read_client_health_detail_v2(self, site_ref: str, client_ref: str) -> dict[str, object]:
+        """Read the documented v2 health dimensions through current client inventory."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        if not isinstance(client_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", client_ref):
+            raise OpenApiError("client_ref_invalid")
+        self.list_clients(site_ref)
+        mac = self._client_macs_by_site_ref.get(site_ref, {}).get(client_ref)
+        if not mac:
+            raise OpenApiError("client_ref_unknown")
+        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        start_ms = end_ms - 24 * 60 * 60 * 1000
+        base = self._CLIENT_HEALTH_DETAIL_V2_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, client_mac=mac)
+        path = base + "?" + urlencode({"start": start_ms, "end": end_ms})
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        result = payload.get("result")
+        try:
+            from .client_health_detail_v2 import (
+                ClientHealthDetailV2Error, project_client_health_detail_v2,
+            )
+        except ImportError:  # direct execution in the image
+            from client_health_detail_v2 import (
+                ClientHealthDetailV2Error, project_client_health_detail_v2,
+            )
+        try:
+            projected = project_client_health_detail_v2(
+                result, start_ms=start_ms, end_ms=end_ms)
+        except ClientHealthDetailV2Error:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": projected["status"], "resource": "client_health_detail_v2",
+                "site_ref": site_ref, "client_ref": client_ref,
+                "window_start_ms": start_ms, "window_end_ms": end_ms, **projected}
 
     @_track_capability("client_health_timeline")
     def read_client_health_timeline(self, site_ref: str, client_ref: str,
@@ -13278,6 +13326,7 @@ class OmadaOpenApiClient:
                                    self._AP_MANAGEMENT_SSID_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
                                   self._client_timeline_request_valid(path) or
                                   self._CLIENT_HEALTH_REQUEST.fullmatch(path) or
+                                  self._client_health_detail_v2_request_valid(path) or
                                   self._client_health_timeline_request_valid(path) or
                                   self._site_client_health_timeline_request_valid(path) or
                                   self._site_wifi_summary_request_valid(path) or
@@ -14271,6 +14320,16 @@ class OmadaOpenApiClient:
         try:
             page, page_size = int(match.group(2)), int(match.group(3))
             return 1 <= page <= self.config.max_pages and page_size == self.config.page_size
+        except (ValueError, OverflowError):
+            return False
+
+    def _client_health_detail_v2_request_valid(self, path: str) -> bool:
+        match = self._CLIENT_HEALTH_DETAIL_V2_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            start, end = int(match.group(2)), int(match.group(3))
+            return start < end and end - start == 86_400_000
         except (ValueError, OverflowError):
             return False
 
