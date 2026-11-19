@@ -111,7 +111,8 @@ class OperationRegistry:
                 ("start_ms", "end_ms", "archived"): {
                     "site_threat_window_summary"},
                 ("type",): {"site_mac_auth_ssid_inventory"},
-                ("vlan_id",): {"site_vlan_ssid_usage_summary", "site_vlan_device_usage_summary"},
+                ("vlan_id",): {"site_vlan_ssid_usage_summary", "site_vlan_device_usage_summary",
+                               "site_vlan_port_support_summary"},
             }
             supported_local_alternatives = {
                 ("start_local", "end_local", "time_zone"): {
@@ -1062,6 +1063,12 @@ Operation("site_stack_connections_summary", "GET",
     Operation("site_vlan_device_usage_summary", "GET",
               "/v1/sites/{site_ref}/networks/{network_ref}/vlan-devices/summary", "GET",
               "/openapi/v1/{controller_id}/sites/{site_id}/networks/{network_id}/vlan/{vlan_id}/devices",
+              (("controller_id", "$config"), ("site_id", "site_ref"),
+               ("network_id", "network_ref"), ("vlan_id", "vlan_id")),
+              local_arguments=("vlan_id",), max_items=10_000),
+    Operation("site_vlan_port_support_summary", "GET",
+              "/v1/sites/{site_ref}/networks/{network_ref}/vlan-port-support/summary", "GET",
+              "/openapi/v1/{controller_id}/sites/{site_id}/networks/{network_id}/vlan/{vlan_id}/device-support-ports",
               (("controller_id", "$config"), ("site_id", "site_ref"),
                ("network_id", "network_ref"), ("vlan_id", "vlan_id")),
               local_arguments=("vlan_id",), max_items=10_000),

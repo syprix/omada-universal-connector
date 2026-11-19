@@ -816,6 +816,8 @@ A synthetic page of eight gateways, each with one WAN status record, measured 1,
 
 `omada_site_vlan_device_usage_summary` takes a site reference, an inventory-bound network reference, and `vlan_id` (1–4094). It returns bounded counts by documented device type, stack membership, and DHCP-mode code. Names, MAC addresses, and stack IDs are omitted. Live support remains unknown.
 
+`omada_site_vlan_port_support_summary` takes a site reference, a network reference from that site, and `vlan_id` (1–4094). The read proceeds only when the VLAN matches that network’s current inventory assignment. It returns redacted counts of ports reported as supporting, not supporting, or having unknown support for that VLAN, grouped by device type. Returned rows do not establish total network coverage; live support remains unknown.
+
 
 `omada_site_wifi_calling_profiles_summary` reads one site's Wi-Fi calling profiles and returns only profile, carrier, endpoint-type, priority and source-code counts. Profile and carrier identities plus configured domains and IP addresses are omitted. It performs no scan or configuration change; live support remains unknown.
 

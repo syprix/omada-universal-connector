@@ -384,3 +384,28 @@ inventory, tool schemas, prompts, transport framing and billed agent usage.
 No controller request or external agent-client test was made. The exact-head
 push and pull-request CI runs for this implementation commit passed (44522696991,
 44522719023); later commits require their own checks.
+
+## Function 42 — VLAN port support summary
+
+Added the read-only `site_vlan_port_support_summary` HTTP route and
+`omada_site_vlan_port_support_summary` MCP tool. It checks that the selected
+network is a VLAN network and that its inventory VLAN matches the requested
+VLAN before reading the documented device-support-port endpoint. The result
+contains only returned device/port counts by documented device type and
+support boolean, with MAC, port, stack, LAG and MLAG identifiers omitted.
+Unknown support booleans, missing port lists, invalid fields, and the
+ER7212PC single-object schema shape are surfaced as partial data. The source
+contract has no total-coverage field, so this is not a fleet-completeness
+claim. Live controller compatibility remains unknown.
+
+The source route and operation ID were confirmed in all three supplied API
+exports. The projector, network/VLAN binding, path allowlist, registry, HTTP
+and MCP dispatch have focused offline fixtures. A source-shaped synthetic
+example with 8 devices and 192 ports measured 4,912 source JSON tokens versus
+194 projected tokens (4,718 fewer; 96.05%) using js-tiktoken 1.0.21 and
+`o200k_base`; a three-port example was larger after projection, so the saving
+applies to larger result payloads. This measurement excludes inventory,
+prompts, schemas, transport framing and billed agent usage. No live request or
+network change was made. The required registry/matrix/evidence gate passed 242 tests. Full offline
+discovery passed 3,255 tests in 475.857 seconds; runtime smoke, compilation,
+JSON parsing, source-matrix confirmation and diff checks passed.

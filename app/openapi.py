@@ -506,6 +506,9 @@ try:
     from .site_vlan_device_usage_summary import (
         VlanDeviceUsageError, project_site_vlan_device_usage_summary,
     )
+    from .site_vlan_port_support_summary import (
+        VlanPortSupportError, project_site_vlan_port_support_summary,
+    )
     from .site_wifi_calling_profiles_summary import (
         WifiCallingProfilesError, project_site_wifi_calling_profiles_summary,
     )
@@ -707,6 +710,9 @@ except ImportError:  # direct execution in the image
     )
     from site_vlan_device_usage_summary import (
         VlanDeviceUsageError, project_site_vlan_device_usage_summary,
+    )
+    from site_vlan_port_support_summary import (
+        VlanPortSupportError, project_site_vlan_port_support_summary,
     )
     from site_wifi_calling_profiles_summary import (
         WifiCallingProfilesError, project_site_wifi_calling_profiles_summary,
@@ -3027,6 +3033,7 @@ class OmadaOpenApiClient:
         ("site_ap_oui_vlan_rules_summary", "GET /v1/sites/{site_ref}/ap-oui-rules/summary"),
         ("site_vlan_ssid_usage_summary", "GET /v1/sites/{site_ref}/networks/{network_ref}/vlan-ssids/summary"),
         ("site_vlan_device_usage_summary", "GET /v1/sites/{site_ref}/networks/{network_ref}/vlan-devices/summary"),
+        ("site_vlan_port_support_summary", "GET /v1/sites/{site_ref}/networks/{network_ref}/vlan-port-support/summary"),
         ("site_wifi_calling_profiles_summary", "GET /v1/sites/{site_ref}/wifi-calling/profiles/summary"),
         ("site_client_filter_options_summary", "GET /v1/sites/{site_ref}/clients/filter-options/summary"),
         ("site_eap_dot1x_candidates_summary", "GET /v1/sites/{site_ref}/dot1x/eap-candidates/summary"),
@@ -6541,6 +6548,34 @@ class OmadaOpenApiClient:
         except VlanDeviceUsageError:
             raise OpenApiError("openapi_response_invalid") from None
         return {"status": "ok", "resource": "site_vlan_device_usage_summary",
+                "site_ref": site_ref, "network_ref": network_ref,
+                "vlan_id": vlan_id, **summary}
+
+    @_track_capability("site_vlan_port_support_summary")
+    def read_site_vlan_port_support_summary(self, site_ref: str, network_ref: str,
+                                            vlan_id: int) -> dict[str, object]:
+        """Summarize which returned device ports support the selected network VLAN."""
+        if type(vlan_id) is not int or not 1 <= vlan_id <= 4094:
+            raise OpenApiError("vlan_id_invalid")
+        inventory = self.list_networks(site_ref)
+        selected = next((row for row in inventory["items"]
+                         if isinstance(row, dict) and row.get("network_ref") == network_ref), None)
+        if selected is None:
+            raise OpenApiError("network_ref_unknown")
+        if selected.get("purpose") != 0 or selected.get("vlan") != vlan_id:
+            raise OpenApiError("network_vlan_mismatch")
+        site_id = self._resolve_site_ref(site_ref)
+        network_id = self._network_ids_by_site_ref.get(site_ref, {}).get(network_ref, "")
+        if not network_id:
+            raise OpenApiError("network_ref_unknown")
+        path = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/networks/"
+                f"{network_id}/vlan/{vlan_id}/device-support-ports")
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            summary = project_site_vlan_port_support_summary(result)
+        except VlanPortSupportError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_vlan_port_support_summary",
                 "site_ref": site_ref, "network_ref": network_ref,
                 "vlan_id": vlan_id, **summary}
 
@@ -14244,6 +14279,11 @@ class OmadaOpenApiClient:
                                   self._rf_planning_history_detail_request_valid(path) or
                                   self._rf_planning_recent_history_request_valid(path) or
                                   self._NETWORK_REQUEST.fullmatch(path) or
+                                  re.fullmatch(
+                                      rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                                      rf"[A-Za-z0-9_-]{{1,128}}/networks/[A-Za-z0-9_-]{{1,128}}/vlan/"
+                                      rf"(?:[1-9]|[1-9][0-9]{{1,2}}|[1-3][0-9]{{3}}|"
+                                      rf"40[0-8][0-9]|409[0-4])/device-support-ports", path) or
                                   self._network_dhcp_capabilities_request_valid(path) or
                                   self._network_dhcp_server_info_request_valid(path) or
                                   self._site_mac_auth_ssid_inventory_request_valid(path) or

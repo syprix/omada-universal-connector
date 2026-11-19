@@ -1235,6 +1235,8 @@ The LAN network detail summary resolves one opaque network reference within the 
 
 `site_vlan_device_usage_summary` reads the documented non-paginated list of devices using one VLAN on a validated site network. It returns counts by documented device type, stack membership, and raw DHCP-mode code; names, MAC addresses, and stack IDs are discarded. The request is capped at 10,000 rows and rejects VLAN IDs outside 1–4094. No live controller request has been made.
 
+`site_vlan_port_support_summary` checks a caller-selected VLAN against the selected network’s current inventory assignment, then reads the documented port-support result. It returns counts by device type and supported, unsupported, or unknown support status. Device MACs, port names, stack IDs and aggregation IDs are discarded. Missing port lists and unknown or malformed data are visible; response counts cover only returned rows because the API has no total-coverage field. ER7212PC documents a different object shape and is marked partial when its single-device shape is used. No live controller request has been made.
+
 
 `site_wifi_calling_profiles_summary` exposes the documented site Wi-Fi calling profile read as counts of profiles, carriers, domain/IP endpoint types, configured endpoints, QoS priorities and source resource codes. Profile IDs, names, descriptions, carrier labels, domains and IP addresses are removed. The original API documents Site Settings Manager View Only or Device Config Page View Only; Hardware Controller and CBC additionally list Network Config Page View Only. No live controller request has been made.
 
