@@ -338,6 +338,30 @@ _SITE_CLIENT_ROAMING_BACKTRACK_TOOL = {
                     "idempotentHint": True, "openWorldHint": False},
 }
 _SITE_CLIENT_ROAMING_BACKTRACK_NAME = str(_SITE_CLIENT_ROAMING_BACKTRACK_TOOL["name"])
+_SITE_AP_UPLINK_PATH_TOOL = {
+    "name": "omada_site_ap_uplink_path_summary",
+    "description": (
+        "Summarize wired and mesh uplink evidence for 1–16 explicitly selected APs in one site. "
+        "Joins current inventory references with documented wired-uplink and mesh reads, reports "
+        "the mapped next hop when known, and keeps unknown path segments, unavailable sources, "
+        "nonzero link counters and documented device-state concerns visible. It does not infer "
+        "unobserved path segments or start scans or network changes. Read-only."
+    ),
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "site_ref": {"type": "string", "pattern": "^[0-9a-f]{24}$"},
+            "device_refs": {"type": "array", "minItems": 1, "maxItems": 16,
+                            "uniqueItems": True,
+                            "items": {"type": "string", "pattern": "^[0-9a-f]{24}$"}},
+        },
+        "required": ["site_ref", "device_refs"],
+        "additionalProperties": False,
+    },
+    "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                    "idempotentHint": True, "openWorldHint": False},
+}
+_SITE_AP_UPLINK_PATH_NAME = str(_SITE_AP_UPLINK_PATH_TOOL["name"])
 _SSID_NETWORK_SUMMARY_TOOL = {
     "name": "omada_ssid_network_summary",
     "description": (
@@ -697,6 +721,7 @@ def _tools_page(registry: Any, cursor: object) -> dict[str, object]:
     tools.append(_SITE_OUTAGE_SUMMARY_TOOL)
     tools.append(_SITE_CLIENT_OUTAGE_OVERLAP_TOOL)
     tools.append(_SITE_CLIENT_ROAMING_BACKTRACK_TOOL)
+    tools.append(_SITE_AP_UPLINK_PATH_TOOL)
     tools.append(_SSID_NETWORK_SUMMARY_TOOL)
     tools.append(_GATEWAY_WAN_INCIDENT_WINDOW_TOOL)
     tools.append(_SITE_DHCP_POOL_UTILIZATION_TOOL)
@@ -1024,6 +1049,19 @@ def _invoke_tool(registry: Any, name: object, arguments: object,
         value = invoke_read("site_client_roaming_backtrack_summary", {
             "site_ref": arguments["site_ref"], "client_refs": ",".join(refs),
             "start_ms": str(arguments["start_ms"]), "end_ms": str(arguments["end_ms"])})
+        return _tool_result(value)
+    if name == _SITE_AP_UPLINK_PATH_NAME:
+        keys = {"site_ref", "device_refs"}
+        refs = arguments.get("device_refs") if isinstance(arguments, dict) else None
+        if (not isinstance(arguments, dict) or set(arguments) != keys or
+                not isinstance(arguments.get("site_ref"), str) or
+                not _SAFE_REF.fullmatch(arguments["site_ref"]) or
+                not isinstance(refs, list) or not 1 <= len(refs) <= 16 or
+                any(not isinstance(ref, str) or not _SAFE_REF.fullmatch(ref) for ref in refs) or
+                len(set(refs)) != len(refs)):
+            raise McpRequestError("arguments_invalid")
+        value = invoke_read("site_ap_uplink_path_summary", {
+            "site_ref": arguments["site_ref"], "device_refs": ",".join(refs)})
         return _tool_result(value)
     if name == _SSID_NETWORK_SUMMARY_NAME:
         keys = ("site_ref",)

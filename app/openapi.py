@@ -276,6 +276,14 @@ except ImportError:  # direct execution in the image
         ClientRoamingBacktrackError, project_client_roaming_backtrack,
     )
 try:
+    from .site_ap_uplink_path import (
+        SiteApUplinkPathError, summarize_site_ap_uplink_paths,
+    )
+except ImportError:  # direct execution in the image
+    from site_ap_uplink_path import (
+        SiteApUplinkPathError, summarize_site_ap_uplink_paths,
+    )
+try:
     from .mesh_statistics import MeshStatisticsProjectionError, project_mesh_statistics
 except ImportError:  # direct execution in the image
     from mesh_statistics import MeshStatisticsProjectionError, project_mesh_statistics
@@ -2607,6 +2615,8 @@ class OmadaOpenApiClient:
          "GET /v1/sites/{site_ref}/client-outage-overlaps"),
         ("site_client_roaming_backtrack_summary",
          "GET /v1/sites/{site_ref}/client-roaming-backtracks"),
+        ("site_ap_uplink_path_summary",
+         "GET /v1/sites/{site_ref}/ap-uplink-paths"),
         ("networks", "GET /v1/sites/{site_ref}/networks"),
         ("network_dhcp_server_capabilities",
          "GET /v1/sites/{site_ref}/networks/{network_ref}/dhcp-server/capabilities"),
@@ -4606,6 +4616,44 @@ class OmadaOpenApiClient:
                 site_ref, start_ms, end_ms, client_timelines,
                 ap_inventory_available=ap_inventory_available)
         except ClientRoamingBacktrackError:
+            raise OpenApiError("openapi_response_invalid") from None
+
+    def read_site_ap_uplink_path_summary(
+        self, site_ref: str, device_refs: list[str],
+    ) -> dict[str, object]:
+        """Join wired and mesh uplink evidence for selected current APs."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        if (not isinstance(device_refs, list) or not 1 <= len(device_refs) <= 16 or
+                any(not isinstance(ref, str) or not re.fullmatch(r"[0-9a-f]{24}", ref)
+                    for ref in device_refs) or len(set(device_refs)) != len(device_refs)):
+            raise OpenApiError("device_refs_invalid")
+        if site_ref not in self._site_ids_by_ref:
+            raise OpenApiError("site_ref_unknown")
+
+        inventory = self.list_devices(site_ref)
+        ap_refs = set(self._device_macs_by_site_ref.get(site_ref, {}))
+        if any(ref not in ap_refs for ref in device_refs):
+            raise OpenApiError("device_ref_unknown")
+
+        wired_sources: dict[str, object] = {}
+        mesh_sources: dict[str, object] = {}
+        for device_ref in device_refs:
+            try:
+                wired_sources[device_ref] = self.read_ap_wired_uplink(
+                    site_ref, device_ref, include_inventory_reference=True)
+            except OpenApiError as exc:
+                wired_sources[device_ref] = {"status": "error", "error": exc.code}
+            try:
+                mesh_sources[device_ref] = self.read_ap_mesh_statistics(
+                    site_ref, device_ref, include_parent_reference=True)
+            except OpenApiError as exc:
+                mesh_sources[device_ref] = {"status": "error", "error": exc.code}
+        try:
+            return summarize_site_ap_uplink_paths(
+                site_ref, device_refs, inventory.get("items", []),
+                wired_sources, mesh_sources)
+        except SiteApUplinkPathError:
             raise OpenApiError("openapi_response_invalid") from None
 
     @_track_capability("networks")
@@ -6999,14 +7047,18 @@ class OmadaOpenApiClient:
         return {**data, "site_ref": site_ref, "device_ref": device_ref}
 
     @_track_capability("ap_wired_uplink")
-    def read_ap_wired_uplink(self, site_ref: str, device_ref: str) -> dict[str, object]:
+    def read_ap_wired_uplink(self, site_ref: str, device_ref: str, *,
+                             include_inventory_reference: bool = False
+                             ) -> dict[str, object]:
         """Read a redacted wired-uplink diagnostic for one inventoried AP."""
         site_id, mac = self._known_ap_mac(site_ref, device_ref)
         path = self._AP_WIRED_UPLINK_PATH.format(
             controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
         result = self._request_json("GET", path, token=self._access_token()).get("result")
         try:
-            data = project_ap_wired_uplink(result)
+            refs = (self._opaque_device_refs_by_mac(site_ref, ap_only=False)
+                    if include_inventory_reference else None)
+            data = project_ap_wired_uplink(result, device_ref_by_mac=refs)
         except ApWiredUplinkError:
             raise OpenApiError("openapi_response_invalid") from None
         return {**data, "site_ref": site_ref, "device_ref": device_ref}
@@ -7725,14 +7777,18 @@ class OmadaOpenApiClient:
         self._request_json("PUT", path, body=encoded, token=self._access_token())
 
     @_track_capability("ap_mesh_statistics")
-    def read_ap_mesh_statistics(self, site_ref: str, device_ref: str) -> dict[str, object]:
+    def read_ap_mesh_statistics(self, site_ref: str, device_ref: str, *,
+                                include_parent_reference: bool = False
+                                ) -> dict[str, object]:
         """Read fixed mesh statistics for a known AP reference; never initiates a scan."""
         site_id, mac = self._known_ap_mac(site_ref, device_ref)
         path = self._AP_MESH_STATISTICS_PATH.format(controller_id=self.config.controller_id,
                                                     site_id=site_id, ap_mac=mac)
         result = self._request_json("GET", path, token=self._access_token()).get("result")
         try:
-            data = project_mesh_statistics(result)
+            refs = (self._opaque_device_refs_by_mac(site_ref, ap_only=True)
+                    if include_parent_reference else None)
+            data = project_mesh_statistics(result, access_point_ref_by_mac=refs)
         except MeshStatisticsProjectionError as exc:
             raise OpenApiError("openapi_response_invalid") from exc
         return {"status": "ok", "resource": "ap_mesh_statistics", "site_ref": site_ref,
@@ -7892,6 +7948,24 @@ class OmadaOpenApiClient:
         if not mac:
             raise OpenApiError("device_ref_unknown")
         return site_id, mac
+
+    def _opaque_device_refs_by_mac(self, site_ref: str, *,
+                                   ap_only: bool) -> dict[str, str]:
+        refs_to_macs = (self._device_macs_by_site_ref.get(site_ref, {}) if ap_only else
+                        self._inventory_macs_by_site_ref.get(site_ref, {}))
+        refs_by_mac: dict[str, str] = {}
+        ambiguous: set[str] = set()
+        for ref, raw_mac in refs_to_macs.items():
+            if not isinstance(raw_mac, str) or not self._MAC.fullmatch(raw_mac):
+                continue
+            key = raw_mac.replace(":", "").replace("-", "").lower()
+            if key in refs_by_mac:
+                ambiguous.add(key)
+            else:
+                refs_by_mac[key] = ref
+        for key in ambiguous:
+            refs_by_mac.pop(key, None)
+        return refs_by_mac
 
     @_track_capability("gateway_ipv6_ip_passthrough")
     def read_gateway_ipv6_ip_passthrough(self, site_ref: str,

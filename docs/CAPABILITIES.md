@@ -264,6 +264,15 @@ inventory. Counts are grouped by AP pair and affected-client count; client
 references are omitted. Unknown mappings and timeline gaps remain visible. It
 does not infer why roaming occurred, and it has no live-controller evidence.
 
+The selected-AP uplink-path summary joins current device inventory with the
+documented wired-uplink and mesh-statistics reads. A next hop is reported only
+when its source MAC maps uniquely to a current same-site device reference; an
+AP mesh parent is bound only through the AP inventory. A known one-hop link
+does not claim the unqueried continuation. Nonzero drop/error counters and
+documented inventory states are review signals, not causes or rates; raw
+addresses and names remain omitted. Unknown segments and unavailable reads are
+explicit, and no scan is initiated.
+
 The separate client-health timeline is a read-only operation bound to a fresh
 site-bound client reference. It requests a fixed 24-hour window in
 milliseconds and projects only timestamps and raw int32 scores without a

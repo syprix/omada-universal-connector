@@ -72,6 +72,12 @@ class McpTests(unittest.TestCase):
         self.assertFalse(roaming_backtrack["annotations"]["destructiveHint"])
         self.assertEqual(roaming_backtrack["inputSchema"]["properties"]["client_refs"]["minItems"], 1)
         self.assertEqual(roaming_backtrack["inputSchema"]["properties"]["client_refs"]["maxItems"], 16)
+        ap_uplink_path = next(item for item in all_tools
+                              if item["name"] == "omada_site_ap_uplink_path_summary")
+        self.assertTrue(ap_uplink_path["annotations"]["readOnlyHint"])
+        self.assertFalse(ap_uplink_path["annotations"]["destructiveHint"])
+        self.assertEqual(ap_uplink_path["inputSchema"]["properties"]["device_refs"]["minItems"], 1)
+        self.assertEqual(ap_uplink_path["inputSchema"]["properties"]["device_refs"]["maxItems"], 16)
         diagnosis = next(item for item in all_tools
                          if item["name"] == "omada_wifi_diagnose_site")
         self.assertTrue(diagnosis["annotations"]["readOnlyHint"])
@@ -163,6 +169,18 @@ class McpTests(unittest.TestCase):
                            lambda op, values: seen.append((op, values)) or {"status": "ok"})
         self.assertFalse(result["result"]["isError"])
         self.assertEqual(seen, [("gateway_health", args)])
+
+    def test_site_ap_uplink_path_dispatch_accepts_only_bounded_ap_refs(self):
+        seen = []
+        refs = ["b" * 24, "c" * 24]
+        args = {"site_ref": "a" * 24, "device_refs": refs}
+        result = self.call({"jsonrpc": "2.0", "id": 32, "method": "tools/call",
+                            "params": {"name": "omada_site_ap_uplink_path_summary",
+                                       "arguments": args}},
+                           lambda op, values: seen.append((op, values)) or {"status": "ok"})
+        self.assertFalse(result["result"]["isError"])
+        self.assertEqual(seen, [("site_ap_uplink_path_summary", {
+            "site_ref": args["site_ref"], "device_refs": ",".join(refs)})])
 
     def test_wifi_diagnose_dispatch_accepts_only_site_reference(self):
         seen = []
@@ -264,9 +282,13 @@ class McpTests(unittest.TestCase):
         self.assertEqual(rejected["error"]["message"], "arguments_invalid")
 
     def test_switch_port_index_has_integer_schema_and_strict_bounds(self):
-        tool = next(item for item in self.call(
-            {"jsonrpc": "2.0", "id": 50, "method": "tools/list"})["result"]["tools"]
-                    if item["name"] == "omada_switch_port_status")
+        request = {"jsonrpc": "2.0", "id": 50, "method": "tools/list"}
+        page = self.call(request)["result"]
+        tools = list(page["tools"])
+        while "nextCursor" in page:
+            page = self.call({**request, "params": {"cursor": page["nextCursor"]}})["result"]
+            tools.extend(page["tools"])
+        tool = next(item for item in tools if item["name"] == "omada_switch_port_status")
         port = tool["inputSchema"]["properties"]["port"]
         self.assertEqual((port["type"], port["minimum"], port["maximum"]),
                          ("integer", 0, 4096))

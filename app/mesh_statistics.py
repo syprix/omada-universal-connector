@@ -1,6 +1,7 @@
 """Bounded, identifier-free projection of the documented AP mesh statistics."""
 from __future__ import annotations
 
+import re
 from typing import Any
 
 
@@ -16,6 +17,10 @@ MAX_CHILD_APS = 128
 MAX_CANDIDATE_PARENTS = 128
 MAX_MULTI_BAND_INFO = 16
 MAX_RATE_TEXT_LENGTH = 128
+_MAC_RE = re.compile(
+    r"(?i)(?:(?:[0-9a-f]{2}:){5}[0-9a-f]{2}|(?:[0-9a-f]{2}-){5}[0-9a-f]{2})\Z"
+)
+_REF_RE = re.compile(r"[0-9a-f]{24}\Z")
 
 
 def _integer(value: Any, *, minimum: int = INT32_MIN,
@@ -44,7 +49,8 @@ def _optional(source: dict[str, Any], key: str, convert) -> Any:
     return convert(source[key])
 
 
-def _project_uplink(value: Any) -> dict[str, Any]:
+def _project_uplink(value: Any, access_point_ref_by_mac: dict[str, str] | None = None
+                    ) -> dict[str, Any]:
     source = _object(value)
     out: dict[str, Any] = {}
     fields = (
@@ -69,12 +75,26 @@ def _project_uplink(value: Any) -> dict[str, Any]:
             rate = source[key]
             if not isinstance(rate, str) or len(rate) > MAX_RATE_TEXT_LENGTH:
                 raise MeshStatisticsProjectionError("response_invalid")
-    out["omitted_field_count"] = sum(
-        1 for key, value in source.items() if value is not None and key not in {
+    if access_point_ref_by_mac is not None and "uplinkMac" in source:
+        peer_mac = source["uplinkMac"]
+        peer_ref = None
+        if isinstance(peer_mac, str) and _MAC_RE.fullmatch(peer_mac):
+            peer_ref = access_point_ref_by_mac.get(
+                peer_mac.replace(":", "").replace("-", "").lower())
+        if not isinstance(peer_ref, str) or not _REF_RE.fullmatch(peer_ref):
+            peer_ref = None
+        out["uplink_ap_ref_status"] = (
+            "mapped" if peer_ref is not None else "not_in_ap_inventory")
+        if peer_ref is not None:
+            out["uplink_ap_ref"] = peer_ref
+    allowed = {
             "channel", "rssi", "snr", "txRateInt", "rxRateInt", "upBytes",
             "downBytes", "upPackets", "downPackets", "activity", "supportSpeedTest"
-        }
-    )
+    }
+    if access_point_ref_by_mac is not None:
+        allowed.add("uplinkMac")
+    out["omitted_field_count"] = sum(
+        1 for key, value in source.items() if value is not None and key not in allowed)
     return out
 
 
@@ -140,7 +160,9 @@ def _project_candidate(value: Any) -> dict[str, Any]:
     return out
 
 
-def project_mesh_statistics(result: Any) -> dict[str, Any]:
+def project_mesh_statistics(result: Any, *,
+                            access_point_ref_by_mac: dict[str, str] | None = None
+                            ) -> dict[str, Any]:
     """Project ``ApMeshStatisticsOpenApiVO`` without exposing device identities.
 
     The projection retains only documented typed diagnostic values. Unknown and
@@ -178,7 +200,8 @@ def project_mesh_statistics(result: Any) -> dict[str, Any]:
             out["omitted_" + output_key + "_count"] = len(rows) - limit
 
     if "wirelessUplink" in source and source["wirelessUplink"] is not None:
-        out["wireless_uplink"] = _project_uplink(source["wirelessUplink"])
+        out["wireless_uplink"] = _project_uplink(
+            source["wirelessUplink"], access_point_ref_by_mac)
 
     documented = {"status", "statusCategory", "wirelessLinked", "scanStatus",
                   "childAps", "candidateParents", "wirelessUplink"}

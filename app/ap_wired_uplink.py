@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math
+import re
 
 
 class ApWiredUplinkError(ValueError):
@@ -35,6 +36,8 @@ _INT32_MIN = -(2**31)
 _INT32_MAX = 2**31 - 1
 _INT64_MIN = -(2**63)
 _INT64_MAX = 2**63 - 1
+_MAC_RE = re.compile(r"(?i)(?:(?:[0-9a-f]{2}:){5}[0-9a-f]{2}|(?:[0-9a-f]{2}-){5}[0-9a-f]{2})\Z")
+_REF_RE = re.compile(r"[0-9a-f]{24}\Z")
 
 
 def _integer(value: object, low: int, high: int) -> bool:
@@ -50,7 +53,9 @@ def _finite_number(value: object) -> bool:
         return False
 
 
-def project_ap_wired_uplink(raw: object) -> dict[str, object]:
+def project_ap_wired_uplink(raw: object, *,
+                            device_ref_by_mac: dict[str, str] | None = None
+                            ) -> dict[str, object]:
     """Project ``result.wiredUplink`` without exposing topology or identity.
 
     Core integers are validated against their documented int32/int64 storage
@@ -90,6 +95,17 @@ def project_ap_wired_uplink(raw: object) -> dict[str, object]:
                 continue
             if key in _REDACTED_FIELDS:
                 redacted += 1
+                if key == "uplinkMac" and device_ref_by_mac is not None:
+                    mapped_ref = None
+                    if isinstance(value, str) and _MAC_RE.fullmatch(value):
+                        mapped_ref = device_ref_by_mac.get(
+                            value.replace(":", "").replace("-", "").lower())
+                    if not isinstance(mapped_ref, str) or not _REF_RE.fullmatch(mapped_ref):
+                        mapped_ref = None
+                    projected["uplink_device_ref_status"] = (
+                        "mapped" if mapped_ref is not None else "not_in_inventory")
+                    if mapped_ref is not None:
+                        projected["uplink_device_ref"] = mapped_ref
                 continue
             if key == "rate":
                 if type(value) is str and value in _RATE_VALUES:
