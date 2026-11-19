@@ -309,19 +309,17 @@ suite then passed all 3,197 tests. No live controller request was made.
 ## Virtual WAN inventory summary
 
 Added read-only `GET /v1/sites/{site_ref}/virtual-wan-summary` and the matching
-MCP tool. It reads at most 1,000 documented grid rows and reports declared and
-returned counts, enabled/disabled totals, missing-reference counts and whether
-the inventory is complete. It omits IDs, names and nested settings. The three
-source exports document `physicalWanId`, `physicalWanPortId` and physical port
-configuration fields, but do not define a crosswalk between those identifiers
-or the live WAN status port; the implementation does not join them. Physical
-configuration and current usage therefore remain separate, and reconciliation
-is still open. Fixtures cover projection, fixed paginated read, HTTP and MCP;
-live support remains unknown. A synthetic 200-row grid used 27,642 `o200k_base`
-tokens as upstream JSON and 94 tokens for the compact result (27,548 fewer;
-99.66%) with `js-tiktoken` 1.0.21. This measures JSON only and excludes
+MCP tool. It reads at most 1,000 documented virtual WAN grid rows and the
+bounded available-virtual-WAN list. In all three exports, the grid `id` and
+availability `virtualWanId` are both described as the virtual WAN ID. The
+projection joins only unique values and reports matched, unmatched, ambiguous
+and unkeyed counts while omitting identifiers, names and nested settings. The
+exports do not define a crosswalk from the virtual rows to physical port
+configuration or current WAN status; those facts remain separate, so physical
+reconciliation is still open. Fixtures cover both fixed site reads, projection,
+HTTP and MCP. Live support remains unknown. A synthetic 200-row grid and
+180-row availability list used 36,469 `o200k_base` tokens as source JSON and
+179 tokens for the compact result (36,290 fewer; 99.51%) with
+`js-tiktoken` 1.0.21. This is a synthetic payload comparison only; it excludes
 schemas, prompts, transport framing and billed agent use. No live controller
-request was made. The complete local Python suite passed 3,203 tests in
-469.456 seconds; the local runtime smoke check also passed. The suite reported
-an unclosed loopback test socket warning at process shutdown, without a test
-failure.
+request was made.

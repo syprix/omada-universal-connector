@@ -1934,19 +1934,29 @@ class FullApiMatrixTests(unittest.TestCase):
             self.assertTrue(row["documented"])
             self.assertEqual(row["live_support"], "unknown")
             self.assertEqual(row["contract_review"]["operation_id"], "getGridVirtualWan")
+            self.assertEqual(row["contract_review"]["supporting_operation_id"],
+                             "getAvailableVirtualWan")
             self.assertIn("physicalWanId", row["contract_review"]["response"])
             self.assertIn("physicalWanPortId", row["contract_review"]["response"])
-            self.assertIn("joins are not inferred", row["contract_review"]["projection"])
+            self.assertIn("joins config id", row["contract_review"]["projection"])
         spec = document()
         spec["paths"] = {
             "/openapi/v1/{omadacId}/sites/{siteId}/setting/virtual-wans": {
                 "get": {"operationId": "getGridVirtualWan", "responses": {"200": {}}},
+            },
+            "/openapi/v1/{omadacId}/sites/{siteId}/setting/available-virtual-wans": {
+                "get": {"operationId": "getAvailableVirtualWan", "responses": {"200": {}}},
             },
         }
         path = self.write_zip("site-virtual-wan-summary.zip", spec)
         row = build_matrix([("hardware", path)])["operations"][0]
         self.assertEqual(row["connector_source_status"], "implemented_read")
         self.assertEqual(row["live_status"], "unknown_not_checked_by_this_offline_tool")
+        rows = build_matrix([("hardware", path)])['operations']
+        available = next(item for item in rows
+                         if item["sources"][0].get("operation_id") == "getAvailableVirtualWan")
+        self.assertEqual(available["connector_source_status"], "implemented_read")
+        self.assertEqual(available["live_status"], "unknown_not_checked_by_this_offline_tool")
 
     def test_site_vlan_network_summary_matches_all_source_exports(self) -> None:
         matrix = json.loads((Path(__file__).resolve().parents[1] /
