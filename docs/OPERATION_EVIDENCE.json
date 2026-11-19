@@ -10623,6 +10623,7 @@
         "test_capability_completeness.py",
         "test_controller_health.py",
         "test_finite_integration.py",
+        "test_incident_report_comparison.py",
         "test_network_overview.py",
         "test_openapi_http.py",
         "test_operation_registry.py",

@@ -23,6 +23,7 @@ from tests.test_wifi_diagnose_ap import (
     _ap_timeline_payload, _device,
 )
 from tests.test_wifi_diagnose_ap_lan_traffic import _lan_traffic_payload
+from tests.test_incident_report_comparison import report as _incident_report
 
 
 class FakeOpenApiClient:
@@ -8025,6 +8026,34 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(response["result"]["structuredContent"]["resource"],
                          "site_outage_summary")
         self.assertEqual(calls, [(site_ref, start_ms, end_ms)] * 2)
+
+    def test_redacted_incident_reports_compare_over_http_and_mcp_without_live_reads(self) -> None:
+        reports = [_incident_report(), _incident_report(event_count=9, alert_count=5)]
+        status, body = self.request_post("/v1/incident-reports/compare",
+                                         {"reports": reports})
+        self.assertEqual(status, 401)
+        self.assertEqual(body["error"], "unauthorized")
+        status, response = self.request_post(
+            "/v1/incident-reports/compare", {"reports": reports}, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "incident_report_comparison")
+        self.assertEqual(response["live_controller_queries"], 0)
+        self.assertEqual(self.fake.calls, [])
+
+        status, response = self.request_post("/mcp", {
+            "jsonrpc": "2.0", "id": 192, "method": "tools/call",
+            "params": {"name": "omada_compare_incident_reports",
+                       "arguments": {"reports": reports}},
+        }, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"]["resource"],
+                         "incident_report_comparison")
+        self.assertEqual(self.fake.calls, [])
+
+        status, body = self.request_post("/v1/incident-reports/compare",
+                                         {"reports": [_incident_report()]}, self.token)
+        self.assertEqual(status, 400)
+        self.assertEqual(body["error"], "reports_invalid")
 
     def test_gateway_wan_incident_window_is_available_over_http_and_mcp(self) -> None:
         site_ref, gateway_ref = "a" * 24, "b" * 24

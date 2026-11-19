@@ -999,6 +999,8 @@ class Handler(BaseHTTPRequestHandler):
             return
         doubt_close_match = re.fullmatch(
             r"/v1/change-plans/([a-z0-9-]+)/([0-9a-f]{48})/close", self.path)
+        incident_report_comparison_match = re.fullmatch(
+            r"/v1/incident-reports/compare", self.path)
         radius_proxy_preview_match = re.fullmatch(
             r"/v1/controller/settings/radius-proxy-preview", self.path)
         radius_proxy_apply_match = re.fullmatch(
@@ -1091,6 +1093,7 @@ class Handler(BaseHTTPRequestHandler):
                 ap_qos_preview_match is None and ap_qos_apply_match is None and
                 cable_test_preview_match is None and cable_test_apply_match is None and
                 cable_test_cancel_preview_match is None and cable_test_cancel_apply_match is None and
+                incident_report_comparison_match is None and
                 doubt_close_match is None):
             self.send_error(HTTPStatus.NOT_IMPLEMENTED)
             return
@@ -1108,7 +1111,9 @@ class Handler(BaseHTTPRequestHandler):
             if not re.fullmatch(r"[0-9]{1,5}", length):
                 raise ChangeError("request_invalid")
             size = int(length)
-            if size > _MAX_REQUEST_BYTES:
+            request_limit = (65_536 if incident_report_comparison_match is not None
+                             else _MAX_REQUEST_BYTES)
+            if size > request_limit:
                 raise ChangeError("request_too_large")
             self.connection.settimeout(5.0)
             raw = self.rfile.read(size)
@@ -1124,6 +1129,27 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(raw, object_pairs_hook=object_no_duplicates)
             if not isinstance(body, dict):
                 raise ChangeError("request_invalid")
+            if incident_report_comparison_match is not None:
+                if set(body) != {"reports"}:
+                    self._send(HTTPStatus.BAD_REQUEST,
+                               {"status": "error", "error": "request_invalid"})
+                    return
+                try:
+                    try:
+                        from .incident_report_comparison import (
+                            IncidentReportComparisonError, compare_incident_reports,
+                        )
+                    except ImportError:
+                        from incident_report_comparison import (
+                            IncidentReportComparisonError, compare_incident_reports,
+                        )
+                    result = compare_incident_reports(body["reports"])
+                except IncidentReportComparisonError as exc:
+                    self._send(HTTPStatus.BAD_REQUEST,
+                               {"status": "error", "error": exc.code})
+                    return
+                self._send(HTTPStatus.OK, result)
+                return
             with _OPENAPI_LOCK:
                 client = _openapi_client()
                 if doubt_close_match:

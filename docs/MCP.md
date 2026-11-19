@@ -845,3 +845,8 @@ A synthetic eight-AP fixture with 608 channel-load rows measured 9,324 source JS
 
 
 `omada_ap_ssid_override_audit_summary` reads the selected inventoried AP's stored SSID override audit rows. It requests only a fixed first page of 100 from the source default trailing seven-day window and returns aggregate modification counts; SSID names and VLAN values are omitted. Source rows provide no timestamp or actor, so the result is not chronological or attributable. The source operation appears in Hardware Controller and CBC 6.3 exports and is absent from the ER7212PC 6.2.14 export. Live MCP support has not been tested.
+### Comparing existing incident reports
+
+`omada_compare_incident_reports` accepts 2–8 already-redacted JSON documents from the local site-outage report workflow. It does not call the controller. Only `site_outage_report` schema version 1 is comparable; other schemas are counted and explicitly marked unsupported. Event and alert totals are compared only when report windows are identical and every report is complete. Current reachability snapshots are compared only when their observation timestamps match exactly. Overlapping windows and pagination/missing-field gaps are shown; names, identifiers, free text and raw observations are omitted. The accepted JSON is capped at 60 KiB.
+
+A synthetic pair of existing-format outage reports measured 688 source JSON tokens and 783 comparison-result tokens (95 more) with js-tiktoken 1.0.21 / `o200k_base`. This payload-only sample excludes prompts, schemas, framing and billed agent use; the comparison metadata exceeds the two compact input reports in this case.
