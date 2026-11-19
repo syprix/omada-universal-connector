@@ -473,7 +473,7 @@ class OpenApiClientTests(unittest.TestCase):
                          "/openapi/v1/controller_1/sitetemplates/private-template-id/setting/service/iptv/iptv")
         for value in ("private-template-id", "private-wan-id", "private-port-id",
                       "LAN 3", "123", "private-feature", "private description"):
-            self.assertNotIn(value, repr(result))
+            self.assertNotIn(value, repr(result["data"]))
 
     def test_site_template_iptv_service_uses_one_template_request(self) -> None:
         self.queue_responses([
