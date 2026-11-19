@@ -80,6 +80,28 @@ _SITE_CAPABILITY_COMPARISON_TOOL = {
                      "idempotentHint": True, "openWorldHint": False},
 }
 _SITE_CAPABILITY_COMPARISON_NAME = str(_SITE_CAPABILITY_COMPARISON_TOOL["name"])
+_INCIDENT_REPORT_COMPARISON_TOOL = {
+    "name": "omada_compare_incident_reports",
+    "description": (
+        "Compare 2–8 existing redacted site-outage report documents. The operation does not "
+        "contact the controller. It compares event and alert totals only for identical time "
+        "windows and complete reports, exposes gaps and unsupported report schemas, and omits "
+        "all report text, identifiers, names and raw observations."
+    ),
+    "inputSchema": {
+        "type": "object",
+        "properties": {"reports": {
+            "type": "array", "minItems": 2, "maxItems": 8,
+            "items": {"type": "object"},
+            "description": "Existing redacted JSON reports produced by the site outage report workflow.",
+        }},
+        "required": ["reports"],
+        "additionalProperties": False,
+    },
+    "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                     "idempotentHint": True, "openWorldHint": False},
+}
+_INCIDENT_REPORT_COMPARISON_NAME = str(_INCIDENT_REPORT_COMPARISON_TOOL["name"])
 _CHANGE_JOURNAL_SUMMARY_TOOL = {
     "name": "omada_change_journal_summary",
     "description": (
@@ -754,6 +776,7 @@ def _tools_page(registry: Any, cursor: object) -> dict[str, object]:
     tools.append(_SITE_SWITCH_PORT_ANOMALY_SUMMARY_TOOL)
     tools.append(_DIAGNOSTIC_CAPABILITY_SUMMARY_TOOL)
     tools.append(_SITE_CAPABILITY_COMPARISON_TOOL)
+    tools.append(_INCIDENT_REPORT_COMPARISON_TOOL)
     tools.append(_CHANGE_JOURNAL_SUMMARY_TOOL)
     tools.append(_SWITCH_CABLE_TEST_TOOL)
     tools.append(_CONTROLLER_RADIUS_PROXY_CHANGE_TOOL)
@@ -786,6 +809,23 @@ def _invoke_tool(registry: Any, name: object, arguments: object,
             raise McpRequestError("arguments_invalid")
         value = invoke_read("site_capability_comparison", {
             "site_refs": ",".join(refs)})
+        return _tool_result(value)
+    if name == _INCIDENT_REPORT_COMPARISON_NAME:
+        reports = arguments.get("reports") if isinstance(arguments, dict) else None
+        if not isinstance(arguments, dict) or set(arguments) != {"reports"}:
+            raise McpRequestError("arguments_invalid")
+        try:
+            from .incident_report_comparison import (
+                IncidentReportComparisonError, compare_incident_reports,
+            )
+        except ImportError:
+            from incident_report_comparison import (
+                IncidentReportComparisonError, compare_incident_reports,
+            )
+        try:
+            value = compare_incident_reports(reports)
+        except IncidentReportComparisonError as exc:
+            raise McpRequestError("arguments_invalid") from exc
         return _tool_result(value)
     if name == _CHANGE_JOURNAL_SUMMARY_NAME:
         if not isinstance(arguments, dict) or arguments:

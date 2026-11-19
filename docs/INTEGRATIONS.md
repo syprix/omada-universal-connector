@@ -26,3 +26,7 @@ or end-to-end run was performed for this check.
 The Codex run used a temporary loopback-only tunnel to the connector. A separate verifier parsed the actual `tools/call` results and checked `isError=false`, valid connector JSON, the expected resource and matching item counts: one site, four devices and 31 clients. No names, references, addresses or raw rows were retained. Temporary client configuration, tunnel, container and credential files were removed. This proves those calls for that setup only.
 
 The 18 MCP and 65 HTTP tests use a fake controller. They are protocol/connector fixture checks, not real agent-client or live-controller tests. See [MCP setup](MCP.md), [controller compatibility](CONTROLLER_COMPATIBILITY.md) and [current status](STATUS.md).
+
+### Comparing saved outage reports
+
+For repeatable comparisons, pass JSON files previously written by `tools/site_outage_report.py --format json` to `tools/compare_site_outage_reports.py`. The helper reads only those saved, owner-only files; it makes no controller request. HTTP callers may POST the same report objects to `/v1/incident-reports/compare`; MCP clients may call `omada_compare_incident_reports`. All three paths use the same bounded schema-versioned projection. Only identical report windows make event/alert totals directly comparable, and reachability comparisons require the same snapshot timestamp. Unsupported sources, partial coverage and pagination limits are reported without forwarding report text or identifiers.
