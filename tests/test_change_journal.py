@@ -143,6 +143,25 @@ class ChangePlanJournalTests(unittest.TestCase):
     def open_journal(self) -> ChangePlanJournal:
         return ChangePlanJournal(self.tempdir.name, controller_binding=BINDING)
 
+    def test_summary_reports_only_bounded_status_counts(self) -> None:
+        with self.open_journal() as journal:
+            dispatch(journal, "radio", "1" * 48)
+            dispatch(journal, "dns-cache", "2" * 48)
+            journal.record_outcome("2" * 48, "verified_readback")
+            dispatch(journal, "ssid", "3" * 48)
+            journal.close_unknown("3" * 48, "outcome_unknown_no_retry")
+            summary = journal.summary()
+
+        self.assertEqual(summary, {
+            "status": "ok", "resource": "change_journal_summary",
+            "integrity": "validated_at_open", "total_plans": 3,
+            "counts_by_state": {"in_doubt": 1, "verified": 1,
+                                "closed_outcome_unknown": 1},
+            "record_details_included": False,
+        })
+        self.assertNotIn("plan_id", json.dumps(summary))
+        self.assertNotIn("target_refs", json.dumps(summary))
+
     def test_all_schemas_recover_as_unresolved_without_execution(self) -> None:
         with self.open_journal() as journal:
             for index, operation in enumerate(

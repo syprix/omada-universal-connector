@@ -14,6 +14,21 @@ omitted, and next execution is presence-only because its timestamp unit is
 unspecified. Missing sources, ambiguous inventory, unmatched targets and
 bounded omissions stay partial. No network change is made.
 
+## Switch stack connections
+
+`GET /v1/sites/{site_ref}/stack-connections-summary` and
+`omada_site_stack_connections_summary` read a bounded site stack list, then
+read up to 64 LLDP rows for each of at most 32 stacks. Stack member MACs are
+joined to current unique switch references. The report shows stack membership
+and per-local-port neighbor counts, but does not turn LLDP `deviceId` strings
+into links because the export gives no inventory join rule for that field.
+Names, raw stack IDs, MACs and neighbor identity strings are omitted. Page
+limits, missing sources and incomplete member mappings remain visible. This
+workflow performs no network change.
+The existing `GET /v1/sites/{site_ref}/topology` response also includes this
+section as `stack_connections`; incomplete stack data marks the overall report
+partial while leaving its existing device-edge projection separate.
+
 ## Client identity matching
 
 `GET /v1/sites/{site_ref}/clients/identity-match` and the matching MCP tool accept `client_name` and `ssid_name`. The connector reads every client inventory page within its configured page limit and matches case-insensitively against the documented client `name`, `hostName` or `model`, plus `ssid`, with `wireless=true`. It returns a fresh opaque `client_ref` only for exactly one match and only when no row with missing identity fields could also match. The response includes per-field presence counts and complete/incomplete row counts, without returning input labels, SSIDs, MAC addresses or controller identifiers. A definite zero-match with complete candidate coverage returns `unmatched`; missing fields that could hide a match return `incomplete` with `partial=true`. Multiple definite matches return `ambiguous`. An incomplete inventory raises a bounded-read error instead of returning any match state.
@@ -104,3 +119,11 @@ A synthetic 100-event page measured 5,558 source-envelope tokens and 105 summary
 ### Review scheduled restarts
 
 Use GET /v1/sites/{site_ref}/reboot-schedule-summary to see the bounded schedule configuration and target devices currently resolved through site inventory. The report keeps the documented schedule clock fields but does not assign a timezone absent from the source contract. It distinguishes a configured restart from a completed restart and never starts one. Rows use a shared column declaration for compact agent output; a 12-schedule synthetic fixture measured 796 source tokens versus 464 projected tokens (41.71% fewer; js-tiktoken 1.0.21/o200k_base), excluding inventory and agent framing.
+
+`GET /v1/sites/{site_ref}/switches/port-anomalies` and `omada_site_switch_port_anomaly_summary` join a fresh site inventory with one paged switch-port overview and one paged counter feed. They cover at most 32 switches and return opaque switch references, port numbers, raw status codes and available cumulative transmit/receive error totals. Status codes remain uninterpreted; nonzero error counters are review signals only. The inventory and feeds are separate sequential reads, without a common sample time. The documented per-port counter response does not define drop counters; one counter read cannot yield rates or trends. Missing rows, ambiguous inventory references, source failures and device-limit omissions are reported as partial coverage. Fixture and HTTP/MCP tests are included; no live controller read was made.
+
+A synthetic eight-switch fixture with 24 ports each used 39,858 `o200k_base` tokens across the three source JSON responses and 6,138 tokens for the summary (33,720 fewer; 84.60%), measured with `js-tiktoken` 1.0.21. The fixture includes identity and raw traffic fields that the summary omits. This compares serialized fixture JSON only; it excludes tool schemas, MCP/HTTP framing, prompts and billed agent usage, and is not a live measurement.
+
+### Review backup coverage
+
+Use the controller backup inventory summary for controller-listed backups, or the site summary for one explicit site. The compact report counts rows and bytes and gives the greatest backup timestamp among rows returned by that list. The timestamp is not a guarantee of complete history or a successful restore. The existing schedule and activity status are shown separately; no download or restore action is performed. A synthetic 12-file comparison measured 459 source tokens versus 103 report tokens (77.56% fewer; js-tiktoken 1.0.21/o200k_base), excluding prompts and agent framing.

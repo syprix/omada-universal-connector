@@ -26,6 +26,8 @@ The combined operation-registry, full API-matrix and operation-evidence gate plu
 The #7–10 baseline was checked with 302 offline tests and hosted CI. The #11–12 local gate ran 300 offline tests successfully. The #14 focused HTTP/MCP regression ran 289 tests successfully; the initial broader run exposed only missing TLS fixture pins and a generated evidence ledger that needed refreshing, both corrected before the passing focused run. This paragraph records launch-era validation for #11–14; later follow-on hosted checks are listed below. The synthetic four-SSID token comparison is recorded below.
 
 ## Recent follow-on validation
+- Function 27, client health detail v2: implemented as a bounded 24-hour read, bound to a fresh site client inventory reference, and exposed over authenticated HTTP and MCP. The projection keeps documented numeric scores without assuming their scale, numeric series aggregates, and incident counts; it removes incident identifiers, MACs, free-text maps, and nested object details, and marks unknown or capped data partial. The source operation and response schema exist in Hardware Controller 6.3 and CBC 6.3 exports; the supplied ER7212PC export has no v2 operation. The focused projector, time-window, fixed-path, inventory-binding, HTTP/MCP, and registry tests passed; the required registry/matrix/evidence gate passed 235 tests. A synthetic serialized source response used 625 `o200k_base` tokens; the projected response used 457 (168 fewer, 26.88%) with js-tiktoken 1.0.21. This counts response JSON only, not the inventory read, schemas, prompts, framing, live data, or billed agent usage. No controller request or live agent-client check was made.
+
 
 - Function 17, AP quality history: the exact PR head passed both hosted CI events (push run 44399281194 and pull-request run 44399357670). No controller read or scan was made.
 - Function 18, site firmware summary: draft PR #8 is based on function 17; its exact-head push and pull-request CI runs passed. Local focused and required gates passed; no live firmware query or upgrade was made.
@@ -34,11 +36,18 @@ The #7–10 baseline was checked with 302 offline tests and hosted CI. The #11�
 - Function 23, PoE budget and schedule summary: implementation is in progress on a fresh branch from current public `main`. It joins a fresh switch inventory with fixed PoE capability, usage, current port, schedule and time-range reads; identities and names are omitted. Watt comparisons use only same-row values documented as watts in ER7212PC. Port measurements are reduced to counts by raw state; schedule timestamps are reduced to presence. The route, fixed-source dispatch, projection and required registry/API/evidence gate pass their current fixture checks; no live controller read or change was made.
 - Full Python discovery ran 3,095 tests and found one error: the capability route index did not yet include this new route. That index is now updated and the formerly failing assertion passes in a focused rerun. Full discovery was not repeated after that correction.
 
+- Function 23, PoE budget and schedule summary: draft PR #13 targets current public `main`; exact-head push and pull-request CI are still running. No live read or network change was made.
+- Function 24, switch stack connections: source review found the stack list and stack-scoped LLDP reader in all three exports. Implementation is in progress on a fresh branch from current public `main`; members are joined only by unique inventory MACs, and undocumented LLDP neighbor identities are not turned into topology edges. No live stack read was made.
+
 The DHCP pool workflow was checked against the range and lease schemas in all three supplied API exports. Focused projector and HTTP/MCP fixture tests pass. This confirms implementation behavior for the documented fields only; live support is unverified.
 
 The DNS diagnosis is a local offline analysis; it does not issue lookups or controller reads. Imported checks are marked unverified, configuration is site-wide context, and available summaries do not link an imported device to a network. Focused fixture tests pass.
 
 For the PoE overview, an eight-switch synthetic input with 192 port rows used 14,875 `o200k_base` tokens as source JSON; the compact result used 2,153 tokens (12,722 fewer; 85.52%). Counts use `js-tiktoken` 1.0.21. This compares serialized fixtures only and excludes tool schemas, prompts, framing, live data and billed agent usage.
+
+Site switch-port anomaly summary is implemented as a read-only HTTP/MCP workflow. It joins the fresh inventory with the existing paginated port overview and counter feeds, caps coverage at 32 switches and emits nonzero error counters as review signals without treating them as diagnoses. Raw port status codes remain uninterpreted. The ER7212PC export documents the status and cumulative error fields; Hardware Controller and CBC Standard use a generic response schema for these feeds, so field-level compatibility there remains unverified. Drop counts are not present in the documented per-port counter schema; no trend is calculated. Eleven focused projection, client, HTTP and MCP checks passed, as did all six operation-evidence tests after regenerating the static references. The combined 553-test run initially found only the stale evidence reference; registry, API-matrix and all other tests in that run passed. A synthetic eight-switch/192-port comparison measured 39,858 source JSON tokens and 6,138 summary tokens (84.60% fewer; serialized fixture payloads only). No live read was made.
+
+For the stack summary, an eight-stack, 32-member, 96-neighbor synthetic source set used 8,239 `o200k_base` tokens; the redacted summary used 1,957 (6,282 fewer; 76.25%). Counts use `js-tiktoken` 1.0.21. This compares serialized fixtures only, not live data, tool schemas, prompts, framing or billed agent usage.
 
 A synthetic 48-sample measurement file used 3,370 `o200k_base` tokens as JSON; the default aggregate diagnosis used 339 tokens (3,031 fewer, 89.94%). This measures the file and report payloads with `js-tiktoken` 1.0.21 and excludes prompts, command framing, optional context files and billed agent usage. Per-sample detail is available by an explicit flag and is larger.
 
@@ -96,3 +105,46 @@ The bounded stack and LLDP summary is available in draft PR #14. It links stack 
 ## Follow-up 25: scheduled restarts
 
 A bounded, read-only reboot-schedule summary is implemented on the isolated work branch. The source exports share the GET path; detailed response fields are available only in the ER7212PC export, while the Hardware Controller and CBC response schemas are generic. The implementation preserves timezone uncertainty and reports schedule configuration without claiming an actual reboot. A synthetic 12-schedule payload measured 796 source JSON tokens and 464 projected tokens (41.71% fewer; js-tiktoken 1.0.21/o200k_base), excluding inventory, prompts and agent framing. Offline focused checks pass; hosted CI is pending.
+## Follow-up 26: backup inventory
+
+A bounded backup metadata report now combines existing schedule/activity reads with the controller list and a one-site selected list. It exposes only counts, listed bytes, the highest returned timestamp and safe status/schedule fields. It never returns filenames, paths, URLs or credentials, and the site route does not enumerate all sites. Hardware Controller/CBC schemas are generic; detailed file metadata comes only from the ER7212PC export. A synthetic 12-file fixture measured 459 source JSON tokens and 103 summary tokens (77.56% fewer; js-tiktoken 1.0.21/o200k_base), excluding inventory, prompts and agent framing. Offline focused checks and hosted CI are pending.
+
+## 2026-11-19 — Client outage history coverage
+
+The existing HTTP/MCP client outage-timeline read now reports earliest/latest
+observed client and client-health timestamps, site event/alert totals and
+pagination limits, documented controller/client history settings, and health
+timelines for up to eight currently inventoried APs referenced by observed
+client events. Empty sources and retention settings do not establish actual
+retained-history coverage; overall completeness remains unknown. Offline
+fixture tests pass. A synthetic source-response fixture serialized to 9,288
+o200k_base tokens across separate client, health, AP, event, alert and retention
+payloads; the bundled redacted timeline serialized to 3,546 tokens (61.82%
+fewer) with js-tiktoken 1.0.21. This excludes tool schemas, prompts, framing,
+inventory reads, live data and billed agent usage. No controller request or
+network operation was made.
+
+## 2026-11-19 — Selected-site capability comparison
+
+A bounded HTTP/MCP workflow compares documented site capability flags for 2–16
+explicitly selected opaque site references after refreshing the site inventory.
+It distinguishes permission-denied reads, stale/unknown references and missing
+capability fields; no broad probes are run. Offline fixture tests pass. An
+eight-site, 49-feature fixture measured 2,674 tokens across separate projected
+source responses and 1,372 tokens for the aligned compact report (48.69% fewer;
+js-tiktoken 1.0.21/o200k_base). This excludes tool schemas, prompts, framing,
+inventory reads and billed agent usage. No live request was made.
+
+## 2026-11-19 — Local change-journal summary
+
+Added an authenticated HTTP and MCP read for counts of locally stored change-plan
+states. It reads the connector's existing controller-bound journal object and
+returns only total and per-state counts. Plan references, target references,
+before/after values and event payloads are omitted. No caller path is accepted;
+an unconfigured or unavailable journal is reported as unavailable. The integrity
+marker refers to validation when the process opened the journal, not a disk
+refresh. Unit and HTTP/MCP fixture checks pass. No controller call or journal
+mutation was made. Reads now report an unavailable journal without creating or
+opening one; the HTTP/MCP regression also confirms that an already-open journal
+still returns its state counts. Token impact is not claimed because this endpoint returns
+only a few fixed counters and has no repeated-source workflow to compare.

@@ -221,6 +221,7 @@ OPERATIONS = {
     'olt_management_interfaces': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/olts/{deviceMac}/system/management-system-interface/get'),
     'device_health_incidents': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/health/incident/{mac}'),
     'client_health_incidents': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/health/incident/{mac}'),
+    'client_health_detail_v2': ('GET', '/openapi/v2/{omadacId}/sites/{siteId}/clients/{clientMac}/health/detail'),
     'site_incident_detail': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/anomaly/incident/{incidentId}'),
     'site_incident_notification': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/anomaly/notification'),
     'site_anomaly_event_settings': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/anomaly/setting'),

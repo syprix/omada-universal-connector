@@ -12,6 +12,7 @@ from urllib.parse import urlencode
 from unittest.mock import patch
 
 from app import main
+from app.change_journal import ChangePlanJournal, derive_controller_binding
 from app.openapi import OmadaOpenApiClient, OpenApiConfig, OpenApiError
 from app.site_setting_existence import FIELDS
 from app.site_capabilities import FIELDS as SITE_CAPABILITY_FIELDS
@@ -2442,6 +2443,26 @@ class FakeOpenApiClient:
                 "items": [{"wlan_name": "Office", "ssid_names": ["Staff", "Guest"]}],
                 "partial": False}
 
+    def read_site_stack_connections_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_stack_connections_summary", site_ref))
+        return {"status": "ok", "resource": "site_stack_connections_summary",
+                "site_ref": site_ref, "data": {"stacks": []}, "partial": False}
+    def read_client_health_detail_v2(self, site_ref: str, client_ref: str) -> dict[str, object]:
+        self.calls.append(("client_health_detail_v2", site_ref + ":" + client_ref))
+        return {"status": "ok", "resource": "client_health_detail_v2",
+                "site_ref": site_ref, "client_ref": client_ref,
+                "window_start_ms": 1, "window_end_ms": 86_400_001,
+                "health_version": 2, "score": 80, "dimensions": {},
+                "dimension_count": 0, "partial": False}
+    def read_site_backup_inventory_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_backup_inventory_summary", site_ref))
+        return {"status": "ok", "resource": "site_backup_inventory_summary",
+                "site_ref": site_ref, "backup_file_count": 1}
+    def read_controller_backup_inventory_summary(self) -> dict[str, object]:
+        self.calls.append(("controller_backup_inventory_summary", None))
+        return {"status": "ok", "resource": "controller_backup_inventory_summary",
+                "backup_file_count": 2, "latest_listed_backup_time_ms": 1800000000000}
+
 class OpenApiHttpTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tempdir = tempfile.TemporaryDirectory()
@@ -3488,6 +3509,117 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(response["result"]["structuredContent"]["resource"],
                          "client_outage_timeline")
+
+    def test_selected_site_capability_comparison_is_available_over_http_and_mcp(self) -> None:
+        site_refs = ["a" * 24, "b" * 24]
+        seen = []
+
+        def comparison(refs):
+            seen.append(refs)
+            return {"status": "ok", "resource": "site_capability_comparison",
+                    "site_refs": refs, "sites": [], "feature_columns": [],
+                    "feature_values": [], "partial": False}
+
+        self.fake.read_site_capability_comparison = comparison
+        query = urlencode([("site_ref", ref) for ref in site_refs])
+        status, response = self.request(
+            "/v1/sites/capability-comparison?" + query, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_capability_comparison")
+
+        request = {"jsonrpc": "2.0", "id": 199, "method": "tools/call",
+                   "params": {"name": "omada_compare_site_capabilities",
+                              "arguments": {"site_refs": site_refs}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"]["resource"],
+                         "site_capability_comparison")
+        self.assertEqual(seen, [site_refs, site_refs])
+
+        invalid = {"jsonrpc": "2.0", "id": 200, "method": "tools/call",
+                   "params": {"name": "omada_compare_site_capabilities",
+                              "arguments": {"site_refs": [site_refs[0], site_refs[0]]}}}
+        status, invalid_rpc = self.request_post("/mcp", invalid, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(invalid_rpc["error"]["message"], "arguments_invalid")
+
+        status, invalid_http = self.request(
+            "/v1/sites/capability-comparison?site_ref=" + site_refs[0], self.token)
+        self.assertEqual(status, 400)
+        self.assertEqual(invalid_http["error"], "site_refs_invalid")
+
+    def test_bound_change_journal_summary_is_available_over_http_and_mcp(self) -> None:
+        summary = {"status": "ok", "resource": "change_journal_summary",
+                   "integrity": "validated_at_open", "total_plans": 2,
+                   "counts_by_state": {"in_doubt": 1, "verified": 1,
+                                       "closed_outcome_unknown": 0},
+                   "record_details_included": False}
+        journal = type("Journal", (), {"available": True,
+                                        "summary": lambda _self: summary})()
+        runtime = main.JournalRuntime("ready", journal=journal)
+        with patch.object(main, "_JOURNAL_RUNTIME", runtime):
+            status, response = self.request("/v1/change-journal/summary", self.token)
+            self.assertEqual(status, 200)
+            self.assertEqual(response, summary)
+
+            request = {"jsonrpc": "2.0", "id": 201, "method": "tools/call",
+                       "params": {"name": "omada_change_journal_summary", "arguments": {}}}
+            status, rpc = self.request_post("/mcp", request, self.token)
+            self.assertEqual(status, 200)
+            self.assertEqual(rpc["result"]["structuredContent"], summary)
+
+        self.assertNotIn("plan_id", json.dumps(response))
+        self.assertNotIn("target_refs", json.dumps(response))
+        self.assertEqual(self.fake.calls, [])
+
+    def test_change_journal_summary_reports_unconfigured_without_opening_a_path(self) -> None:
+        with patch.object(main, "_JOURNAL_RUNTIME", main.JournalRuntime("unconfigured")):
+            status, response = self.request("/v1/change-journal/summary", self.token)
+        self.assertEqual(status, 503)
+        self.assertEqual(response, {"status": "unavailable", "error": "journal_unconfigured"})
+
+    def test_change_journal_summary_never_initializes_and_reads_only_open_journal(self) -> None:
+        unopened_dir = os.path.join(self.tempdir.name, "not-opened")
+        rpc = {"jsonrpc": "2.0", "id": 202, "method": "tools/call",
+               "params": {"name": "omada_change_journal_summary", "arguments": {}}}
+        with patch.dict(os.environ, {"OMADA_CHANGE_JOURNAL_DIR": unopened_dir}), \
+                patch.object(main, "_JOURNAL_RUNTIME", None), \
+                patch.object(main, "_openapi_client", side_effect=AssertionError("client opened")), \
+                patch.object(main, "initialize_journal_runtime",
+                             side_effect=AssertionError("journal initialized")):
+            status, response = self.request("/v1/change-journal/summary", self.token)
+            self.assertEqual(status, 503)
+            self.assertEqual(response, {"status": "unavailable", "error": "journal_not_open"})
+
+            status, response = self.request_post("/mcp", rpc, self.token)
+            self.assertEqual(status, 200)
+            self.assertEqual(response["result"]["structuredContent"],
+                             {"status": "unavailable", "error": "journal_not_open"})
+
+        self.assertFalse(os.path.exists(unopened_dir))
+
+        binding = derive_controller_binding(b"k" * 32, "https://controller.example:8043", "test")
+        journal = ChangePlanJournal(self.tempdir.name, controller_binding=binding)
+        runtime = main.JournalRuntime("ready", journal=journal)
+        try:
+            journal.record_dispatch_intent(
+                operation="radio", plan_id="a" * 48,
+                target_refs={"site_ref": "a" * 24, "device_ref": "b" * 24},
+                before={"radioSetting2g": {"txPowerLevel": 1}},
+                target={"radioSetting2g": {"txPowerLevel": 2}})
+            with patch.object(main, "_JOURNAL_RUNTIME", runtime):
+                status, response = self.request("/v1/change-journal/summary", self.token)
+                self.assertEqual(status, 200)
+                self.assertEqual(response["total_plans"], 1)
+                self.assertEqual(response["counts_by_state"]["in_doubt"], 1)
+
+                status, response = self.request_post("/mcp", rpc, self.token)
+                self.assertEqual(status, 200)
+                summary = response["result"]["structuredContent"]
+                self.assertEqual(summary["total_plans"], 1)
+                self.assertEqual(summary["counts_by_state"]["in_doubt"], 1)
+        finally:
+            runtime.close()
 
     def test_http_and_mcp_expose_dhcp_and_dns_reads(self) -> None:
         operations = (
@@ -7893,6 +8025,102 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(calls, [site_ref, site_ref])
 
 
+
+    def test_switch_port_anomaly_summary_is_available_over_http_and_mcp(self) -> None:
+        site_ref = "e" * 24
+        calls = []
+
+        def report(ref):
+            calls.append(ref)
+            return {"status": "ok", "resource": "site_switch_port_anomaly_summary",
+                    "partial": True, "drop_counters": "not_available_in_documented_port_counter_response",
+                    "data": {"switches": []}}
+
+        self.fake.read_site_switch_port_anomaly_summary = report
+        status, _ = self.request(
+            f"/v1/sites/{site_ref}/switches/port-anomalies")
+        self.assertEqual(status, 401)
+        self.assertEqual(calls, [])
+
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/switches/port-anomalies", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_switch_port_anomaly_summary")
+        self.assertEqual(calls, [site_ref])
+
+        status, response = self.request_post("/mcp", {
+            "jsonrpc": "2.0", "id": 195, "method": "tools/call",
+            "params": {"name": "omada_site_switch_port_anomaly_summary",
+                       "arguments": {"site_ref": site_ref}},
+        }, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"]["resource"],
+                         "site_switch_port_anomaly_summary")
+        self.assertEqual(calls, [site_ref, site_ref])
+    def test_http_and_mcp_expose_site_stack_connections_summary(self) -> None:
+        site_ref = "a" * 24
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/stack-connections-summary", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_stack_connections_summary")
+        request = {"jsonrpc": "2.0", "id": 140, "method": "tools/call",
+                   "params": {"name": "omada_site_stack_connections_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"]["resource"],
+                         "site_stack_connections_summary")
+        self.assertEqual(self.fake.calls,
+                         [("site_stack_connections_summary", site_ref)] * 2)
+    def test_http_and_mcp_expose_redacted_client_health_detail_v2(self) -> None:
+        site_ref, client_ref = "a" * 24, "b" * 24
+        path = f"/v1/sites/{site_ref}/clients/{client_ref}/health/detail-v2"
+        status, body = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(body["resource"], "client_health_detail_v2")
+        self.assertEqual(body["health_version"], 2)
+        self.assertEqual(self.fake.calls[-1],
+                         ("client_health_detail_v2", site_ref + ":" + client_ref))
+        status, response = self.request_post("/mcp", {
+            "jsonrpc": "2.0", "id": 389, "method": "tools/call",
+            "params": {"name": "omada_client_health_detail_v2",
+                       "arguments": {"site_ref": site_ref, "client_ref": client_ref}},
+        }, self.token)
+        self.assertEqual(status, 200)
+        self.assertNotIn("isError", response)
+        self.assertEqual(response["result"]["structuredContent"]["resource"],
+                         "client_health_detail_v2")
+        self.assertEqual(self.fake.calls[-1],
+                         ("client_health_detail_v2", site_ref + ":" + client_ref))
+    def test_http_and_mcp_expose_selected_site_backup_inventory_summary(self) -> None:
+        site_ref = "a" * 24
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/backup-inventory-summary", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_backup_inventory_summary")
+        request = {"jsonrpc": "2.0", "id": 143, "method": "tools/call",
+                   "params": {"name": "omada_site_backup_inventory_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"]["resource"],
+                         "site_backup_inventory_summary")
+        self.assertEqual(self.fake.calls,
+                         [("site_backup_inventory_summary", site_ref)] * 2)
+    def test_http_and_mcp_expose_controller_backup_inventory_summary(self) -> None:
+        status, response = self.request(
+            "/v1/controller/maintenance/backup-inventory-summary", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "controller_backup_inventory_summary")
+        request = {"jsonrpc": "2.0", "id": 142, "method": "tools/call",
+                   "params": {"name": "omada_controller_backup_inventory_summary",
+                              "arguments": {}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"]["resource"],
+                         "controller_backup_inventory_summary")
+        self.assertEqual(self.fake.calls,
+                         [("controller_backup_inventory_summary", None)] * 2)
 
 if __name__ == "__main__":
     unittest.main()

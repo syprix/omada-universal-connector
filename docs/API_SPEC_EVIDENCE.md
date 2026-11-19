@@ -146,3 +146,20 @@ or runtime confirmation.
 ## Reboot schedule source review
 
 The site GET /openapi/v1/{omadacId}/sites/{siteId}/reboot-schedules is present in all three exports. Its operation ID is getRebootScheduleList_1 in Hardware Controller 6.3 and Omada CBC 6.3, and getRebootScheduleList in ER7212PC 6.2.14. The two 6.3 response schemas are generic; ER7212PC supplies the detailed schedule fields used here: enabled status, target device MACs, recurrence type, local schedule hour/minute, optional weekday/month-day, and next-execution timestamp in milliseconds. The source does not define a schedule timezone. The output therefore preserves the configured hour/minute without assigning a timezone, maps target MACs only through a unique current site inventory match, and omits schedule IDs, names, and raw MACs. The compact schedule row columns are declared once as enabled, recurrence, hour, minute, weekday-or-month-day, target count, target device refs, unresolved target count, and next execution milliseconds. A schedule is configuration evidence and does not prove that a device rebooted.
+
+## Stack and LLDP source review
+
+The three exports contain `getGridOswStackList` at
+`GET /openapi/v1/{omadacId}/sites/{siteId}/stacks` and
+`getGridStackLldpNeighborTable` at
+`GET /openapi/v1/{omadacId}/sites/{siteId}/stack/{stackId}/lldp-neighbors`.
+Hardware Controller 6.3.0 and Omada CBC 6.3.0 expose generic response
+contracts; ER7212PC 6.2.14 documents stack `id`, status and member MAC fields,
+plus LLDP local `portId` and neighbor identity strings. The LLDP contract does
+not define a format or join rule for `deviceId`, so the connector reports
+per-port neighbor counts but does not infer topology links from those strings.
+No source export proves live endpoint support on another controller.
+
+## Backup inventory source review
+
+All three exports document controller-level getSelfServerFileList at GET /openapi/v1/{omadacId}/maintenance/backup/files and site-level getSelfServerSiteFileList at GET /openapi/v1/{omadacId}/sites/{siteId}/maintenance/backup/files. They also document getBackupResult and getSiteBackupResult status reads. Hardware Controller 6.3 and Omada CBC 6.3 use generic response schemas; ER7212PC 6.2.14 documents fileList rows with fileName, backupTime in milliseconds, and size in bytes, and status 0 (finished or initial) / 1 (running). The inventory summaries expose counts, aggregate listed bytes, the highest timestamp among returned rows, and the existing schedule/status summaries. Filenames, paths, URLs, credentials, and raw controller/site identifiers are omitted. The site route is bound to one selected site and does not enumerate sites. A listed timestamp is evidence only for the returned list, not proof of a successful restore or a complete history.
