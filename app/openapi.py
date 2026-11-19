@@ -4348,6 +4348,30 @@ class OmadaOpenApiClient:
                     site_ref, client_ref, kind, start_ms, end_ms)
             except OpenApiError as exc:
                 client_sources[kind] = {"status": "error", "error": exc.code}
+        ap_health_sources: dict[str, object] = {}
+        ap_refs: set[str] = set()
+        if device_inventory_available:
+            for source in client_sources.values():
+                data = source.get("data") if isinstance(source, dict) else None
+                sessions = data.get("sessions") if isinstance(data, dict) else None
+                if not isinstance(sessions, list):
+                    continue
+                for session in sessions:
+                    items = session.get("events") if isinstance(session, dict) else None
+                    if not isinstance(items, list):
+                        continue
+                    for item in items:
+                        if isinstance(item, dict):
+                            for field in ("access_point_ref", "previous_access_point_ref"):
+                                ref = item.get(field)
+                                if isinstance(ref, str) and re.fullmatch(r"[0-9a-f]{24}", ref):
+                                    ap_refs.add(ref)
+            for ap_ref in sorted(ap_refs)[:8]:
+                try:
+                    ap_health_sources[ap_ref] = self.read_ap_health_timeline(
+                        site_ref, ap_ref, start_ms, end_ms)
+                except OpenApiError as exc:
+                    ap_health_sources[ap_ref] = {"status": "error", "error": exc.code}
         try:
             health = self.read_client_health_timeline(site_ref, client_ref, start_ms, end_ms)
         except OpenApiError as exc:
@@ -4360,11 +4384,23 @@ class OmadaOpenApiClient:
             except OpenApiError as exc:
                 site_logs[kind] = {"status": "error", "error": exc.code}
         try:
+            retention = self.read_controller_retention()
+        except OpenApiError as exc:
+            retention = {"status": "error", "error": exc.code}
+        try:
+            client_retention = self.read_controller_client_history_retention()
+        except OpenApiError as exc:
+            client_retention = {"status": "error", "error": exc.code}
+        try:
             return project_client_outage_timeline(
                 client_ref, start_ms, end_ms, client_sources, health,
                 site_logs.get("events"), site_logs.get("alerts"),
                 int(datetime.now(timezone.utc).timestamp() * 1000),
-                ap_assignment_available=device_inventory_available)
+                ap_assignment_available=device_inventory_available,
+                ap_health_results=ap_health_sources,
+                retention_result=retention,
+                client_retention_result=client_retention,
+                ap_assignments_omitted=len(ap_refs) > 8)
         except ClientOutageTimelineError:
             raise OpenApiError("openapi_response_invalid") from None
 

@@ -5348,6 +5348,7 @@
       ],
       "source_map_label": "implemented_read",
       "static_test_references": [
+        "test_client_outage_timeline.py",
         "test_controller_client_history_retention.py",
         "test_controller_client_history_retention_integration.py",
         "test_full_api_matrix.py",
@@ -5430,6 +5431,7 @@
       ],
       "source_map_label": "implemented_read",
       "static_test_references": [
+        "test_client_outage_timeline.py",
         "test_controller_retention.py",
         "test_controller_retention_integration.py",
         "test_openapi_http.py",
@@ -9613,6 +9615,7 @@
       "static_test_references": [
         "test_client_history.py",
         "test_client_history_integration.py",
+        "test_client_outage_timeline.py",
         "test_client_timeline_summary.py",
         "test_controller_retention.py",
         "test_openapi_http.py",
@@ -11622,6 +11625,7 @@
       "static_test_references": [
         "test_ap_health_integration.py",
         "test_ap_health_projection.py",
+        "test_client_outage_timeline.py",
         "test_live_read_probe.py",
         "test_openapi_http.py",
         "test_operation_registry.py",
@@ -11652,6 +11656,7 @@
         "test_ap_health_timeline.py",
         "test_ap_health_timeline_integration.py",
         "test_ap_quality_window.py",
+        "test_client_outage_timeline.py",
         "test_openapi_http.py",
         "test_operation_registry.py",
         "test_wifi_diagnose_ap.py"

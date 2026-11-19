@@ -96,3 +96,17 @@ The bounded stack and LLDP summary is available in draft PR #14. It links stack 
 ## Follow-up 25: scheduled restarts
 
 A bounded, read-only reboot-schedule summary is implemented on the isolated work branch. The source exports share the GET path; detailed response fields are available only in the ER7212PC export, while the Hardware Controller and CBC response schemas are generic. The implementation preserves timezone uncertainty and reports schedule configuration without claiming an actual reboot. A synthetic 12-schedule payload measured 796 source JSON tokens and 464 projected tokens (41.71% fewer; js-tiktoken 1.0.21/o200k_base), excluding inventory, prompts and agent framing. Offline focused checks pass; hosted CI is pending.
+## 2026-11-19 — Client outage history coverage
+
+The existing HTTP/MCP client outage-timeline read now reports earliest/latest
+observed client and client-health timestamps, site event/alert totals and
+pagination limits, documented controller/client history settings, and health
+timelines for up to eight currently inventoried APs referenced by observed
+client events. Empty sources and retention settings do not establish actual
+retained-history coverage; overall completeness remains unknown. Offline
+fixture tests pass. A synthetic source-response fixture serialized to 9,288
+o200k_base tokens across separate client, health, AP, event, alert and retention
+payloads; the bundled redacted timeline serialized to 3,546 tokens (61.82%
+fewer) with js-tiktoken 1.0.21. This excludes tool schemas, prompts, framing,
+inventory reads, live data and billed agent usage. No controller request or
+network operation was made.
