@@ -240,16 +240,29 @@ Evidence is bounded and process-local; restart clears it. Site and device
 references change on restart unless a persistent reference key is configured;
 client snapshot references remain short-lived in either mode.
 
-The four client event timeline routes (`connect`, `association`, `roaming`,
-`disconnect`) have separate runtime capability entries. Each uses a known
+The five client event timeline routes (`connect`, `disconnect`, `roaming`,
+`blocked`, and the compatibility alias `association`) have separate runtime capability entries. Each uses a known
 client reference and a type-specific controller GET capped at 24 hours. The
-projection retains only timestamps and the documented numeric `event_type`
-codes; it omits text, attributes and MAC addresses. A session is included only
+routes select documented event types: connect `0`, wireless disconnect `1`,
+roaming `2`, and blocked `3`; `association` remains an alias for type `1`.
+The projection retains timestamps, documented numeric `event_type` codes, and
+opaque same-site AP references when known; it omits raw text, attributes and
+MAC addresses. A session is included only
 when it has a valid MAC matching the selected client. Sessions with missing,
 invalid or mismatching MACs are omitted and mark the response partial; no
 session data is implicitly attributed. All three supplied exports document
 the operation; fixture coverage is not live
 support evidence, and no universal support is claimed.
+
+The site client-roaming backtrack summary is a separate read-only workflow. It
+compares documented roaming, disconnect and connect events for explicitly
+selected current clients. Consecutive reciprocal roaming events (`A` to `B`,
+then `B` to `A`) count as a return only when no disconnect is observed between
+them; a disconnect, reconnect after separation and incomplete event source are
+reported separately. Both AP references must bind to the current site
+inventory. Counts are grouped by AP pair and affected-client count; client
+references are omitted. Unknown mappings and timeline gaps remain visible. It
+does not infer why roaming occurred, and it has no live-controller evidence.
 
 The separate client-health timeline is a read-only operation bound to a fresh
 site-bound client reference. It requests a fixed 24-hour window in

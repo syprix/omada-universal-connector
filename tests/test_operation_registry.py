@@ -842,6 +842,7 @@ class OperationRegistryTests(unittest.TestCase):
             "client_timeline_association",
             "client_timeline_roaming",
             "client_timeline_disconnect",
+            "client_timeline_blocked",
             "client_outage_timeline",
         ])
         self.assertTrue(all(e.public_method == "GET" and e.evidence == "unknown" for e in REGISTRY.entries))

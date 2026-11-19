@@ -1641,6 +1641,40 @@ class Handler(BaseHTTPRequestHandler):
                     return _openapi_client().read_site_capability_comparison(refs)
             except OpenApiError as exc:
                 return {"status": "error", "error": exc.code}
+        if operation_id == "site_client_outage_overlap_summary":
+            if set(arguments) != {"site_ref", "client_refs", "start_ms", "end_ms"}:
+                return {"status": "error", "error": "arguments_invalid"}
+            client_refs = arguments["client_refs"].split(",")
+            if (not 2 <= len(client_refs) <= 16 or
+                    any(not re.fullmatch(r"[0-9a-f]{24}", ref) for ref in client_refs) or
+                    len(set(client_refs)) != len(client_refs) or
+                    not re.fullmatch(r"[0-9]{12,13}", arguments["start_ms"]) or
+                    not re.fullmatch(r"[0-9]{12,13}", arguments["end_ms"])):
+                return {"status": "error", "error": "arguments_invalid"}
+            try:
+                with _OPENAPI_LOCK:
+                    return _openapi_client().read_site_client_outage_overlap_summary(
+                        arguments["site_ref"], client_refs, int(arguments["start_ms"]),
+                        int(arguments["end_ms"]))
+            except OpenApiError as exc:
+                return {"status": "error", "error": exc.code}
+        if operation_id == "site_client_roaming_backtrack_summary":
+            if set(arguments) != {"site_ref", "client_refs", "start_ms", "end_ms"}:
+                return {"status": "error", "error": "arguments_invalid"}
+            client_refs = arguments["client_refs"].split(",")
+            if (not 1 <= len(client_refs) <= 16 or
+                    any(not re.fullmatch(r"[0-9a-f]{24}", ref) for ref in client_refs) or
+                    len(set(client_refs)) != len(client_refs) or
+                    not re.fullmatch(r"[0-9]{12,13}", arguments["start_ms"]) or
+                    not re.fullmatch(r"[0-9]{12,13}", arguments["end_ms"])):
+                return {"status": "error", "error": "arguments_invalid"}
+            try:
+                with _OPENAPI_LOCK:
+                    return _openapi_client().read_site_client_roaming_backtrack_summary(
+                        arguments["site_ref"], client_refs, int(arguments["start_ms"]),
+                        int(arguments["end_ms"]))
+            except OpenApiError as exc:
+                return {"status": "error", "error": exc.code}
         if operation_id == "diagnostic_capability_summary":
             try:
                 with _OPENAPI_LOCK:
@@ -2236,6 +2270,73 @@ class Handler(BaseHTTPRequestHandler):
                       else HTTPStatus.BAD_GATEWAY)
             self._send(status, {"status": "error", "error": exc.code})
 
+    def _serve_site_client_outage_overlap(self, parsed_request: object, match: object) -> None:
+        if not self._authorized():
+            return
+        try:
+            query_values = parse_qs(parsed_request.query, keep_blank_values=True,
+                                    strict_parsing=True)
+            if (set(query_values) != {"start_ms", "end_ms", "client_ref"} or
+                    len(query_values.get("start_ms", [])) != 1 or
+                    len(query_values.get("end_ms", [])) != 1 or
+                    not 2 <= len(query_values.get("client_ref", [])) <= 16):
+                raise RegistryError("client outage overlap query invalid")
+            client_refs = query_values["client_ref"]
+            if (any(not re.fullmatch(r"[0-9a-f]{24}", ref) for ref in client_refs) or
+                    len(set(client_refs)) != len(client_refs)):
+                raise RegistryError("client outage overlap client refs invalid")
+            start_text, end_text = query_values["start_ms"][0], query_values["end_ms"][0]
+            if (not re.fullmatch(r"[0-9]{12,13}", start_text) or
+                    not re.fullmatch(r"[0-9]{12,13}", end_text)):
+                raise RegistryError("client outage overlap time bounds invalid")
+            with _OPENAPI_LOCK:
+                result = _openapi_client().read_site_client_outage_overlap_summary(
+                    match.group(1), client_refs, int(start_text), int(end_text))
+            self._send(HTTPStatus.OK, result)
+        except RegistryError:
+            self._send(HTTPStatus.BAD_REQUEST,
+                       {"status": "error", "error": "query_invalid"})
+        except OpenApiError as exc:
+            status = (HTTPStatus.BAD_REQUEST if exc.code in {
+                "client_refs_invalid", "time_window_invalid", "site_ref_invalid"} else
+                HTTPStatus.NOT_FOUND if exc.code in {"site_ref_unknown", "client_ref_unknown"} else
+                HTTPStatus.BAD_GATEWAY)
+            self._send(status, {"status": "error", "error": exc.code})
+
+    def _serve_site_client_roaming_backtrack(self, parsed_request: object,
+                                             match: object) -> None:
+        if not self._authorized():
+            return
+        try:
+            query_values = parse_qs(parsed_request.query, keep_blank_values=True,
+                                    strict_parsing=True)
+            if (set(query_values) != {"start_ms", "end_ms", "client_ref"} or
+                    len(query_values.get("start_ms", [])) != 1 or
+                    len(query_values.get("end_ms", [])) != 1 or
+                    not 1 <= len(query_values.get("client_ref", [])) <= 16):
+                raise RegistryError("client roaming query invalid")
+            client_refs = query_values["client_ref"]
+            if (any(not re.fullmatch(r"[0-9a-f]{24}", ref) for ref in client_refs) or
+                    len(set(client_refs)) != len(client_refs)):
+                raise RegistryError("client roaming refs invalid")
+            start_text, end_text = query_values["start_ms"][0], query_values["end_ms"][0]
+            if (not re.fullmatch(r"[0-9]{12,13}", start_text) or
+                    not re.fullmatch(r"[0-9]{12,13}", end_text)):
+                raise RegistryError("client roaming time bounds invalid")
+            with _OPENAPI_LOCK:
+                result = _openapi_client().read_site_client_roaming_backtrack_summary(
+                    match.group(1), client_refs, int(start_text), int(end_text))
+            self._send(HTTPStatus.OK, result)
+        except RegistryError:
+            self._send(HTTPStatus.BAD_REQUEST,
+                       {"status": "error", "error": "query_invalid"})
+        except OpenApiError as exc:
+            status = (HTTPStatus.BAD_REQUEST if exc.code in {
+                "client_refs_invalid", "time_window_invalid", "site_ref_invalid"} else
+                HTTPStatus.NOT_FOUND if exc.code in {"site_ref_unknown", "client_ref_unknown"} else
+                HTTPStatus.BAD_GATEWAY)
+            self._send(status, {"status": "error", "error": exc.code})
+
     def _serve_gateway_wan_incident_window(self, parsed_request: object,
                                            match: object) -> None:
         if not self._authorized():
@@ -2330,6 +2431,16 @@ class Handler(BaseHTTPRequestHandler):
             parsed_request = urlsplit(self.path)
             if parsed_request.path == "/v1/sites/capability-comparison":
                 self._serve_site_capability_comparison(parsed_request)
+                return
+            client_overlap_match = re.fullmatch(
+                r"/v1/sites/([0-9a-f]{24})/client-outage-overlaps", parsed_request.path)
+            if client_overlap_match is not None:
+                self._serve_site_client_outage_overlap(parsed_request, client_overlap_match)
+                return
+            client_roaming_match = re.fullmatch(
+                r"/v1/sites/([0-9a-f]{24})/client-roaming-backtracks", parsed_request.path)
+            if client_roaming_match is not None:
+                self._serve_site_client_roaming_backtrack(parsed_request, client_roaming_match)
                 return
             outage_match = re.fullmatch(
                 r"/v1/sites/([0-9a-f]{24})/outage-summary", parsed_request.path)
@@ -2577,7 +2688,7 @@ class Handler(BaseHTTPRequestHandler):
         client_connections_match = re.fullmatch(r"/v1/sites/([0-9a-f]{24})/clients/([0-9a-f]{24})/connections", self.path)
         client_history_match = re.fullmatch(r"/v1/sites/([0-9a-f]{24})/clients/([0-9a-f]{24})/history", self.path)
         client_timeline_match = re.fullmatch(
-            r"/v1/sites/([0-9a-f]{24})/clients/([0-9a-f]{24})/timeline/(connect|association|roaming|disconnect)",
+            r"/v1/sites/([0-9a-f]{24})/clients/([0-9a-f]{24})/timeline/(connect|association|roaming|disconnect|blocked)",
             self.path)
         client_health_match = re.fullmatch(r"/v1/sites/([0-9a-f]{24})/clients/([0-9a-f]{24})/health", self.path)
         client_health_detail_v2_match = re.fullmatch(

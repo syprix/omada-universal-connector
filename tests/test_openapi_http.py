@@ -8122,5 +8122,82 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(self.fake.calls,
                          [("controller_backup_inventory_summary", None)] * 2)
 
+    def test_multi_client_outage_overlap_uses_authenticated_http_and_mcp(self) -> None:
+        site_ref, client_refs = "a" * 24, ["b" * 24, "c" * 24]
+        start_ms, end_ms = 1_789_372_800_000, 1_789_372_860_000
+        seen = []
+
+        def summary(site, refs, start, end):
+            seen.append((site, refs, start, end))
+            return {"status": "ok", "resource": "client_outage_overlap_summary",
+                    "site_ref": site, "window_start_ms": start,
+                    "window_end_ms": end, "selected_client_count": len(refs),
+                    "confirmed_overlaps_by_access_point": [], "partial": False}
+
+        self.fake.read_site_client_outage_overlap_summary = summary
+        query = (f"start_ms={start_ms}&end_ms={end_ms}&client_ref={client_refs[0]}"
+                 f"&client_ref={client_refs[1]}")
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/client-outage-overlaps?{query}", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "client_outage_overlap_summary")
+        self.assertEqual(seen[-1], (site_ref, client_refs, start_ms, end_ms))
+
+        request = {"jsonrpc": "2.0", "id": 42, "method": "tools/call",
+                   "params": {"name": "omada_site_client_outage_overlap_summary",
+                              "arguments": {"site_ref": site_ref, "client_refs": client_refs,
+                                            "start_ms": start_ms, "end_ms": end_ms}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"]["selected_client_count"], 2)
+        self.assertEqual(seen[-1], (site_ref, client_refs, start_ms, end_ms))
+
+        invalid = {**request, "id": 43,
+                   "params": {"name": "omada_site_client_outage_overlap_summary",
+                              "arguments": {"site_ref": site_ref,
+                                            "client_refs": [client_refs[0]] * 2,
+                                            "start_ms": start_ms, "end_ms": end_ms}}}
+        status, rpc = self.request_post("/mcp", invalid, self.token)
+        self.assertEqual(status, 200)
+        self.assertIn("arguments_invalid", json.dumps(rpc))
+
+    def test_client_roaming_backtrack_is_available_over_http_and_mcp(self) -> None:
+        site_ref, client_ref = "a" * 24, "b" * 24
+        start_ms, end_ms = 1_789_372_800_000, 1_789_372_860_000
+        seen = []
+
+        def summary(site, refs, start, end):
+            seen.append((site, refs, start, end))
+            return {"status": "ok", "resource": "client_roaming_backtrack_summary",
+                    "site_ref": site, "selected_client_count": len(refs),
+                    "back_and_forth_by_access_point_pair": [], "partial": False}
+
+        self.fake.read_site_client_roaming_backtrack_summary = summary
+        query = (f"start_ms={start_ms}&end_ms={end_ms}&client_ref={client_ref}")
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/client-roaming-backtracks?{query}", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "client_roaming_backtrack_summary")
+        self.assertEqual(seen[-1], (site_ref, [client_ref], start_ms, end_ms))
+
+        request = {"jsonrpc": "2.0", "id": 44, "method": "tools/call",
+                   "params": {"name": "omada_site_client_roaming_backtrack_summary",
+                              "arguments": {"site_ref": site_ref,
+                                            "client_refs": [client_ref],
+                                            "start_ms": start_ms, "end_ms": end_ms}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"]["resource"],
+                         "client_roaming_backtrack_summary")
+        self.assertEqual(seen[-1], (site_ref, [client_ref], start_ms, end_ms))
+
+        invalid = {**request, "id": 45,
+                   "params": {"name": "omada_site_client_roaming_backtrack_summary",
+                              "arguments": {"site_ref": site_ref, "client_refs": [],
+                                            "start_ms": start_ms, "end_ms": end_ms}}}
+        status, rpc = self.request_post("/mcp", invalid, self.token)
+        self.assertEqual(status, 200)
+        self.assertIn("arguments_invalid", json.dumps(rpc))
+
 if __name__ == "__main__":
     unittest.main()

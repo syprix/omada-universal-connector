@@ -8,7 +8,7 @@ class ClientOutageTimelineError(ValueError):
     pass
 
 
-_EVENT_KINDS = ("connect", "association", "roaming", "disconnect")
+_EVENT_KINDS = ("connect", "disconnect", "roaming", "blocked")
 
 
 def _age(timestamp: int | None, now_ms: int) -> int | None:

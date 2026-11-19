@@ -37,7 +37,8 @@ class FixedDateTime:
 
 
 class ClientTimelineIntegrationTests(unittest.TestCase):
-    TYPE_BY_KIND = {"connect": 0, "association": 1, "roaming": 2, "disconnect": 3}
+    TYPE_BY_KIND = {"connect": 0, "disconnect": 1, "roaming": 2,
+                    "blocked": 3, "association": 1}
 
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()

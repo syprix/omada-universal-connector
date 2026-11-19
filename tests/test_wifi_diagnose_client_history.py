@@ -111,7 +111,7 @@ class WifiDiagnoseClientHistoryTests(unittest.TestCase):
         for route in SITE_ROUTES:
             self.responses[route] = payloads[route]
         for route, kind in zip(CLIENT_TIMELINE_ROUTES,
-                               ("connect", "association", "roaming", "disconnect")):
+                               ("connect", "disconnect", "roaming", "blocked")):
             self.responses[route] = _timeline_payload(kind)
         _HistoryHttpHandler.requests = []
         _HistoryHttpHandler.responses = self.responses

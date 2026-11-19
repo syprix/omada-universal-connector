@@ -30,8 +30,8 @@ class ClientOutageTimelineTests(unittest.TestCase):
 
         def client_timeline(site_ref, client_ref, kind, start_ms, end_ms):
             calls.append(("client", kind, start_ms, end_ms))
-            event_type = {"connect": 0, "association": 0, "roaming": 2,
-                          "disconnect": 1}[kind]
+            event_type = {"connect": 0, "disconnect": 1, "roaming": 2,
+                          "blocked": 3}[kind]
             event = {"time_ms": self.start_ms + 10_000,
                      "event_type": event_type, "content": "private detail"}
             if kind == "roaming":

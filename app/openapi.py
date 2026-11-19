@@ -262,6 +262,20 @@ try:
 except ImportError:  # direct execution in the image
     from client_outage_timeline import ClientOutageTimelineError, project_client_outage_timeline
 try:
+    from .client_outage_overlap import (
+        ClientOutageOverlapError, project_client_outage_overlap,
+    )
+except ImportError:  # direct execution in the image
+    from client_outage_overlap import ClientOutageOverlapError, project_client_outage_overlap
+try:
+    from .client_roaming_backtrack import (
+        ClientRoamingBacktrackError, project_client_roaming_backtrack,
+    )
+except ImportError:  # direct execution in the image
+    from client_roaming_backtrack import (
+        ClientRoamingBacktrackError, project_client_roaming_backtrack,
+    )
+try:
     from .mesh_statistics import MeshStatisticsProjectionError, project_mesh_statistics
 except ImportError:  # direct execution in the image
     from mesh_statistics import MeshStatisticsProjectionError, project_mesh_statistics
@@ -873,7 +887,7 @@ def _track_capability(operation: str):
                 op = "ap_" + str(args[2] if len(args) > 2 else kwargs.get("part", ""))
             elif operation == "client_timeline":
                 kind_arg = args[2] if len(args) > 2 else kwargs.get("kind")
-                if isinstance(kind_arg, str) and kind_arg in {"connect", "association", "roaming", "disconnect"}:
+                if isinstance(kind_arg, str) and kind_arg in {"connect", "association", "roaming", "disconnect", "blocked"}:
                     op = "client_timeline_" + kind_arg
             site_ref = (args[0] if args else kwargs.get("site_ref")) if operation != "sites" else None
             if site_ref is not None and not re.fullmatch(r"[0-9a-f]{24}", site_ref if isinstance(site_ref, str) else ""):
@@ -2582,12 +2596,17 @@ class OmadaOpenApiClient:
         ("client_timeline_association", "GET /v1/sites/{site_ref}/clients/{client_ref}/timeline/association"),
         ("client_timeline_roaming", "GET /v1/sites/{site_ref}/clients/{client_ref}/timeline/roaming"),
         ("client_timeline_disconnect", "GET /v1/sites/{site_ref}/clients/{client_ref}/timeline/disconnect"),
+        ("client_timeline_blocked", "GET /v1/sites/{site_ref}/clients/{client_ref}/timeline/blocked"),
         ("client_health", "GET /v1/sites/{site_ref}/clients/{client_ref}/health"),
         ("client_health_detail_v2",
          "GET /v1/sites/{site_ref}/clients/{client_ref}/health/detail-v2"),
         ("client_health_timeline", "GET /v1/sites/{site_ref}/clients/{client_ref}/health/timeline"),
         ("client_outage_timeline",
          "GET /v1/sites/{site_ref}/clients/{client_ref}/outage-timeline"),
+        ("site_client_outage_overlap_summary",
+         "GET /v1/sites/{site_ref}/client-outage-overlaps"),
+        ("site_client_roaming_backtrack_summary",
+         "GET /v1/sites/{site_ref}/client-roaming-backtracks"),
         ("networks", "GET /v1/sites/{site_ref}/networks"),
         ("network_dhcp_server_capabilities",
          "GET /v1/sites/{site_ref}/networks/{network_ref}/dhcp-server/capabilities"),
@@ -4199,7 +4218,10 @@ class OmadaOpenApiClient:
                              start_ms: int | None = None,
                              end_ms: int | None = None) -> dict[str, object]:
         """Read a redacted client event timeline within a bounded time window."""
-        type_by_kind = {"connect": 0, "association": 1, "roaming": 2, "disconnect": 3}
+        # Keep `association` as a compatibility alias for the documented type 1.
+        # Source contracts define type 1 as DISCONNECT_WIRELESS and type 3 as BLOCK_WIRELESS.
+        type_by_kind = {"connect": 0, "disconnect": 1, "roaming": 2,
+                        "blocked": 3, "association": 1}
         if not isinstance(kind, str) or kind not in type_by_kind:
             raise OpenApiError("client_timeline_kind_invalid")
         if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
@@ -4422,7 +4444,7 @@ class OmadaOpenApiClient:
             self._device_macs_by_site_ref.pop(site_ref, None)
 
         client_sources: dict[str, object] = {}
-        for kind in ("connect", "association", "roaming", "disconnect"):
+        for kind in ("connect", "disconnect", "roaming", "blocked"):
             try:
                 client_sources[kind] = self.read_client_timeline(
                     site_ref, client_ref, kind, start_ms, end_ms)
@@ -4482,6 +4504,108 @@ class OmadaOpenApiClient:
                 client_retention_result=client_retention,
                 ap_assignments_omitted=len(ap_refs) > 8)
         except ClientOutageTimelineError:
+            raise OpenApiError("openapi_response_invalid") from None
+
+    def read_site_client_outage_overlap_summary(
+        self, site_ref: str, client_refs: list[str], start_ms: int, end_ms: int,
+    ) -> dict[str, object]:
+        """Find closed, overlapping wireless-disconnect intervals for selected clients."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        if not isinstance(client_refs, list) or not 2 <= len(client_refs) <= 16:
+            raise OpenApiError("client_refs_invalid")
+        if (any(not isinstance(ref, str) or not re.fullmatch(r"[0-9a-f]{24}", ref)
+                for ref in client_refs) or len(set(client_refs)) != len(client_refs)):
+            raise OpenApiError("client_refs_invalid")
+        try:
+            start_ms, end_ms = validate_site_log_window(start_ms, end_ms)
+        except SiteLogWindowError:
+            raise OpenApiError("time_window_invalid") from None
+        if site_ref not in self._site_ids_by_ref:
+            raise OpenApiError("site_ref_unknown")
+
+        client_inventory = self.list_clients(site_ref)
+        known_client_refs = {item.get("client_ref") for item in client_inventory.get("items", [])
+                             if isinstance(item, dict)}
+        if any(ref not in known_client_refs for ref in client_refs):
+            raise OpenApiError("client_ref_unknown")
+
+        ap_assignment_available = True
+        try:
+            self.list_devices(site_ref)
+        except OpenApiError:
+            ap_assignment_available = False
+            self._device_macs_by_site_ref.pop(site_ref, None)
+
+        results: list[dict[str, object]] = []
+        for client_ref in client_refs:
+            # API event type 0 is CONNECT_WIRELESS and type 1 is DISCONNECT_WIRELESS.
+            # The legacy `association` alias also maps to documented type 1.
+            try:
+                connect = self.read_client_timeline(site_ref, client_ref, "connect",
+                                                    start_ms, end_ms)
+            except OpenApiError as exc:
+                connect = {"status": "error", "error": exc.code}
+            try:
+                disconnect = self.read_client_timeline(site_ref, client_ref, "disconnect",
+                                                       start_ms, end_ms)
+            except OpenApiError as exc:
+                disconnect = {"status": "error", "error": exc.code}
+            results.append({"client_ref": client_ref,
+                            "connect": connect, "disconnect": disconnect})
+        try:
+            report = project_client_outage_overlap(
+                site_ref, start_ms, end_ms, results,
+                ap_assignment_available=ap_assignment_available)
+        except ClientOutageOverlapError as exc:
+            raise OpenApiError("openapi_response_invalid") from exc
+        return report
+
+    def read_site_client_roaming_backtrack_summary(
+        self, site_ref: str, client_refs: list[str], start_ms: int, end_ms: int,
+    ) -> dict[str, object]:
+        """Count adjacent reciprocal AP roam events for selected clients."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        if (not isinstance(client_refs, list) or not 1 <= len(client_refs) <= 16 or
+                any(not isinstance(ref, str) or not re.fullmatch(r"[0-9a-f]{24}", ref)
+                    for ref in client_refs) or len(set(client_refs)) != len(client_refs)):
+            raise OpenApiError("client_refs_invalid")
+        try:
+            start_ms, end_ms = validate_site_log_window(start_ms, end_ms)
+        except SiteLogWindowError:
+            raise OpenApiError("time_window_invalid") from None
+        if site_ref not in self._site_ids_by_ref:
+            raise OpenApiError("site_ref_unknown")
+
+        client_inventory = self.list_clients(site_ref)
+        known_client_refs = {item.get("client_ref") for item in client_inventory.get("items", [])
+                             if isinstance(item, dict)}
+        if any(ref not in known_client_refs for ref in client_refs):
+            raise OpenApiError("client_ref_unknown")
+
+        ap_inventory_available = True
+        try:
+            self.list_devices(site_ref)
+        except OpenApiError:
+            ap_inventory_available = False
+            self._device_macs_by_site_ref.pop(site_ref, None)
+
+        client_timelines = []
+        for client_ref in client_refs:
+            sources = {"client_ref": client_ref}
+            for kind in ("roaming", "disconnect", "connect"):
+                try:
+                    sources[kind] = self.read_client_timeline(
+                        site_ref, client_ref, kind, start_ms, end_ms)
+                except OpenApiError as exc:
+                    sources[kind] = {"status": "error", "error": exc.code}
+            client_timelines.append(sources)
+        try:
+            return project_client_roaming_backtrack(
+                site_ref, start_ms, end_ms, client_timelines,
+                ap_inventory_available=ap_inventory_available)
+        except ClientRoamingBacktrackError:
             raise OpenApiError("openapi_response_invalid") from None
 
     @_track_capability("networks")

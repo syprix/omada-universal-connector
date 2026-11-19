@@ -62,6 +62,22 @@ This is not a promise that every controller exposes every UI function. The
 official Omada guide describes Open API coverage as **most** controller
 services. Undocumented functions require separate, version-specific evidence.
 
+## Client timeline event contract
+
+All three exports document the following read with `start` and `end` as int64
+milliseconds and `type` as int32:
+
+```text
+GET /openapi/v1/{omadacId}/sites/{siteId}/clients/{clientMac}/client-timeline
+```
+
+Their `Client Connection Events.eventType` descriptions agree on the wireless event
+codes: `0` is `CONNECT_WIRELESS`, `1` is `DISCONNECT_WIRELESS`, `2` is
+`ROAMING`, and `3` is `BLOCK_WIRELESS`. The documented attributes identify the
+AP MAC in `dev_mac` for connect/disconnect events and both previous and current
+AP MACs for roaming. The schema documents these facts; it does not establish
+live availability or guarantee that every controller returns all attributes.
+
 For network diagnosis, the Hardware Controller 6.3.0 export specifically
 documents AP radio configuration/detail, AP channel information, RF planning
 configuration/status/results, and interference detection status, channel load

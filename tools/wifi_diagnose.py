@@ -75,7 +75,7 @@ _MAX_CLIENT_INVENTORY = 4000
 _MAX_CLIENT_TIMELINE_SESSIONS = 128
 _MAX_CLIENT_TIMELINE_EVENTS = 1024
 _MAX_CLIENT_HEALTH_POINTS = 256
-_CLIENT_TIMELINE_KINDS = ("connect", "association", "roaming", "disconnect")
+_CLIENT_TIMELINE_KINDS = ("connect", "disconnect", "roaming", "blocked")
 _CLIENT_TIMELINE_EVENT_TYPES = frozenset({0, 1, 2, 3, 100, 101, 102, 200, 201, 202})
 _CLIENT_HISTORY_INT64_FIELDS = frozenset({"download", "upload", "duration", "lastSeen", "associated"})
 _CLIENT_HISTORY_INT32_FIELDS = frozenset({"port", "vid", "reasonType", "associationTime"})
@@ -2590,10 +2590,25 @@ def run(site_ref: str | None, token_file: str, base_url: str = DEFAULT_BASE_URL,
                     if compact_client_timeline:
                         timeline = summarize_client_timeline(timeline)
                     timelines[kind] = timeline
+                    if kind == "disconnect":
+                        # Preserve the earlier local output key without making
+                        # a duplicate controller read for the type-1 alias.
+                        timelines["association"] = {
+                            "status": timeline["status"],
+                            "capability_status": timeline.get("capability_status", "unknown"),
+                            "partial": timeline.get("partial", True),
+                            "source_kind": "disconnect",
+                        }
                     any_client_partial = any_client_partial or timeline["partial"] is True
                 except CliError as exc:
                     timelines[kind] = {"status": "error", "error": exc.code,
                                        "capability_status": "unknown"}
+                    if kind == "disconnect":
+                        timelines["association"] = {
+                            "status": "error", "error": exc.code,
+                            "capability_status": "unknown", "partial": True,
+                            "source_kind": "disconnect",
+                        }
                     any_client_partial = True
             client_report["timelines"] = timelines
             if any(item.get("status") == "error" or item.get("partial") is True
