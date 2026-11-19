@@ -35,7 +35,7 @@ from tests.test_wifi_diagnose_client import (
 
 CLIENT_TIMELINE_ROUTES = tuple(
     f"/v1/sites/{SITE_REF}/clients/{CLIENT_REF_2}/timeline/{kind}"
-    for kind in ("connect", "association", "roaming", "disconnect")
+    for kind in ("connect", "disconnect", "roaming", "blocked")
 )
 CLIENT_CONNECTION_ROUTE = f"/v1/sites/{SITE_REF}/clients/{CLIENT_REF_2}/connections"
 CLIENT_HEALTH_TIMELINE_ROUTE = f"/v1/sites/{SITE_REF}/clients/{CLIENT_REF_2}/health/timeline"
@@ -44,7 +44,7 @@ PRIVATE_CLIENT_MAC = "AA-BB-CC-DD-EE-FF"
 OTHER_CLIENT_MAC = "11:22:33:44:55:66"
 OTHER_CLIENT_REF = "d" * 24
 OTHER_SITE_REF = "e" * 24
-KINDS = ("connect", "association", "roaming", "disconnect")
+KINDS = ("connect", "disconnect", "roaming", "blocked")
 TYPE_BY_KIND = dict(zip(KINDS, (0, 1, 2, 3)))
 
 
@@ -224,7 +224,7 @@ class WifiDiagnoseClientTimelineTests(unittest.TestCase):
             client_ref=CLIENT_REF_2, client_timeline=True)
         self.assertEqual(report["status"], "ok")
         self.assertEqual(report["client"]["connections"]["status"], "ok")
-        self.assertEqual(set(report["client"]["timelines"]), set(KINDS))
+        self.assertEqual(set(report["client"]["timelines"]), set(KINDS) | {"association"})
         self.assertEqual(len(_FakeConnector.requests), 15)
         serialized = json.dumps(report)
         self.assertNotIn(CLIENT_REF_2, serialized)
@@ -258,8 +258,11 @@ class WifiDiagnoseClientTimelineTests(unittest.TestCase):
         self.assertEqual(report["status"], "ok")
         client = report["client"]
         self.assertEqual(client["connections"]["status"], "ok")
+        self.assertEqual(client["timelines"]["association"]["source_kind"], "disconnect")
+        self.assertEqual(client["timelines"]["disconnect"]["status"], "ok")
+        self.assertEqual(client["timelines"]["blocked"]["status"], "ok")
         timelines = client["timelines"]
-        self.assertEqual(set(timelines), set(KINDS))
+        self.assertEqual(set(timelines), set(KINDS) | {"association"})
         for kind, expected_type in TYPE_BY_KIND.items():
             result = timelines[kind]
             self.assertEqual(result["status"], "ok")
@@ -334,10 +337,10 @@ class WifiDiagnoseClientTimelineTests(unittest.TestCase):
 
     def test_wrong_site_or_client_binding_is_confined_to_affected_kind(self) -> None:
         wrong_site = _timeline_payload("roaming", site_ref=OTHER_SITE_REF)
-        wrong_client = _timeline_payload("disconnect", client_ref=OTHER_CLIENT_REF)
+        wrong_client = _timeline_payload("blocked", client_ref=OTHER_CLIENT_REF)
         self.set_responses(timeline_overrides={
             CLIENT_TIMELINE_ROUTES[2]: (200, wrong_site, {}),
-            CLIENT_TIMELINE_ROUTES[3]: (200, wrong_client, {}),
+            CLIENT_TIMELINE_ROUTES[1]: (200, wrong_client, {}),
         })
         code, stdout, stderr, prompt = self.invoke(_FakeTTY("2\nja\n"))
         self.assertEqual(code, 0, stdout + stderr)

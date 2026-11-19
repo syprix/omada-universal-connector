@@ -165,7 +165,9 @@ device and client inventory have not been rechecked in the current image.
 | `GET /v1/sites/{site_ref}/wifi/optimization/history/records` | `GET /openapi/v1/{omadacId}/sites/{siteId}/planningHistory?page=1&pageSize=100` | First bounded page of stored optimization history; raw IDs become short-lived site-bound references, while messages and MAC lists are redacted; truncation is explicit |
 | `GET /v1/sites/{site_ref}/wifi/optimization/history/records/{history_ref}` | `GET /openapi/v1/{omadacId}/sites/{siteId}/planningHistory/{id}` | Detail for a reference returned by a recent history-list call; requires the in-memory site-bound reference map; AP identities and messages are redacted |
 | `GET /v1/sites/{site_ref}/wifi/optimization/history/recent` | `GET /openapi/v1/{omadacId}/sites/{siteId}/planningHistoryByTime?currentPage=1&currentPageSize=100&start=<ms>&end=<ms>` | Fixed last-30-day window and first bounded page; same redacted projection; fixture-tested, no live verification |
-| `GET /v1/sites/{site_ref}/clients/{client_ref}/timeline/{connect\|association\|roaming\|disconnect}` | `GET /openapi/v1/{omadacId}/sites/{siteId}/clients/{clientMac}/client-timeline?start=<...>&end=<...>&type=<0..3>` | Four type-specific reads; each is bounded to 24 hours and has separate capability evidence. Documented roaming AP MACs map to opaque same-site AP references when the current device inventory binds them. |
+| `GET /v1/sites/{site_ref}/clients/{client_ref}/timeline/{connect\|disconnect\|roaming\|blocked\|association}` | `GET /openapi/v1/{omadacId}/sites/{siteId}/clients/{clientMac}/client-timeline?start=<...>&end=<...>&type=<0..3>` | Type selectors map to documented event types: connect `0`, wireless disconnect `1`, roaming `2`, blocked `3`; `association` remains a compatibility alias for `1`. Each read is bounded to 24 hours and has separate capability evidence. Documented AP references map to opaque same-site AP references when current device inventory binds them. |
+| `GET /v1/sites/{site_ref}/client-outage-overlaps?client_ref=...&start_ms=...&end_ms=...` | Two bounded reads of the documented client timeline per selected client | Compares 2–16 explicitly selected clients in one window of at most 24 hours. It counts only closed type-1 disconnect to later type-0 connect intervals that overlap on the same mapped AP. Missing AP mappings, open intervals and unavailable sources are reported as gaps; connection cause is never inferred. |
+| `GET /v1/sites/{site_ref}/client-roaming-backtracks?client_ref=...&start_ms=...&end_ms=...` | `GET /openapi/v1/{omadacId}/sites/{siteId}/clients/{clientMac}/client-timeline?type=2` per selected client | Compares type-2 roaming with type-1 disconnect and type-0 connect events for 1–16 current clients. Counts reciprocal `A`→`B`→`A` returns only when no disconnect is observed between them; separates observed disconnections, reconnects and event gaps. Groups returns by mapped AP pair; omits client identities and inferred cause. |
 | `GET /v1/sites/{site_ref}/aps/{device_ref}/radio-config` | `GET /openapi/v1/{omadacId}/sites/{siteId}/aps/{apMac}/radio-config` | AP radio channel, width, power and enabled state when present |
 | `GET /v1/sites/{site_ref}/aps/{device_ref}/radios` | `GET /openapi/v1/{omadacId}/sites/{siteId}/aps/{apMac}/radios` | Channel utilization and packet counters when present |
 | `GET /v1/sites/{site_ref}/aps/{device_ref}/scan-status` | AP interference detection status | Status and last detection time when present; reads existing status and does not initiate detection |
@@ -460,8 +462,9 @@ and `Site Device Manager View Only` for switch health, SDM and cable-test result
 routes additionally require the caller bearer token described below.
 
 Client event timelines use the official `client-timeline` GET with a fixed
-type-specific query: `connect` uses type `0`, `association` `1`, `roaming` `2`,
-and `disconnect` `3`; each public route requests at most 24 hours. The
+type-specific query: `connect` uses type `0`, `disconnect` `1`, `roaming` `2`,
+and `blocked` `3`; `association` remains an alias for type `1`. Each public
+route requests at most 24 hours. The
 documented `event_type` values are preserved as numeric codes (`0`, `1`, `2`,
 `3`, `100`, `101`, `102`, `200`, `201`, `202`) without adding meanings. The
 projection omits free text and MAC addresses. Documented AP MACs map to opaque

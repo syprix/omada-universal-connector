@@ -88,6 +88,26 @@ source-response JSON used 11,527 tokens and the combined report used 10,196
 (1,331 fewer; 11.55%), measured with `js-tiktoken` 1.0.21 and `o200k_base`.
 This compares serialized data only, not billed agent usage or live responses.
 
+## Overlapping WLAN client interruptions
+
+`GET /v1/sites/{site_ref}/client-outage-overlaps` and the
+`omada_site_client_outage_overlap_summary` MCP tool compare 2–16 explicitly
+selected, currently inventoried client references over one shared window of at
+most 24 hours. They reuse the documented client-timeline read for wireless
+disconnect (type `1`) and reconnect (type `0`). The report counts only closed
+intervals that overlap across different clients while the disconnecting AP is
+bound to the current site inventory. It returns per-AP pair counts and affected
+client counts, not client identities. Unknown AP mappings, unmatched disconnects,
+partial reads and clients with no samples remain visible as coverage gaps; the
+report never infers a cause. No active WLAN measurement or network change is
+performed.
+
+A synthetic eight-client fixture used 3,164 `o200k_base` tokens across 16
+separate timeline responses; the compact overlap report used 244 tokens (2,920
+fewer; 92.29%). Counts use `js-tiktoken` 1.0.21 and measure serialized
+responses only. They exclude inventory reads, tool schemas, prompts, framing,
+live data and billed agent usage.
+
 ## Site firmware summary
 
 `GET /v1/sites/{site_ref}/firmware-summary` and `omada_site_firmware_summary`
@@ -127,3 +147,15 @@ A synthetic eight-switch fixture with 24 ports each used 39,858 `o200k_base` tok
 ### Review backup coverage
 
 Use the controller backup inventory summary for controller-listed backups, or the site summary for one explicit site. The compact report counts rows and bytes and gives the greatest backup timestamp among rows returned by that list. The timestamp is not a guarantee of complete history or a successful restore. The existing schedule and activity status are shown separately; no download or restore action is performed. A synthetic 12-file comparison measured 459 source tokens versus 103 report tokens (77.56% fewer; js-tiktoken 1.0.21/o200k_base), excluding prompts and agent framing.
+
+### Review repeated AP roaming
+
+Use `GET /v1/sites/{site_ref}/client-roaming-backtracks` or
+`omada_site_client_roaming_backtrack_summary` with 1–16 explicit current client
+references and one window of at most 24 hours. The connector reads each
+client's documented roaming, wireless-disconnect and wireless-connect timelines
+to report adjacent reciprocal events (`AP A → AP B → AP A`) by mapped AP pair.
+A confirmed disconnect between the two roams is counted separately, with a
+reconnect after separation distinguished when observed. Incomplete timelines
+are reported as gaps; the workflow omits client identities and does not infer
+a cause. No active WLAN measurement or network change is performed.

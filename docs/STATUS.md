@@ -148,3 +148,70 @@ mutation was made. Reads now report an unavailable journal without creating or
 opening one; the HTTP/MCP regression also confirms that an already-open journal
 still returns its state counts. Token impact is not claimed because this endpoint returns
 only a few fixed counters and has no repeated-source workflow to compare.
+
+## Follow-up 31: overlapping WLAN client interruptions
+
+The read-only HTTP and MCP summary accepts 2–16 explicitly selected clients and
+one window of up to 24 hours. It counts only closed wireless disconnect-to-
+reconnect intervals that overlap for different clients on the same AP reference
+bound by the current site inventory. Missing AP mappings, open intervals,
+partial reads and clients without samples remain visible; no cause is inferred.
+All three supplied exports document event types `0` (wireless connect), `1`
+(wireless disconnect), `2` (roaming) and `3` (blocked). The timeline reader now
+uses those meanings; `association` remains a compatibility alias for type `1`.
+
+Offline verification passed 39 focused diagnostics/transport checks, the full
+3,116-test suite (457 seconds), the required 235-test registry/API-matrix/
+operation-evidence gate, runtime smoke and Python compilation. A synthetic
+eight-client fixture measured 3,164 `o200k_base` tokens across 16 timeline
+responses and 244 tokens for the compact report (2,920 fewer; 92.29%), using
+`js-tiktoken` 1.0.21. This measures serialized response data only; it excludes
+inventory reads, tool schemas, prompts, framing, live data and billed agent use.
+No controller read, network measurement or network change was made; live support
+and real-client integration remain unverified.
+
+Overlapping intervals are grouped and sorted by AP and client, then checked
+with a two-pointer sweep for each distinct client pair. This keeps work bounded
+by the selected clients and their interval counts while preserving one count
+per client pair and AP. An unavailable client is counted once even when both
+timeline sources fail; unavailable sources also contribute to partial coverage.
+
+## Follow-up 32: reciprocal AP roaming sequences
+
+Added a read-only HTTP and MCP workflow for 1–16 explicitly selected current
+clients and one time window of up to 24 hours. It compares type-2 roaming with
+type-1 disconnect and type-0 connect timelines. Consecutive reciprocal AP
+roams (`A → B → A`) count as returns only when no disconnect is observed
+between them. A disconnect and any observed reconnect after that separation
+are counted separately; incomplete sources remain event gaps. Return counts
+use opaque AP references bound to current site inventory. Unknown mappings,
+unavailable sources and clients without samples remain visible; client
+references are omitted and no cause is inferred. All three supplied API
+exports document the source timeline and event types. Fixture-based offline
+checks passed; no controller was queried, so live support remains unverified.
+
+The focused #31/#32 transport and projection checks passed (54 tests), the full
+offline suite passed (3,170 tests in 468 seconds), the required registry/API-
+matrix/operation-evidence gate passed (235 tests), and runtime smoke, Python
+compilation and diff checks passed. A synthetic eight-client fixture measured
+2,386 `o200k_base` tokens across 24 serialized timeline endpoint responses
+(roaming, disconnect and connect for eight clients) and 210 for the compact
+report (2,176 fewer; 91.20%), using `js-tiktoken` 1.0.21. This counts
+serialized endpoint response JSON only; it excludes inventory calls, schemas,
+prompts, framing and billed agent use. No active WLAN measurement or network
+change was made.
+
+## Combined #31/#32 review update
+
+After review, the #31 overlap check now sorts intervals once per AP and client
+and uses a linear two-pointer scan for each distinct client pair. A client with
+both timeline reads unavailable is counted once in the unavailable-client
+coverage and once in partial-client coverage; it is not also called a
+no-sample client. Regression fixtures cover the repeated-source failure and
+400 intervals per client, preserving one count per client pair.
+
+The final combined offline suite passed 3,171 tests in 467.282 seconds; 55
+focused #31/#32 projection and transport checks, the 235-test registry/API-
+matrix/operation-evidence gate, runtime smoke, Python compilation and diff
+checks passed. The exact new GitHub commit and CI runs are being checked. Live
+controller behavior remains unverified.

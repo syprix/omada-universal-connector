@@ -63,7 +63,7 @@ class ClientTimelineSummaryTests(unittest.TestCase):
             "client_ref": CLIENT_REF, "window_start_ms": WINDOW_START,
             "window_end_ms": WINDOW_END, "count": 0, "items": [],
         }
-        for kind in ("connect", "association", "roaming", "disconnect"):
+        for kind in ("connect", "disconnect", "roaming", "blocked"):
             responses[f"/v1/sites/{SITE_REF}/clients/{CLIENT_REF}/timeline/{kind}"] = {
                 "status": "ok", "resource": "client_timeline", "site_ref": SITE_REF,
                 "client_ref": CLIENT_REF, "kind": kind, "window_start_ms": WINDOW_START,

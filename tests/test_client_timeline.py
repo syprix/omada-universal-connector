@@ -55,6 +55,19 @@ class ClientTimelineProjectionTests(unittest.TestCase):
         for private in ("00-11-22-33-44-66", "00-11-22-33-44-77", "private AP details"):
             self.assertNotIn(private, repr(result))
 
+    def test_wireless_disconnect_maps_documented_access_point_reference(self) -> None:
+        result = project_client_timeline([{
+            "mac": TARGET_MAC, "start": START, "end": END,
+            "events": [{"time": START + 1, "eventType": 1,
+                        "content": "private disconnect details",
+                        "attributes": {"dev_mac": "00-11-22-33-44-66"}}],
+        }], START, END, TARGET_MAC, {"001122334466": "a" * 24})
+        event = result["data"]["sessions"][0]["events"][0]
+        self.assertEqual(event["event_type"], 1)
+        self.assertEqual(event["access_point_ref"], "a" * 24)
+        self.assertNotIn("00-11-22-33-44-66", repr(result))
+        self.assertNotIn("private disconnect details", repr(result))
+
     def test_unknown_fields_redacted_and_partial(self) -> None:
         result = project_client_timeline([{
             "mac": TARGET_MAC, "start": START, "end": END, "secretField": "private",

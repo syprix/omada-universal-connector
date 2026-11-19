@@ -60,6 +60,18 @@ class McpTests(unittest.TestCase):
         self.assertTrue(switch_anomalies["annotations"]["readOnlyHint"])
         self.assertFalse(switch_anomalies["annotations"]["destructiveHint"])
         self.assertIn("does not provide drop counts", switch_anomalies["description"])
+        outage_overlap = next(item for item in all_tools
+                              if item["name"] == "omada_site_client_outage_overlap_summary")
+        self.assertTrue(outage_overlap["annotations"]["readOnlyHint"])
+        self.assertFalse(outage_overlap["annotations"]["destructiveHint"])
+        self.assertEqual(outage_overlap["inputSchema"]["properties"]["client_refs"]["minItems"], 2)
+        self.assertEqual(outage_overlap["inputSchema"]["properties"]["client_refs"]["maxItems"], 16)
+        roaming_backtrack = next(item for item in all_tools
+                                 if item["name"] == "omada_site_client_roaming_backtrack_summary")
+        self.assertTrue(roaming_backtrack["annotations"]["readOnlyHint"])
+        self.assertFalse(roaming_backtrack["annotations"]["destructiveHint"])
+        self.assertEqual(roaming_backtrack["inputSchema"]["properties"]["client_refs"]["minItems"], 1)
+        self.assertEqual(roaming_backtrack["inputSchema"]["properties"]["client_refs"]["maxItems"], 16)
         diagnosis = next(item for item in all_tools
                          if item["name"] == "omada_wifi_diagnose_site")
         self.assertTrue(diagnosis["annotations"]["readOnlyHint"])

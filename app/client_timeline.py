@@ -163,7 +163,7 @@ def project_client_timeline(raw: object, start_ms: int, end_ms: int,
                             omitted.add(path)
                             omitted_count += 1
 
-                    if device_ref_by_mac is not None and event_type in {0, 2}:
+                    if device_ref_by_mac is not None and event_type in {0, 1, 2}:
                         attributes = event.get("attributes")
                         attribute_names = (("dev_mac", "access_point_ref"),)
                         if event_type == 2:

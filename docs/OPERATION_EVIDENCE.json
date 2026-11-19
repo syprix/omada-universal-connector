@@ -9655,6 +9655,7 @@
       "operation_ids": [
         "client_outage_timeline",
         "client_timeline_association",
+        "client_timeline_blocked",
         "client_timeline_connect",
         "client_timeline_disconnect",
         "client_timeline_roaming"
@@ -9662,6 +9663,7 @@
       "public_templates": [
         "/v1/sites/{site_ref}/clients/{client_ref}/outage-timeline",
         "/v1/sites/{site_ref}/clients/{client_ref}/timeline/association",
+        "/v1/sites/{site_ref}/clients/{client_ref}/timeline/blocked",
         "/v1/sites/{site_ref}/clients/{client_ref}/timeline/connect",
         "/v1/sites/{site_ref}/clients/{client_ref}/timeline/disconnect",
         "/v1/sites/{site_ref}/clients/{client_ref}/timeline/roaming"

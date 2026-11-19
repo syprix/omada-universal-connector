@@ -281,6 +281,63 @@ _SITE_OUTAGE_SUMMARY_TOOL = {
                      "idempotentHint": True, "openWorldHint": False},
 }
 _SITE_OUTAGE_SUMMARY_NAME = str(_SITE_OUTAGE_SUMMARY_TOOL["name"])
+_SITE_CLIENT_OUTAGE_OVERLAP_TOOL = {
+    "name": "omada_site_client_outage_overlap_summary",
+    "description": (
+        "Compare documented wireless disconnect/connect events for 2–16 explicitly selected clients "
+        "in one site and one UTC window of up to 24 hours. Counts only closed intervals whose "
+        "documented AP mapping is known and whose time ranges overlap for distinct clients on the "
+        "same AP. Unknown AP mappings, open intervals and source gaps remain separate. No client "
+        "identifiers or connection cause are returned; this read-only report starts no scan."
+    ),
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "site_ref": {"type": "string", "pattern": "^[0-9a-f]{24}$"},
+            "client_refs": {"type": "array", "minItems": 2, "maxItems": 16,
+                            "uniqueItems": True,
+                            "items": {"type": "string", "pattern": "^[0-9a-f]{24}$"}},
+            "start_ms": {"type": "integer", "minimum": 946684800000,
+                         "maximum": 4102444800000},
+            "end_ms": {"type": "integer", "minimum": 946684800000,
+                       "maximum": 4102444800000},
+        },
+        "required": ["site_ref", "client_refs", "start_ms", "end_ms"],
+        "additionalProperties": False,
+    },
+    "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                    "idempotentHint": True, "openWorldHint": False},
+}
+_SITE_CLIENT_OUTAGE_OVERLAP_NAME = str(_SITE_CLIENT_OUTAGE_OVERLAP_TOOL["name"])
+_SITE_CLIENT_ROAMING_BACKTRACK_TOOL = {
+    "name": "omada_site_client_roaming_backtrack_summary",
+    "description": (
+        "Summarize reciprocal roaming sequences (AP A to B, then B to A) for 1–16 explicitly "
+        "selected clients in one site and one UTC window of up to 24 hours. Compare roaming, "
+        "disconnect and connect timelines to distinguish a return roam from a full separation or "
+        "an event gap. AP references must bind to current site inventory. It returns pair counts and "
+        "coverage without client identities or inferred cause. "
+        "Read-only; no scan or network change is started."
+    ),
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "site_ref": {"type": "string", "pattern": "^[0-9a-f]{24}$"},
+            "client_refs": {"type": "array", "minItems": 1, "maxItems": 16,
+                            "uniqueItems": True,
+                            "items": {"type": "string", "pattern": "^[0-9a-f]{24}$"}},
+            "start_ms": {"type": "integer", "minimum": 946684800000,
+                         "maximum": 4102444800000},
+            "end_ms": {"type": "integer", "minimum": 946684800000,
+                       "maximum": 4102444800000},
+        },
+        "required": ["site_ref", "client_refs", "start_ms", "end_ms"],
+        "additionalProperties": False,
+    },
+    "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                    "idempotentHint": True, "openWorldHint": False},
+}
+_SITE_CLIENT_ROAMING_BACKTRACK_NAME = str(_SITE_CLIENT_ROAMING_BACKTRACK_TOOL["name"])
 _SSID_NETWORK_SUMMARY_TOOL = {
     "name": "omada_ssid_network_summary",
     "description": (
@@ -638,6 +695,8 @@ def _tools_page(registry: Any, cursor: object) -> dict[str, object]:
     tools.append(_NETWORK_DIAGNOSE_SWITCH_TOOL)
     tools.append(_NETWORK_OVERVIEW_TOOL)
     tools.append(_SITE_OUTAGE_SUMMARY_TOOL)
+    tools.append(_SITE_CLIENT_OUTAGE_OVERLAP_TOOL)
+    tools.append(_SITE_CLIENT_ROAMING_BACKTRACK_TOOL)
     tools.append(_SSID_NETWORK_SUMMARY_TOOL)
     tools.append(_GATEWAY_WAN_INCIDENT_WINDOW_TOOL)
     tools.append(_SITE_DHCP_POOL_UTILIZATION_TOOL)
@@ -933,6 +992,38 @@ def _invoke_tool(registry: Any, name: object, arguments: object,
             "start_ms": str(arguments["start_ms"]),
             "end_ms": str(arguments["end_ms"]),
         })
+        return _tool_result(value)
+    if name == _SITE_CLIENT_OUTAGE_OVERLAP_NAME:
+        keys = {"site_ref", "client_refs", "start_ms", "end_ms"}
+        refs = arguments.get("client_refs") if isinstance(arguments, dict) else None
+        if (not isinstance(arguments, dict) or set(arguments) != keys or
+                not isinstance(arguments.get("site_ref"), str) or
+                not _SAFE_REF.fullmatch(arguments["site_ref"]) or
+                not isinstance(refs, list) or not 2 <= len(refs) <= 16 or
+                any(not isinstance(ref, str) or not _SAFE_REF.fullmatch(ref) for ref in refs) or
+                len(set(refs)) != len(refs) or
+                type(arguments.get("start_ms")) is not int or
+                type(arguments.get("end_ms")) is not int):
+            raise McpRequestError("arguments_invalid")
+        value = invoke_read("site_client_outage_overlap_summary", {
+            "site_ref": arguments["site_ref"], "client_refs": ",".join(refs),
+            "start_ms": str(arguments["start_ms"]), "end_ms": str(arguments["end_ms"])})
+        return _tool_result(value)
+    if name == _SITE_CLIENT_ROAMING_BACKTRACK_NAME:
+        keys = {"site_ref", "client_refs", "start_ms", "end_ms"}
+        refs = arguments.get("client_refs") if isinstance(arguments, dict) else None
+        if (not isinstance(arguments, dict) or set(arguments) != keys or
+                not isinstance(arguments.get("site_ref"), str) or
+                not _SAFE_REF.fullmatch(arguments["site_ref"]) or
+                not isinstance(refs, list) or not 1 <= len(refs) <= 16 or
+                any(not isinstance(ref, str) or not _SAFE_REF.fullmatch(ref) for ref in refs) or
+                len(set(refs)) != len(refs) or
+                type(arguments.get("start_ms")) is not int or
+                type(arguments.get("end_ms")) is not int):
+            raise McpRequestError("arguments_invalid")
+        value = invoke_read("site_client_roaming_backtrack_summary", {
+            "site_ref": arguments["site_ref"], "client_refs": ",".join(refs),
+            "start_ms": str(arguments["start_ms"]), "end_ms": str(arguments["end_ms"])})
         return _tool_result(value)
     if name == _SSID_NETWORK_SUMMARY_NAME:
         keys = ("site_ref",)
