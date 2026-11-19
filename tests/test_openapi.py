@@ -57,64 +57,64 @@ class OpenApiClientTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.tempdir.cleanup()
 
-    def test_site_stack_connections_summary_reads_fixed_stack_and_lldp_paths(self) -> None:
+    def test_site_poe_schedule_summary_reads_each_fixed_site_feed(self) -> None:
         site_ref = "a" * 24
         switch_ref = "b" * 24
         mac = "aa:bb:cc:dd:ee:ff"
         self.client._site_ids_by_ref[site_ref] = "site-1"
         self.client._switch_macs_by_site_ref[site_ref] = {switch_ref: mac}
-        stack_rows = [{"id": "stack-1", "status": 0, "member": [{"mac": mac}]}]
-        neighbor_rows = [{"portId": 3, "deviceId": "unexposed"}]
+        with (patch.object(self.client, "list_devices", return_value={
+                  "items": [{"device_ref": switch_ref, "device_type": "switch"}]}),
+              patch.object(self.client, "_access_token", return_value="token"),
+              patch.object(self.client, "_request_json", side_effect=[
+                  {"result": [{"mac": mac, "poePort": {"poePortIds": [1]}}]},
+                  {"result": [{"mac": mac, "totalPowerUsed": 1, "totalPower": 10}]},
+                  {"result": [{"profileId": "profile"}]},
+              ]) as request,
+              patch.object(self.client, "_read_pages", side_effect=[
+                  [{"status": True, "turnOnTime": "profile", "poePortsMap": {mac: [1]}}],
+                  [{"switchMac": mac, "port": 1, "supportPoe": True,
+                    "poeDisplayType": 1, "poe": 1, "poeStatus": 1,
+                    "power": 1, "voltage": 52, "current": 0.1}],
+              ]) as pages):
+            result = self.client.read_site_poe_schedule_summary(site_ref)
+        self.assertEqual(result["data"]["switches"][0]["power_budget"]["available_watts"], 9)
+        self.assertEqual(request.call_count, 3)
+        paths = [call.args[1] for call in request.call_args_list]
+        self.assertEqual(paths, [
+            "/openapi/v1/controller_1/sites/site-1/poe-ports",
+            "/openapi/v1/controller_1/sites/site-1/dashboard/poe-usage",
+            "/openapi/v1/controller_1/sites/site-1/time-range-profiles",
+        ])
+        self.assertEqual(pages.call_count, 2)
+
+    def test_site_reboot_schedule_summary_refreshes_inventory_and_uses_fixed_route(self) -> None:
+        site_ref = "a" * 24
+        device_ref = "b" * 24
+        mac = "aa:bb:cc:dd:ee:ff"
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        self.client._device_macs_by_site_ref[site_ref] = {device_ref: mac}
+        payload = {"result": [{"status": True, "deviceMacs": [mac],
+                              "time": {"timingType": 1, "hour": 4, "minute": 0}}]}
         with (patch.object(self.client, "list_devices", return_value={"items": []}) as inventory,
               patch.object(self.client, "_access_token", return_value="token"),
-              patch.object(self.client, "_read_bounded_grid_rows",
-                           side_effect=[(stack_rows, 0), (neighbor_rows, 0)]) as reads):
-            result = self.client.read_site_stack_connections_summary(site_ref)
-        self.assertEqual(inventory.call_args.args, (site_ref,))
-        self.assertEqual(reads.call_args_list[0].args, (
-            "/openapi/v1/controller_1/sites/site-1/stacks", "token", 32))
-        self.assertEqual(reads.call_args_list[1].args, (
-            "/openapi/v1/controller_1/sites/site-1/stack/stack-1/lldp-neighbors",
-            "token", 64))
-        self.assertEqual(result["resource"], "site_stack_connections_summary")
-        self.assertEqual(result["data"]["stacks"][0]["member_switch_refs"], [switch_ref])
+              patch.object(self.client, "_request_json", return_value=payload) as request):
+            result = self.client.read_site_reboot_schedule_summary(site_ref)
+        inventory.assert_called_once_with(site_ref)
+        request.assert_called_once_with(
+            "GET", "/openapi/v1/controller_1/sites/site-1/reboot-schedules", token="token")
+        self.assertEqual(result["resource"], "site_reboot_schedule_summary")
+        self.assertEqual(result["schedule_rows"][0][6], [device_ref])
 
-    def test_bounded_grid_reader_reports_rows_beyond_its_limit(self) -> None:
-        with patch.object(self.client, "_request_json", side_effect=[
-                {"result": {"data": [1, 2], "totalRows": 5,
-                            "currentPage": 1, "currentSize": 2}},
-                {"result": {"data": [3, 4], "totalRows": 5,
-                            "currentPage": 2, "currentSize": 2}},
-        ]) as request:
-            rows, omitted = self.client._read_bounded_grid_rows(
-                "/openapi/v1/controller/sites/site/stacks", "token", 4)
-        self.assertEqual(rows, [1, 2, 3, 4])
-        self.assertEqual(omitted, 1)
-        self.assertEqual([call.args[1] for call in request.call_args_list], [
-            "/openapi/v1/controller/sites/site/stacks?page=1&pageSize=2",
-            "/openapi/v1/controller/sites/site/stacks?page=2&pageSize=2",
-        ])
-
-    def test_stack_list_and_neighbor_paths_are_fixed_and_bounded(self) -> None:
-        allowed = (
-            "/openapi/v1/controller_1/sites/site-1/stacks?page=1&pageSize=32",
-            "/openapi/v1/controller_1/sites/site-1/stack/stack_1/lldp-neighbors?page=1&pageSize=64",
-        )
+    def test_reboot_schedule_source_path_is_controller_bound(self) -> None:
+        path = "/openapi/v1/controller_1/sites/site-1/reboot-schedules"
         with patch.object(self.client, "_connection",
                           side_effect=OpenApiError("connection_reached")):
-            for path in allowed:
-                with self.subTest(path=path), self.assertRaisesRegex(
-                        OpenApiError, "connection_reached"):
-                    self.client._request_json("GET", path, token="token")
-            rejected = (
-                allowed[0].replace("pageSize=32", "pageSize=33"),
-                allowed[1].replace("pageSize=64", "pageSize=65"),
-                allowed[0].replace("controller_1", "other-controller"),
-            )
-            for path in rejected:
-                with self.subTest(path=path), self.assertRaisesRegex(
-                        OpenApiError, "openapi_path_rejected"):
-                    self.client._request_json("GET", path, token="token")
+            with self.assertRaisesRegex(OpenApiError, "connection_reached"):
+                self.client._request_json("GET", path, token="token")
+            with self.assertRaisesRegex(OpenApiError, "openapi_path_rejected"):
+                self.client._request_json(
+                    "GET", path.replace("controller_1", "other-controller"), token="token")
 
     def _secret(self, name: str, value: str) -> str:
         path = os.path.join(self.tempdir.name, name)
@@ -750,6 +750,65 @@ class OpenApiClientTests(unittest.TestCase):
         self.assertEqual(seen, [context])
         self.assertIs(connection._omada_tls_verified, True)
 
+
+    def test_site_stack_connections_summary_reads_fixed_stack_and_lldp_paths(self) -> None:
+        site_ref = "a" * 24
+        switch_ref = "b" * 24
+        mac = "aa:bb:cc:dd:ee:ff"
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        self.client._switch_macs_by_site_ref[site_ref] = {switch_ref: mac}
+        stack_rows = [{"id": "stack-1", "status": 0, "member": [{"mac": mac}]}]
+        neighbor_rows = [{"portId": 3, "deviceId": "unexposed"}]
+        with (patch.object(self.client, "list_devices", return_value={"items": []}) as inventory,
+              patch.object(self.client, "_access_token", return_value="token"),
+              patch.object(self.client, "_read_bounded_grid_rows",
+                           side_effect=[(stack_rows, 0), (neighbor_rows, 0)]) as reads):
+            result = self.client.read_site_stack_connections_summary(site_ref)
+        self.assertEqual(inventory.call_args.args, (site_ref,))
+        self.assertEqual(reads.call_args_list[0].args, (
+            "/openapi/v1/controller_1/sites/site-1/stacks", "token", 32))
+        self.assertEqual(reads.call_args_list[1].args, (
+            "/openapi/v1/controller_1/sites/site-1/stack/stack-1/lldp-neighbors",
+            "token", 64))
+        self.assertEqual(result["resource"], "site_stack_connections_summary")
+        self.assertEqual(result["data"]["stacks"][0]["member_switch_refs"], [switch_ref])
+
+    def test_bounded_grid_reader_reports_rows_beyond_its_limit(self) -> None:
+        with patch.object(self.client, "_request_json", side_effect=[
+                {"result": {"data": [1, 2], "totalRows": 5,
+                            "currentPage": 1, "currentSize": 2}},
+                {"result": {"data": [3, 4], "totalRows": 5,
+                            "currentPage": 2, "currentSize": 2}},
+        ]) as request:
+            rows, omitted = self.client._read_bounded_grid_rows(
+                "/openapi/v1/controller/sites/site/stacks", "token", 4)
+        self.assertEqual(rows, [1, 2, 3, 4])
+        self.assertEqual(omitted, 1)
+        self.assertEqual([call.args[1] for call in request.call_args_list], [
+            "/openapi/v1/controller/sites/site/stacks?page=1&pageSize=2",
+            "/openapi/v1/controller/sites/site/stacks?page=2&pageSize=2",
+        ])
+
+    def test_stack_list_and_neighbor_paths_are_fixed_and_bounded(self) -> None:
+        allowed = (
+            "/openapi/v1/controller_1/sites/site-1/stacks?page=1&pageSize=32",
+            "/openapi/v1/controller_1/sites/site-1/stack/stack_1/lldp-neighbors?page=1&pageSize=64",
+        )
+        with patch.object(self.client, "_connection",
+                          side_effect=OpenApiError("connection_reached")):
+            for path in allowed:
+                with self.subTest(path=path), self.assertRaisesRegex(
+                        OpenApiError, "connection_reached"):
+                    self.client._request_json("GET", path, token="token")
+            rejected = (
+                allowed[0].replace("pageSize=32", "pageSize=33"),
+                allowed[1].replace("pageSize=64", "pageSize=65"),
+                allowed[0].replace("controller_1", "other-controller"),
+            )
+            for path in rejected:
+                with self.subTest(path=path), self.assertRaisesRegex(
+                        OpenApiError, "openapi_path_rejected"):
+                    self.client._request_json("GET", path, token="token")
 
 if __name__ == "__main__":
     unittest.main()

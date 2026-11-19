@@ -15,6 +15,20 @@ The existing `GET /v1/sites/{site_ref}/topology` response also includes this
 section as `stack_connections`; incomplete stack data marks the overall report
 partial while leaving its existing device-edge projection separate.
 
+## PoE budget and schedule overview
+
+`GET /v1/sites/{site_ref}/poe/schedule-summary` and
+`omada_site_poe_schedule_summary` combine a fresh switch inventory with the
+fixed PoE-capability, usage, port-info, schedule and time-range reads. The
+response exposes per-switch same-row usage and rated capacity in watts only
+where that unit is specified, available budget, PoE-capable port numbers,
+compact counts by raw current port state, and scheduled port numbers matched
+through an internal unique MAC join. Port readings retain no numeric values;
+their units are not documented. Schedule/profile identities and labels are
+omitted, and next execution is presence-only because its timestamp unit is
+unspecified. Missing sources, ambiguous inventory, unmatched targets and
+bounded omissions stay partial. No network change is made.
+
 ## Client identity matching
 
 `GET /v1/sites/{site_ref}/clients/identity-match` and the matching MCP tool accept `client_name` and `ssid_name`. The connector reads every client inventory page within its configured page limit and matches case-insensitively against the documented client `name`, `hostName` or `model`, plus `ssid`, with `wireless=true`. It returns a fresh opaque `client_ref` only for exactly one match and only when no row with missing identity fields could also match. The response includes per-field presence counts and complete/incomplete row counts, without returning input labels, SSIDs, MAC addresses or controller identifiers. A definite zero-match with complete candidate coverage returns `unmatched`; missing fields that could hide a match return `incomplete` with `partial=true`. Multiple definite matches return `ambiguous`. An incomplete inventory raises a bounded-read error instead of returning any match state.
@@ -101,3 +115,7 @@ To export that JSON response locally, save it to a private file and run `python3
 These workflows have fixture and HTTP/MCP dispatch tests and are cross-checked against all three supplied API exports. No controller was queried for this change. Live support remains unknown.
 
 A synthetic 100-event page measured 5,558 source-envelope tokens and 105 summary-response tokens (5,453 fewer; 98.11%) with `js-tiktoken` 1.0.21 and `o200k_base`. The fixture contains placeholder event messages and IDs. This compares serialized payloads only; it excludes tool schemas, requests, host framing and billed agent usage.
+
+### Review scheduled restarts
+
+Use GET /v1/sites/{site_ref}/reboot-schedule-summary to see the bounded schedule configuration and target devices currently resolved through site inventory. The report keeps the documented schedule clock fields but does not assign a timezone absent from the source contract. It distinguishes a configured restart from a completed restart and never starts one. Rows use a shared column declaration for compact agent output; a 12-schedule synthetic fixture measured 796 source tokens versus 464 projected tokens (41.71% fewer; js-tiktoken 1.0.21/o200k_base), excluding inventory and agent framing.

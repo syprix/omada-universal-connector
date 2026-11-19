@@ -681,10 +681,10 @@ class FakeOpenApiClient:
         self.calls.append(("site_topology", site_ref))
         return {"status": "ok", "resource": "site_topology", "nodes": [], "edges": []}
 
-    def read_site_stack_connections_summary(self, site_ref: str) -> dict[str, object]:
-        self.calls.append(("site_stack_connections_summary", site_ref))
-        return {"status": "ok", "resource": "site_stack_connections_summary",
-                "site_ref": site_ref, "data": {"stacks": []}, "partial": False}
+    def read_site_reboot_schedule_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_reboot_schedule_summary", site_ref))
+        return {"status": "ok", "resource": "site_reboot_schedule_summary",
+                "site_ref": site_ref, "schedules": [], "partial": False}
 
     def read_site_topology_network_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_topology_network_summary", site_ref))
@@ -1551,6 +1551,11 @@ class FakeOpenApiClient:
                 "data": {"switch_count": 2, "reported_port_count": 32,
                          "total_power_used_watts": 92,
                          "rated_poe_capacity_watts": 490}, "partial": False}
+
+    def read_site_poe_schedule_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_poe_schedule_summary", site_ref))
+        return {"status": "ok", "resource": "site_poe_schedule_summary",
+                "site_ref": site_ref, "data": {"switches": []}, "partial": False}
 
     def read_site_device_counts_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_device_counts_summary", site_ref))
@@ -2437,6 +2442,11 @@ class FakeOpenApiClient:
                 "items": [{"wlan_name": "Office", "ssid_names": ["Staff", "Guest"]}],
                 "partial": False}
 
+    def read_site_stack_connections_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_stack_connections_summary", site_ref))
+        return {"status": "ok", "resource": "site_stack_connections_summary",
+                "site_ref": site_ref, "data": {"stacks": []}, "partial": False}
+
 class OpenApiHttpTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tempdir = tempfile.TemporaryDirectory()
@@ -2723,22 +2733,6 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(response["result"]["structuredContent"]["resource"], "site_topology")
         self.assertEqual(self.fake.calls, [("site_topology", "a" * 24)])
 
-    def test_http_and_mcp_expose_site_stack_connections_summary(self) -> None:
-        site_ref = "a" * 24
-        status, response = self.request(
-            f"/v1/sites/{site_ref}/stack-connections-summary", self.token)
-        self.assertEqual(status, 200)
-        self.assertEqual(response["resource"], "site_stack_connections_summary")
-        request = {"jsonrpc": "2.0", "id": 140, "method": "tools/call",
-                   "params": {"name": "omada_site_stack_connections_summary",
-                              "arguments": {"site_ref": site_ref}}}
-        status, rpc = self.request_post("/mcp", request, self.token)
-        self.assertEqual(status, 200)
-        self.assertEqual(rpc["result"]["structuredContent"]["resource"],
-                         "site_stack_connections_summary")
-        self.assertEqual(self.fake.calls,
-                         [("site_stack_connections_summary", site_ref)] * 2)
-
     def test_mcp_ssid_network_summary_uses_current_inventories_and_redacts_refs(self) -> None:
         site_ref, ssid_a, ssid_b, network_ref = "a" * 24, "b" * 24, "c" * 24, "d" * 24
         self.fake.list_ssids = lambda ref: self.fake.calls.append(("ssids", ref)) or {
@@ -3007,6 +3001,22 @@ class OpenApiHttpTests(unittest.TestCase):
                          "rf_planning_history_detail")
         self.assertEqual(self.fake.calls,
                          [("rf_planning_history_detail", "a" * 24 + ":" + history_ref)] * 2)
+
+    def test_http_and_mcp_expose_site_reboot_schedule_summary(self) -> None:
+        site_ref = "a" * 24
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/reboot-schedule-summary", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_reboot_schedule_summary")
+        request = {"jsonrpc": "2.0", "id": 141, "method": "tools/call",
+                   "params": {"name": "omada_site_reboot_schedule_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"]["resource"],
+                         "site_reboot_schedule_summary")
+        self.assertEqual(self.fake.calls,
+                         [("site_reboot_schedule_summary", site_ref)] * 2)
 
     def test_http_and_mcp_expose_site_wifi_summary_as_a_fixed_read(self) -> None:
         path = "/v1/sites/" + "a" * 24 + "/wifi/summary"
@@ -5819,6 +5829,21 @@ class OpenApiHttpTests(unittest.TestCase):
                          "site_poe_usage_summary")
         self.assertEqual(self.fake.calls, [("site_poe_usage_summary", site_ref)] * 2)
 
+    def test_http_and_mcp_expose_site_poe_schedule_summary(self) -> None:
+        site_ref = "a" * 24
+        status, response = self.request(f"/v1/sites/{site_ref}/poe/schedule-summary", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_poe_schedule_summary")
+        request = {"jsonrpc": "2.0", "id": 139, "method": "tools/call",
+                   "params": {"name": "omada_site_poe_schedule_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"]["resource"],
+                         "site_poe_schedule_summary")
+        self.assertEqual(self.fake.calls,
+                         [("site_poe_schedule_summary", site_ref)] * 2)
+
     def test_http_and_mcp_expose_site_device_counts_summary(self) -> None:
         site_ref = "a" * 24
         status, response = self.request(
@@ -7872,6 +7897,22 @@ class OpenApiHttpTests(unittest.TestCase):
                          "site_firmware_summary")
         self.assertEqual(calls, [site_ref, site_ref])
 
+
+    def test_http_and_mcp_expose_site_stack_connections_summary(self) -> None:
+        site_ref = "a" * 24
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/stack-connections-summary", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_stack_connections_summary")
+        request = {"jsonrpc": "2.0", "id": 140, "method": "tools/call",
+                   "params": {"name": "omada_site_stack_connections_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"]["resource"],
+                         "site_stack_connections_summary")
+        self.assertEqual(self.fake.calls,
+                         [("site_stack_connections_summary", site_ref)] * 2)
 
 
 if __name__ == "__main__":
