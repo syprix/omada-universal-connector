@@ -3079,6 +3079,33 @@ class FullApiMatrixTests(unittest.TestCase):
         self.assertEqual(row["connector_source_status"], "implemented_read")
         self.assertEqual(row["live_status"], "unknown_not_checked_by_this_offline_tool")
 
+    def test_ap_ssid_override_audit_is_present_only_in_hardware_and_cbc_exports(self) -> None:
+        matrix = json.loads((Path(__file__).resolve().parents[1] /
+                             "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
+        for source in matrix["sources"]:
+            row = source["operations"]["ap_ssid_override_audit_summary"]
+            expected = source["label"] != "ER7212PC 6.2.14"
+            self.assertEqual(row["documented"], expected)
+            self.assertEqual(row["live_support"], "unknown")
+            if expected:
+                self.assertEqual(row["contract_review"]["operation_id"],
+                                 "getApSsidOverridesAuditLogs")
+                self.assertIn("default", row["contract_review"]["query"])
+                self.assertIn("no timestamp", row["contract_review"]["response"])
+                self.assertIn("omits SSID names, VLAN values",
+                              row["contract_review"]["projection"])
+        spec = document()
+        spec["paths"] = {
+            "/openapi/v1/{omadacId}/sites/{siteId}/audit-logs/{apMac}/ssid-overrides": {
+                "get": {"operationId": "getApSsidOverridesAuditLogs",
+                        "responses": {"200": {}}},
+            },
+        }
+        path = self.write_zip("ap-ssid-override-audit-summary.zip", spec)
+        row = build_matrix([("hardware", path)])["operations"][0]
+        self.assertEqual(row["connector_source_status"], "implemented_read")
+        self.assertEqual(row["live_status"], "unknown_not_checked_by_this_offline_tool")
+
     def test_new_explicit_adapter_examples_are_mapped_without_live_claims(self) -> None:
         paths = {
             "/openapi/v1/{omadacId}/sites/{siteId}/wifi/sub/health/timeline": {

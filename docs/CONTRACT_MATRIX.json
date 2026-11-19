@@ -2107,6 +2107,17 @@
             "response": "WanMaxSpeedOpenApiVO defines upstream and downstream as optional int32 values described only as speeds. The source does not specify units. The required wanId query is a comma-separable port-ID selector; the request must include the selected inventoried WanPortSettingOpenApiVO.portId.",
             "projection": "site-bound HTTP/MCP GET requires one opaque wan_port_ref returned by the WAN port inventory. It rereads fixed internet/ports-config, resolves the reference to exactly one WanPortSettingOpenApiVO.portId, and sends that value as required wanId. It supports one selected port, validates signed int32 values, preserves zero and negative contract values, counts missing/invalid/unknown fields, and labels the unit unspecified. It does not report current throughput."
           }
+        },
+        "ap_ssid_override_audit_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getApSsidOverridesAuditLogs",
+            "permission": "Site Log & Audit Log Manager View Only",
+            "query": "page and pageSize are required; pageSize accepts documented choices up to 100. Optional filters.times defaults to the source-defined trailing seven days; optional sorts.time is asc or desc.",
+            "response": "GridVOApOverrideAuditLogVO defines totalRows (int64), currentPage and currentSize (int32), and data rows of ApOverrideAuditLogVO. Rows define globalSsid, oldSsidName, newSsidName, oldVlanId, newVlanId, passwordModified, ssidNameModified and vlanIdModified. The schema has no timestamp or actor fields, so it does not support chronological ordering or actor attribution.",
+            "projection": "AP-bound HTTP/MCP GET resolves only an inventoried AP. Reads one fixed page of 100 in the source default time period. Returns reported/returned row counts and counts of the three documented modified flags; omits SSID names, VLAN values and all other string values. Missing, invalid and unknown fields and truncation are counted. Does not expose event timestamps because the source response schema has none."
+          }
         }
       }
     },
@@ -4187,6 +4198,17 @@
             "response": "WanMaxSpeedOpenApiVO defines upstream and downstream as optional int32 values described only as speeds. The source does not specify units. The required wanId query is a comma-separable port-ID selector; the request must include the selected inventoried WanPortSettingOpenApiVO.portId.",
             "projection": "site-bound HTTP/MCP GET requires one opaque wan_port_ref returned by the WAN port inventory. It rereads fixed internet/ports-config, resolves the reference to exactly one WanPortSettingOpenApiVO.portId, and sends that value as required wanId. It supports one selected port, validates signed int32 values, preserves zero and negative contract values, counts missing/invalid/unknown fields, and labels the unit unspecified. It does not report current throughput."
           }
+        },
+        "ap_ssid_override_audit_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getApSsidOverridesAuditLogs",
+            "permission": "Site Log & Audit Log Manager View Only",
+            "query": "page and pageSize are required; pageSize accepts documented choices up to 100. Optional filters.times defaults to the source-defined trailing seven days; optional sorts.time is asc or desc.",
+            "response": "GridVOApOverrideAuditLogVO defines totalRows (int64), currentPage and currentSize (int32), and data rows of ApOverrideAuditLogVO. Rows define globalSsid, oldSsidName, newSsidName, oldVlanId, newVlanId, passwordModified, ssidNameModified and vlanIdModified. The schema has no timestamp or actor fields, so it does not support chronological ordering or actor attribution.",
+            "projection": "AP-bound HTTP/MCP GET resolves only an inventoried AP. Reads one fixed page of 100 in the source default time period. Returns reported/returned row counts and counts of the three documented modified flags; omits SSID names, VLAN values and all other string values. Missing, invalid and unknown fields and truncation are counted. Does not expose event timestamps because the source response schema has none."
+          }
         }
       }
     },
@@ -6248,6 +6270,14 @@
             "query": "wanId (required string; supports one explicitly selected port ID)",
             "response": "WanMaxSpeedOpenApiVO defines upstream and downstream as optional int32 values described only as speeds. The source does not specify units. The required wanId query is a comma-separable port-ID selector; the request must include the selected inventoried WanPortSettingOpenApiVO.portId.",
             "projection": "site-bound HTTP/MCP GET requires one opaque wan_port_ref returned by the WAN port inventory. It rereads fixed internet/ports-config, resolves the reference to exactly one WanPortSettingOpenApiVO.portId, and sends that value as required wanId. It supports one selected port, validates signed int32 values, preserves zero and negative contract values, counts missing/invalid/unknown fields, and labels the unit unspecified. It does not report current throughput."
+          }
+        },
+        "ap_ssid_override_audit_summary": {
+          "documented": false,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getApSsidOverridesAuditLogs",
+            "source_status": "not_present_in_ER7212PC_6.2.14"
           }
         }
       }

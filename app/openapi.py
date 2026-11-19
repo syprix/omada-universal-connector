@@ -1567,9 +1567,14 @@ class OmadaOpenApiClient:
     _SITE_WIDS_BLACKLIST_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/insight/wids/blacklist")
     _SITE_CLIENT_SIGNAL_DISTRIBUTION_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/client-signal-distribution"
+    _AP_SSID_OVERRIDE_AUDIT_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/audit-logs/{ap_mac}/ssid-overrides")
     _SITE_EVENT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/logs/events"
     _SITE_ALERT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/logs/alerts"
     _SITE_AUDIT_LOG_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/audit-logs"
+    _AP_SSID_OVERRIDE_AUDIT_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/audit-logs/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/ssid-overrides")
     _CONTROLLER_AUDIT_LOG_PATH = "/openapi/v1/{controller_id}/audit-logs"
     _IDENTIFIER = re.compile(r"[A-Za-z0-9_-]{1,128}")
     _SITE_REQUEST = re.compile(r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites\?page=[0-9]+&pageSize=[0-9]+")
@@ -2694,6 +2699,7 @@ class OmadaOpenApiClient:
         ("ap_radios", "GET /v1/sites/{site_ref}/aps/{device_ref}/radios"),
         ("ap_scan_status", "GET /v1/sites/{site_ref}/aps/{device_ref}/scan-status"),
         ("ap_speed_test_results", "GET /v1/sites/{site_ref}/aps/{device_ref}/speed-test-results"),
+        ("ap_ssid_override_audit_summary", "GET /v1/sites/{site_ref}/aps/{device_ref}/ssid-override-audit-summary"),
         ("ap_channel_load", "GET /v1/sites/{site_ref}/aps/{device_ref}/channel-load"),
         ("ap_rf_scan", "GET /v1/sites/{site_ref}/aps/{device_ref}/rf-scan"),
         ("ap_rf_scan_v2", "GET /v1/sites/{site_ref}/aps/{device_ref}/rf-scan-v2"),
@@ -8015,6 +8021,33 @@ class OmadaOpenApiClient:
         except ApSpeedTestError:
             raise OpenApiError("openapi_response_invalid") from None
         return {**result, "site_ref": site_ref}
+
+    @_track_capability("ap_ssid_override_audit_summary")
+    def read_ap_ssid_override_audit_summary(self, site_ref: str,
+                                            device_ref: str) -> dict[str, object]:
+        """Summarize one bounded default-window page for an inventoried AP."""
+        site_id, mac = self._known_ap_mac(site_ref, device_ref)
+        path = self._AP_SSID_OVERRIDE_AUDIT_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
+        path += "?" + urlencode({"page": 1, "pageSize": 100})
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            from .ap_ssid_override_audit_summary import (
+                ApSsidOverrideAuditError, summarize_ap_ssid_override_audit,
+            )
+        except ImportError:  # direct execution in the image
+            from ap_ssid_override_audit_summary import (
+                ApSsidOverrideAuditError, summarize_ap_ssid_override_audit,
+            )
+        try:
+            summary = summarize_ap_ssid_override_audit(
+                payload.get("result"), page=1, page_size=100)
+        except ApSsidOverrideAuditError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "ap_ssid_override_audit_summary",
+                "site_ref": site_ref, "device_ref": device_ref, **summary}
 
     def _known_ap_mac(self, site_ref: str, device_ref: str) -> tuple[str, str]:
         if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
@@ -14163,6 +14196,7 @@ class OmadaOpenApiClient:
                                   self._site_anomaly_event_settings_request_valid(path) or
                                   self._site_incident_influences_request_valid(path) or
                                   self._audit_log_request_valid(path) or
+                                  self._ap_ssid_override_audit_request_valid(path) or
                                   self._site_wlan_group_capacity_request_valid(path) or
                                   self._site_ap_group_capacity_request_valid(path) or
                                   self._site_ap_group_summary_request_valid(path) or
@@ -15678,6 +15712,19 @@ class OmadaOpenApiClient:
     def _controller_audit_notification_request_valid(self, path: str) -> bool:
         match = self._CONTROLLER_AUDIT_NOTIFICATION_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
+
+    def _ap_ssid_override_audit_request_valid(self, path: str) -> bool:
+        raw_path, separator, raw_query = path.partition("?")
+        match = self._AP_SSID_OVERRIDE_AUDIT_REQUEST.fullmatch(raw_path)
+        if not separator or not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            query = parse_qs(raw_query, keep_blank_values=True, strict_parsing=True)
+        except ValueError:
+            return False
+        return (set(query) == {"page", "pageSize"} and
+                query.get("page") == ["1"] and query.get("pageSize") == ["100"] and
+                urlencode({"page": 1, "pageSize": 100}) == raw_query)
 
     def _audit_log_request_valid(self, path: str) -> bool:
         raw_path, separator, raw_query = path.partition("?")
