@@ -251,3 +251,24 @@ tool schemas, prompts, framing, live data and billed agent use. The full offline
 registry/API-matrix/operation-evidence gate passed 235 tests, focused projection
 and HTTP/MCP checks passed 48 tests, and runtime smoke, Python compilation and
 diff checks passed. These are offline checks only; no controller was contacted.
+
+## Selected AP channel reuse summary
+
+`GET /v1/sites/{site_ref}/channel-reuse?device_refs=...` and
+`omada_site_channel_reuse_summary` compare current radio-detail channel and
+bandwidth fields with matching rows from existing per-AP channel-load results
+for 1–16 selected AP references. Equal reported channels are grouped by band.
+The source schemas do not define occupied channel ranges or channel-load units,
+so the report does not estimate adjacent-channel overlap or interpret load as
+interference. If AP radio detail or load data is unavailable, coverage remains
+partial. No scan or live network test was made. ER7212PC has the nested response
+fields; Hardware Controller and CBC 6.3 have generic response schemas.
+On a synthetic eight-AP fixture with inventory, eight radio-detail responses
+and eight existing channel-load responses, `js-tiktoken` 1.0.21 (`o200k_base`)
+counted 9,324 source JSON tokens and 2,046 report tokens (7,278 fewer; 78.06%).
+This fixture included 608 channel-load rows and detailed radio counters; it
+excludes tool schemas, prompts, transport framing and billed agent usage.
+Integer and digit-string channel values are normalized before applying the
+same 1–1000 validity range; zero and out-of-range values remain unknown. The
+54 focused channel-reuse/integration/registry tests and the 235-test evidence
+gate passed after this correction. The checks are offline only.

@@ -4163,6 +4163,28 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(self.fake.calls,
                          [("site_batch_interference_history", site_ref)] * 2)
 
+    def test_http_and_mcp_expose_selected_site_channel_reuse(self) -> None:
+        site_ref, refs = "a" * 24, ["b" * 24, "c" * 24]
+        report = {"status": "ok", "resource": "site_channel_reuse_summary",
+                  "site_ref": site_ref, "same_channel_reuse": [], "partial": False}
+        calls: list[tuple[str, list[str]]] = []
+        def read(site: str, devices: list[str]) -> dict[str, object]:
+            calls.append((site, devices))
+            return report
+        self.fake.read_site_channel_reuse_summary = read  # type: ignore[attr-defined]
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/channel-reuse?device_refs={refs[0]},{refs[1]}", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_channel_reuse_summary")
+        rpc = {"jsonrpc": "2.0", "id": 121, "method": "tools/call",
+               "params": {"name": "omada_site_channel_reuse_summary",
+                           "arguments": {"site_ref": site_ref, "device_refs": refs}}}
+        status, mcp = self.request_post("/mcp", rpc, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(mcp["result"]["structuredContent"]["resource"],
+                         "site_channel_reuse_summary")
+        self.assertEqual(calls, [(site_ref, refs), (site_ref, refs)])
+
     def test_http_and_mcp_expose_batch_interference_ap_summary(self) -> None:
         site_ref, history_ref = "a" * 24, "d" * 24
         path = f"/v1/sites/{site_ref}/wifi/interference-history/{history_ref}/ap-summary"

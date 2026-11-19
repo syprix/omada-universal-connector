@@ -199,3 +199,7 @@ observed hop, reports unknown continuations, and treats nonzero cumulative
 counters as review signals rather than rates. No source documents thresholds
 for RSSI/SNR or meanings for wired `linkStatus`/`linkSpeed`; these remain raw
 values without quality labels. These contracts do not establish live support.
+
+## AP channel reuse source fields
+
+The three exports document `getRadiosDetail` at `GET /openapi/v1/{omadacId}/sites/{siteId}/aps/{apMac}/radios` and `getChannelLoadResult` at the AP `full-channel-detect/channel-load` path. ER7212PC 6.2.14 resolves the radio detail to `ApRadiosDetail` and `ApRadioChannel`, including `actualChannel` and `bandWidth`; it resolves channel-load rows to `channel` and `load`, described as channel load. Hardware Controller 6.3.0 and CBC Standard 6.3.0 use generic response schemas for these operations, so those nested fields are not independently specified there. The exports do not define occupied channel ranges or load units. The connector therefore groups only equal channel values on the same reported band and does not infer adjacent-channel overlap or interference from load.

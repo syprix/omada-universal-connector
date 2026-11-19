@@ -2617,6 +2617,8 @@ class OmadaOpenApiClient:
          "GET /v1/sites/{site_ref}/client-roaming-backtracks"),
         ("site_ap_uplink_path_summary",
          "GET /v1/sites/{site_ref}/ap-uplink-paths"),
+        ("site_channel_reuse_summary",
+         "GET /v1/sites/{site_ref}/channel-reuse"),
         ("networks", "GET /v1/sites/{site_ref}/networks"),
         ("network_dhcp_server_capabilities",
          "GET /v1/sites/{site_ref}/networks/{network_ref}/dhcp-server/capabilities"),
@@ -4654,6 +4656,53 @@ class OmadaOpenApiClient:
                 site_ref, device_refs, inventory.get("items", []),
                 wired_sources, mesh_sources)
         except SiteApUplinkPathError:
+            raise OpenApiError("openapi_response_invalid") from None
+
+    def read_site_channel_reuse_summary(
+        self, site_ref: str, device_refs: list[str],
+    ) -> dict[str, object]:
+        """Compare reported AP channels and existing channel-load samples."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        if (not isinstance(device_refs, list) or not 1 <= len(device_refs) <= 16 or
+                any(not isinstance(ref, str) or not re.fullmatch(r"[0-9a-f]{24}", ref)
+                    for ref in device_refs) or len(set(device_refs)) != len(device_refs)):
+            raise OpenApiError("device_refs_invalid")
+        if site_ref not in self._site_ids_by_ref:
+            raise OpenApiError("site_ref_unknown")
+        self.list_devices(site_ref)
+        known = self._device_macs_by_site_ref.get(site_ref, {})
+        if any(ref not in known for ref in device_refs):
+            raise OpenApiError("device_ref_unknown")
+        rows: list[dict[str, object]] = []
+        for device_ref in device_refs:
+            try:
+                radio_result = self.read_ap_radio_part(site_ref, device_ref, "radios")
+                radios = radio_result["data"]
+                radios_available = isinstance(radios, dict) and bool(radios)
+            except OpenApiError:
+                radios, radios_available = {}, False
+            try:
+                load_result = self.read_ap_radio_part(site_ref, device_ref, "channel_load")
+                channel_load = load_result["data"]
+                loads_available = isinstance(channel_load, dict) and bool(channel_load)
+            except OpenApiError:
+                channel_load, loads_available = {}, False
+            rows.append({"device_ref": device_ref, "radios": radios,
+                         "channel_load": channel_load,
+                         "radios_available": radios_available,
+                         "loads_available": loads_available})
+        try:
+            from .site_channel_reuse_summary import (
+                SiteChannelReuseError, summarize_site_channel_reuse,
+            )
+        except ImportError:  # direct execution in the image
+            from site_channel_reuse_summary import (
+                SiteChannelReuseError, summarize_site_channel_reuse,
+            )
+        try:
+            return {**summarize_site_channel_reuse(rows), "site_ref": site_ref}
+        except SiteChannelReuseError:
             raise OpenApiError("openapi_response_invalid") from None
 
     @_track_capability("networks")

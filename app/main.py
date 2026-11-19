@@ -1690,6 +1690,20 @@ class Handler(BaseHTTPRequestHandler):
                         arguments["site_ref"], device_refs)
             except OpenApiError as exc:
                 return {"status": "error", "error": exc.code}
+        if operation_id == "site_channel_reuse_summary":
+            if set(arguments) != {"site_ref", "device_refs"}:
+                return {"status": "error", "error": "arguments_invalid"}
+            device_refs = arguments["device_refs"].split(",")
+            if (not 1 <= len(device_refs) <= 16 or
+                    any(not re.fullmatch(r"[0-9a-f]{24}", ref) for ref in device_refs) or
+                    len(set(device_refs)) != len(device_refs)):
+                return {"status": "error", "error": "arguments_invalid"}
+            try:
+                with _OPENAPI_LOCK:
+                    return _openapi_client().read_site_channel_reuse_summary(
+                        arguments["site_ref"], device_refs)
+            except OpenApiError as exc:
+                return {"status": "error", "error": exc.code}
         if operation_id == "diagnostic_capability_summary":
             try:
                 with _OPENAPI_LOCK:
@@ -2378,6 +2392,30 @@ class Handler(BaseHTTPRequestHandler):
                 HTTPStatus.BAD_GATEWAY)
             self._send(status, {"status": "error", "error": exc.code})
 
+    def _serve_site_channel_reuse(self, parsed_request: object, site_ref: str) -> None:
+        if not self._authorized():
+            return
+        try:
+            query_values = parse_qs(parsed_request.query, keep_blank_values=True,
+                                    strict_parsing=True)
+            if set(query_values) != {"device_refs"} or len(query_values["device_refs"]) != 1:
+                raise RegistryError("device refs invalid")
+            device_refs = query_values["device_refs"][0].split(",")
+            if (not 1 <= len(device_refs) <= 16 or
+                    any(not re.fullmatch(r"[0-9a-f]{24}", ref) for ref in device_refs) or
+                    len(set(device_refs)) != len(device_refs)):
+                raise RegistryError("device refs invalid")
+            with _OPENAPI_LOCK:
+                result = _openapi_client().read_site_channel_reuse_summary(site_ref, device_refs)
+            self._send(HTTPStatus.OK, result)
+        except RegistryError:
+            self._send(HTTPStatus.BAD_REQUEST, {"status": "error", "error": "query_invalid"})
+        except OpenApiError as exc:
+            status = (HTTPStatus.BAD_REQUEST if exc.code in {"site_ref_invalid", "device_refs_invalid"}
+                      else HTTPStatus.NOT_FOUND if exc.code in {"site_ref_unknown", "device_ref_unknown"}
+                      else HTTPStatus.BAD_GATEWAY)
+            self._send(status, {"status": "error", "error": exc.code})
+
     def _serve_gateway_wan_incident_window(self, parsed_request: object,
                                            match: object) -> None:
         if not self._authorized():
@@ -2487,6 +2525,11 @@ class Handler(BaseHTTPRequestHandler):
                 r"/v1/sites/([0-9a-f]{24})/ap-uplink-paths", parsed_request.path)
             if ap_uplink_path_match is not None:
                 self._serve_site_ap_uplink_path(parsed_request, ap_uplink_path_match)
+                return
+            channel_reuse_match = re.fullmatch(
+                r"/v1/sites/([0-9a-f]{24})/channel-reuse", parsed_request.path)
+            if channel_reuse_match is not None:
+                self._serve_site_channel_reuse(parsed_request, channel_reuse_match.group(1))
                 return
             outage_match = re.fullmatch(
                 r"/v1/sites/([0-9a-f]{24})/outage-summary", parsed_request.path)
