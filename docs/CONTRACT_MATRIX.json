@@ -2095,6 +2095,18 @@
             "projection": "site-bound HTTP/MCP GET; reads both fixed site operations, caps the virtual grid at 10 x 100 and the unpaged availability list at 1,000. It joins config id to availability virtualWanId only when each key is unique, reports matched/unmatched/ambiguous counts, and omits all identifiers, labels and nested settings. The physical port/current-use crosswalk remains unsupported.",
             "supporting_operation_id": "getAvailableVirtualWan"
           }
+        },
+        "site_wan_max_speed_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getWanPortsMaxSpeed_1",
+            "tag": "Wired Network",
+            "permission": "not specified by the source operation",
+            "query": "wanId (required string; supports one explicitly selected port ID)",
+            "response": "WanMaxSpeedOpenApiVO defines upstream and downstream as optional int32 values described only as speeds. The source does not specify units. The required wanId query is a comma-separable port-ID selector; the request must include the selected inventoried WanPortSettingOpenApiVO.portId.",
+            "projection": "site-bound HTTP/MCP GET requires one opaque wan_port_ref returned by the WAN port inventory. It rereads fixed internet/ports-config, resolves the reference to exactly one WanPortSettingOpenApiVO.portId, and sends that value as required wanId. It supports one selected port, validates signed int32 values, preserves zero and negative contract values, counts missing/invalid/unknown fields, and labels the unit unspecified. It does not report current throughput."
+          }
         }
       }
     },
@@ -4163,6 +4175,18 @@
             "projection": "site-bound HTTP/MCP GET; reads both fixed site operations, caps the virtual grid at 10 x 100 and the unpaged availability list at 1,000. It joins config id to availability virtualWanId only when each key is unique, reports matched/unmatched/ambiguous counts, and omits all identifiers, labels and nested settings. The physical port/current-use crosswalk remains unsupported.",
             "supporting_operation_id": "getAvailableVirtualWan"
           }
+        },
+        "site_wan_max_speed_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getWanPortsMaxSpeed_1",
+            "tag": "Wired Network",
+            "permission": "not specified by the source operation",
+            "query": "wanId (required string; supports one explicitly selected port ID)",
+            "response": "WanMaxSpeedOpenApiVO defines upstream and downstream as optional int32 values described only as speeds. The source does not specify units. The required wanId query is a comma-separable port-ID selector; the request must include the selected inventoried WanPortSettingOpenApiVO.portId.",
+            "projection": "site-bound HTTP/MCP GET requires one opaque wan_port_ref returned by the WAN port inventory. It rereads fixed internet/ports-config, resolves the reference to exactly one WanPortSettingOpenApiVO.portId, and sends that value as required wanId. It supports one selected port, validates signed int32 values, preserves zero and negative contract values, counts missing/invalid/unknown fields, and labels the unit unspecified. It does not report current throughput."
+          }
         }
       }
     },
@@ -6212,6 +6236,18 @@
             "response": "VirtualWanGridOpenApiVOVirtualWanInfoOpenApiVO defines totalRows, currentPage, currentSize and data. Each VirtualWanInfoOpenApiVO row defines boolean status, physicalWanId (string), physicalWanPortId (int32), id, display names and nested WAN settings. The source fields do not define that physicalWanId or physicalWanPortId equal WanSettingOpenApiVO.portId, or gateway WAN status port. The same source also defines the site GET getAvailableVirtualWan with VirtualWanAvailableOpenApiVO rows whose virtualWanId is described as the Virtual WAN ID; VirtualWanInfoOpenApiVO.id has the same description. This supports joining these two virtual lists by unique virtual ID only.",
             "projection": "site-bound HTTP/MCP GET; reads both fixed site operations, caps the virtual grid at 10 x 100 and the unpaged availability list at 1,000. It joins config id to availability virtualWanId only when each key is unique, reports matched/unmatched/ambiguous counts, and omits all identifiers, labels and nested settings. The physical port/current-use crosswalk remains unsupported.",
             "supporting_operation_id": "getAvailableVirtualWan"
+          }
+        },
+        "site_wan_max_speed_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getWanPortsMaxSpeed",
+            "tag": "Wired Network",
+            "permission": "not specified by the source operation",
+            "query": "wanId (required string; supports one explicitly selected port ID)",
+            "response": "WanMaxSpeedOpenApiVO defines upstream and downstream as optional int32 values described only as speeds. The source does not specify units. The required wanId query is a comma-separable port-ID selector; the request must include the selected inventoried WanPortSettingOpenApiVO.portId.",
+            "projection": "site-bound HTTP/MCP GET requires one opaque wan_port_ref returned by the WAN port inventory. It rereads fixed internet/ports-config, resolves the reference to exactly one WanPortSettingOpenApiVO.portId, and sends that value as required wanId. It supports one selected port, validates signed int32 values, preserves zero and negative contract values, counts missing/invalid/unknown fields, and labels the unit unspecified. It does not report current throughput."
           }
         }
       }

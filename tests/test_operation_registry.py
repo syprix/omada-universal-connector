@@ -5,6 +5,19 @@ from app.mcp import _tool
 
 
 class OperationRegistryTests(unittest.TestCase):
+    def test_wan_max_speed_requires_an_explicit_opaque_port_reference(self):
+        operation = REGISTRY.get("site_wan_max_speed_summary")
+        schema = _tool(operation)["inputSchema"]
+        self.assertEqual(schema["required"], ["site_ref", "wan_port_ref"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/wan-ports/" + "b" * 24 +
+            "/max-speed-summary")
+        self.assertEqual(route.operation_id, "site_wan_max_speed_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24, "wan_port_ref": "b" * 24})
+        with self.assertRaises(RegistryError):
+            REGISTRY.match("GET", "/v1/sites/" + "a" * 24 +
+                           "/wan-max-speed-summary")
+
     def test_event_window_mcp_schema_requires_one_complete_time_format(self):
         operation = REGISTRY.get("site_events_window_summary")
         schema = _tool(operation)["inputSchema"]
@@ -594,6 +607,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_bandwidth_control",
             "site_wan_ports_summary",
             "site_virtual_wan_summary",
+            "site_wan_max_speed_summary",
             "site_vlan_network_summary",
             "site_lan_network_detail_summary",
             "site_lan_network_config_summary",

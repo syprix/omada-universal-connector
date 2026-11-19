@@ -1413,6 +1413,8 @@ class OmadaOpenApiClient:
     _SITE_VIRTUAL_WAN_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/virtual-wans"
     _SITE_VIRTUAL_WAN_AVAILABLE_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/setting/available-virtual-wans")
+    _SITE_WAN_MAX_SPEED_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/wan-max-speed")
     _SITE_VLAN_NETWORK_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/networks/vlans"
     _SITE_LAN_NETWORKS_V3_PATH = (
         "/openapi/v3/{controller_id}/sites/{site_id}/lan-networks")
@@ -1742,6 +1744,9 @@ class OmadaOpenApiClient:
     _SITE_VIRTUAL_WAN_AVAILABLE_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
         r"/setting/available-virtual-wans"
+    )
+    _SITE_WAN_MAX_SPEED_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/wan-max-speed"
     )
     _SITE_VLAN_NETWORK_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/networks/vlans"
@@ -2899,6 +2904,7 @@ class OmadaOpenApiClient:
         ("site_bandwidth_control", "GET /v1/sites/{site_ref}/bandwidth-control"),
         ("site_wan_ports_summary", "GET /v1/sites/{site_ref}/wan-ports-summary"),
         ("site_virtual_wan_summary", "GET /v1/sites/{site_ref}/virtual-wan-summary"),
+        ("site_wan_max_speed_summary", "GET /v1/sites/{site_ref}/wan-ports/{wan_port_ref}/max-speed-summary"),
         ("site_vlan_network_summary", "GET /v1/sites/{site_ref}/vlan-network-summary"),
         ("site_internet_summary", "GET /v1/sites/{site_ref}/internet-summary"),
         ("site_vpn_session_summary", "GET /v1/sites/{site_ref}/vpn-session-summary"),
@@ -11404,6 +11410,27 @@ class OmadaOpenApiClient:
             projected = project_site_wan_ports(result)
         except SiteWanPortsError:
             raise OpenApiError("openapi_response_invalid") from None
+        port_rows = result.get("wanPortsConfig") if isinstance(result, Mapping) else None
+        selections: list[dict[str, object]] = []
+        seen_ids: set[str] = set()
+        seen_refs: set[str] = set()
+        ambiguous = 0
+        if isinstance(port_rows, list) and len(port_rows) <= 256:
+            for index, row in enumerate(port_rows):
+                port_id = row.get("portId") if isinstance(row, Mapping) else None
+                if not isinstance(port_id, str) or not port_id or len(port_id) > 128:
+                    continue
+                port_ref = self._opaque_ref("wan-port", site_ref + ":" + port_id)
+                if port_id in seen_ids or port_ref in seen_refs:
+                    ambiguous += 1
+                    selections = [item for item in selections if item["port_ref"] != port_ref]
+                    continue
+                seen_ids.add(port_id)
+                seen_refs.add(port_ref)
+                selections.append({"port_ref": port_ref, "index": index})
+        projected["wan_port_selections"] = selections
+        projected["wan_port_selection_ambiguous_count"] = ambiguous
+        projected["partial"] = bool(projected.get("partial") or ambiguous)
         return {"status": "ok", "resource": "site_wan_ports_summary",
                 "site_ref": site_ref, **projected}
 
@@ -11450,6 +11477,49 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {"status": "ok", "resource": "site_virtual_wan_summary",
                 "site_ref": site_ref, **projected}
+
+    @_track_capability("site_wan_max_speed_summary")
+    def read_site_wan_max_speed_summary(self, site_ref: str,
+                                        wan_port_ref: str) -> dict[str, object]:
+        """Read configured WAN speed for one opaque, inventoried WAN port."""
+        site_id = self._resolve_site_ref(site_ref)
+        if not isinstance(wan_port_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", wan_port_ref):
+            raise OpenApiError("wan_port_ref_invalid")
+        ports_path = self._SITE_WAN_PORTS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        token = self._access_token()
+        ports_result = self._request_json(
+            "GET", ports_path, token=token).get("result")
+        rows = ports_result.get("wanPortsConfig") if isinstance(ports_result, Mapping) else None
+        if not isinstance(rows, list) or len(rows) > 256:
+            raise OpenApiError("openapi_response_invalid")
+        matches: list[str] = []
+        for row in rows:
+            port_id = row.get("portId") if isinstance(row, Mapping) else None
+            if not isinstance(port_id, str) or not port_id or len(port_id) > 128:
+                continue
+            if self._opaque_ref("wan-port", site_ref + ":" + port_id) == wan_port_ref:
+                matches.append(port_id)
+        if len(matches) != 1:
+            raise OpenApiError("wan_port_ref_unknown" if not matches else "wan_port_ref_ambiguous")
+        path = self._SITE_WAN_MAX_SPEED_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        path += "?" + urlencode({"wanId": matches[0]})
+        result = self._request_json("GET", path, token=token).get("result")
+        try:
+            from .site_wan_max_speed_summary import (
+                SiteWanMaxSpeedError, project_site_wan_max_speed,
+            )
+        except ImportError:  # direct execution in the image
+            from site_wan_max_speed_summary import (
+                SiteWanMaxSpeedError, project_site_wan_max_speed,
+            )
+        try:
+            projected = project_site_wan_max_speed(result)
+        except SiteWanMaxSpeedError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_wan_max_speed_summary",
+                "site_ref": site_ref, "wan_port_ref": wan_port_ref, **projected}
 
     @_track_capability("site_vlan_network_summary")
     def read_site_vlan_network_summary(self, site_ref: str) -> dict[str, object]:
@@ -14020,6 +14090,7 @@ class OmadaOpenApiClient:
                                   self._site_wan_ports_request_valid(path) or
                                   self._site_virtual_wan_request_valid(path) or
                                   self._site_virtual_wan_available_request_valid(path) or
+                                  self._site_wan_max_speed_request_valid(path) or
                                   self._site_vlan_network_request_valid(path) or
                                   self._site_lan_networks_v3_request_valid(path) or
                                   self._site_lan_network_inventory_request_valid(path) or
@@ -15278,6 +15349,22 @@ class OmadaOpenApiClient:
     def _site_virtual_wan_available_request_valid(self, path: str) -> bool:
         match = self._SITE_VIRTUAL_WAN_AVAILABLE_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_wan_max_speed_request_valid(self, path: str) -> bool:
+        parsed = urlsplit(path)
+        match = self._SITE_WAN_MAX_SPEED_REQUEST.fullmatch(parsed.path)
+        if (not match or match.group(1) != self.config.controller_id or
+                not parsed.query or parsed.fragment):
+            return False
+        try:
+            query = parse_qs(parsed.query, keep_blank_values=True, strict_parsing=True)
+        except ValueError:
+            return False
+        if set(query) != {"wanId"} or len(query["wanId"]) != 1:
+            return False
+        wan_id = query["wanId"][0]
+        return (bool(wan_id) and len(wan_id) <= 128 and "," not in wan_id and
+                urlencode({"wanId": wan_id}) == parsed.query)
 
     def _site_vlan_network_request_valid(self, path: str) -> bool:
         match = self._SITE_VLAN_NETWORK_REQUEST.fullmatch(path)

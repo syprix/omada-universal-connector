@@ -143,7 +143,7 @@ class OperationRegistry:
             if ("$incident_context_mac" in bindings.values() and
                     "incident_ref" not in public_vars):
                 raise RegistryError("incident context requires an opaque incident reference")
-            if any(name not in {"site_ref", "history_ref", "incident_ref", "device_ref", "gateway_ref", "switch_ref", "client_ref", "ssid_ref", "wlan_group_ref", "network_ref", "site_template_ref", "msp_ref", "customer_ref", "family_id", "application_id", "port"}
+            if any(name not in {"site_ref", "history_ref", "incident_ref", "device_ref", "gateway_ref", "switch_ref", "client_ref", "ssid_ref", "wlan_group_ref", "network_ref", "wan_port_ref", "site_template_ref", "msp_ref", "customer_ref", "family_id", "application_id", "port"}
                    for name in public_vars):
                 raise RegistryError("unsupported public reference binding")
             if item.evidence != "unknown":
@@ -700,6 +700,10 @@ REGISTRY = OperationRegistry((
               "/v1/sites/{site_ref}/virtual-wan-summary", "GET",
               "/openapi/v1/{controller_id}/sites/{site_id}/setting/virtual-wans",
               (("controller_id", "$config"), ("site_id", "site_ref")), max_items=1000),
+    Operation("site_wan_max_speed_summary", "GET",
+              "/v1/sites/{site_ref}/wan-ports/{wan_port_ref}/max-speed-summary", "GET",
+              "/openapi/v1/{controller_id}/sites/{site_id}/wan-max-speed",
+              (("controller_id", "$config"), ("site_id", "site_ref")), max_items=1),
     Operation("site_vlan_network_summary", "GET",
               "/v1/sites/{site_ref}/vlan-network-summary", "GET",
               "/openapi/v1/{controller_id}/sites/{site_id}/networks/vlans",

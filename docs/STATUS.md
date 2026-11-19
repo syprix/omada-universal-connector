@@ -320,6 +320,31 @@ reconciliation is still open. Fixtures cover both fixed site reads, projection,
 HTTP and MCP. Live support remains unknown. A synthetic 200-row grid and
 180-row availability list used 36,469 `o200k_base` tokens as source JSON and
 179 tokens for the compact result (36,290 fewer; 99.51%) with
-`js-tiktoken` 1.0.21. This is a synthetic payload comparison only; it excludes
-schemas, prompts, transport framing and billed agent use. No live controller
-request was made.
+`js-tiktoken` 1.0.21. This comparison excludes schemas, prompts, transport
+framing and billed agent use. The complete local Python suite passed 3,204
+tests; exact-head push and pull-request CI both passed (runs `44491276891` and
+`44491284328`). No live controller request was made.
+
+## WAN maximum-speed configuration
+
+The initial draft omitted the source-required `wanId` query and is superseded
+by a port-bound read at
+`GET /v1/sites/{site_ref}/wan-ports/{wan_port_ref}/max-speed-summary`. The
+three exports resolve `WanMaxSpeedOpenApiVO` to optional upstream/downstream
+int32 values without a unit. The WAN-port inventory provides opaque port
+references; each read resolves one reference against a fresh fixed inventory
+response and sends its unique documented `portId` as `wanId`.
+
+Focused client, port inventory, registry, matrix and HTTP/MCP tests passed (64
+tests). They cover query encoding and rejection of missing, duplicate,
+wrong-controller and extra query values. The mandatory registry/matrix/evidence
+gate passed 253 tests. The full Python suite passed 3,214 tests in 472.535
+seconds, and the runtime smoke check exited successfully. The source catalog
+check passed; corrected exact-head CI is pending. No live controller request
+was made.
+
+A synthetic two-request comparison measured 206 source JSON tokens and 260
+connector-result tokens (+54) with `js-tiktoken` 1.0.21 / `o200k_base`. The
+sample includes a two-port WAN configuration inventory and one selected-port
+response; it excludes schemas, prompts, transport framing and billed agent use,
+and does not save tokens at this size.

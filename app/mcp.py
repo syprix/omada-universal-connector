@@ -586,7 +586,7 @@ def _tool(operation: Any) -> dict[str, object]:
     properties: dict[str, object] = {}
     required: list[str] = []
     for name in re.findall(r"\{([a-z][a-z0-9_]*)\}", operation.public_template):
-        if name not in {"site_ref", "history_ref", "incident_ref", "device_ref", "gateway_ref", "switch_ref", "client_ref", "ssid_ref", "wlan_group_ref", "network_ref", "site_template_ref", "msp_ref", "customer_ref", "family_id", "application_id"}:
+        if name not in {"site_ref", "history_ref", "incident_ref", "device_ref", "gateway_ref", "switch_ref", "client_ref", "ssid_ref", "wlan_group_ref", "network_ref", "wan_port_ref", "site_template_ref", "msp_ref", "customer_ref", "family_id", "application_id"}:
             if name != "port":
                 continue
         if name == "port":
@@ -1225,7 +1225,7 @@ def _invoke_tool(registry: Any, name: object, arguments: object,
                 raise McpRequestError("arguments_invalid")
             safe_arguments[key] = value
             continue
-        if key not in {"site_ref", "history_ref", "incident_ref", "device_ref", "gateway_ref", "switch_ref", "client_ref", "ssid_ref", "wlan_group_ref", "network_ref", "site_template_ref"} or not isinstance(value, str) or not _SAFE_REF.fullmatch(value):
+        if key not in {"site_ref", "history_ref", "incident_ref", "device_ref", "gateway_ref", "switch_ref", "client_ref", "ssid_ref", "wlan_group_ref", "network_ref", "wan_port_ref", "site_template_ref"} or not isinstance(value, str) or not _SAFE_REF.fullmatch(value):
             raise McpRequestError("arguments_invalid")
         safe_arguments[key] = value
     for key in extra:
