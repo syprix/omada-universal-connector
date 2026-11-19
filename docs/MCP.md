@@ -822,4 +822,7 @@ A synthetic page of eight gateways, each with one WAN status record, measured 1,
 
 To create a shareable local report from the HTTP JSON response, use `python3 tools/site_outage_report.py --input ./outage-summary.json --output ./outage-report.md`. It is offline, omits site/device references, requires an owner-only input and creates a new mode-`0600` report without replacing an existing file.
 
+`omada_site_stack_connections_summary` reports declared switch-stack members and redacted LLDP neighbor counts by local port. Member MACs are mapped internally to fresh switch references. LLDP `deviceId` strings are not treated as inventory identifiers, so no neighbor links are inferred. The operation is read-only; live support remains unknown.
+The existing `omada_site_topology` result includes the same report under `stack_connections`; partial stack coverage marks the combined topology response partial.
+
 omada_site_reboot_schedule_summary reads a bounded site reboot schedule list. It redacts schedule names, source IDs, and device MACs, resolves targets only through the current inventory, and labels the source-unspecified timezone. The report describes configured schedules, not completed or started reboots. It uses one shared column declaration for compact schedule rows. A 12-schedule synthetic fixture measured a 41.71% reduction in serialized JSON tokens (796 to 464; js-tiktoken 1.0.21/o200k_base); this excludes inventory and agent framing.

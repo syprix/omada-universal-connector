@@ -634,7 +634,9 @@ class OperationRegistryTests(unittest.TestCase):
             "site_device_tag_summary",
             "site_overview", "site_health_timeline", "site_longest_client_uptime_summary",
             "site_topology",
-            "site_reboot_schedule_summary",
+            "site_stack_connections_summary",
+
+"site_reboot_schedule_summary",
             "site_client_health_timeline",
             "site_wifi_summary",
             "site_6ghz_ap_presence",

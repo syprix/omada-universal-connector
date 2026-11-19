@@ -870,7 +870,12 @@ REGISTRY = OperationRegistry((
     Operation("site_topology", "GET", "/v1/sites/{site_ref}/topology", "GET",
               "/openapi/v3/{controller_id}/sites/{site_id}/topology",
               (("controller_id", "$config"), ("site_id", "site_ref"))),
-    Operation("site_reboot_schedule_summary", "GET",
+    Operation("site_stack_connections_summary", "GET",
+              "/v1/sites/{site_ref}/stack-connections-summary", "GET",
+              "/openapi/v1/{controller_id}/sites/{site_id}/stacks",
+              (("controller_id", "$config"), ("site_id", "site_ref")), max_items=32),
+
+Operation("site_reboot_schedule_summary", "GET",
               "/v1/sites/{site_ref}/reboot-schedule-summary", "GET",
               "/openapi/v1/{controller_id}/sites/{site_id}/reboot-schedules",
               (("controller_id", "$config"), ("site_id", "site_ref")), max_items=64),

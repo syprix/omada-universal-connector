@@ -579,6 +579,17 @@ conservative connector bound of 0–4096. The ER7212PC schema has ambiguous PoE
 measurement types. Test coverage uses simulated fixtures only, with no live
 verification or support conclusion.
 
+`site_stack_connections_summary` reads the documented site stack list and a
+bounded LLDP page for each stack. Stack member MACs are joined internally to
+unique references from a fresh switch inventory. Output keeps opaque stack and
+switch references, documented status codes, and local stack-port neighbor
+counts; names and LLDP neighbor identities are omitted. Because `deviceId` is
+not contractually tied to inventory MACs, these counts are not topology edges.
+The export schemas are detailed only in ER7212PC; hardware support remains
+unknown and no live controller read was made. The existing site topology
+response includes the same stack section and marks the combined report partial
+when stack coverage is incomplete.
+
 `site_poe_schedule_summary` reads a fresh switch inventory, PoE-port inventory,
 documented per-switch usage/capacity, current port PoE fields, schedule targets
 and time-range profile IDs. It joins MAC addresses only inside the projection

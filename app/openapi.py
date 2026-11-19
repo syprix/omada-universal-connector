@@ -1232,6 +1232,8 @@ class OmadaOpenApiClient:
     _SWITCH_PORT_NAME_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switches/{switch_mac}/ports/{port}/name"
     _SWITCH_NETWORKS_DETAIL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switches/{switch_mac}/networks-detail"
     _SWITCH_LLDP_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switches/{switch_mac}/lldp-neighbors"
+    _SITE_STACK_LIST_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/stacks"
+    _SITE_STACK_LLDP_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/stack/{stack_id}/lldp-neighbors"
     _SWITCH_HEALTH_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switches/{switch_mac}/health/detail"
     _MSP_SWITCH_HEALTH_PATH = (
         "/openapi/v1/msp/{msp_id}/customers/{customer_id}/sites/{site_id}/switches/{switch_mac}/health/detail")
@@ -1882,6 +1884,14 @@ class OmadaOpenApiClient:
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/switches/"
         r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/lldp-neighbors"
         r"\?page=[0-9]+&pageSize=[0-9]+"
+    )
+    _SITE_STACK_LIST_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/stacks"
+        r"\?page=([0-9]{1,3})&pageSize=([0-9]{1,3})"
+    )
+    _SITE_STACK_LLDP_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/stack/"
+        r"[A-Za-z0-9_-]{1,128}/lldp-neighbors\?page=([0-9]{1,3})&pageSize=([0-9]{1,3})"
     )
     _SWITCH_DHCP_USERS_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/switches/"
@@ -2625,6 +2635,7 @@ class OmadaOpenApiClient:
         ("switch_port_poe_mode_preview", "POST /v1/sites/{site_ref}/switches/{switch_ref}/ports/{port}/poe-preview"),
         ("switch_vlans", "GET /v1/sites/{site_ref}/switches/{switch_ref}/vlans"),
         ("switch_lldp_neighbors", "GET /v1/sites/{site_ref}/switches/{switch_ref}/lldp-neighbors"),
+        ("site_stack_connections_summary", "GET /v1/sites/{site_ref}/stack-connections-summary"),
         ("switch_health", "GET /v1/sites/{site_ref}/switches/{switch_ref}/health"),
         ("switch_health_timeline", "GET /v1/sites/{site_ref}/switches/{switch_ref}/health/timeline"),
         ("site_switch_health_history", "GET /v1/sites/{site_ref}/switches/health-history"),
@@ -8683,6 +8694,65 @@ class OmadaOpenApiClient:
         return {"status": "ok", "resource": "switch_lldp_neighbors", "site_ref": site_ref,
                 "switch_ref": switch_ref, "data": data}
 
+    @_track_capability("site_stack_connections_summary")
+    def read_site_stack_connections_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize fresh stack membership and bounded LLDP coverage for one site."""
+        site_id = self._resolve_site_ref(site_ref)
+        try:
+            from .site_stack_connections_summary import summarize_site_stack_connections
+        except ImportError:  # direct execution in the image
+            from site_stack_connections_summary import summarize_site_stack_connections
+
+        inventory = self.list_devices(site_ref)
+        if not isinstance(inventory.get("items"), list):
+            raise OpenApiError("openapi_response_invalid")
+        token = self._access_token()
+        stack_path = self._SITE_STACK_LIST_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        source_errors: dict[str, str] = {}
+        try:
+            stack_rows, stack_omitted = self._read_bounded_grid_rows(
+                stack_path, token, 32)
+        except OpenApiError as exc:
+            stack_rows, stack_omitted = [], 0
+            source_errors["stack_list"] = exc.code
+
+        neighbors_by_ref: dict[str, object] = {}
+        neighbor_omitted_by_ref: dict[str, int] = {}
+        seen_stack_ids: set[str] = set()
+        for row in stack_rows:
+            if not isinstance(row, Mapping):
+                continue
+            stack_id = row.get("id")
+            if (type(stack_id) is not str or
+                    not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", stack_id) or
+                    stack_id in seen_stack_ids):
+                continue
+            seen_stack_ids.add(stack_id)
+            stack_ref = self._opaque_ref("stack", site_id + ":" + stack_id)
+            path = self._SITE_STACK_LLDP_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id,
+                stack_id=stack_id)
+            try:
+                neighbor_rows, omitted = self._read_bounded_grid_rows(
+                    path, token, 64)
+                neighbors_by_ref[stack_ref] = neighbor_rows
+                if omitted:
+                    neighbor_omitted_by_ref[stack_ref] = omitted
+            except OpenApiError as exc:
+                source_errors[stack_ref] = exc.code
+
+        try:
+            projected = summarize_site_stack_connections(
+                stack_rows, self._switch_macs_by_site_ref.get(site_ref, {}),
+                lambda stack_id: self._opaque_ref("stack", site_id + ":" + stack_id),
+                neighbors_by_ref, stack_list_omitted=stack_omitted,
+                neighbor_omitted_by_stack_ref=neighbor_omitted_by_ref,
+                source_errors=source_errors)
+        except ValueError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"site_ref": site_ref, **projected}
+
     @_track_capability("switch_vlans")
     def read_switch_vlans(self, site_ref: str, switch_ref: str) -> dict[str, object]:
         """Read documented VLAN and port membership for an inventoried switch."""
@@ -12443,15 +12513,26 @@ class OmadaOpenApiClient:
 
         for node in topology:
             visit(node, None, 0)
+        try:
+            stack_connections = self.read_site_stack_connections_summary(site_ref)
+        except OpenApiError as exc:
+            stack_connections = {
+                "status": "partial", "resource": "site_stack_connections_summary",
+                "partial": True, "source_errors": {"stack_summary": exc.code},
+                "data": {"stacks": []},
+            }
+        partial = (omitted_node_count > 0 or omitted_edge_count > 0 or
+                   stack_connections.get("partial") is True)
         return {"status": "ok", "resource": "site_topology", "site_ref": site_ref,
                 "last_update_ms": last_update,
-                "scope": "inventory_mapped_access_points_gateways_switches_only",
-                "partial": omitted_node_count > 0 or omitted_edge_count > 0,
+                "scope": "inventory_mapped_access_points_gateways_switches_plus_bounded_stack_lldp_summary",
+                "partial": partial,
                 "omitted_node_count": omitted_node_count,
                 "omitted_edge_count": omitted_edge_count,
                 "nodes": list(nodes_by_ref.values()),
                 "edges": [{"from_device_ref": source, "to_device_ref": target}
-                          for source, target in sorted(edges)]}
+                          for source, target in sorted(edges)],
+                "stack_connections": stack_connections}
 
     @_track_capability("site_longest_client_uptime_summary")
     def read_site_longest_client_uptime_summary(self, site_ref: str) -> dict[str, object]:
@@ -13533,6 +13614,8 @@ class OmadaOpenApiClient:
                                       rf"[A-Za-z0-9_-]{{1,128}}/cable-test/switches/{self._MAC.pattern}/increment-results", path) or
                                   (self._SWITCH_LLDP_REQUEST.fullmatch(path) and
                                    self._SWITCH_LLDP_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
+                                  self._site_stack_list_request_valid(path) or
+                                  self._site_stack_lldp_request_valid(path) or
                                   self._SWITCH_NETWORKS_DETAIL_REQUEST.fullmatch(path) or
                                   self._GATEWAY_ACL_REQUEST.fullmatch(path) or
                                   self._SWITCH_ACL_REQUEST.fullmatch(path) or
@@ -15613,6 +15696,26 @@ class OmadaOpenApiClient:
         except (ValueError, OverflowError):
             return False
 
+    def _site_stack_list_request_valid(self, path: str) -> bool:
+        match = self._SITE_STACK_LIST_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return (1 <= int(match.group(2)) <= self.config.max_pages and
+                    1 <= int(match.group(3)) <= 32)
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_stack_lldp_request_valid(self, path: str) -> bool:
+        match = self._SITE_STACK_LLDP_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return (1 <= int(match.group(2)) <= self.config.max_pages and
+                    1 <= int(match.group(3)) <= 64)
+        except (ValueError, OverflowError):
+            return False
+
     def _rrm_incompatible_request_valid(self, path: str) -> bool:
         match = self._RRM_INCOMPATIBLE_REQUEST.fullmatch(path)
         if not match or match.group(1) != self.config.controller_id:
@@ -15734,3 +15837,44 @@ class OmadaOpenApiClient:
                 return rows
         # Avoid silently presenting a truncated inventory as complete.
         raise OpenApiError("openapi_page_limit_reached")
+
+    def _read_bounded_grid_rows(self, base_path: str, token: str,
+                                max_items: int) -> tuple[list[object], int]:
+        """Read at most max_items from a documented grid and return omitted rows."""
+        if type(max_items) is not int or not 1 <= max_items <= 4096:
+            raise OpenApiError("openapi_response_invalid")
+        page_size = min(self.config.page_size, max_items)
+        rows: list[object] = []
+        total_rows: int | None = None
+        for page in range(1, self.config.max_pages + 1):
+            remaining = max_items - len(rows)
+            if remaining <= 0:
+                break
+            request_size = min(page_size, remaining)
+            query = urlencode({"page": page, "pageSize": request_size})
+            payload = self._request_json("GET", base_path + "?" + query, token=token)
+            result = payload.get("result")
+            data = result.get("data") if isinstance(result, dict) else None
+            total = result.get("totalRows") if isinstance(result, dict) else None
+            current_page = result.get("currentPage") if isinstance(result, dict) else None
+            current_size = result.get("currentSize") if isinstance(result, dict) else None
+            if (not isinstance(data, list) or len(data) > request_size or
+                    type(total) is not int or total < 0 or
+                    type(current_page) is not int or current_page != page or
+                    type(current_size) is not int or
+                    current_size not in (len(data), request_size)):
+                raise OpenApiError("openapi_response_invalid")
+            if total_rows is None:
+                total_rows = total
+            elif total != total_rows:
+                raise OpenApiError("openapi_response_invalid")
+            rows.extend(data)
+            if len(rows) > max_items or len(rows) > total:
+                raise OpenApiError("openapi_response_invalid")
+            if not data and len(rows) < total:
+                raise OpenApiError("openapi_response_invalid")
+            if len(rows) >= total:
+                return rows, 0
+        if total_rows is None:
+            raise OpenApiError("openapi_response_invalid")
+        return rows, max(0, total_rows - len(rows))

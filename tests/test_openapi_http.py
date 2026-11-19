@@ -2442,6 +2442,11 @@ class FakeOpenApiClient:
                 "items": [{"wlan_name": "Office", "ssid_names": ["Staff", "Guest"]}],
                 "partial": False}
 
+    def read_site_stack_connections_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_stack_connections_summary", site_ref))
+        return {"status": "ok", "resource": "site_stack_connections_summary",
+                "site_ref": site_ref, "data": {"stacks": []}, "partial": False}
+
 class OpenApiHttpTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tempdir = tempfile.TemporaryDirectory()
@@ -7892,6 +7897,22 @@ class OpenApiHttpTests(unittest.TestCase):
                          "site_firmware_summary")
         self.assertEqual(calls, [site_ref, site_ref])
 
+
+    def test_http_and_mcp_expose_site_stack_connections_summary(self) -> None:
+        site_ref = "a" * 24
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/stack-connections-summary", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_stack_connections_summary")
+        request = {"jsonrpc": "2.0", "id": 140, "method": "tools/call",
+                   "params": {"name": "omada_site_stack_connections_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"]["resource"],
+                         "site_stack_connections_summary")
+        self.assertEqual(self.fake.calls,
+                         [("site_stack_connections_summary", site_ref)] * 2)
 
 
 if __name__ == "__main__":

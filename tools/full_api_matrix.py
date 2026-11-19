@@ -435,6 +435,8 @@ IMPLEMENTED: dict[tuple[str, str], str] = {
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/mesh/statistics"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/clients/{client_mac}/client-timeline"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/switches/{switch_mac}/lldp-neighbors"): "implemented_read",
+    ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/stacks"): "implemented_read",
+    ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/stack/{stack_id}/lldp-neighbors"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/switches/{switch_mac}/health/detail"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/switches/health/timeline"): "implemented_read",
     ("PUT", "/openapi/v1/{controller_id}/sites/{site_id}/switches/{switch_mac}/ports/{port}/status"): "implemented_controlled_write_unverified_live",

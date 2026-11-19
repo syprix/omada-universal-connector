@@ -1,5 +1,20 @@
 # Core read workflows
 
+## Switch stack connections
+
+`GET /v1/sites/{site_ref}/stack-connections-summary` and
+`omada_site_stack_connections_summary` read a bounded site stack list, then
+read up to 64 LLDP rows for each of at most 32 stacks. Stack member MACs are
+joined to current unique switch references. The report shows stack membership
+and per-local-port neighbor counts, but does not turn LLDP `deviceId` strings
+into links because the export gives no inventory join rule for that field.
+Names, raw stack IDs, MACs and neighbor identity strings are omitted. Page
+limits, missing sources and incomplete member mappings remain visible. This
+workflow performs no network change.
+The existing `GET /v1/sites/{site_ref}/topology` response also includes this
+section as `stack_connections`; incomplete stack data marks the overall report
+partial while leaving its existing device-edge projection separate.
+
 ## PoE budget and schedule overview
 
 `GET /v1/sites/{site_ref}/poe/schedule-summary` and
