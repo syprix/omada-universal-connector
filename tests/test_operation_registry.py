@@ -593,6 +593,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_firewall_defaults",
             "site_bandwidth_control",
             "site_wan_ports_summary",
+            "site_virtual_wan_summary",
             "site_vlan_network_summary",
             "site_lan_network_detail_summary",
             "site_lan_network_config_summary",

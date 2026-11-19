@@ -301,6 +301,25 @@ source JSON and 5,533 for the compact endpoint result (18,121 fewer; 76.61%) wit
 `js-tiktoken` 1.0.21 and `o200k_base`. The source fixture included synthetic
 identity, text and setting fields that the result drops. Counts cover JSON only,
 not schemas, prompts, transport framing or billed agent use.
-Eight focused offline tests and the 235-test registry, API-matrix and evidence
-gate passed. Python compilation and diff checks passed. Hosted checks for this
-function are pending; no live controller request was made.
+Fifty-nine focused offline tests and the 235-test registry, API-matrix and
+evidence gate passed. The corrected commit passed both exact-head GitHub CI
+runs (push `44482564502`, pull request `44482572662`). The full local Python
+suite then passed all 3,197 tests. No live controller request was made.
+
+## Virtual WAN inventory summary
+
+Added read-only `GET /v1/sites/{site_ref}/virtual-wan-summary` and the matching
+MCP tool. It reads at most 1,000 documented virtual WAN grid rows and the
+bounded available-virtual-WAN list. In all three exports, the grid `id` and
+availability `virtualWanId` are both described as the virtual WAN ID. The
+projection joins only unique values and reports matched, unmatched, ambiguous
+and unkeyed counts while omitting identifiers, names and nested settings. The
+exports do not define a crosswalk from the virtual rows to physical port
+configuration or current WAN status; those facts remain separate, so physical
+reconciliation is still open. Fixtures cover both fixed site reads, projection,
+HTTP and MCP. Live support remains unknown. A synthetic 200-row grid and
+180-row availability list used 36,469 `o200k_base` tokens as source JSON and
+179 tokens for the compact result (36,290 fewer; 99.51%) with
+`js-tiktoken` 1.0.21. This is a synthetic payload comparison only; it excludes
+schemas, prompts, transport framing and billed agent use. No live controller
+request was made.

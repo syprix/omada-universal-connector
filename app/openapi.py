@@ -1410,6 +1410,9 @@ class OmadaOpenApiClient:
     _SITE_FIREWALL_SETTINGS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/firewall"
     _SITE_BANDWIDTH_CONTROL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/bandwidth-control"
     _SITE_WAN_PORTS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/internet/ports-config"
+    _SITE_VIRTUAL_WAN_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/virtual-wans"
+    _SITE_VIRTUAL_WAN_AVAILABLE_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/setting/available-virtual-wans")
     _SITE_VLAN_NETWORK_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/networks/vlans"
     _SITE_LAN_NETWORKS_V3_PATH = (
         "/openapi/v3/{controller_id}/sites/{site_id}/lan-networks")
@@ -1731,6 +1734,14 @@ class OmadaOpenApiClient:
     )
     _SITE_WAN_PORTS_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/internet/ports-config"
+    )
+    _SITE_VIRTUAL_WAN_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/setting/virtual-wans\?page=(?:[1-9]|10)&pageSize=100"
+    )
+    _SITE_VIRTUAL_WAN_AVAILABLE_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/setting/available-virtual-wans"
     )
     _SITE_VLAN_NETWORK_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/networks/vlans"
@@ -2887,6 +2898,7 @@ class OmadaOpenApiClient:
         ("site_firewall_settings", "GET /v1/sites/{site_ref}/firewall-settings"),
         ("site_bandwidth_control", "GET /v1/sites/{site_ref}/bandwidth-control"),
         ("site_wan_ports_summary", "GET /v1/sites/{site_ref}/wan-ports-summary"),
+        ("site_virtual_wan_summary", "GET /v1/sites/{site_ref}/virtual-wan-summary"),
         ("site_vlan_network_summary", "GET /v1/sites/{site_ref}/vlan-network-summary"),
         ("site_internet_summary", "GET /v1/sites/{site_ref}/internet-summary"),
         ("site_vpn_session_summary", "GET /v1/sites/{site_ref}/vpn-session-summary"),
@@ -11395,6 +11407,50 @@ class OmadaOpenApiClient:
         return {"status": "ok", "resource": "site_wan_ports_summary",
                 "site_ref": site_ref, **projected}
 
+    @_track_capability("site_virtual_wan_summary")
+    def read_site_virtual_wan_summary(self, site_ref: str) -> dict[str, object]:
+        """Read a bounded virtual WAN inventory without joining undocumented IDs."""
+        site_id = self._resolve_site_ref(site_ref)
+        base_path = self._SITE_VIRTUAL_WAN_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        token = self._access_token()
+        pages: list[object] = []
+        total: int | None = None
+        for page_number in range(1, 11):
+            result = self._request_json(
+                "GET", f"{base_path}?page={page_number}&pageSize=100", token=token
+            ).get("result")
+            pages.append(result)
+            if not isinstance(result, dict):
+                break
+            page_total = result.get("totalRows")
+            data = result.get("data")
+            if isinstance(page_total, int) and not isinstance(page_total, bool) and page_total >= 0:
+                total = page_total
+                if page_number * 100 >= total:
+                    break
+            elif not isinstance(data, list) or len(data) < 100:
+                break
+        available_path = self._SITE_VIRTUAL_WAN_AVAILABLE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        available_result = self._request_json("GET", available_path, token=token).get("result")
+        available_rows = (available_result.get("wanPorts")
+                          if isinstance(available_result, dict) else None)
+        try:
+            from .site_virtual_wan_summary import (
+                SiteVirtualWanError, project_virtual_wan_pages,
+            )
+        except ImportError:  # direct execution in the image
+            from site_virtual_wan_summary import (
+                SiteVirtualWanError, project_virtual_wan_pages,
+            )
+        try:
+            projected = project_virtual_wan_pages(pages, available_rows)
+        except SiteVirtualWanError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_virtual_wan_summary",
+                "site_ref": site_ref, **projected}
+
     @_track_capability("site_vlan_network_summary")
     def read_site_vlan_network_summary(self, site_ref: str) -> dict[str, object]:
         """Summarize a bounded VLAN-network listing without returning identifiers."""
@@ -13962,6 +14018,8 @@ class OmadaOpenApiClient:
                                   self._site_firewall_defaults_request_valid(path) or
                                   self._site_bandwidth_control_request_valid(path) or
                                   self._site_wan_ports_request_valid(path) or
+                                  self._site_virtual_wan_request_valid(path) or
+                                  self._site_virtual_wan_available_request_valid(path) or
                                   self._site_vlan_network_request_valid(path) or
                                   self._site_lan_networks_v3_request_valid(path) or
                                   self._site_lan_network_inventory_request_valid(path) or
@@ -15211,6 +15269,14 @@ class OmadaOpenApiClient:
 
     def _site_wan_ports_request_valid(self, path: str) -> bool:
         match = self._SITE_WAN_PORTS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_virtual_wan_request_valid(self, path: str) -> bool:
+        match = self._SITE_VIRTUAL_WAN_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_virtual_wan_available_request_valid(self, path: str) -> bool:
+        match = self._SITE_VIRTUAL_WAN_AVAILABLE_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
 
     def _site_vlan_network_request_valid(self, path: str) -> bool:
