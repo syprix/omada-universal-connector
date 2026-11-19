@@ -11118,6 +11118,7 @@
         "test_site_dhcp_server_candidates.py",
         "test_site_incident_influences.py",
         "test_site_switch_health_history.py",
+        "test_site_switch_port_anomaly_summary.py",
         "test_site_vlan_device_usage_summary.py",
         "test_ssid_network_diagnose.py",
         "test_switch_health_integration.py",

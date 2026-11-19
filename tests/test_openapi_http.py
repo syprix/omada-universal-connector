@@ -7892,6 +7892,38 @@ class OpenApiHttpTests(unittest.TestCase):
                          "site_firmware_summary")
         self.assertEqual(calls, [site_ref, site_ref])
 
+    def test_switch_port_anomaly_summary_is_available_over_http_and_mcp(self) -> None:
+        site_ref = "e" * 24
+        calls = []
+
+        def report(ref):
+            calls.append(ref)
+            return {"status": "ok", "resource": "site_switch_port_anomaly_summary",
+                    "partial": True, "drop_counters": "not_available_in_documented_port_counter_response",
+                    "data": {"switches": []}}
+
+        self.fake.read_site_switch_port_anomaly_summary = report
+        status, _ = self.request(
+            f"/v1/sites/{site_ref}/switches/port-anomalies")
+        self.assertEqual(status, 401)
+        self.assertEqual(calls, [])
+
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/switches/port-anomalies", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_switch_port_anomaly_summary")
+        self.assertEqual(calls, [site_ref])
+
+        status, response = self.request_post("/mcp", {
+            "jsonrpc": "2.0", "id": 195, "method": "tools/call",
+            "params": {"name": "omada_site_switch_port_anomaly_summary",
+                       "arguments": {"site_ref": site_ref}},
+        }, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"]["resource"],
+                         "site_switch_port_anomaly_summary")
+        self.assertEqual(calls, [site_ref, site_ref])
+
 
 
 if __name__ == "__main__":

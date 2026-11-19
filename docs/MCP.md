@@ -378,6 +378,8 @@ Eight individual client tools are available for connection history, client histo
 
 `omada_site_switch_support` reads the two documented site-level switch-family support flags through a fixed GET. It requires a known `site_ref`, returns strict booleans with partial-response counts, and does not infer hardware or firmware support. Fixture-backed HTTP and MCP dispatch are tested; live support remains unknown.
 
+`omada_site_switch_port_anomaly_summary` combines the fresh device inventory with the current site-wide switch port overview and cumulative counter feeds for up to 32 switches. It returns opaque references and raw port status codes without decoding controller-specific meanings. Nonzero TX/RX error counters are review signals. Field-level schemas are specific only in the ER7212PC export; the Hardware Controller and CBC Standard exports provide generic response schemas, so broader field compatibility and live support remain unknown. Drop counts are not available in the documented per-port counter response. It does not infer rates, trends or fault causes; missing data and incomplete coverage are explicit.
+
 
 `omada_network_dhcp_server_capabilities` reads the documented DHCP server
 capability flags for a network reference returned by the selected site's

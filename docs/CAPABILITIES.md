@@ -452,6 +452,14 @@ their support remains unknown until a successful operation is observed for
 the relevant target. The health views use a fixed 24-hour window. LLDP output
 contains local port numbers and counts of returned neighbor rows only.
 
+The site switch-port anomaly summary is a bounded HTTP/MCP workflow over the
+fresh device inventory and the existing switch port overview and counter
+feeds. It reports raw port status codes and nonzero cumulative error counters
+as review signals without decoding controller-specific status codes. The
+documented per-port counter response contains error totals but no drop
+counters; one snapshot cannot provide rates or trends. No live read has
+been performed for this workflow.
+
 The site switch-health history report also uses the documented batch timeline
 GET from all three exports. It refreshes the site's switch inventory, requests
 at most 64 unique switch MACs in one fixed 24-hour window, and maps documented

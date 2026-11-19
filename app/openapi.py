@@ -5195,6 +5195,46 @@ class OmadaOpenApiClient:
         except ValueError:
             raise OpenApiError("openapi_response_invalid") from None
 
+    def read_site_switch_port_anomaly_summary(self, site_ref: str) -> dict[str, object]:
+        """Compare current switch port state with cumulative error counters."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        if site_ref not in self._site_ids_by_ref:
+            raise OpenApiError("site_ref_unknown")
+        try:
+            from .site_switch_port_anomaly_summary import summarize_site_switch_port_anomalies
+        except ImportError:  # direct execution in the image
+            from site_switch_port_anomaly_summary import summarize_site_switch_port_anomalies
+
+        inventory = self.list_devices(site_ref)
+        items = inventory.get("items")
+        if not isinstance(items, list):
+            raise OpenApiError("openapi_response_invalid")
+        site_id = self._site_ids_by_ref[site_ref]
+        token = self._access_token()
+        overview_rows: object | None = None
+        counter_rows: object | None = None
+        overview_error = counter_error = None
+        try:
+            path = self._SWITCH_PORTS_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id)
+            overview_rows = self._read_pages(path, token)
+        except OpenApiError as exc:
+            overview_error = exc.code
+        try:
+            path = self._SWITCH_PORT_COUNTERS_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id)
+            counter_rows = self._read_pages(path, token)
+        except OpenApiError as exc:
+            counter_error = exc.code
+        try:
+            return summarize_site_switch_port_anomalies(
+                items, self._switch_macs_by_site_ref.get(site_ref, {}),
+                overview_rows, counter_rows,
+                overview_error=overview_error, counter_error=counter_error)
+        except ValueError:
+            raise OpenApiError("openapi_response_invalid") from None
+
     @staticmethod
     def _valid_rrm_mode_state(value: object) -> bool:
         return (isinstance(value, dict) and

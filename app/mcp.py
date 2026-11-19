@@ -345,6 +345,25 @@ _SITE_FIRMWARE_SUMMARY_TOOL = {
                     "idempotentHint": True, "openWorldHint": False},
 }
 _SITE_FIRMWARE_SUMMARY_NAME = str(_SITE_FIRMWARE_SUMMARY_TOOL["name"])
+_SITE_SWITCH_PORT_ANOMALY_SUMMARY_TOOL = {
+    "name": "omada_site_switch_port_anomaly_summary",
+    "description": (
+        "Compare current switch port status codes with cumulative transmit/receive error counters "
+        "for up to 32 inventoried switches. Nonzero counters are review signals, not fault diagnoses. "
+        "Status codes remain uninterpreted. The available port counter schema does not provide "
+        "drop counts; one snapshot cannot establish a rate or trend. Field-level schemas are specific "
+        "only in the ER7212PC export; live support remains unknown."
+    ),
+    "inputSchema": {
+        "type": "object",
+        "properties": {"site_ref": {"type": "string", "pattern": "^[0-9a-f]{24}$"}},
+        "required": ["site_ref"],
+        "additionalProperties": False,
+    },
+    "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                     "idempotentHint": True, "openWorldHint": False},
+}
+_SITE_SWITCH_PORT_ANOMALY_SUMMARY_NAME = str(_SITE_SWITCH_PORT_ANOMALY_SUMMARY_TOOL["name"])
 _SWITCH_CABLE_TEST_TOOL = {
     "name": "omada_switch_cable_test",
     "description": (
@@ -590,6 +609,7 @@ def _tools_page(registry: Any, cursor: object) -> dict[str, object]:
     tools.append(_SITE_DHCP_POOL_UTILIZATION_TOOL)
     tools.append(_SITE_AP_QUALITY_WINDOW_TOOL)
     tools.append(_SITE_FIRMWARE_SUMMARY_TOOL)
+    tools.append(_SITE_SWITCH_PORT_ANOMALY_SUMMARY_TOOL)
     tools.append(_DIAGNOSTIC_CAPABILITY_SUMMARY_TOOL)
     tools.append(_SWITCH_CABLE_TEST_TOOL)
     tools.append(_CONTROLLER_RADIUS_PROXY_CHANGE_TOOL)
@@ -923,6 +943,18 @@ def _invoke_tool(registry: Any, name: object, arguments: object,
                 not _SAFE_REF.fullmatch(arguments["site_ref"])):
             raise McpRequestError("arguments_invalid")
         value = invoke_read("site_firmware_summary", {"site_ref": arguments["site_ref"]})
+        return {
+            "content": [{"type": "text", "text": json.dumps(value, ensure_ascii=False,
+                                                                separators=(",", ":"))}],
+            "structuredContent": value,
+            "isError": value.get("status") == "error",
+        }
+    if name == _SITE_SWITCH_PORT_ANOMALY_SUMMARY_NAME:
+        if (not isinstance(arguments, dict) or set(arguments) != {"site_ref"} or
+                not isinstance(arguments["site_ref"], str) or
+                not _SAFE_REF.fullmatch(arguments["site_ref"])):
+            raise McpRequestError("arguments_invalid")
+        value = invoke_read("site_switch_port_anomaly_summary", {"site_ref": arguments["site_ref"]})
         return {
             "content": [{"type": "text", "text": json.dumps(value, ensure_ascii=False,
                                                                 separators=(",", ":"))}],
