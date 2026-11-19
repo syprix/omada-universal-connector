@@ -18,6 +18,20 @@ controller families therefore need separate capability catalogs. A route in a
 catalog does not prove the app role, site privilege, device model or firmware
 can use it.
 
+The supplied exports document `getAuditLogsForSite` at
+`GET /openapi/v1/{omadacId}/sites/{siteId}/audit-logs` and
+`getAuditLogsForGlobal` at `GET /openapi/v1/{omadacId}/audit-logs`. All three
+accept `filters.times` as a JSON-encoded array of `{timeStart,timeEnd}` objects;
+omitting it selects a vendor default seven-day period. The connector always
+sends an explicit window, ascending time order and bounded pagination. The
+ER7212PC export resolves the audit row schema, including millisecond `time`,
+`auditType`, `level` and `result`. Hardware Controller and CBC 6.3 provide a
+generic response schema for these operations. The connector therefore projects
+only those fields, maps unrecognized category/status strings to `other`, and
+does not return operator, IP, resource, content, labels, or old/new values.
+This is contract-based offline implementation evidence, not a live controller
+confirmation.
+
 No Software Controller, Cloud Essentials, Fusion or Omada Pro export was
 supplied. The three snapshots cannot establish Open API availability for
 those products or for every firmware release within a product family.

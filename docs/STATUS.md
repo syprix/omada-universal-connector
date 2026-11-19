@@ -272,3 +272,35 @@ Integer and digit-string channel values are normalized before applying the
 same 1–1000 validity range; zero and out-of-range values remain unknown. The
 54 focused channel-reuse/integration/registry tests and the 235-test evidence
 gate passed after this correction. The checks are offline only.
+Draft PR #21 now points to `bb06757faebd7ad0f0f062b9f363bd8796db7eba`, with
+exact remote tree `d064a3c45c724fa1cc7e895546fdc7e190a877ed`. Hosted checks for
+the corrected exact head are running (push `44480805936`, pull request
+`44480811773`); it remains a draft and unmerged.
+
+## Bounded audit-log window summary
+
+Added site and controller reads at
+`GET /v1/sites/{site_ref}/audit-logs/window` and
+`GET /v1/controller/audit-logs/window`, with MCP tools for each. Both require
+explicit UTC epoch-millisecond bounds or an explicit local-time range and IANA
+time zone; windows are limited to 24 hours. The connector sends the documented
+`filters.times` range, sorts ascending, reads at most ten pages and 1,000 rows,
+and marks a truncated result partial. It returns only timestamp, recognized
+audit category, level and result. Unknown strings become `other`; operator,
+source IP, resource, free-text content, labels and before/after setting values
+are omitted. This avoids exposing the fields that can identify a person or
+reveal configuration values.
+
+All three supplied exports contain both upstream operations. ER7212PC 6.2.14
+provides the operation response schema; Hardware Controller and CBC 6.3 use a
+generic response schema, so their exact runtime row compatibility remains
+unconfirmed. Individual projection, site/controller fixed-path and query,
+bounded pagination, HTTP and MCP tests passed offline. No live controller
+request was made. A synthetic 240-entry fixture measured 23,654 tokens for the
+source JSON and 5,533 for the compact endpoint result (18,121 fewer; 76.61%) with
+`js-tiktoken` 1.0.21 and `o200k_base`. The source fixture included synthetic
+identity, text and setting fields that the result drops. Counts cover JSON only,
+not schemas, prompts, transport framing or billed agent use.
+Eight focused offline tests and the 235-test registry, API-matrix and evidence
+gate passed. Python compilation and diff checks passed. Hosted checks for this
+function are pending; no live controller request was made.
