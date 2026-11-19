@@ -358,3 +358,28 @@ A synthetic two-row fixture measured 133 source JSON tokens versus 35 projected 
 ## Function 40 — saved incident report comparison
 
 Implemented a shared local-only comparator for existing redacted site-outage report schema version 1. It is available as `tools/compare_site_outage_reports.py`, authenticated HTTP `POST /v1/incident-reports/compare`, and MCP `omada_compare_incident_reports`. It accepts 2–8 reports with a 60 KiB data cap and never queries the controller. Event/alert totals compare only for identical windows and complete reports; reachability compares only when observation timestamps match exactly. Other schema versions are marked unsupported. It surfaces overlap, missing times/sections, unknown fields and pagination limits without returning report text or identifiers. Focused tests cover the existing report exporter, file permissions, schema gaps, HTTP/MCP dispatch and no-live-read behavior. Controller support is not applicable because this function consumes existing reports. Token measurement on two compact synthetic reports found 688 input JSON tokens versus 783 result tokens (95 more; js-tiktoken 1.0.21/o200k_base), so this sample does not save tokens.
+
+## Function 41 — gateway information summary
+
+Added `GET /v1/sites/{site_ref}/gateways/{device_ref}/info-summary` and the
+`omada_gateway_info_summary` MCP tool. The selected gateway must come from the
+current site inventory. Across all three supplied exports, `GatewayInfo`
+documents a model string, firmware-version string, and `lastSeen` int64. The
+projection returns only those values, reports missing/invalid/unknown fields,
+and omits MAC/IP/IPv6 values and port details. The source gives no unit or epoch
+for `lastSeen`, so no online/offline status is inferred. The read permission is
+Site Device Manager View Only; live support remains unknown.
+
+The 9 focused projector, inventory-binding, HTTP, MCP, and source-matrix tests
+passed. The required registry/matrix/evidence gate passed 242 tests, full
+offline discovery passed 3,246 tests in 476.156 seconds, and the runtime
+smoke, compilation and diff checks passed. An offline matrix run confirmed the
+common gateway detail route in Hardware Controller 6.3.0, CBC Standard 6.3.0
+and ER7212PC 6.2.14.
+
+A synthetic full-response comparison measured 119 source JSON tokens and 79
+connector-result tokens (40 fewer) with js-tiktoken 1.0.21 / `o200k_base`.
+This includes the source response wrapper and connector envelope but excludes
+inventory, tool schemas, prompts, transport framing and billed agent usage.
+No controller request or external agent-client test was made. Exact-head
+GitHub CI is pending.

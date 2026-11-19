@@ -704,6 +704,15 @@ class FakeOpenApiClient:
         return {"status": "ok", "resource": "gateway_wan_status", "device_ref": device_ref,
                 "count": 1, "items": [{"port": 1, "link_status": 1, "latency_ms": 12}]}
 
+    def read_gateway_info_summary(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        self.calls.append(("gateway_info_summary", site_ref + ":" + device_ref))
+        return {"status": "ok", "resource": "gateway_info_summary",
+                "site_ref": site_ref, "device_ref": device_ref,
+                "data": {"model": "Gateway Model X", "firmware_version": "1.2.3",
+                         "last_seen_source_value": 1_790_000_000_000},
+                "missing_field_count": 0, "invalid_field_count": 0,
+                "unknown_field_count": 0, "partial": False}
+
     def read_gateway_wan_health(self, site_ref: str, device_ref: str) -> dict[str, object]:
         self.calls.append(("gateway_wan_health", site_ref + ":" + device_ref))
         return {"status": "ok", "resource": "gateway_wan_health", "device_ref": device_ref,
@@ -4078,6 +4087,26 @@ class OpenApiHttpTests(unittest.TestCase):
                          "gateway_wan_status")
         self.assertEqual(self.fake.calls,
                          [("gateway_wan_status", "a" * 24 + ":" + gateway_ref)] * 2)
+
+    def test_http_and_mcp_expose_gateway_info_summary(self) -> None:
+        site_ref, device_ref = "a" * 24, "d" * 24
+        path = f"/v1/sites/{site_ref}/gateways/{device_ref}/info-summary"
+        status, body = self.request(path)
+        self.assertEqual(status, 401)
+        self.assertEqual(body["error"], "unauthorized")
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(direct["resource"], "gateway_info_summary")
+        self.assertEqual(direct["data"]["firmware_version"], "1.2.3")
+        request = {"jsonrpc": "2.0", "id": 228, "method": "tools/call",
+                   "params": {"name": "omada_gateway_info_summary",
+                              "arguments": {"site_ref": site_ref,
+                                            "device_ref": device_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("gateway_info_summary", site_ref + ":" + device_ref)] * 2)
 
     def test_http_and_mcp_expose_fixed_gateway_lan_status_read(self) -> None:
         gateway_ref = "d" * 24

@@ -288,6 +288,7 @@ IMPLEMENTED: dict[tuple[str, str], str] = {
     ("PATCH", "/openapi/v1/{controller_id}/sites/{site_id}/wireless-network/ssids/{ssid_id}/enable"): "implemented_controlled_write_unverified_live",
     ("GET", "/openapi/v2/{controller_id}/sites/{site_id}/wireless-network/wlans"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/gateways/{gateway_mac}/wan-status"): "implemented_read",
+    ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/gateways/{gateway_mac}"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/audit-logs/{ap_mac}/ssid-overrides"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/gateways/{gateway_mac}/health/detail"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/gateways/{gateway_mac}/health/timeline"): "implemented_read",

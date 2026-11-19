@@ -3,8 +3,8 @@
   "catalog_sha256": "b5ea3aeeac5c1c990fed6a4418f68e46530faa240308c7751206e15323eaeb9d",
   "operation_count": 2445,
   "connector_evidence_counts": {
-    "not_mapped": 2025,
-    "fixed_get_registry_route": 397,
+    "not_mapped": 2024,
+    "fixed_get_registry_route": 398,
     "manual_source_map_only": 23
   },
   "function_verification_performed": false,
@@ -6837,6 +6837,7 @@
         "test_gateway_dhcp_read.py",
         "test_gateway_health_integration.py",
         "test_gateway_health_timeline_integration.py",
+        "test_gateway_info_summary.py",
         "test_gateway_internet.py",
         "test_gateway_ipv6_integration.py",
         "test_gateway_lan_status.py",
@@ -11999,11 +12000,20 @@
         "hardware-controller-6.3.0",
         "omada-cbc-standard-6.3.0"
       ],
-      "connector_evidence": "not_mapped",
-      "operation_ids": [],
-      "public_templates": [],
-      "source_map_label": null,
-      "static_test_references": [],
+      "connector_evidence": "fixed_get_registry_route",
+      "operation_ids": [
+        "gateway_info_summary"
+      ],
+      "public_templates": [
+        "/v1/sites/{site_ref}/gateways/{device_ref}/info-summary"
+      ],
+      "source_map_label": "implemented_read",
+      "static_test_references": [
+        "test_full_api_matrix.py",
+        "test_gateway_info_summary.py",
+        "test_openapi_http.py",
+        "test_operation_registry.py"
+      ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
       "function_verified": false,

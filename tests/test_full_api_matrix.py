@@ -1958,6 +1958,33 @@ class FullApiMatrixTests(unittest.TestCase):
         self.assertEqual(available["connector_source_status"], "implemented_read")
         self.assertEqual(available["live_status"], "unknown_not_checked_by_this_offline_tool")
 
+    def test_gateway_info_summary_matches_all_source_exports(self) -> None:
+        matrix = json.loads((Path(__file__).resolve().parents[1] /
+                             "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
+        expected_ids = {
+            "Hardware Controller 6.3.0": "getGatewayInfo_1",
+            "CBC Standard 6.3.0": "getGatewayInfo_1",
+            "ER7212PC 6.2.14": "getGatewayInfo",
+        }
+        for source in matrix["sources"]:
+            row = source["operations"]["gateway_info_summary"]
+            self.assertTrue(row["documented"])
+            self.assertEqual(row["live_support"], "unknown")
+            self.assertEqual(row["contract_review"]["operation_id"],
+                             expected_ids[source["label"]])
+            self.assertIn("GatewayInfo defines", row["contract_review"]["response"])
+            self.assertIn("HTTP/MCP", row["contract_review"]["projection"])
+        spec = document()
+        spec["paths"] = {
+            "/openapi/v1/{omadacId}/sites/{siteId}/gateways/{gatewayMac}": {
+                "get": {"operationId": "getGatewayInfo_1", "responses": {"200": {}}},
+            },
+        }
+        path = self.write_zip("gateway-info-summary.zip", spec)
+        row = build_matrix([("hardware", path)])["operations"][0]
+        self.assertEqual(row["connector_source_status"], "implemented_read")
+        self.assertEqual(row["live_status"], "unknown_not_checked_by_this_offline_tool")
+
     def test_site_wan_max_speed_summary_matches_all_source_exports(self) -> None:
         matrix = json.loads((Path(__file__).resolve().parents[1] /
                              "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
