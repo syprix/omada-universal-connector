@@ -100,3 +100,7 @@ To export that JSON response locally, save it to a private file and run `python3
 These workflows have fixture and HTTP/MCP dispatch tests and are cross-checked against all three supplied API exports. No controller was queried for this change. Live support remains unknown.
 
 A synthetic 100-event page measured 5,558 source-envelope tokens and 105 summary-response tokens (5,453 fewer; 98.11%) with `js-tiktoken` 1.0.21 and `o200k_base`. The fixture contains placeholder event messages and IDs. This compares serialized payloads only; it excludes tool schemas, requests, host framing and billed agent usage.
+
+### Review scheduled restarts
+
+Use GET /v1/sites/{site_ref}/reboot-schedule-summary to see the bounded schedule configuration and target devices currently resolved through site inventory. The report keeps the documented schedule clock fields but does not assign a timezone absent from the source contract. It distinguishes a configured restart from a completed restart and never starts one. Rows use a shared column declaration for compact agent output; a 12-schedule synthetic fixture measured 796 source tokens versus 464 projected tokens (41.71% fewer; js-tiktoken 1.0.21/o200k_base), excluding inventory and agent framing.

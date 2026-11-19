@@ -1288,3 +1288,8 @@ This reads current status and does not trigger a scan. No live request was made.
 | `GET /v1/sites/{site_ref}/dot1x/eap-candidates/summary` | `GET /openapi/v1/{omadacId}/sites/{siteId}/dot1x/eap/candidates` | Counts documented device status categories and port 802.1X/MAB capability flags; names, MAC addresses, models, firmware versions and port numbers are omitted; no permission is specified in the exports |
 
 | `GET /v1/sites/{site_ref}/dot1x/switch-candidates/summary` | `GET /openapi/v1/{omadacId}/sites/{siteId}/dot1x/candidates` | Counts switch status, VRF/MAB support, port authentication types and Boolean flags; names, MAC addresses, VRF IDs, port numbers and operation labels are omitted; no permission is specified in the exports |
+
+
+## Scheduled reboot summary
+
+GET /v1/sites/{site_ref}/reboot-schedule-summary exposes the bounded read of the site's reboot schedule list. The read omits source IDs, names, and raw MACs; target devices are represented by unique matches in the current site inventory. It preserves the schedule time without asserting a timezone, and a configured schedule does not establish that a reboot occurred. The response declares its compact schedule row columns once for all rows. A synthetic 12-schedule fixture measured 796 source JSON tokens versus 464 projected tokens (41.71% fewer; js-tiktoken 1.0.21/o200k_base), excluding inventory and agent framing.
