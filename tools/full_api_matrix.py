@@ -30,6 +30,8 @@ IMPLEMENTED: dict[tuple[str, str], str] = {
     ("GET", "/openapi/v1/{controller_id}/sitetemplates/{site_template_id}/setting/service/iptv/iptv"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sitetemplates/{site_template_id}/setting/service/iptv"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites"): "implemented_read",
+    ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/audit-logs"): "implemented_read",
+    ("GET", "/openapi/v1/{controller_id}/audit-logs"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/global/gateways/wan-status"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/scenarios"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/scenarios/difference"): "implemented_read",

@@ -106,7 +106,8 @@ class OperationRegistry:
                 ("client_name", "ssid_name"): {"site_client_identity_match"},
                 ("start_ms", "end_ms"): {
                     "site_events_window_summary", "site_alerts_window_summary",
-                    "controller_threat_severity_summary", "client_outage_timeline"},
+                    "controller_threat_severity_summary", "client_outage_timeline",
+                    "site_audit_log_window_summary", "controller_audit_log_window_summary"},
                 ("start_ms", "end_ms", "archived"): {
                     "site_threat_window_summary"},
                 ("type",): {"site_mac_auth_ssid_inventory"},
@@ -115,7 +116,8 @@ class OperationRegistry:
             supported_local_alternatives = {
                 ("start_local", "end_local", "time_zone"): {
                     "site_events_window_summary", "site_alerts_window_summary",
-                    "client_outage_timeline"},
+                    "client_outage_timeline", "site_audit_log_window_summary",
+                    "controller_audit_log_window_summary"},
             }
             if (not isinstance(item.local_arguments, tuple) or
                     (item.local_arguments and
@@ -1561,6 +1563,18 @@ Operation("site_stack_connections_summary", "GET",
               "/openapi/v1/{controller_id}/sites/{site_id}/logs/alerts",
               (("controller_id", "$config"), ("site_id", "site_ref")),
               local_arguments=("start_ms", "end_ms"), max_items=2_000,
+              local_argument_alternatives=(("start_local", "end_local", "time_zone"),)),
+    Operation("site_audit_log_window_summary", "GET",
+              "/v1/sites/{site_ref}/audit-logs/window", "GET",
+              "/openapi/v1/{controller_id}/sites/{site_id}/audit-logs",
+              (("controller_id", "$config"), ("site_id", "site_ref")),
+              local_arguments=("start_ms", "end_ms"), max_items=1_000,
+              local_argument_alternatives=(("start_local", "end_local", "time_zone"),)),
+    Operation("controller_audit_log_window_summary", "GET",
+              "/v1/controller/audit-logs/window", "GET",
+              "/openapi/v1/{controller_id}/audit-logs",
+              (("controller_id", "$config"),),
+              local_arguments=("start_ms", "end_ms"), max_items=1_000,
               local_argument_alternatives=(("start_local", "end_local", "time_zone"),)),
     Operation("site_rogue_ap_results", "GET",
               "/v1/sites/{site_ref}/wifi/rogue-ap-results", "GET",

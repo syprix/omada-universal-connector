@@ -770,6 +770,8 @@ class OperationRegistryTests(unittest.TestCase):
             "site_events_window_summary",
             "site_alerts",
             "site_alerts_window_summary",
+            "site_audit_log_window_summary",
+            "controller_audit_log_window_summary",
             "site_rogue_ap_results",
             "site_wids_summary",
             "site_wids_blacklist_summary",

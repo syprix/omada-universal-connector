@@ -37,6 +37,15 @@ except ImportError:  # direct execution in the image
     )
 
 try:
+    from .audit_log_window_summary import (
+        AuditLogWindowError, MAX_AUDIT_ROWS, summarize_audit_log_window,
+    )
+except ImportError:
+    from audit_log_window_summary import (
+        AuditLogWindowError, MAX_AUDIT_ROWS, summarize_audit_log_window,
+    )
+
+try:
     from .finite_values import is_finite_number
 except ImportError:  # direct execution in the image
     from finite_values import is_finite_number
@@ -1555,6 +1564,8 @@ class OmadaOpenApiClient:
     _SITE_CLIENT_SIGNAL_DISTRIBUTION_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/client-signal-distribution"
     _SITE_EVENT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/logs/events"
     _SITE_ALERT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/logs/alerts"
+    _SITE_AUDIT_LOG_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/audit-logs"
+    _CONTROLLER_AUDIT_LOG_PATH = "/openapi/v1/{controller_id}/audit-logs"
     _IDENTIFIER = re.compile(r"[A-Za-z0-9_-]{1,128}")
     _SITE_REQUEST = re.compile(r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites\?page=[0-9]+&pageSize=[0-9]+")
     _SITE_IOT_TRANSMIT_POWER_REQUEST = re.compile(
@@ -3027,6 +3038,8 @@ class OmadaOpenApiClient:
         ("site_events_window_summary", "GET /v1/sites/{site_ref}/events/window"),
         ("site_alerts", "GET /v1/sites/{site_ref}/alerts"),
         ("site_alerts_window_summary", "GET /v1/sites/{site_ref}/alerts/window"),
+        ("site_audit_log_window_summary", "GET /v1/sites/{site_ref}/audit-logs/window"),
+        ("controller_audit_log_window_summary", "GET /v1/controller/audit-logs/window"),
         ("site_rogue_ap_results", "GET /v1/sites/{site_ref}/wifi/rogue-ap-results"),
         ("site_wids_summary", "GET /v1/sites/{site_ref}/wifi/wids-summary"),
         ("site_wids_blacklist_summary", "GET /v1/sites/{site_ref}/wifi/wids-blacklist-summary"),
@@ -13362,6 +13375,78 @@ class OmadaOpenApiClient:
         })
         return result
 
+    @_track_capability("site_audit_log_window_summary")
+    def read_site_audit_log_window_summary(self, site_ref: str,
+                                           start_ms: int, end_ms: int) -> dict[str, object]:
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        base = self._SITE_AUDIT_LOG_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._read_audit_log_window(base, start_ms, end_ms)
+        return {**result, "resource": "site_audit_log_window_summary",
+                "site_ref": site_ref}
+
+    @_track_capability("controller_audit_log_window_summary")
+    def read_controller_audit_log_window_summary(self, start_ms: int,
+                                                end_ms: int) -> dict[str, object]:
+        base = self._CONTROLLER_AUDIT_LOG_PATH.format(
+            controller_id=self.config.controller_id)
+        result = self._read_audit_log_window(base, start_ms, end_ms)
+        return {**result, "resource": "controller_audit_log_window_summary"}
+
+    def _read_audit_log_window(self, base_path: str, start_ms: int,
+                               end_ms: int) -> dict[str, object]:
+        try:
+            start_ms, end_ms = validate_site_log_window(start_ms, end_ms)
+        except SiteLogWindowError:
+            raise OpenApiError("time_window_invalid") from None
+        page_size = min(max(1, self.config.page_size), 100)
+        page_limit = min(max(1, self.config.max_pages), 10)
+        rows: list[object] = []
+        total: int | None = None
+        pages_fetched = 0
+        filter_value = json.dumps([{"timeStart": start_ms, "timeEnd": end_ms}],
+                                 separators=(",", ":"))
+        for page in range(1, page_limit + 1):
+            query = urlencode({"page": page, "pageSize": page_size,
+                               "sorts.time": "asc", "filters.times": filter_value})
+            payload = self._request_json("GET", base_path + "?" + query,
+                                         token=self._access_token())
+            result = payload.get("result")
+            data = result.get("data") if isinstance(result, dict) else None
+            page_total = result.get("totalRows") if isinstance(result, dict) else None
+            current_page = result.get("currentPage") if isinstance(result, dict) else None
+            current_size = result.get("currentSize") if isinstance(result, dict) else None
+            if (not isinstance(data, list) or len(data) > page_size or
+                    type(page_total) is not int or page_total < 0 or
+                    type(current_page) is not int or current_page != page or
+                    type(current_size) is not int or current_size not in (len(data), page_size)):
+                raise OpenApiError("openapi_response_invalid")
+            if total is None:
+                total = page_total
+            elif total != page_total:
+                raise OpenApiError("openapi_response_invalid")
+            rows.extend(data)
+            pages_fetched = page
+            if len(rows) > page_total or len(rows) > MAX_AUDIT_ROWS:
+                raise OpenApiError("openapi_response_invalid")
+            if len(rows) >= page_total or len(rows) >= MAX_AUDIT_ROWS:
+                break
+        try:
+            summary = summarize_audit_log_window(rows, start_ms, end_ms, total or 0)
+        except AuditLogWindowError:
+            raise OpenApiError("openapi_response_invalid") from None
+        summary["pagination"] = {
+            "pages_fetched": pages_fetched,
+            "page_size": page_size,
+            "page_limit": page_limit,
+            "page_limit_reached": len(rows) < (total or 0),
+        }
+        return summary
+
     def _list_site_log(self, site_ref: str, kind: str) -> dict[str, object]:
         if kind not in {"events", "alerts"}:
             raise OpenApiError("site_log_kind_invalid")
@@ -13948,6 +14033,7 @@ class OmadaOpenApiClient:
                                   self._site_incident_notification_request_valid(path) or
                                   self._site_anomaly_event_settings_request_valid(path) or
                                   self._site_incident_influences_request_valid(path) or
+                                  self._audit_log_request_valid(path) or
                                   self._site_wlan_group_capacity_request_valid(path) or
                                   self._site_ap_group_capacity_request_valid(path) or
                                   self._site_ap_group_summary_request_valid(path) or
@@ -15439,6 +15525,37 @@ class OmadaOpenApiClient:
     def _controller_audit_notification_request_valid(self, path: str) -> bool:
         match = self._CONTROLLER_AUDIT_NOTIFICATION_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
+
+    def _audit_log_request_valid(self, path: str) -> bool:
+        raw_path, separator, raw_query = path.partition("?")
+        if not separator:
+            return False
+        site_match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})/audit-logs",
+            raw_path)
+        controller_match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/audit-logs", raw_path)
+        match = site_match or controller_match
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            query = parse_qs(raw_query, keep_blank_values=True, strict_parsing=True)
+            if (set(query) != {"page", "pageSize", "sorts.time", "filters.times"} or
+                    any(len(values) != 1 for values in query.values()) or
+                    query["sorts.time"] != ["asc"]):
+                return False
+            page, size = query["page"][0], query["pageSize"][0]
+            if (not page.isdecimal() or str(int(page)) != page or not 1 <= int(page) <= 10 or
+                    not size.isdecimal() or str(int(size)) != size or not 1 <= int(size) <= 100):
+                return False
+            window = json.loads(query["filters.times"][0])
+            return (isinstance(window, list) and len(window) == 1 and
+                    isinstance(window[0], dict) and set(window[0]) == {"timeStart", "timeEnd"} and
+                    type(window[0]["timeStart"]) is int and type(window[0]["timeEnd"]) is int and
+                    window[0]["timeStart"] <= window[0]["timeEnd"] and
+                    window[0]["timeEnd"] - window[0]["timeStart"] <= 86_400_000)
+        except (KeyError, ValueError, TypeError):
+            return False
 
     def _controller_ui_interface_request_valid(self, path: str) -> bool:
         match = self._CONTROLLER_UI_INTERFACE_REQUEST.fullmatch(path)

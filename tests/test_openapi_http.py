@@ -3479,6 +3479,51 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertNotEqual(status, 200)
         self.assertEqual(self.fake.calls[-1][0], "site_events_window_local")
 
+    def test_site_and_controller_audit_window_http_and_mcp(self) -> None:
+        from urllib.parse import urlencode
+        site_ref = "a" * 24
+        start_ms, end_ms = 1_760_000_000_000, 1_760_000_000_500
+        calls = []
+
+        def site_audit(ref, start, end):
+            calls.append(("site", ref, start, end))
+            return {"status": "ok", "resource": "site_audit_log_window_summary",
+                    "window_start_ms": start, "window_end_ms": end,
+                    "entries": [], "partial": False}
+
+        def controller_audit(start, end):
+            calls.append(("controller", start, end))
+            return {"status": "ok", "resource": "controller_audit_log_window_summary",
+                    "window_start_ms": start, "window_end_ms": end,
+                    "entries": [], "partial": False}
+
+        self.fake.read_site_audit_log_window_summary = site_audit
+        self.fake.read_controller_audit_log_window_summary = controller_audit
+        query = urlencode({"start_ms": start_ms, "end_ms": end_ms})
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/audit-logs/window?{query}", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_audit_log_window_summary")
+        status, response = self.request(f"/v1/controller/audit-logs/window?{query}", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(calls, [("site", site_ref, start_ms, end_ms),
+                                 ("controller", start_ms, end_ms)])
+
+        for request_id, name, arguments in (
+            (81, "omada_site_audit_log_window_summary",
+             {"site_ref": site_ref, "start_ms": start_ms, "end_ms": end_ms}),
+            (82, "omada_controller_audit_log_window_summary",
+             {"start_ms": start_ms, "end_ms": end_ms}),
+        ):
+            status, response = self.request_post("/mcp", {
+                "jsonrpc": "2.0", "id": request_id, "method": "tools/call",
+                "params": {"name": name, "arguments": arguments}}, self.token)
+            self.assertEqual(status, 200)
+            self.assertFalse(response["result"]["isError"])
+            self.assertEqual(response["result"]["structuredContent"]["resource"],
+                             name.removeprefix("omada_"))
+        self.assertEqual(len(calls), 4)
+
     def test_client_outage_timeline_accepts_local_window_over_http_and_mcp(self) -> None:
         site_ref, client_ref = "a" * 24, "b" * 24
         seen = []

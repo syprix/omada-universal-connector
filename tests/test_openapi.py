@@ -150,6 +150,64 @@ class OpenApiClientTests(unittest.TestCase):
             "currentSize": len(rows), "data": rows,
         }}
 
+    def test_site_audit_summary_uses_fixed_site_path_and_projects_safe_fields(self) -> None:
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        payload = self.grid([{
+            "time": 1_700_000_000_100, "auditType": "Log", "level": "Warning",
+            "result": "Succeed", "operator": "private-user", "content": "private text",
+            "oldValue": {"secret": "value"},
+        }], 1, 1)
+        with patch.object(self.client, "_access_token", return_value="token"), \
+             patch.object(self.client, "_request_json", return_value=payload) as request:
+            result = self.client.read_site_audit_log_window_summary(
+                site_ref, 1_700_000_000_000, 1_700_000_001_000)
+        self.assertEqual(request.call_count, 1)
+        self.assertEqual(result["resource"], "site_audit_log_window_summary")
+        method, path = request.call_args.args[:2]
+        self.assertEqual(method, "GET")
+        self.assertTrue(path.startswith(
+            "/openapi/v1/controller_1/sites/site-1/audit-logs?page=1&pageSize=2&sorts.time=asc&filters.times="))
+        from urllib.parse import parse_qs
+        query = parse_qs(path.split("?", 1)[1])
+        self.assertEqual(json.loads(query["filters.times"][0]), [{
+            "timeStart": 1_700_000_000_000, "timeEnd": 1_700_000_001_000}])
+        rendered = json.dumps(result)
+        self.assertIn("Warning", rendered)
+        for private in ("private-user", "private text", "secret", "value"):
+            self.assertNotIn(private, rendered)
+
+    def test_controller_audit_route_is_fixed_and_controller_bound(self) -> None:
+        allowed = ("/openapi/v1/controller_1/audit-logs?page=1&pageSize=10&sorts.time=asc&"
+                   "filters.times=%5B%7B%22timeStart%22%3A1700000000000%2C%22timeEnd%22%3A1700000001000%7D%5D")
+        self.assertTrue(self.client._audit_log_request_valid(allowed))
+        self.assertFalse(self.client._audit_log_request_valid(allowed.replace("controller_1", "other")))
+        self.assertFalse(self.client._audit_log_request_valid(allowed + "&searchKey=private"))
+        self.assertFalse(self.client._audit_log_request_valid(allowed.replace("page=1", "page=11")))
+        with patch.object(self.client, "_access_token", return_value="token"), \
+             patch.object(self.client, "_request_json", return_value=self.grid([], 1, 0)) as request:
+            result = self.client.read_controller_audit_log_window_summary(
+                1_700_000_000_000, 1_700_000_001_000)
+        self.assertEqual(result["total_count"], 0)
+        self.assertEqual(result["resource"], "controller_audit_log_window_summary")
+        self.assertIn("/openapi/v1/controller_1/audit-logs?", request.call_args.args[1])
+
+    def test_audit_read_is_bounded_and_marks_truncation(self) -> None:
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        rows = [{"time": 1_700_000_000_100, "auditType": "Log",
+                 "level": "Information", "result": "Succeed"}]
+        with patch.object(self.client, "_access_token", return_value="token"), \
+             patch.object(self.client, "_request_json", side_effect=[
+                 self.grid(rows, 1, 8), self.grid(rows, 2, 8), self.grid(rows, 3, 8)]) as request:
+            result = self.client.read_site_audit_log_window_summary(
+                site_ref, 1_700_000_000_000, 1_700_000_001_000)
+        self.assertEqual(request.call_count, 3)
+        self.assertEqual(result["returned_count"], 3)
+        self.assertEqual(result["total_count"], 8)
+        self.assertTrue(result["partial"])
+        self.assertTrue(result["pagination"]["page_limit_reached"])
+
     def test_token_body_and_access_token_header(self) -> None:
         self.queue_responses([
             self.token_payload(), self.grid([{"siteId": "site-1"}], 1, 1),
