@@ -26,7 +26,7 @@ See [status and evidence](STATUS.md), [capability records](CAPABILITIES.md), and
 
 ## Work after the core functions
 
-After function 15 meets its acceptance criteria, continue the overall API coverage work by reviewing remaining operations family by family against the three supplied API exports. The next individual functions and their order have not yet been prioritized. This is continued operation-level coverage, not a promise that every vendor operation can or should be exposed.
+After function 15 meets its acceptance criteria, continue the overall API coverage work by reviewing remaining operations family by family against the three supplied API exports. The current operation-level item is a site-level switch-health timeline using the documented batch read, with a 24-hour bound, fresh inventory binding, redaction and explicit gaps. This is continued operation-level coverage, not a promise that every vendor operation can or should be exposed.
 
 ## Follow-on read workflows
 

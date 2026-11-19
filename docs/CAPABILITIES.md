@@ -460,6 +460,14 @@ documented per-port counter response contains error totals but no drop
 counters; one snapshot cannot provide rates or trends. No live read has
 been performed for this workflow.
 
+The site switch-health history report also uses the documented batch timeline
+GET from all three exports. It refreshes the site's switch inventory, requests
+at most 64 unique switch MACs in one fixed 24-hour window, and maps documented
+timeline rows back to opaque references. Missing, ambiguous and excess devices
+remain visible as partial data. The source gives integer scores but no scale;
+the report does not rank switches or infer severity. This is fixture-tested;
+live support remains unknown.
+
 The AP health-score timeline is a separate, read-only AP route. All three
 supplied exports document its endpoint. The connector fixes the window at 24
 hours and projects redacted timestamps and int32 score values without
@@ -578,6 +586,18 @@ it does not infer units or PoE support from these values. Port numbers have a
 conservative connector bound of 0–4096. The ER7212PC schema has ambiguous PoE
 measurement types. Test coverage uses simulated fixtures only, with no live
 verification or support conclusion.
+
+`site_poe_schedule_summary` reads a fresh switch inventory, PoE-port inventory,
+documented per-switch usage/capacity, current port PoE fields, schedule targets
+and time-range profile IDs. It joins MAC addresses only inside the projection
+and returns opaque switch references. Same-row usage and capacity values are
+reported as watts only when the ER7212PC contract documents both fields.
+Current port readings are reduced to counts by raw status code and measurement
+presence; numeric measurements and port identities are omitted. Schedule names,
+profile names, IDs and timestamps are omitted; the
+next-execution field is reduced to presence because its unit is undocumented.
+The other two exports have generic response schemas. Fixtures cover the
+projection and route, but no controller or live support was tested.
 
 
 Gateway health timeline is a redacted read using an opaque inventoried
@@ -1185,3 +1205,7 @@ The LAN network detail summary resolves one opaque network reference within the 
 
 
 `site_client_filter_options_summary` reads the documented client-list filter catalog and returns counts for vendor, device, network, SSID and device-type options, plus stacked-device counts. It discards every option string, MAC address, device name and stack name. The read is site-bound and uses fixed query-free routing; live support remains unknown.
+
+### Scheduled reboot summary
+
+GET /v1/sites/{site_ref}/reboot-schedule-summary reads the documented site reboot schedule list. It returns enabled state, recurrence, schedule clock fields, a next-execution timestamp when supplied, and current-inventory device references. Names, source IDs, and MAC addresses are omitted. The source does not specify the schedule timezone; the report does not guess it. A configured schedule is not evidence that a reboot occurred. Detailed response fields are available in the ER7212PC 6.2.14 export; Hardware Controller and Omada CBC 6.3 exports have generic response schemas. Schedule rows use a declared compact column list so the same field names are not repeated per schedule. A synthetic 12-schedule payload measured 796 source JSON tokens and 464 projected tokens (41.71% fewer with js-tiktoken 1.0.21/o200k_base). This compares serialized fixture payloads only and excludes inventory responses, prompts, schemas, framing and billed agent context. No live controller compatibility check has been made for this route.

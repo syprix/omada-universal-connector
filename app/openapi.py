@@ -301,6 +301,14 @@ try:
 except ImportError:  # direct execution in the image
     from switch_health_timeline import SwitchHealthTimelineError, project_switch_health_timeline
 try:
+    from .site_switch_health_history import (
+        SiteSwitchHealthHistoryError, project_site_switch_health_history,
+    )
+except ImportError:  # direct execution in the image
+    from site_switch_health_history import (
+        SiteSwitchHealthHistoryError, project_site_switch_health_history,
+    )
+try:
     from .switch_sdm_usage import SwitchSdmUsageError, project_switch_sdm_usage
 except ImportError:  # direct execution in the image
     from switch_sdm_usage import SwitchSdmUsageError, project_switch_sdm_usage
@@ -354,6 +362,9 @@ try:
     from .switch_static_routes import SwitchStaticRoutesError, summarize_switch_static_routes
     from .site_setting_existence import SiteSettingExistenceError, project_site_setting_existence
     from .site_entity_summary import SiteEntitySummaryError, summarize_site_entity
+    from .site_reboot_schedule_summary import (
+        SiteRebootScheduleError, summarize_site_reboot_schedules,
+    )
     from .site_upnp_summary import SiteUpnpSummaryError, summarize_site_upnp
     from .site_gre_tunnel_summary import SiteGreTunnelSummaryError, summarize_site_gre_tunnel
     from .site_ssl_vpn_summary import SiteSslVpnSummaryError, summarize_site_ssl_vpn
@@ -553,6 +564,9 @@ except ImportError:  # direct execution in the image
     from switch_static_routes import SwitchStaticRoutesError, summarize_switch_static_routes
     from site_setting_existence import SiteSettingExistenceError, project_site_setting_existence
     from site_entity_summary import SiteEntitySummaryError, summarize_site_entity
+    from site_reboot_schedule_summary import (
+        SiteRebootScheduleError, summarize_site_reboot_schedules,
+    )
     from site_upnp_summary import SiteUpnpSummaryError, summarize_site_upnp
     from site_gre_tunnel_summary import SiteGreTunnelSummaryError, summarize_site_gre_tunnel
     from site_ssl_vpn_summary import SiteSslVpnSummaryError, summarize_site_ssl_vpn
@@ -1222,6 +1236,7 @@ class OmadaOpenApiClient:
     _MSP_SWITCH_HEALTH_PATH = (
         "/openapi/v1/msp/{msp_id}/customers/{customer_id}/sites/{site_id}/switches/{switch_mac}/health/detail")
     _SWITCH_HEALTH_TIMELINE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switches/{switch_mac}/health/timeline"
+    _SITE_SWITCH_HEALTH_TIMELINE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switches/health/timeline"
     _MSP_SWITCH_HEALTH_TIMELINE_PATH = (
         "/openapi/v1/msp/{msp_id}/customers/{customer_id}/sites/{site_id}/switches/{switch_mac}/health/timeline")
     _GATEWAY_ACL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/acls/osg-acls"
@@ -1302,6 +1317,7 @@ class OmadaOpenApiClient:
     _CONTROLLER_BATCH_ADOPT_INFO_PATH = "/openapi/v1/{controller_id}/devices/batch/info"
     _SITE_RADIUS_USERS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/profiles/radius-server/users"
     _SITE_ENTITY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}"
+    _SITE_REBOOT_SCHEDULE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/reboot-schedules"
     _SITE_UPNP_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/upnp"
     _SITE_IOT_AGING_TIME_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/iot/aging-time"
     _SITE_IOT_RADIO_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/iot/radio"
@@ -1312,6 +1328,9 @@ class OmadaOpenApiClient:
     _SITE_REMEMBER_SETTING_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/remember-device"
     _SITE_CLIENT_CONNECTION_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/client-ssid-distribution"
     _SITE_POE_USAGE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/poe-usage"
+    _SITE_POE_PORTS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/poe-ports"
+    _SITE_POE_SCHEDULES_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/poe-schedules"
+    _SITE_TIME_RANGE_PROFILES_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/time-range-profiles"
     _SITE_DEVICE_COUNTS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/card/overview"
     _SITE_IPSEC_TUNNEL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/lpset-tunnel-stats"
     _SITE_CLIENT_ASSOCIATION_TIME_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/client-association-time-distribution"
@@ -2608,6 +2627,7 @@ class OmadaOpenApiClient:
         ("switch_lldp_neighbors", "GET /v1/sites/{site_ref}/switches/{switch_ref}/lldp-neighbors"),
         ("switch_health", "GET /v1/sites/{site_ref}/switches/{switch_ref}/health"),
         ("switch_health_timeline", "GET /v1/sites/{site_ref}/switches/{switch_ref}/health/timeline"),
+        ("site_switch_health_history", "GET /v1/sites/{site_ref}/switches/health-history"),
         ("switch_sdm_usage", "GET /v1/sites/{site_ref}/switches/{switch_ref}/sdm-usage"),
         ("switch_cable_test_logs", "GET /v1/sites/{site_ref}/switches/{switch_ref}/cable-test/logs"),
         ("switch_cable_test_full_results", "GET /v1/sites/{site_ref}/switches/{switch_ref}/cable-test/full-results"),
@@ -2732,6 +2752,7 @@ class OmadaOpenApiClient:
         ("site_device_tag_summary", "GET /v1/sites/{site_ref}/device-tags/summary"),
         ("site_overview", "GET /v1/sites/{site_ref}/health/summary"),
         ("site_topology", "GET /v1/sites/{site_ref}/topology"),
+        ("site_reboot_schedule_summary", "GET /v1/sites/{site_ref}/reboot-schedule-summary"),
         ("site_health_timeline", "GET /v1/sites/{site_ref}/health/timeline"),
         ("site_longest_client_uptime_summary",
          "GET /v1/sites/{site_ref}/dashboard/longest-client-uptime-summary"),
@@ -2748,6 +2769,7 @@ class OmadaOpenApiClient:
         ("site_remember_setting_summary", "GET /v1/sites/{site_ref}/remember-setting-summary"),
         ("site_client_connection_summary", "GET /v1/sites/{site_ref}/client-connection-summary"),
         ("site_poe_usage_summary", "GET /v1/sites/{site_ref}/poe-usage-summary"),
+        ("site_poe_schedule_summary", "GET /v1/sites/{site_ref}/poe/schedule-summary"),
         ("site_device_counts_summary", "GET /v1/sites/{site_ref}/device-counts-summary"),
         ("site_ipsec_tunnel_summary", "GET /v1/sites/{site_ref}/ipsec-tunnel-summary"),
         ("site_client_association_time_summary", "GET /v1/sites/{site_ref}/client-association-time-summary"),
@@ -8308,6 +8330,64 @@ class OmadaOpenApiClient:
                 "omitted_field_count": data["omitted_field_count"],
                 "omitted_fields": data["omitted_fields"]}
 
+    @_track_capability("site_switch_health_history")
+    def read_site_switch_health_history(self, site_ref: str) -> dict[str, object]:
+        """Read one bounded 24-hour switch score timeline for an inventoried site."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        inventory = self.list_devices(site_ref)
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        if not site_id:
+            raise OpenApiError("site_ref_unknown")
+        items = inventory.get("items")
+        if not isinstance(items, list):
+            raise OpenApiError("openapi_response_invalid")
+        switch_macs = self._switch_macs_by_site_ref.get(site_ref, {})
+        switch_refs = sorted(
+            item["device_ref"] for item in items
+            if isinstance(item, Mapping) and
+            isinstance(item.get("device_ref"), str) and
+            item.get("device_ref") in switch_macs)
+        queried_refs = switch_refs[:64]
+        refs_by_mac: dict[str, list[str]] = {}
+        mac_by_ref: dict[str, str] = {}
+        for switch_ref in queried_refs:
+            mac = switch_macs.get(switch_ref)
+            if not isinstance(mac, str) or not self._MAC.fullmatch(mac):
+                raise OpenApiError("openapi_response_invalid")
+            key = re.sub(r"[:-]", "", mac).casefold()
+            refs_by_mac.setdefault(key, []).append(switch_ref)
+            mac_by_ref[switch_ref] = mac
+
+        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        start_ms = end_ms - 86_400_000
+        if not queried_refs:
+            raw_result: object = {"timeline": []}
+        else:
+            unique_macs: list[str] = []
+            seen_macs: set[str] = set()
+            for switch_ref in queried_refs:
+                mac = mac_by_ref[switch_ref]
+                key = re.sub(r"[:-]", "", mac).casefold()
+                if key not in seen_macs:
+                    seen_macs.add(key)
+                    unique_macs.append(mac)
+            query = urlencode({
+                "macs": ",".join(unique_macs),
+                "start": start_ms, "end": end_ms,
+            })
+            path = (self._SITE_SWITCH_HEALTH_TIMELINE_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id) + "?" + query)
+            raw_result = self._request_json(
+                "GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_site_switch_health_history(
+                raw_result, refs_by_mac, switch_refs, start_ms, end_ms)
+        except SiteSwitchHealthHistoryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_switch_health_history",
+                "site_ref": site_ref, **projected}
+
     @_track_capability("switch_sdm_usage")
     def read_switch_sdm_usage(self, site_ref: str, switch_ref: str) -> dict[str, object]:
         """Read documented switch SDM category and capacity values."""
@@ -9726,6 +9806,22 @@ class OmadaOpenApiClient:
         return {"status": "ok", "resource": "site_entity_summary",
                 "site_ref": site_ref, **projected}
 
+    @_track_capability("site_reboot_schedule_summary")
+    def read_site_reboot_schedule_summary(self, site_ref: str) -> dict[str, object]:
+        """Read scheduled device reboot configuration without implying an actual reboot."""
+        self.list_devices(site_ref)
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_REBOOT_SCHEDULE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = summarize_site_reboot_schedules(
+                result, self._device_macs_by_site_ref.get(site_ref, {}))
+        except SiteRebootScheduleError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": projected["status"], "resource": "site_reboot_schedule_summary",
+                "site_ref": site_ref, **projected}
+
     @_track_capability("site_upnp_summary")
     def read_site_upnp_summary(self, site_ref: str) -> dict[str, object]:
         """Summarize UPnP settings without exposing controller reference IDs."""
@@ -9903,6 +9999,59 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {"status": "ok", "resource": "site_client_connection_summary",
                 "site_ref": site_ref, **projected}
+
+    @_track_capability("site_poe_schedule_summary")
+    def read_site_poe_schedule_summary(self, site_ref: str) -> dict[str, object]:
+        """Join documented switch PoE budgets, port telemetry and schedule mappings."""
+        if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
+            raise OpenApiError("site_ref_invalid")
+        if site_ref not in self._site_ids_by_ref:
+            raise OpenApiError("site_ref_unknown")
+        try:
+            from .site_poe_schedule_summary import summarize_site_poe_schedule
+        except ImportError:  # direct execution in the image
+            from site_poe_schedule_summary import summarize_site_poe_schedule
+
+        inventory = self.list_devices(site_ref)
+        items = inventory.get("items")
+        if not isinstance(items, list):
+            raise OpenApiError("openapi_response_invalid")
+        site_id = self._site_ids_by_ref[site_ref]
+        token = self._access_token()
+        source_errors: dict[str, str] = {}
+
+        def read_list(label: str, path: str) -> object | None:
+            try:
+                return self._request_json("GET", path, token=token).get("result")
+            except OpenApiError as exc:
+                source_errors[label] = exc.code
+                return None
+
+        poe_port_rows = read_list("poe_port_inventory", self._SITE_POE_PORTS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id))
+        usage_rows = read_list("poe_usage", self._SITE_POE_USAGE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id))
+        time_range_rows = read_list("time_range_profiles", self._SITE_TIME_RANGE_PROFILES_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id))
+        schedule_rows: object | None = None
+        try:
+            schedule_rows = self._read_pages(self._SITE_POE_SCHEDULES_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id), token)
+        except OpenApiError as exc:
+            source_errors["poe_schedules"] = exc.code
+        port_info_rows: object | None = None
+        try:
+            port_info_rows = self._read_pages(self._SWITCH_PORT_POE_INFO_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id), token)
+        except OpenApiError as exc:
+            source_errors["port_poe_info"] = exc.code
+        try:
+            return summarize_site_poe_schedule(
+                items, self._switch_macs_by_site_ref.get(site_ref, {}),
+                poe_port_rows, usage_rows, port_info_rows, schedule_rows, time_range_rows,
+                source_errors=source_errors)
+        except ValueError:
+            raise OpenApiError("openapi_response_invalid") from None
 
     @_track_capability("site_poe_usage_summary")
     def read_site_poe_usage_summary(self, site_ref: str) -> dict[str, object]:
@@ -13175,6 +13324,7 @@ class OmadaOpenApiClient:
                                   self._site_6ghz_ap_presence_request_valid(path) or
                                   self._site_setting_existence_request_valid(path) or
                                   self._site_entity_request_valid(path) or
+                                  self._site_reboot_schedule_request_valid(path) or
                                   self._site_upnp_request_valid(path) or
                                   self._site_iot_aging_time_request_valid(path) or
                                   self._site_iot_radio_request_valid(path) or
@@ -13408,6 +13558,7 @@ class OmadaOpenApiClient:
                                   self._switch_port_counters_request_valid(path) or
                                   self._switch_port_poe_info_request_valid(path) or
                                   self._switch_health_request_valid(path) or
+                                  self._site_switch_health_history_request_valid(path) or
                                   re.fullmatch(
                                       rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
                                       rf"[A-Za-z0-9_-]{{1,128}}/switches/{self._MAC.pattern}/sdm-used", path) or
@@ -14204,6 +14355,12 @@ class OmadaOpenApiClient:
     def _site_entity_request_valid(self, path: str) -> bool:
         match = re.fullmatch(
             r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_reboot_schedule_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/reboot-schedules",
+            path)
         return bool(match and match.group(1) == self.config.controller_id)
 
     def _site_upnp_request_valid(self, path: str) -> bool:
@@ -15455,6 +15612,28 @@ class OmadaOpenApiClient:
         if not match or match.group(1) != self.config.controller_id:
             return False
         return int(match.group(3)) - int(match.group(2)) == 86_400_000
+
+    def _site_switch_health_history_request_valid(self, path: str) -> bool:
+        try:
+            parsed = urlsplit(path)
+            if not re.fullmatch(
+                    rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+                    r"[A-Za-z0-9_-]{1,128}/switches/health/timeline", parsed.path):
+                return False
+            query = parse_qs(parsed.query, keep_blank_values=True, strict_parsing=True)
+            if set(query) != {"macs", "start", "end"} or any(
+                    len(values) != 1 for values in query.values()):
+                return False
+            macs = query["macs"][0].split(",")
+            if (not 1 <= len(macs) <= 64 or
+                    any(not self._MAC.fullmatch(mac) for mac in macs) or
+                    len({re.sub(r"[:-]", "", mac).casefold() for mac in macs}) != len(macs)):
+                return False
+            start_ms, end_ms = int(query["start"][0]), int(query["end"][0])
+            return (0 <= start_ms <= end_ms <= 2**63 - 1 and
+                    end_ms - start_ms == 86_400_000)
+        except (KeyError, TypeError, ValueError, OverflowError):
+            return False
 
     def _switch_port_counters_request_valid(self, path: str) -> bool:
         match = self._SWITCH_PORT_COUNTERS_REQUEST.fullmatch(path)
