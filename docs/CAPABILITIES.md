@@ -1253,6 +1253,8 @@ GET /v1/controller/maintenance/backup-inventory-summary summarizes controller-li
 
 WAN maximum-speed configuration is available for one explicitly selected WAN port at `GET /v1/sites/{site_ref}/wan-ports/{wan_port_ref}/max-speed-summary`. The WAN-port inventory returns an opaque reference and index for each uniquely identified WAN port. Each read resolves the reference against a fresh `internet/ports-config` response and sends the matching documented `portId` as required `wanId`. The connector preserves upstream/downstream int32 values and labels the unit unspecified. It does not report current throughput. Live support is unknown.
 
+`GET /v1/sites/{site_ref}/gateways/{device_ref}/info-summary` returns the documented model (`showModel`), firmware version and numeric last-seen source value for one gateway bound to the selected site's inventory. It omits MAC/IP addresses, IPv6 values, port details and unrelated operational fields. The source does not define units or epoch semantics for `lastSeen`; the connector preserves the integer without converting it or inferring online/offline state. Missing, invalid and unknown fields are reported. Live support remains unknown.
+
 
 ### AP SSID override audit summary
 

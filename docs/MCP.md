@@ -843,6 +843,8 @@ A synthetic eight-AP fixture with 608 channel-load rows measured 9,324 source JS
 
 `omada_site_wan_max_speed_summary` requires one `wan_port_ref` returned by the WAN-port inventory. It rereads that inventory, resolves the selected reference to one documented `portId`, and sends the required `wanId` query. It returns upstream/downstream int32 values without interpreting units; the source gives no unit. This is configuration, not current throughput. Live support is unknown.
 
+`omada_gateway_info_summary` requires a gateway `device_ref` from the selected site's device inventory. It returns only the documented model, firmware version, and unscaled `lastSeen` integer. The source does not define the time unit or epoch, so no online/offline status is inferred. Addresses, MAC values, IPv6 values, and port details are omitted. Live support is unknown.
+
 
 `omada_ap_ssid_override_audit_summary` reads the selected inventoried AP's stored SSID override audit rows. It requests only a fixed first page of 100 from the source default trailing seven-day window and returns aggregate modification counts; SSID names and VLAN values are omitted. Source rows provide no timestamp or actor, so the result is not chronological or attributable. The source operation appears in Hardware Controller and CBC 6.3 exports and is absent from the ER7212PC 6.2.14 export. Live MCP support has not been tested.
 ### Comparing existing incident reports

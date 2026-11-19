@@ -33,7 +33,7 @@
     {
       "label": "Hardware Controller 6.3.0",
       "source_sha256": "3a6ec3a9741839ba06de3f11df3d6d67ddd3ac702fd98dce286b0268dc0a8f44",
-      "documented_operations": 1792,
+      "documented_operations": 1793,
       "operations": {
         "ap_available_channels_summary": {
           "documented": true,
@@ -2117,6 +2117,18 @@
             "query": "page and pageSize are required; pageSize accepts documented choices up to 100. Optional filters.times defaults to the source-defined trailing seven days; optional sorts.time is asc or desc.",
             "response": "GridVOApOverrideAuditLogVO defines totalRows (int64), currentPage and currentSize (int32), and data rows of ApOverrideAuditLogVO. Rows define globalSsid, oldSsidName, newSsidName, oldVlanId, newVlanId, passwordModified, ssidNameModified and vlanIdModified. The schema has no timestamp or actor fields, so it does not support chronological ordering or actor attribution.",
             "projection": "AP-bound HTTP/MCP GET resolves only an inventoried AP. Reads one fixed page of 100 in the source default time period. Returns reported/returned row counts and counts of the three documented modified flags; omits SSID names, VLAN values and all other string values. Missing, invalid and unknown fields and truncation are counted. Does not expose event timestamps because the source response schema has none."
+          }
+        },
+        "gateway_info_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGatewayInfo_1",
+            "tag": "Gateway",
+            "permission": "Site Device Manager View Only",
+            "query": "none",
+            "response": "GatewayInfo defines showModel (string, gateway model description), firmwareVersion (string, gateway software version), and lastSeen (int64, last-seen time). The lastSeen unit and epoch semantics are unspecified. Other address and port fields are not projected.",
+            "projection": "Authenticated HTTP/MCP GET bound to one opaque gateway reference from the selected site inventory. Preserves only bounded model/version strings and the int64 lastSeen source value; reports missing, invalid, and unknown fields. Omits MAC, IP, IPv6, uptime, telemetry, and detailed port values. No live controller request was made."
           }
         }
       }
@@ -2124,7 +2136,7 @@
     {
       "label": "CBC Standard 6.3.0",
       "source_sha256": "15e5101bcb31437569735fde06b964b988538445782bada4fa4fb9fbea951063",
-      "documented_operations": 2447,
+      "documented_operations": 2448,
       "operations": {
         "ap_available_channels_summary": {
           "documented": true,
@@ -4209,13 +4221,25 @@
             "response": "GridVOApOverrideAuditLogVO defines totalRows (int64), currentPage and currentSize (int32), and data rows of ApOverrideAuditLogVO. Rows define globalSsid, oldSsidName, newSsidName, oldVlanId, newVlanId, passwordModified, ssidNameModified and vlanIdModified. The schema has no timestamp or actor fields, so it does not support chronological ordering or actor attribution.",
             "projection": "AP-bound HTTP/MCP GET resolves only an inventoried AP. Reads one fixed page of 100 in the source default time period. Returns reported/returned row counts and counts of the three documented modified flags; omits SSID names, VLAN values and all other string values. Missing, invalid and unknown fields and truncation are counted. Does not expose event timestamps because the source response schema has none."
           }
+        },
+        "gateway_info_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGatewayInfo_1",
+            "tag": "Gateway",
+            "permission": "Site Device Manager View Only",
+            "query": "none",
+            "response": "GatewayInfo defines showModel (string, gateway model description), firmwareVersion (string, gateway software version), and lastSeen (int64, last-seen time). The lastSeen unit and epoch semantics are unspecified. Other address and port fields are not projected.",
+            "projection": "Authenticated HTTP/MCP GET bound to one opaque gateway reference from the selected site inventory. Preserves only bounded model/version strings and the int64 lastSeen source value; reports missing, invalid, and unknown fields. Omits MAC, IP, IPv6, uptime, telemetry, and detailed port values. No live controller request was made."
+          }
         }
       }
     },
     {
       "label": "ER7212PC 6.2.14",
       "source_sha256": "25a044099a4621594d7568fb90a775330436990a7db51c33fb112301c2442a00",
-      "documented_operations": 1766,
+      "documented_operations": 1767,
       "operations": {
         "ap_available_channels_summary": {
           "documented": true,
@@ -6278,6 +6302,18 @@
           "contract_review": {
             "operation_id": "getApSsidOverridesAuditLogs",
             "source_status": "not_present_in_ER7212PC_6.2.14"
+          }
+        },
+        "gateway_info_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGatewayInfo",
+            "tag": "Gateway",
+            "permission": "Site Device Manager View Only",
+            "query": "none",
+            "response": "GatewayInfo defines showModel (string, gateway model description), firmwareVersion (string, gateway software version), and lastSeen (int64, last-seen time). The lastSeen unit and epoch semantics are unspecified. Other address and port fields are not projected.",
+            "projection": "Authenticated HTTP/MCP GET bound to one opaque gateway reference from the selected site inventory. Preserves only bounded model/version strings and the int64 lastSeen source value; reports missing, invalid, and unknown fields. Omits MAC, IP, IPv6, uptime, telemetry, and detailed port values. No live controller request was made."
           }
         }
       }

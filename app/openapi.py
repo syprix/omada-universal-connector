@@ -1252,6 +1252,7 @@ class OmadaOpenApiClient:
     _AP_LAN_TRAFFIC_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/lan-traffic-info"
     _AP_RETRY_DROP_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/retry-dropped-rate"
     _GATEWAY_WAN_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/gateways/{gateway_mac}/wan-status"
+    _GATEWAY_INFO_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/gateways/{gateway_mac}"
     _GATEWAY_LAN_STATUS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/gateways/{gateway_mac}/lan-status"
     _GATEWAY_PORTS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/gateways/{gateway_mac}/ports"
     _GATEWAY_SPEED_TEST_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/gateways/{gateway_mac}/speedTestResult"
@@ -1864,6 +1865,10 @@ class OmadaOpenApiClient:
     _GATEWAY_WAN_REQUEST = re.compile(
         r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/gateways/"
         r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/wan-status"
+    )
+    _GATEWAY_INFO_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/gateways/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}"
     )
     _GATEWAY_HEALTH_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/gateways/"
@@ -2705,6 +2710,7 @@ class OmadaOpenApiClient:
         ("ap_rf_scan_v2", "GET /v1/sites/{site_ref}/aps/{device_ref}/rf-scan-v2"),
         ("ap_wifi_interference", "GET /v1/sites/{site_ref}/aps/{device_ref}/wifi-neighbors"),
         ("gateway_wan_status", "GET /v1/sites/{site_ref}/gateways/{device_ref}/wan-status"),
+        ("gateway_info_summary", "GET /v1/sites/{site_ref}/gateways/{device_ref}/info-summary"),
         ("gateway_wan_health", "GET /v1/sites/{site_ref}/gateways/{device_ref}/wan-health"),
         ("gateway_health", "GET /v1/sites/{site_ref}/gateways/{gateway_ref}/health"),
         ("gateway_health_timeline", "GET /v1/sites/{site_ref}/gateways/{gateway_ref}/health/timeline"),
@@ -8166,6 +8172,24 @@ class OmadaOpenApiClient:
             items.append(item)
         return {"status": "ok", "resource": "gateway_wan_status", "device_ref": device_ref,
                 "count": len(items), "items": items}
+
+    @_track_capability("gateway_info_summary")
+    def read_gateway_info_summary(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Return documented model/version/last-seen fields for an inventoried gateway."""
+        site_id, gateway_mac = self._known_gateway_mac(site_ref, device_ref)
+        path = self._GATEWAY_INFO_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, gateway_mac=gateway_mac)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .gateway_info_summary import GatewayInfoSummaryError, project_gateway_info
+        except ImportError:  # direct execution in the image
+            from gateway_info_summary import GatewayInfoSummaryError, project_gateway_info
+        try:
+            projected = project_gateway_info(result)
+        except GatewayInfoSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "gateway_info_summary",
+                "site_ref": site_ref, "device_ref": device_ref, **projected}
 
     @_track_capability("gateway_lan_status")
     def read_gateway_lan_status(self, site_ref: str, gateway_ref: str) -> dict[str, object]:
@@ -14232,6 +14256,7 @@ class OmadaOpenApiClient:
                                   self._site_lock_to_ap_brief_request_valid(path) or
                                   self._site_ineligible_interference_ap_request_valid(path) or
                                   self._site_interference_scan_eligible_request_valid(path) or
+                                  self._gateway_info_request_valid(path) or
                                   self._GATEWAY_WAN_REQUEST.fullmatch(path) or
                                   re.fullmatch(
                                       rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
@@ -16551,6 +16576,10 @@ class OmadaOpenApiClient:
             return int(match.group(3)) - int(match.group(2)) == 86_400_000
         except ValueError:
             return False
+
+    def _gateway_info_request_valid(self, path: str) -> bool:
+        match = self._GATEWAY_INFO_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
 
     def _gateway_health_request_valid(self, path: str) -> bool:
         match = self._GATEWAY_HEALTH_REQUEST.fullmatch(path)

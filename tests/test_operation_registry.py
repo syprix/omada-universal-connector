@@ -5,6 +5,16 @@ from app.mcp import _tool
 
 
 class OperationRegistryTests(unittest.TestCase):
+    def test_gateway_info_summary_requires_one_opaque_site_gateway_reference(self):
+        operation = REGISTRY.get("gateway_info_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"],
+                         ["site_ref", "device_ref"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/gateways/" + "b" * 24 +
+            "/info-summary")
+        self.assertEqual(route.operation_id, "gateway_info_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24, "device_ref": "b" * 24})
+
     def test_ap_ssid_override_audit_route_is_bound_to_selected_ap(self):
         operation = REGISTRY.get("ap_ssid_override_audit_summary")
         schema = _tool(operation)["inputSchema"]
@@ -618,6 +628,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_wan_ports_summary",
             "site_virtual_wan_summary",
             "site_wan_max_speed_summary",
+            "gateway_info_summary",
             "site_vlan_network_summary",
             "site_lan_network_detail_summary",
             "site_lan_network_config_summary",
