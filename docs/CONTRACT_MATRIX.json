@@ -2144,6 +2144,22 @@
             "connector_projection": "Returns counts by documented device type and support=true/false/unknown, redacts device and port identifiers, reports missing port lists, invalid or unknown fields, and marks the ER single-object schema interpretation partial. Counts represent only returned rows; the source provides no total coverage field.",
             "live_support": "unknown"
           }
+        },
+        "site_static_route_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridStaticRouting_1",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only or Site Device Manager View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/routing/static-routings",
+            "query": {
+              "page": "required int32",
+              "pageSize": "required int32"
+            },
+            "request_body": false,
+            "response": "Paginated result fields totalRows/currentPage/currentSize/data and support flags; each route row documents status, routeType, destinations, optional nextHopIp/interfaceType/interfaceId/metric and VPN/virtual-WAN reference flags. ER7212PC omits optional featureDescription.",
+            "projection": "Counts only documented route type (0 next hop, 1 interface), boolean status, and occurrences of interface/VPN-client/virtual-WAN references. Omits IDs, names, destination addresses, next-hop addresses, metrics and feature descriptions. Reports unknown route type/status/reference fields."
+          }
         }
       }
     },
@@ -4261,6 +4277,22 @@
             "connector_projection": "Returns counts by documented device type and support=true/false/unknown, redacts device and port identifiers, reports missing port lists, invalid or unknown fields, and marks the ER single-object schema interpretation partial. Counts represent only returned rows; the source provides no total coverage field.",
             "live_support": "unknown"
           }
+        },
+        "site_static_route_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridStaticRouting_1",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only or Site Device Manager View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/routing/static-routings",
+            "query": {
+              "page": "required int32",
+              "pageSize": "required int32"
+            },
+            "request_body": false,
+            "response": "Paginated result fields totalRows/currentPage/currentSize/data and support flags; each route row documents status, routeType, destinations, optional nextHopIp/interfaceType/interfaceId/metric and VPN/virtual-WAN reference flags. ER7212PC omits optional featureDescription.",
+            "projection": "Counts only documented route type (0 next hop, 1 interface), boolean status, and occurrences of interface/VPN-client/virtual-WAN references. Omits IDs, names, destination addresses, next-hop addresses, metrics and feature descriptions. Reports unknown route type/status/reference fields."
+          }
         }
       }
     },
@@ -6356,6 +6388,22 @@
             "response": "devicePortSupportVlan maps device MAC keys to device objects with mac, type (gateway/switch/ap/olt), optional stackId, and portList. Each port has optional port/standardPort/lagId/mlagId and support boolean. ER7212PC declares the property as one device object rather than a MAC-keyed map, while its description and example indicate a map.",
             "connector_projection": "Returns counts by documented device type and support=true/false/unknown, redacts device and port identifiers, reports missing port lists, invalid or unknown fields, and marks the ER single-object schema interpretation partial. Counts represent only returned rows; the source provides no total coverage field.",
             "live_support": "unknown"
+          }
+        },
+        "site_static_route_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridStaticRouting",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only or Site Device Manager View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/routing/static-routings",
+            "query": {
+              "page": "required int32",
+              "pageSize": "required int32"
+            },
+            "request_body": false,
+            "response": "Paginated result fields totalRows/currentPage/currentSize/data and support flags; each route row documents status, routeType, destinations, optional nextHopIp/interfaceType/interfaceId/metric and VPN/virtual-WAN reference flags. ER7212PC omits optional featureDescription.",
+            "projection": "Counts only documented route type (0 next hop, 1 interface), boolean status, and occurrences of interface/VPN-client/virtual-WAN references. Omits IDs, names, destination addresses, next-hop addresses, metrics and feature descriptions. Reports unknown route type/status/reference fields."
           }
         }
       }

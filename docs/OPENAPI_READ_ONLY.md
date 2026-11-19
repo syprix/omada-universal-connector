@@ -1,5 +1,17 @@
 # Development Open API inventory routes
 
+## Static gateway-route summary
+
+`GET /v1/sites/{site_ref}/static-route-summary` and MCP
+`omada_site_static_route_summary` call the documented paginated GET
+`/openapi/v1/{omadacId}/sites/{siteId}/routing/static-routings`. All three
+source exports require `page` and `pageSize` and document route status and
+type. Interface, VPN-client and virtual-WAN reference fields are summarized
+only as occurrence counts. The connector omits route IDs, names, destinations,
+next-hop values, metrics and descriptions. It accepts only a current local site
+reference and enforces the configured page limit. Controller support remains
+unknown.
+
 ## Controller threat severity counts
 
 `GET /v1/controller/threat-severity-summary?start_ms=<UTC-epoch-ms>&end_ms=<UTC-epoch-ms>`

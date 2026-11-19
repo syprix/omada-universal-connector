@@ -1,5 +1,13 @@
 # Capability evidence
 
+`GET /v1/sites/{site_ref}/static-route-summary` and MCP tool
+`omada_site_static_route_summary` provide a bounded read-only overview of the
+selected site's static gateway routes. The response counts documented route
+types, status values and occurrences of interface, VPN-client and virtual-WAN
+references. It does not return route identifiers, names, destination or
+next-hop addresses, metrics or descriptions. Live controller support is
+unknown until verified against a controller.
+
 ## Dynamic Wireless IDS blacklist summary
 
 `GET /v1/sites/{site_ref}/wifi/wids-blacklist-summary` and MCP tool

@@ -713,6 +713,15 @@ class FakeOpenApiClient:
                 "missing_field_count": 0, "invalid_field_count": 0,
                 "unknown_field_count": 0, "partial": False}
 
+    def read_site_static_route_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_static_route_summary", site_ref))
+        return {"status": "ok", "resource": "site_static_route_summary",
+                "site_ref": site_ref, "count": 2,
+                "summary": {"by_type": {"interface": 1, "next_hop": 1},
+                            "by_status": {"true": 2},
+                            "reference_occurrences": {"interface": 1},
+                            "unknown_rows": 0}, "partial": False}
+
     def read_gateway_wan_health(self, site_ref: str, device_ref: str) -> dict[str, object]:
         self.calls.append(("gateway_wan_health", site_ref + ":" + device_ref))
         return {"status": "ok", "resource": "gateway_wan_health", "device_ref": device_ref,
@@ -4113,6 +4122,24 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(response["result"]["structuredContent"], direct)
         self.assertEqual(self.fake.calls,
                          [("gateway_info_summary", site_ref + ":" + device_ref)] * 2)
+
+    def test_http_and_mcp_expose_static_route_summary(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/static-route-summary"
+        status, body = self.request(path)
+        self.assertEqual(status, 401)
+        self.assertEqual(body["error"], "unauthorized")
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(direct["resource"], "site_static_route_summary")
+        request = {"jsonrpc": "2.0", "id": 229, "method": "tools/call",
+                   "params": {"name": "omada_site_static_route_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_static_route_summary", site_ref)] * 2)
 
     def test_http_and_mcp_expose_fixed_gateway_lan_status_read(self) -> None:
         gateway_ref = "d" * 24

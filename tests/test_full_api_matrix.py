@@ -2036,6 +2036,36 @@ class FullApiMatrixTests(unittest.TestCase):
         self.assertEqual(row["connector_source_status"], "implemented_read")
         self.assertEqual(row["live_status"], "unknown_not_checked_by_this_offline_tool")
 
+    def test_site_static_route_summary_matches_all_source_exports(self) -> None:
+        matrix = json.loads((Path(__file__).resolve().parents[1] /
+                             "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
+        expected_ids = {
+            "Hardware Controller 6.3.0": "getGridStaticRouting_1",
+            "CBC Standard 6.3.0": "getGridStaticRouting_1",
+            "ER7212PC 6.2.14": "getGridStaticRouting",
+        }
+        for source in matrix["sources"]:
+            row = source["operations"]["site_static_route_summary"]
+            self.assertTrue(row["documented"])
+            self.assertEqual(row["live_support"], "unknown")
+            review = row["contract_review"]
+            self.assertEqual(review["operation_id"], expected_ids[source["label"]])
+            self.assertEqual(review["query"], {"page": "required int32", "pageSize": "required int32"})
+            self.assertIn("routeType", review["response"])
+            self.assertIn("interfaceId", review["response"])
+            self.assertIn("destinations", review["response"])
+            self.assertIn("destination addresses", review["projection"])
+        spec = document()
+        spec["paths"] = {
+            "/openapi/v1/{omadacId}/sites/{siteId}/routing/static-routings": {
+                "get": {"operationId": "getGridStaticRouting_1", "responses": {"200": {}}},
+            },
+        }
+        path = self.write_zip("site-static-route-summary.zip", spec)
+        row = build_matrix([("hardware", path)])["operations"][0]
+        self.assertEqual(row["connector_source_status"], "implemented_read")
+        self.assertEqual(row["live_status"], "unknown_not_checked_by_this_offline_tool")
+
     def test_site_internet_summary_matches_all_source_exports(self) -> None:
         matrix = json.loads((Path(__file__).resolve().parents[1] /
                              "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))

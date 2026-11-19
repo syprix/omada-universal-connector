@@ -2717,6 +2717,7 @@ class OmadaOpenApiClient:
         ("ap_wifi_interference", "GET /v1/sites/{site_ref}/aps/{device_ref}/wifi-neighbors"),
         ("gateway_wan_status", "GET /v1/sites/{site_ref}/gateways/{device_ref}/wan-status"),
         ("gateway_info_summary", "GET /v1/sites/{site_ref}/gateways/{device_ref}/info-summary"),
+        ("site_static_route_summary", "GET /v1/sites/{site_ref}/static-route-summary"),
         ("gateway_wan_health", "GET /v1/sites/{site_ref}/gateways/{device_ref}/wan-health"),
         ("gateway_health", "GET /v1/sites/{site_ref}/gateways/{gateway_ref}/health"),
         ("gateway_health_timeline", "GET /v1/sites/{site_ref}/gateways/{gateway_ref}/health/timeline"),
@@ -8225,6 +8226,32 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {"status": "ok", "resource": "gateway_info_summary",
                 "site_ref": site_ref, "device_ref": device_ref, **projected}
+
+    @_track_capability("site_static_route_summary")
+    def read_site_static_route_summary(self, site_ref: str) -> dict[str, object]:
+        """Count documented static-route metadata without returning route contents."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/"
+                "routing/static-routings")
+        payload = self._read_pages_result(
+            path, self._access_token(), max_items=10_000)
+        rows = payload.get("data")
+        if not isinstance(rows, list):
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            from .site_static_route_summary import (
+                SiteStaticRouteSummaryError, summarize_site_static_routes,
+            )
+        except ImportError:  # direct execution in the image
+            from site_static_route_summary import (
+                SiteStaticRouteSummaryError, summarize_site_static_routes,
+            )
+        try:
+            projected = summarize_site_static_routes(rows)
+        except SiteStaticRouteSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**projected, "site_ref": site_ref,
+                "source_total_rows": payload.get("totalRows")}
 
     @_track_capability("gateway_lan_status")
     def read_gateway_lan_status(self, site_ref: str, gateway_ref: str) -> dict[str, object]:
