@@ -5,6 +5,14 @@ from app.mcp import _tool
 
 
 class OperationRegistryTests(unittest.TestCase):
+    def test_site_static_route_summary_is_a_site_bound_read(self):
+        operation = REGISTRY.get("site_static_route_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/static-route-summary")
+        self.assertEqual(route.operation_id, "site_static_route_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
+
     def test_gateway_info_summary_requires_one_opaque_site_gateway_reference(self):
         operation = REGISTRY.get("gateway_info_summary")
         self.assertEqual(_tool(operation)["inputSchema"]["required"],
@@ -634,6 +642,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_virtual_wan_summary",
             "site_wan_max_speed_summary",
             "gateway_info_summary",
+            "site_static_route_summary",
             "site_vlan_network_summary",
             "site_lan_network_detail_summary",
             "site_lan_network_config_summary",

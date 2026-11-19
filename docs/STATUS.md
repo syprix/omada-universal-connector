@@ -409,3 +409,23 @@ prompts, schemas, transport framing and billed agent usage. No live request or
 network change was made. The required registry/matrix/evidence gate passed 242 tests. Full offline
 discovery passed 3,255 tests in 475.857 seconds; runtime smoke, compilation,
 JSON parsing, source-matrix confirmation and diff checks passed.
+
+## Function 43 — static gateway-route summary
+
+Added a read-only HTTP and MCP summary of the selected site's paginated static
+route list. All three source exports document the same GET path and required
+`page`/`pageSize` parameters. The projection counts route types, boolean status,
+and occurrences of interface, VPN-client and virtual-WAN references; route IDs,
+names, destination and next-hop addresses, metrics and descriptions are omitted.
+ER7212PC omits one optional feature-description field, which is not projected.
+The request uses the existing configured page bound and rejects a response that
+cannot be read completely within it. Live support remains unknown.
+
+The five projector/client checks, HTTP/MCP dispatch, registry, and source-matrix
+checks passed (8 focused tests). The required registry/matrix/evidence gate
+passed 244 tests. Source catalog consistency, runtime smoke, compilation and
+diff checks passed. No controller request was made. A synthetic 20-route
+comparison measured 1,571 source JSON tokens and 83 projected-result tokens
+(1,488 fewer; 94.72%) with js-tiktoken 1.0.21 / `o200k_base`; it excludes
+schemas, prompts, framing, and billed agent usage. Exact-head hosted CI is not
+yet available because this change has not been uploaded.
