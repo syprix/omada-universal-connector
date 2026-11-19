@@ -1325,6 +1325,15 @@ class FakeOpenApiClient:
                          "source_ap_ref": ap_ref, "target_ap_ref": "c" * 24},
                 "partial": False}
 
+    def read_ap_ssid_override_audit_summary(self, site_ref: str,
+                                            ap_ref: str) -> dict[str, object]:
+        self.calls.append(("ap_ssid_override_audit_summary", site_ref + ":" + ap_ref))
+        return {"status": "ok", "resource": "ap_ssid_override_audit_summary",
+                "site_ref": site_ref, "device_ref": ap_ref,
+                "data": {"reported_total_row_count": 2, "returned_row_count": 2,
+                         "password_modified_count": 1, "ssid_name_modified_count": 1,
+                         "vlan_id_modified_count": 1}, "partial": False}
+
     def read_ap_wired_downlink(self, site_ref: str, ap_ref: str) -> dict[str, object]:
         self.calls.append(("ap_wired_downlink", site_ref + ":" + ap_ref))
         return {"status": "ok", "resource": "ap_wired_downlink", "site_ref": site_ref,
@@ -3169,6 +3178,22 @@ class OpenApiHttpTests(unittest.TestCase):
                          "ap_speed_test_results")
         self.assertEqual(self.fake.calls,
                          [("ap_speed_test_results", "a" * 24 + ":" + AP_REF)] * 2)
+
+    def test_http_and_mcp_expose_ap_ssid_override_audit_summary(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/aps/{AP_REF}/ssid-override-audit-summary"
+        status, response = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "ap_ssid_override_audit_summary")
+        rpc = {"jsonrpc": "2.0", "id": 241, "method": "tools/call",
+               "params": {"name": "omada_ap_ssid_override_audit_summary",
+                          "arguments": {"site_ref": site_ref, "device_ref": AP_REF}}}
+        status, response = self.request_post("/mcp", rpc, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"]["resource"],
+                         "ap_ssid_override_audit_summary")
+        self.assertEqual(self.fake.calls,
+                         [("ap_ssid_override_audit_summary", site_ref + ":" + AP_REF)] * 2)
 
     def test_http_and_mcp_expose_ap_wired_downlink_read(self) -> None:
         path = f"/v1/sites/{'a' * 24}/aps/{AP_REF}/wired-downlink"

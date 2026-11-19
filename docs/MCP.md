@@ -842,3 +842,6 @@ omada_controller_backup_inventory_summary summarizes controller-listed backup me
 A synthetic eight-AP fixture with 608 channel-load rows measured 9,324 source JSON tokens and 2,046 report tokens (7,278 fewer; 78.06%) using `js-tiktoken` 1.0.21 / `o200k_base`. It includes inventory plus eight radio-detail and eight existing channel-load responses; schemas, prompts, framing and billed agent usage are excluded.
 
 `omada_site_wan_max_speed_summary` requires one `wan_port_ref` returned by the WAN-port inventory. It rereads that inventory, resolves the selected reference to one documented `portId`, and sends the required `wanId` query. It returns upstream/downstream int32 values without interpreting units; the source gives no unit. This is configuration, not current throughput. Live support is unknown.
+
+
+`omada_ap_ssid_override_audit_summary` reads the selected inventoried AP's stored SSID override audit rows. It requests only a fixed first page of 100 from the source default trailing seven-day window and returns aggregate modification counts; SSID names and VLAN values are omitted. Source rows provide no timestamp or actor, so the result is not chronological or attributable. The source operation appears in Hardware Controller and CBC 6.3 exports and is absent from the ER7212PC 6.2.14 export. Live MCP support has not been tested.

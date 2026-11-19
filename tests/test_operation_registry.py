@@ -5,6 +5,16 @@ from app.mcp import _tool
 
 
 class OperationRegistryTests(unittest.TestCase):
+    def test_ap_ssid_override_audit_route_is_bound_to_selected_ap(self):
+        operation = REGISTRY.get("ap_ssid_override_audit_summary")
+        schema = _tool(operation)["inputSchema"]
+        self.assertEqual(schema["required"], ["site_ref", "device_ref"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/aps/" + "b" * 24 +
+            "/ssid-override-audit-summary")
+        self.assertEqual(route.operation_id, "ap_ssid_override_audit_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24, "device_ref": "b" * 24})
+
     def test_wan_max_speed_requires_an_explicit_opaque_port_reference(self):
         operation = REGISTRY.get("site_wan_max_speed_summary")
         schema = _tool(operation)["inputSchema"]
@@ -713,6 +723,7 @@ class OperationRegistryTests(unittest.TestCase):
             "ap_available_channels",
             "ap_available_channels_summary",
             "ap_speed_test_results",
+            "ap_ssid_override_audit_summary",
             "ap_wired_downlink",
             "ap_ports",
             "ap_wired_uplink",

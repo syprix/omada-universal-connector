@@ -340,7 +340,7 @@ tests). They cover query encoding and rejection of missing, duplicate,
 wrong-controller and extra query values. The mandatory registry/matrix/evidence
 gate passed 253 tests. The full Python suite passed 3,214 tests in 472.535
 seconds, and the runtime smoke check exited successfully. The source catalog
-check passed; corrected exact-head CI is pending. No live controller request
+check passed; corrected exact-head push and pull-request CI both passed (runs 44502474666 and 44502481656). No live controller request
 was made.
 
 A synthetic two-request comparison measured 206 source JSON tokens and 260
@@ -348,3 +348,10 @@ connector-result tokens (+54) with `js-tiktoken` 1.0.21 / `o200k_base`. The
 sample includes a two-port WAN configuration inventory and one selected-port
 response; it excludes schemas, prompts, transport framing and billed agent use,
 and does not save tokens at this size.
+
+
+## AP SSID override audit read
+
+Implemented as a bounded, redacted HTTP/MCP read for an AP reference refreshed from the selected site inventory. The connector requests a fixed page of at most 100 audit rows using the source default trailing seven-day window and returns aggregate modification-flag counts plus partial-data indicators. SSID/VLAN values and controller messages are omitted. The documented row schema has no timestamp or actor, so chronological ordering and attribution are not provided. This operation is documented in Hardware Controller 6.3.0 and CBC Standard 6.3.0, and absent from ER7212PC 6.2.14. The projector, request guard, route, HTTP/MCP tests and 240-test registry/matrix/evidence gate passed. Full offline discovery on the combined current branch passed 3,223 tests; runtime smoke, catalog check, compilation and diff checks passed. Controller support and actual third-party agent-client use remain unverified.
+
+A synthetic two-row fixture measured 133 source JSON tokens versus 35 projected tokens (98 fewer, 73.7%) using js-tiktoken 1.0.21 with `o200k_base`. This covers serialized payloads only and is not a measurement of end-to-end agent billing.
