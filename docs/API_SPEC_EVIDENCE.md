@@ -142,3 +142,7 @@ time-range profile IDs. The schedule's `nextExecute` unit is unspecified, as
 are port measurement units. No source export establishes live support on a
 particular controller; these are source-contract observations, not hardware
 or runtime confirmation.
+
+## Reboot schedule source review
+
+The site GET /openapi/v1/{omadacId}/sites/{siteId}/reboot-schedules is present in all three exports. Its operation ID is getRebootScheduleList_1 in Hardware Controller 6.3 and Omada CBC 6.3, and getRebootScheduleList in ER7212PC 6.2.14. The two 6.3 response schemas are generic; ER7212PC supplies the detailed schedule fields used here: enabled status, target device MACs, recurrence type, local schedule hour/minute, optional weekday/month-day, and next-execution timestamp in milliseconds. The source does not define a schedule timezone. The output therefore preserves the configured hour/minute without assigning a timezone, maps target MACs only through a unique current site inventory match, and omits schedule IDs, names, and raw MACs. The compact schedule row columns are declared once as enabled, recurrence, hour, minute, weekday-or-month-day, target count, target device refs, unresolved target count, and next execution milliseconds. A schedule is configuration evidence and does not prove that a device rebooted.

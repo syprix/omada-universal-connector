@@ -154,6 +154,7 @@ IMPLEMENTED: dict[tuple[str, str], str] = {
     ("GET", "/openapi/v1/{controller_id}/sitetemplates/{site_template_id}/upnp"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/setting/service/iptv"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/devices/tag"): "implemented_read",
+    ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/reboot-schedules"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/anomaly/unresolved-incidents"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/anomaly/overview/statistics"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/anomaly/overview/incident-distribution"): "implemented_read",

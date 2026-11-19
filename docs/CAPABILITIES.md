@@ -1197,3 +1197,7 @@ The LAN network detail summary resolves one opaque network reference within the 
 
 
 `site_client_filter_options_summary` reads the documented client-list filter catalog and returns counts for vendor, device, network, SSID and device-type options, plus stacked-device counts. It discards every option string, MAC address, device name and stack name. The read is site-bound and uses fixed query-free routing; live support remains unknown.
+
+### Scheduled reboot summary
+
+GET /v1/sites/{site_ref}/reboot-schedule-summary reads the documented site reboot schedule list. It returns enabled state, recurrence, schedule clock fields, a next-execution timestamp when supplied, and current-inventory device references. Names, source IDs, and MAC addresses are omitted. The source does not specify the schedule timezone; the report does not guess it. A configured schedule is not evidence that a reboot occurred. Detailed response fields are available in the ER7212PC 6.2.14 export; Hardware Controller and Omada CBC 6.3 exports have generic response schemas. Schedule rows use a declared compact column list so the same field names are not repeated per schedule. A synthetic 12-schedule payload measured 796 source JSON tokens and 464 projected tokens (41.71% fewer with js-tiktoken 1.0.21/o200k_base). This compares serialized fixture payloads only and excludes inventory responses, prompts, schemas, framing and billed agent context. No live controller compatibility check has been made for this route.

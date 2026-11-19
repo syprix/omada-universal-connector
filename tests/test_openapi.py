@@ -88,6 +88,34 @@ class OpenApiClientTests(unittest.TestCase):
         ])
         self.assertEqual(pages.call_count, 2)
 
+    def test_site_reboot_schedule_summary_refreshes_inventory_and_uses_fixed_route(self) -> None:
+        site_ref = "a" * 24
+        device_ref = "b" * 24
+        mac = "aa:bb:cc:dd:ee:ff"
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        self.client._device_macs_by_site_ref[site_ref] = {device_ref: mac}
+        payload = {"result": [{"status": True, "deviceMacs": [mac],
+                              "time": {"timingType": 1, "hour": 4, "minute": 0}}]}
+        with (patch.object(self.client, "list_devices", return_value={"items": []}) as inventory,
+              patch.object(self.client, "_access_token", return_value="token"),
+              patch.object(self.client, "_request_json", return_value=payload) as request):
+            result = self.client.read_site_reboot_schedule_summary(site_ref)
+        inventory.assert_called_once_with(site_ref)
+        request.assert_called_once_with(
+            "GET", "/openapi/v1/controller_1/sites/site-1/reboot-schedules", token="token")
+        self.assertEqual(result["resource"], "site_reboot_schedule_summary")
+        self.assertEqual(result["schedule_rows"][0][6], [device_ref])
+
+    def test_reboot_schedule_source_path_is_controller_bound(self) -> None:
+        path = "/openapi/v1/controller_1/sites/site-1/reboot-schedules"
+        with patch.object(self.client, "_connection",
+                          side_effect=OpenApiError("connection_reached")):
+            with self.assertRaisesRegex(OpenApiError, "connection_reached"):
+                self.client._request_json("GET", path, token="token")
+            with self.assertRaisesRegex(OpenApiError, "openapi_path_rejected"):
+                self.client._request_json(
+                    "GET", path.replace("controller_1", "other-controller"), token="token")
+
     def _secret(self, name: str, value: str) -> str:
         path = os.path.join(self.tempdir.name, name)
         with open(path, "w", encoding="utf-8") as handle:
