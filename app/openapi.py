@@ -28,6 +28,15 @@ from dataclasses import dataclass
 from urllib.parse import parse_qs, quote, urlencode, urlsplit
 
 try:
+    from .site_capability_comparison import (
+        SiteCapabilityComparisonError, project_site_capability_comparison,
+    )
+except ImportError:  # direct execution in the image
+    from site_capability_comparison import (
+        SiteCapabilityComparisonError, project_site_capability_comparison,
+    )
+
+try:
     from .finite_values import is_finite_number
 except ImportError:  # direct execution in the image
     from finite_values import is_finite_number
@@ -4348,6 +4357,30 @@ class OmadaOpenApiClient:
                     site_ref, client_ref, kind, start_ms, end_ms)
             except OpenApiError as exc:
                 client_sources[kind] = {"status": "error", "error": exc.code}
+        ap_health_sources: dict[str, object] = {}
+        ap_refs: set[str] = set()
+        if device_inventory_available:
+            for source in client_sources.values():
+                data = source.get("data") if isinstance(source, dict) else None
+                sessions = data.get("sessions") if isinstance(data, dict) else None
+                if not isinstance(sessions, list):
+                    continue
+                for session in sessions:
+                    items = session.get("events") if isinstance(session, dict) else None
+                    if not isinstance(items, list):
+                        continue
+                    for item in items:
+                        if isinstance(item, dict):
+                            for field in ("access_point_ref", "previous_access_point_ref"):
+                                ref = item.get(field)
+                                if isinstance(ref, str) and re.fullmatch(r"[0-9a-f]{24}", ref):
+                                    ap_refs.add(ref)
+            for ap_ref in sorted(ap_refs)[:8]:
+                try:
+                    ap_health_sources[ap_ref] = self.read_ap_health_timeline(
+                        site_ref, ap_ref, start_ms, end_ms)
+                except OpenApiError as exc:
+                    ap_health_sources[ap_ref] = {"status": "error", "error": exc.code}
         try:
             health = self.read_client_health_timeline(site_ref, client_ref, start_ms, end_ms)
         except OpenApiError as exc:
@@ -4360,11 +4393,23 @@ class OmadaOpenApiClient:
             except OpenApiError as exc:
                 site_logs[kind] = {"status": "error", "error": exc.code}
         try:
+            retention = self.read_controller_retention()
+        except OpenApiError as exc:
+            retention = {"status": "error", "error": exc.code}
+        try:
+            client_retention = self.read_controller_client_history_retention()
+        except OpenApiError as exc:
+            client_retention = {"status": "error", "error": exc.code}
+        try:
             return project_client_outage_timeline(
                 client_ref, start_ms, end_ms, client_sources, health,
                 site_logs.get("events"), site_logs.get("alerts"),
                 int(datetime.now(timezone.utc).timestamp() * 1000),
-                ap_assignment_available=device_inventory_available)
+                ap_assignment_available=device_inventory_available,
+                ap_health_results=ap_health_sources,
+                retention_result=retention,
+                client_retention_result=client_retention,
+                ap_assignments_omitted=len(ap_refs) > 8)
         except ClientOutageTimelineError:
             raise OpenApiError("openapi_response_invalid") from None
 
@@ -5374,6 +5419,29 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {"status": "ok", "resource": "site_capabilities",
                 "site_ref": site_ref, **projected}
+
+    def read_site_capability_comparison(self, site_refs: list[str]) -> dict[str, object]:
+        """Compare explicitly selected sites using fresh site inventory references."""
+        if (not isinstance(site_refs, list) or not 2 <= len(site_refs) <= 16 or
+                any(not isinstance(ref, str) or not re.fullmatch(r"[0-9a-f]{24}", ref)
+                    for ref in site_refs) or len(set(site_refs)) != len(site_refs)):
+            raise OpenApiError("site_refs_invalid")
+        inventory = self.list_sites()
+        current_refs = {item.get("site_ref") for item in inventory.get("items", [])
+                        if isinstance(item, dict)}
+        results: dict[str, object] = {}
+        for ref in site_refs:
+            if ref not in current_refs:
+                results[ref] = {"status": "error", "error": "site_ref_unknown"}
+                continue
+            try:
+                results[ref] = self.read_site_capabilities(ref)
+            except OpenApiError as exc:
+                results[ref] = {"status": "error", "error": exc.code}
+        try:
+            return project_site_capability_comparison(site_refs, results)
+        except SiteCapabilityComparisonError:
+            raise OpenApiError("openapi_response_invalid") from None
 
     @_track_capability("site_duplicate_ssid_summary")
     def read_site_duplicate_ssid_summary(self, site_ref: str) -> dict[str, object]:

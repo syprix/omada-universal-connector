@@ -12,6 +12,7 @@ from urllib.parse import urlencode
 from unittest.mock import patch
 
 from app import main
+from app.change_journal import ChangePlanJournal, derive_controller_binding
 from app.openapi import OmadaOpenApiClient, OpenApiConfig, OpenApiError
 from app.site_setting_existence import FIELDS
 from app.site_capabilities import FIELDS as SITE_CAPABILITY_FIELDS
@@ -3488,6 +3489,117 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(response["result"]["structuredContent"]["resource"],
                          "client_outage_timeline")
+
+    def test_selected_site_capability_comparison_is_available_over_http_and_mcp(self) -> None:
+        site_refs = ["a" * 24, "b" * 24]
+        seen = []
+
+        def comparison(refs):
+            seen.append(refs)
+            return {"status": "ok", "resource": "site_capability_comparison",
+                    "site_refs": refs, "sites": [], "feature_columns": [],
+                    "feature_values": [], "partial": False}
+
+        self.fake.read_site_capability_comparison = comparison
+        query = urlencode([("site_ref", ref) for ref in site_refs])
+        status, response = self.request(
+            "/v1/sites/capability-comparison?" + query, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_capability_comparison")
+
+        request = {"jsonrpc": "2.0", "id": 199, "method": "tools/call",
+                   "params": {"name": "omada_compare_site_capabilities",
+                              "arguments": {"site_refs": site_refs}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"]["resource"],
+                         "site_capability_comparison")
+        self.assertEqual(seen, [site_refs, site_refs])
+
+        invalid = {"jsonrpc": "2.0", "id": 200, "method": "tools/call",
+                   "params": {"name": "omada_compare_site_capabilities",
+                              "arguments": {"site_refs": [site_refs[0], site_refs[0]]}}}
+        status, invalid_rpc = self.request_post("/mcp", invalid, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(invalid_rpc["error"]["message"], "arguments_invalid")
+
+        status, invalid_http = self.request(
+            "/v1/sites/capability-comparison?site_ref=" + site_refs[0], self.token)
+        self.assertEqual(status, 400)
+        self.assertEqual(invalid_http["error"], "site_refs_invalid")
+
+    def test_bound_change_journal_summary_is_available_over_http_and_mcp(self) -> None:
+        summary = {"status": "ok", "resource": "change_journal_summary",
+                   "integrity": "validated_at_open", "total_plans": 2,
+                   "counts_by_state": {"in_doubt": 1, "verified": 1,
+                                       "closed_outcome_unknown": 0},
+                   "record_details_included": False}
+        journal = type("Journal", (), {"available": True,
+                                        "summary": lambda _self: summary})()
+        runtime = main.JournalRuntime("ready", journal=journal)
+        with patch.object(main, "_JOURNAL_RUNTIME", runtime):
+            status, response = self.request("/v1/change-journal/summary", self.token)
+            self.assertEqual(status, 200)
+            self.assertEqual(response, summary)
+
+            request = {"jsonrpc": "2.0", "id": 201, "method": "tools/call",
+                       "params": {"name": "omada_change_journal_summary", "arguments": {}}}
+            status, rpc = self.request_post("/mcp", request, self.token)
+            self.assertEqual(status, 200)
+            self.assertEqual(rpc["result"]["structuredContent"], summary)
+
+        self.assertNotIn("plan_id", json.dumps(response))
+        self.assertNotIn("target_refs", json.dumps(response))
+        self.assertEqual(self.fake.calls, [])
+
+    def test_change_journal_summary_reports_unconfigured_without_opening_a_path(self) -> None:
+        with patch.object(main, "_JOURNAL_RUNTIME", main.JournalRuntime("unconfigured")):
+            status, response = self.request("/v1/change-journal/summary", self.token)
+        self.assertEqual(status, 503)
+        self.assertEqual(response, {"status": "unavailable", "error": "journal_unconfigured"})
+
+    def test_change_journal_summary_never_initializes_and_reads_only_open_journal(self) -> None:
+        unopened_dir = os.path.join(self.tempdir.name, "not-opened")
+        rpc = {"jsonrpc": "2.0", "id": 202, "method": "tools/call",
+               "params": {"name": "omada_change_journal_summary", "arguments": {}}}
+        with patch.dict(os.environ, {"OMADA_CHANGE_JOURNAL_DIR": unopened_dir}), \
+                patch.object(main, "_JOURNAL_RUNTIME", None), \
+                patch.object(main, "_openapi_client", side_effect=AssertionError("client opened")), \
+                patch.object(main, "initialize_journal_runtime",
+                             side_effect=AssertionError("journal initialized")):
+            status, response = self.request("/v1/change-journal/summary", self.token)
+            self.assertEqual(status, 503)
+            self.assertEqual(response, {"status": "unavailable", "error": "journal_not_open"})
+
+            status, response = self.request_post("/mcp", rpc, self.token)
+            self.assertEqual(status, 200)
+            self.assertEqual(response["result"]["structuredContent"],
+                             {"status": "unavailable", "error": "journal_not_open"})
+
+        self.assertFalse(os.path.exists(unopened_dir))
+
+        binding = derive_controller_binding(b"k" * 32, "https://controller.example:8043", "test")
+        journal = ChangePlanJournal(self.tempdir.name, controller_binding=binding)
+        runtime = main.JournalRuntime("ready", journal=journal)
+        try:
+            journal.record_dispatch_intent(
+                operation="radio", plan_id="a" * 48,
+                target_refs={"site_ref": "a" * 24, "device_ref": "b" * 24},
+                before={"radioSetting2g": {"txPowerLevel": 1}},
+                target={"radioSetting2g": {"txPowerLevel": 2}})
+            with patch.object(main, "_JOURNAL_RUNTIME", runtime):
+                status, response = self.request("/v1/change-journal/summary", self.token)
+                self.assertEqual(status, 200)
+                self.assertEqual(response["total_plans"], 1)
+                self.assertEqual(response["counts_by_state"]["in_doubt"], 1)
+
+                status, response = self.request_post("/mcp", rpc, self.token)
+                self.assertEqual(status, 200)
+                summary = response["result"]["structuredContent"]
+                self.assertEqual(summary["total_plans"], 1)
+                self.assertEqual(summary["counts_by_state"]["in_doubt"], 1)
+        finally:
+            runtime.close()
 
     def test_http_and_mcp_expose_dhcp_and_dns_reads(self) -> None:
         operations = (

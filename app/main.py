@@ -331,6 +331,21 @@ def _journal_http_failure() -> dict[str, object]:
     return {"status": "error", "error": runtime.error_code or "journal_unavailable"}
 
 
+def _read_change_journal_summary() -> dict[str, object]:
+    """Summarize only the already-open, controller-bound local journal."""
+    runtime = _JOURNAL_RUNTIME
+    if runtime is None:
+        return {"status": "unavailable", "error": "journal_not_open"}
+    if runtime.status == "unconfigured":
+        return {"status": "unavailable", "error": "journal_unconfigured"}
+    if not runtime.ready:
+        return {"status": "unavailable", "error": runtime.error_code or "journal_unavailable"}
+    try:
+        return runtime.journal.summary()
+    except ChangeJournalError as exc:
+        return {"status": "unavailable", "error": exc.code}
+
+
 def _caller_token() -> bytes | None:
     """Read the configured bearer token; missing or invalid config disables routes."""
     path = os.getenv("OMADA_CONNECTOR_TOKEN_FILE", "").strip()
@@ -778,6 +793,14 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(encoded)
 
     def do_GET(self) -> None:  # noqa: N802
+        if self.path == "/v1/change-journal/summary":
+            if not self._authorized():
+                return
+            with _OPENAPI_LOCK:
+                result = _read_change_journal_summary()
+            status = HTTPStatus.OK if result.get("status") == "ok" else HTTPStatus.SERVICE_UNAVAILABLE
+            self._send(status, result)
+            return
         ssid_network_match = re.fullmatch(
             r"/v1/sites/([0-9a-f]{24})/ssid-network-summary", self.path)
         if ssid_network_match:
@@ -1607,6 +1630,16 @@ class Handler(BaseHTTPRequestHandler):
         self._send(HTTPStatus.OK, response)
 
     def _mcp_read(self, operation_id: str, arguments: dict[str, str]) -> dict[str, object]:
+        if operation_id == "change_journal_summary":
+            with _OPENAPI_LOCK:
+                return _read_change_journal_summary()
+        if operation_id == "site_capability_comparison":
+            refs = arguments.get("site_refs", "").split(",")
+            try:
+                with _OPENAPI_LOCK:
+                    return _openapi_client().read_site_capability_comparison(refs)
+            except OpenApiError as exc:
+                return {"status": "error", "error": exc.code}
         if operation_id == "diagnostic_capability_summary":
             try:
                 with _OPENAPI_LOCK:
@@ -2173,6 +2206,26 @@ class Handler(BaseHTTPRequestHandler):
                 else HTTPStatus.BAD_GATEWAY)
             self._send(status, {"status": "error", "error": str(exc)})
 
+    def _serve_site_capability_comparison(self, parsed_request: object) -> None:
+        if not self._authorized():
+            return
+        try:
+            query_values = parse_qs(parsed_request.query, keep_blank_values=True,
+                                    strict_parsing=True)
+            refs = query_values.get("site_ref", [])
+            if set(query_values) != {"site_ref"} or not 2 <= len(refs) <= 16:
+                raise RegistryError("site refs invalid")
+            with _OPENAPI_LOCK:
+                result = _openapi_client().read_site_capability_comparison(refs)
+            self._send(HTTPStatus.OK, result)
+        except (RegistryError, ValueError):
+            self._send(HTTPStatus.BAD_REQUEST,
+                       {"status": "error", "error": "site_refs_invalid"})
+        except OpenApiError as exc:
+            status = (HTTPStatus.BAD_REQUEST if exc.code == "site_refs_invalid"
+                      else HTTPStatus.BAD_GATEWAY)
+            self._send(status, {"status": "error", "error": exc.code})
+
     def _serve_gateway_wan_incident_window(self, parsed_request: object,
                                            match: object) -> None:
         if not self._authorized():
@@ -2253,6 +2306,9 @@ class Handler(BaseHTTPRequestHandler):
         registry_match = None
         try:
             parsed_request = urlsplit(self.path)
+            if parsed_request.path == "/v1/sites/capability-comparison":
+                self._serve_site_capability_comparison(parsed_request)
+                return
             outage_match = re.fullmatch(
                 r"/v1/sites/([0-9a-f]{24})/outage-summary", parsed_request.path)
             if outage_match is not None:
