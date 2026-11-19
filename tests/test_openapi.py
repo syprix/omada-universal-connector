@@ -460,7 +460,9 @@ class OpenApiClientTests(unittest.TestCase):
              "customConfig": {"iptvVlanId": 123}, "featureDescription": [
                  {"feature": "private-feature", "description": "private description"}]}},
         ])
-        inventory = self.client.list_site_templates()
+        template_ref = "abc123" + "d" * 18
+        with patch.object(self.client, "_opaque_ref", return_value=template_ref):
+            inventory = self.client.list_site_templates()
         template_ref = inventory["items"][0]["site_template_ref"]
         result = self.client.read_site_template_iptv_summary(template_ref)
         self.assertEqual(result["resource"], "site_template_iptv_summary")
@@ -471,8 +473,16 @@ class OpenApiClientTests(unittest.TestCase):
         self.assertTrue(result["data"]["wan_port_configured"])
         self.assertEqual(self.connections[3].calls[0][1],
                          "/openapi/v1/controller_1/sitetemplates/private-template-id/setting/service/iptv/iptv")
+        self.assertEqual(result["site_template_ref"], template_ref)
+        self.assertEqual(result["data"], {
+            "enabled": True, "mode": "bridge", "wan_port_configured": True,
+            "custom_vlan_configured": True, "dsl_configured": None,
+            "feature_description_count": 1,
+            "port_type_counts": {"internet": 0, "iptv": 1, "ip_phone": 0},
+            "port_count": 1,
+        })
         for value in ("private-template-id", "private-wan-id", "private-port-id",
-                      "LAN 3", "123", "private-feature", "private description"):
+                      "LAN 3", "private-feature", "private description"):
             self.assertNotIn(value, repr(result))
 
     def test_site_template_iptv_service_uses_one_template_request(self) -> None:
