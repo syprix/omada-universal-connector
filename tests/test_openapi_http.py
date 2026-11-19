@@ -689,6 +689,11 @@ class FakeOpenApiClient:
         self.calls.append(("site_topology", site_ref))
         return {"status": "ok", "resource": "site_topology", "nodes": [], "edges": []}
 
+    def read_site_reboot_schedule_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_reboot_schedule_summary", site_ref))
+        return {"status": "ok", "resource": "site_reboot_schedule_summary",
+                "site_ref": site_ref, "schedules": [], "partial": False}
+
     def read_site_topology_network_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_topology_network_summary", site_ref))
         return {"status": "ok", "resource": "site_topology_network_summary",
@@ -2999,6 +3004,22 @@ class OpenApiHttpTests(unittest.TestCase):
                          "rf_planning_history_detail")
         self.assertEqual(self.fake.calls,
                          [("rf_planning_history_detail", "a" * 24 + ":" + history_ref)] * 2)
+
+    def test_http_and_mcp_expose_site_reboot_schedule_summary(self) -> None:
+        site_ref = "a" * 24
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/reboot-schedule-summary", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_reboot_schedule_summary")
+        request = {"jsonrpc": "2.0", "id": 141, "method": "tools/call",
+                   "params": {"name": "omada_site_reboot_schedule_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"]["resource"],
+                         "site_reboot_schedule_summary")
+        self.assertEqual(self.fake.calls,
+                         [("site_reboot_schedule_summary", site_ref)] * 2)
 
     def test_http_and_mcp_expose_site_wifi_summary_as_a_fixed_read(self) -> None:
         path = "/v1/sites/" + "a" * 24 + "/wifi/summary"

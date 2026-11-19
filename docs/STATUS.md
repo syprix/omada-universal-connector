@@ -89,3 +89,12 @@ A GitHub account restriction prevented hosted CI from starting; no hosted test r
 ## Compatibility
 
 The three supplied OpenAPI exports are reference material and are not redistributed. Compatibility depends on controller release, API permissions, device model, and firmware.
+
+
+## Follow-up 24: stack connections
+
+The bounded stack and LLDP summary is available in draft PR #14. It links stack members only through unique current switch-inventory MAC matches. Remote LLDP identity fields remain redacted because the source contract does not define a reliable inventory join. The summary is included in topology output and is available over HTTP and MCP. Offline verification passed 3,104 tests, including the 235-test required registry, API-matrix, and operation-evidence gate. A synthetic 8-stack fixture measured 8,239 source tokens and 1,957 compact-summary tokens (76.25% fewer, o200k_base, js-tiktoken 1.0.21). Stack hardware has not been live-tested.
+
+## Follow-up 25: scheduled restarts
+
+A bounded, read-only reboot-schedule summary is implemented on the isolated work branch. The source exports share the GET path; detailed response fields are available only in the ER7212PC export, while the Hardware Controller and CBC response schemas are generic. The implementation preserves timezone uncertainty and reports schedule configuration without claiming an actual reboot. A synthetic 12-schedule payload measured 796 source JSON tokens and 464 projected tokens (41.71% fewer; js-tiktoken 1.0.21/o200k_base), excluding inventory, prompts and agent framing. Offline focused checks pass; hosted CI is pending.

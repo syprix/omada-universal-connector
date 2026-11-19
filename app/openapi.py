@@ -362,6 +362,9 @@ try:
     from .switch_static_routes import SwitchStaticRoutesError, summarize_switch_static_routes
     from .site_setting_existence import SiteSettingExistenceError, project_site_setting_existence
     from .site_entity_summary import SiteEntitySummaryError, summarize_site_entity
+    from .site_reboot_schedule_summary import (
+        SiteRebootScheduleError, summarize_site_reboot_schedules,
+    )
     from .site_upnp_summary import SiteUpnpSummaryError, summarize_site_upnp
     from .site_gre_tunnel_summary import SiteGreTunnelSummaryError, summarize_site_gre_tunnel
     from .site_ssl_vpn_summary import SiteSslVpnSummaryError, summarize_site_ssl_vpn
@@ -561,6 +564,9 @@ except ImportError:  # direct execution in the image
     from switch_static_routes import SwitchStaticRoutesError, summarize_switch_static_routes
     from site_setting_existence import SiteSettingExistenceError, project_site_setting_existence
     from site_entity_summary import SiteEntitySummaryError, summarize_site_entity
+    from site_reboot_schedule_summary import (
+        SiteRebootScheduleError, summarize_site_reboot_schedules,
+    )
     from site_upnp_summary import SiteUpnpSummaryError, summarize_site_upnp
     from site_gre_tunnel_summary import SiteGreTunnelSummaryError, summarize_site_gre_tunnel
     from site_ssl_vpn_summary import SiteSslVpnSummaryError, summarize_site_ssl_vpn
@@ -1312,6 +1318,7 @@ class OmadaOpenApiClient:
     _CONTROLLER_BATCH_ADOPT_INFO_PATH = "/openapi/v1/{controller_id}/devices/batch/info"
     _SITE_RADIUS_USERS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/profiles/radius-server/users"
     _SITE_ENTITY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}"
+    _SITE_REBOOT_SCHEDULE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/reboot-schedules"
     _SITE_UPNP_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/upnp"
     _SITE_IOT_AGING_TIME_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/iot/aging-time"
     _SITE_IOT_RADIO_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/iot/radio"
@@ -2753,6 +2760,7 @@ class OmadaOpenApiClient:
         ("site_device_tag_summary", "GET /v1/sites/{site_ref}/device-tags/summary"),
         ("site_overview", "GET /v1/sites/{site_ref}/health/summary"),
         ("site_topology", "GET /v1/sites/{site_ref}/topology"),
+        ("site_reboot_schedule_summary", "GET /v1/sites/{site_ref}/reboot-schedule-summary"),
         ("site_health_timeline", "GET /v1/sites/{site_ref}/health/timeline"),
         ("site_longest_client_uptime_summary",
          "GET /v1/sites/{site_ref}/dashboard/longest-client-uptime-summary"),
@@ -9806,6 +9814,22 @@ class OmadaOpenApiClient:
         return {"status": "ok", "resource": "site_entity_summary",
                 "site_ref": site_ref, **projected}
 
+    @_track_capability("site_reboot_schedule_summary")
+    def read_site_reboot_schedule_summary(self, site_ref: str) -> dict[str, object]:
+        """Read scheduled device reboot configuration without implying an actual reboot."""
+        self.list_devices(site_ref)
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_REBOOT_SCHEDULE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = summarize_site_reboot_schedules(
+                result, self._device_macs_by_site_ref.get(site_ref, {}))
+        except SiteRebootScheduleError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": projected["status"], "resource": "site_reboot_schedule_summary",
+                "site_ref": site_ref, **projected}
+
     @_track_capability("site_upnp_summary")
     def read_site_upnp_summary(self, site_ref: str) -> dict[str, object]:
         """Summarize UPnP settings without exposing controller reference IDs."""
@@ -13309,6 +13333,7 @@ class OmadaOpenApiClient:
                                   self._site_6ghz_ap_presence_request_valid(path) or
                                   self._site_setting_existence_request_valid(path) or
                                   self._site_entity_request_valid(path) or
+                                  self._site_reboot_schedule_request_valid(path) or
                                   self._site_upnp_request_valid(path) or
                                   self._site_iot_aging_time_request_valid(path) or
                                   self._site_iot_radio_request_valid(path) or
@@ -14349,6 +14374,12 @@ class OmadaOpenApiClient:
     def _site_entity_request_valid(self, path: str) -> bool:
         match = re.fullmatch(
             r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_reboot_schedule_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/reboot-schedules",
+            path)
         return bool(match and match.group(1) == self.config.controller_id)
 
     def _site_upnp_request_valid(self, path: str) -> bool:
