@@ -21431,7 +21431,7 @@
         "site_wan_max_speed_summary"
       ],
       "public_templates": [
-        "/v1/sites/{site_ref}/wan-max-speed-summary"
+        "/v1/sites/{site_ref}/wan-ports/{wan_port_ref}/max-speed-summary"
       ],
       "source_map_label": "implemented_read",
       "static_test_references": [

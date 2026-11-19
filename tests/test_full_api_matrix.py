@@ -1974,7 +1974,9 @@ class FullApiMatrixTests(unittest.TestCase):
                              expected_ids[source["label"]])
             self.assertIn("upstream", row["contract_review"]["response"])
             self.assertIn("does not specify units", row["contract_review"]["response"])
-            self.assertIn("unit=unspecified_by_source", row["contract_review"]["projection"])
+            self.assertIn("required wanId", row["contract_review"]["response"])
+            self.assertIn("one opaque wan_port_ref", row["contract_review"]["projection"])
+            self.assertIn("unit unspecified", row["contract_review"]["projection"])
         spec = document()
         spec["paths"] = {
             "/openapi/v1/{omadacId}/sites/{siteId}/wan-max-speed": {

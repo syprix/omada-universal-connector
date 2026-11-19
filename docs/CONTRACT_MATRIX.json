@@ -2103,9 +2103,9 @@
             "operation_id": "getWanPortsMaxSpeed_1",
             "tag": "Wired Network",
             "permission": "not specified by the source operation",
-            "query": "none",
-            "response": "WanMaxSpeedOpenApiVO defines upstream and downstream as optional int32 values described only as upstream speed and downstream speed. The schema does not specify units or whether these are configured or measured rates.",
-            "projection": "site-bound HTTP/MCP GET; validates signed int32 values, preserves zero and negative contract values, counts missing/invalid/unknown fields, and returns unit=unspecified_by_source. It does not label the result as current usage."
+            "query": "wanId (required string; supports one explicitly selected port ID)",
+            "response": "WanMaxSpeedOpenApiVO defines upstream and downstream as optional int32 values described only as speeds. The source does not specify units. The required wanId query is a comma-separable port-ID selector; the request must include the selected inventoried WanPortSettingOpenApiVO.portId.",
+            "projection": "site-bound HTTP/MCP GET requires one opaque wan_port_ref returned by the WAN port inventory. It rereads fixed internet/ports-config, resolves the reference to exactly one WanPortSettingOpenApiVO.portId, and sends that value as required wanId. It supports one selected port, validates signed int32 values, preserves zero and negative contract values, counts missing/invalid/unknown fields, and labels the unit unspecified. It does not report current throughput."
           }
         }
       }
@@ -4183,9 +4183,9 @@
             "operation_id": "getWanPortsMaxSpeed_1",
             "tag": "Wired Network",
             "permission": "not specified by the source operation",
-            "query": "none",
-            "response": "WanMaxSpeedOpenApiVO defines upstream and downstream as optional int32 values described only as upstream speed and downstream speed. The schema does not specify units or whether these are configured or measured rates.",
-            "projection": "site-bound HTTP/MCP GET; validates signed int32 values, preserves zero and negative contract values, counts missing/invalid/unknown fields, and returns unit=unspecified_by_source. It does not label the result as current usage."
+            "query": "wanId (required string; supports one explicitly selected port ID)",
+            "response": "WanMaxSpeedOpenApiVO defines upstream and downstream as optional int32 values described only as speeds. The source does not specify units. The required wanId query is a comma-separable port-ID selector; the request must include the selected inventoried WanPortSettingOpenApiVO.portId.",
+            "projection": "site-bound HTTP/MCP GET requires one opaque wan_port_ref returned by the WAN port inventory. It rereads fixed internet/ports-config, resolves the reference to exactly one WanPortSettingOpenApiVO.portId, and sends that value as required wanId. It supports one selected port, validates signed int32 values, preserves zero and negative contract values, counts missing/invalid/unknown fields, and labels the unit unspecified. It does not report current throughput."
           }
         }
       }
@@ -6245,9 +6245,9 @@
             "operation_id": "getWanPortsMaxSpeed",
             "tag": "Wired Network",
             "permission": "not specified by the source operation",
-            "query": "none",
-            "response": "WanMaxSpeedOpenApiVO defines upstream and downstream as optional int32 values described only as upstream speed and downstream speed. The schema does not specify units or whether these are configured or measured rates.",
-            "projection": "site-bound HTTP/MCP GET; validates signed int32 values, preserves zero and negative contract values, counts missing/invalid/unknown fields, and returns unit=unspecified_by_source. It does not label the result as current usage."
+            "query": "wanId (required string; supports one explicitly selected port ID)",
+            "response": "WanMaxSpeedOpenApiVO defines upstream and downstream as optional int32 values described only as speeds. The source does not specify units. The required wanId query is a comma-separable port-ID selector; the request must include the selected inventoried WanPortSettingOpenApiVO.portId.",
+            "projection": "site-bound HTTP/MCP GET requires one opaque wan_port_ref returned by the WAN port inventory. It rereads fixed internet/ports-config, resolves the reference to exactly one WanPortSettingOpenApiVO.portId, and sends that value as required wanId. It supports one selected port, validates signed int32 values, preserves zero and negative contract values, counts missing/invalid/unknown fields, and labels the unit unspecified. It does not report current throughput."
           }
         }
       }

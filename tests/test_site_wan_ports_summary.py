@@ -75,6 +75,9 @@ class SiteWanPortsClientTests(unittest.TestCase):
             "GET", "/openapi/v1/ctrl/sites/site_internal/internet/ports-config", token="test-token")
         self.assertEqual(result["data"]["wan_port_count"], 1)
         self.assertNotIn("private-secret", repr(result))
+        self.assertEqual(result["wan_port_selections"][0]["index"], 0)
+        self.assertEqual(len(result["wan_port_selections"][0]["port_ref"]), 24)
+        self.assertNotEqual(result["wan_port_selections"][0]["port_ref"], "private-port-id")
 
     def test_rejects_invalid_response_and_unknown_site(self) -> None:
         with patch.object(self.client, "_access_token", return_value="test-token"), \

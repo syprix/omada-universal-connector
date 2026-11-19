@@ -1892,10 +1892,11 @@ class FakeOpenApiClient:
                 "missing_physical_wan_port_id_count": 0, "invalid_row_count": 0,
                 "complete": True, "physical_join": "not_defined_by_source_contract"}
 
-    def read_site_wan_max_speed_summary(self, site_ref: str) -> dict[str, object]:
-        self.calls.append(("site_wan_max_speed_summary", site_ref))
+    def read_site_wan_max_speed_summary(self, site_ref: str,
+                                        wan_port_ref: str) -> dict[str, object]:
+        self.calls.append(("site_wan_max_speed_summary", site_ref + ":" + wan_port_ref))
         return {"status": "ok", "resource": "site_wan_max_speed_summary",
-                "site_ref": site_ref,
+                "site_ref": site_ref, "wan_port_ref": wan_port_ref,
                 "data": {"upstream": 1000, "downstream": 5000,
                          "unit": "unspecified_by_source"},
                 "missing_field_count": 0, "invalid_field_count": 0,
@@ -6854,20 +6855,22 @@ class OpenApiHttpTests(unittest.TestCase):
 
     def test_http_and_mcp_expose_site_wan_max_speed_summary(self) -> None:
         site_ref = "8" * 24
+        wan_port_ref = "f" * 24
         status, response = self.request(
-            f"/v1/sites/{site_ref}/wan-max-speed-summary", self.token)
+            f"/v1/sites/{site_ref}/wan-ports/{wan_port_ref}/max-speed-summary", self.token)
         self.assertEqual(status, 200)
         self.assertEqual(response["resource"], "site_wan_max_speed_summary")
         self.assertEqual(response["data"]["unit"], "unspecified_by_source")
         request = {"jsonrpc": "2.0", "id": 195, "method": "tools/call",
                    "params": {"name": "omada_site_wan_max_speed_summary",
-                              "arguments": {"site_ref": site_ref}}}
+                              "arguments": {"site_ref": site_ref,
+                                            "wan_port_ref": wan_port_ref}}}
         status, rpc = self.request_post("/mcp", request, self.token)
         self.assertEqual(status, 200)
         self.assertEqual(rpc["result"]["structuredContent"]["resource"],
                          "site_wan_max_speed_summary")
         self.assertEqual(self.fake.calls,
-                         [("site_wan_max_speed_summary", site_ref)] * 2)
+                         [("site_wan_max_speed_summary", site_ref + ":" + wan_port_ref)] * 2)
 
     def test_http_and_mcp_expose_site_vlan_network_summary(self) -> None:
         site_ref = "8" * 24

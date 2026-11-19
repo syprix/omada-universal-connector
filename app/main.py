@@ -3447,7 +3447,7 @@ class Handler(BaseHTTPRequestHandler):
                         registry_bindings["site_ref"])
                 elif registry_operation == "site_wan_max_speed_summary":
                     result = client.read_site_wan_max_speed_summary(
-                        registry_bindings["site_ref"])
+                        registry_bindings["site_ref"], registry_bindings["wan_port_ref"])
                 elif registry_operation == "site_vlan_network_summary":
                     result = client.read_site_vlan_network_summary(
                         registry_bindings["site_ref"])
