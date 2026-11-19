@@ -381,5 +381,6 @@ A synthetic full-response comparison measured 119 source JSON tokens and 79
 connector-result tokens (40 fewer) with js-tiktoken 1.0.21 / `o200k_base`.
 This includes the source response wrapper and connector envelope but excludes
 inventory, tool schemas, prompts, transport framing and billed agent usage.
-No controller request or external agent-client test was made. Exact-head
-GitHub CI is pending.
+No controller request or external agent-client test was made. The exact-head
+push and pull-request CI runs for this implementation commit passed (44522696991,
+44522719023); later commits require their own checks.
