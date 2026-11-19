@@ -333,7 +333,9 @@ def _journal_http_failure() -> dict[str, object]:
 
 def _read_change_journal_summary() -> dict[str, object]:
     """Summarize only the already-open, controller-bound local journal."""
-    runtime = _journal_runtime()
+    runtime = _JOURNAL_RUNTIME
+    if runtime is None:
+        return {"status": "unavailable", "error": "journal_not_open"}
     if runtime.status == "unconfigured":
         return {"status": "unavailable", "error": "journal_unconfigured"}
     if not runtime.ready:

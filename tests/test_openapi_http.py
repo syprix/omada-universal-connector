@@ -12,6 +12,7 @@ from urllib.parse import urlencode
 from unittest.mock import patch
 
 from app import main
+from app.change_journal import ChangePlanJournal, derive_controller_binding
 from app.openapi import OmadaOpenApiClient, OpenApiConfig, OpenApiError
 from app.site_setting_existence import FIELDS
 from app.site_capabilities import FIELDS as SITE_CAPABILITY_FIELDS
@@ -3556,6 +3557,49 @@ class OpenApiHttpTests(unittest.TestCase):
             status, response = self.request("/v1/change-journal/summary", self.token)
         self.assertEqual(status, 503)
         self.assertEqual(response, {"status": "unavailable", "error": "journal_unconfigured"})
+
+    def test_change_journal_summary_never_initializes_and_reads_only_open_journal(self) -> None:
+        unopened_dir = os.path.join(self.tempdir.name, "not-opened")
+        rpc = {"jsonrpc": "2.0", "id": 202, "method": "tools/call",
+               "params": {"name": "omada_change_journal_summary", "arguments": {}}}
+        with patch.dict(os.environ, {"OMADA_CHANGE_JOURNAL_DIR": unopened_dir}), \
+                patch.object(main, "_JOURNAL_RUNTIME", None), \
+                patch.object(main, "_openapi_client", side_effect=AssertionError("client opened")), \
+                patch.object(main, "initialize_journal_runtime",
+                             side_effect=AssertionError("journal initialized")):
+            status, response = self.request("/v1/change-journal/summary", self.token)
+            self.assertEqual(status, 503)
+            self.assertEqual(response, {"status": "unavailable", "error": "journal_not_open"})
+
+            status, response = self.request_post("/mcp", rpc, self.token)
+            self.assertEqual(status, 200)
+            self.assertEqual(response["result"]["structuredContent"],
+                             {"status": "unavailable", "error": "journal_not_open"})
+
+        self.assertFalse(os.path.exists(unopened_dir))
+
+        binding = derive_controller_binding(b"k" * 32, "https://controller.example:8043", "test")
+        journal = ChangePlanJournal(self.tempdir.name, controller_binding=binding)
+        runtime = main.JournalRuntime("ready", journal=journal)
+        try:
+            journal.record_dispatch_intent(
+                operation="radio", plan_id="a" * 48,
+                target_refs={"site_ref": "a" * 24, "device_ref": "b" * 24},
+                before={"radioSetting2g": {"txPowerLevel": 1}},
+                target={"radioSetting2g": {"txPowerLevel": 2}})
+            with patch.object(main, "_JOURNAL_RUNTIME", runtime):
+                status, response = self.request("/v1/change-journal/summary", self.token)
+                self.assertEqual(status, 200)
+                self.assertEqual(response["total_plans"], 1)
+                self.assertEqual(response["counts_by_state"]["in_doubt"], 1)
+
+                status, response = self.request_post("/mcp", rpc, self.token)
+                self.assertEqual(status, 200)
+                summary = response["result"]["structuredContent"]
+                self.assertEqual(summary["total_plans"], 1)
+                self.assertEqual(summary["counts_by_state"]["in_doubt"], 1)
+        finally:
+            runtime.close()
 
     def test_http_and_mcp_expose_dhcp_and_dns_reads(self) -> None:
         operations = (
