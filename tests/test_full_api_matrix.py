@@ -1958,6 +1958,34 @@ class FullApiMatrixTests(unittest.TestCase):
         self.assertEqual(available["connector_source_status"], "implemented_read")
         self.assertEqual(available["live_status"], "unknown_not_checked_by_this_offline_tool")
 
+    def test_site_wan_max_speed_summary_matches_all_source_exports(self) -> None:
+        matrix = json.loads((Path(__file__).resolve().parents[1] /
+                             "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
+        expected_ids = {
+            "Hardware Controller 6.3.0": "getWanPortsMaxSpeed_1",
+            "CBC Standard 6.3.0": "getWanPortsMaxSpeed_1",
+            "ER7212PC 6.2.14": "getWanPortsMaxSpeed",
+        }
+        for source in matrix["sources"]:
+            row = source["operations"]["site_wan_max_speed_summary"]
+            self.assertTrue(row["documented"])
+            self.assertEqual(row["live_support"], "unknown")
+            self.assertEqual(row["contract_review"]["operation_id"],
+                             expected_ids[source["label"]])
+            self.assertIn("upstream", row["contract_review"]["response"])
+            self.assertIn("does not specify units", row["contract_review"]["response"])
+            self.assertIn("unit=unspecified_by_source", row["contract_review"]["projection"])
+        spec = document()
+        spec["paths"] = {
+            "/openapi/v1/{omadacId}/sites/{siteId}/wan-max-speed": {
+                "get": {"operationId": "getWanPortsMaxSpeed_1", "responses": {"200": {}}},
+            },
+        }
+        path = self.write_zip("site-wan-max-speed-summary.zip", spec)
+        row = build_matrix([("hardware", path)])["operations"][0]
+        self.assertEqual(row["connector_source_status"], "implemented_read")
+        self.assertEqual(row["live_status"], "unknown_not_checked_by_this_offline_tool")
+
     def test_site_vlan_network_summary_matches_all_source_exports(self) -> None:
         matrix = json.loads((Path(__file__).resolve().parents[1] /
                              "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))

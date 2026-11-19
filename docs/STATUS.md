@@ -320,6 +320,24 @@ reconciliation is still open. Fixtures cover both fixed site reads, projection,
 HTTP and MCP. Live support remains unknown. A synthetic 200-row grid and
 180-row availability list used 36,469 `o200k_base` tokens as source JSON and
 179 tokens for the compact result (36,290 fewer; 99.51%) with
-`js-tiktoken` 1.0.21. This is a synthetic payload comparison only; it excludes
-schemas, prompts, transport framing and billed agent use. No live controller
-request was made.
+`js-tiktoken` 1.0.21. This comparison excludes schemas, prompts, transport
+framing and billed agent use. The complete local Python suite passed 3,204
+tests; exact-head push and pull-request CI both passed (runs `44491276891` and
+`44491284328`). No live controller request was made.
+
+## WAN maximum-speed configuration
+
+Added read-only site WAN maximum-speed summary at
+`GET /v1/sites/{site_ref}/wan-max-speed-summary` and MCP. The three exports
+resolve `WanMaxSpeedOpenApiVO` to optional upstream/downstream int32 values,
+but specify no unit. The connector preserves the integers, counts missing,
+invalid and unknown fields, and labels the unit unspecified. This reports
+configuration rather than current throughput. The 246-test registry, API
+matrix, evidence and focused gate passed; the full local Python suite passed
+3,210 tests in 473.084 seconds. The runtime smoke check and source catalog
+check passed. Tokenizer measurement on a synthetic controller response was 22
+tokens; the stable HTTP/MCP response was 70 tokens (+48), so this scalar read
+is not token-saving by itself. `js-tiktoken` 1.0.21 / `o200k_base`; counts
+exclude schemas, prompts, transport framing and billed agent use. No live
+controller request was made. Exact-head GitHub CI for this checkpoint is
+pending.

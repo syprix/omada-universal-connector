@@ -1413,6 +1413,8 @@ class OmadaOpenApiClient:
     _SITE_VIRTUAL_WAN_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/virtual-wans"
     _SITE_VIRTUAL_WAN_AVAILABLE_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/setting/available-virtual-wans")
+    _SITE_WAN_MAX_SPEED_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/wan-max-speed")
     _SITE_VLAN_NETWORK_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/networks/vlans"
     _SITE_LAN_NETWORKS_V3_PATH = (
         "/openapi/v3/{controller_id}/sites/{site_id}/lan-networks")
@@ -1742,6 +1744,9 @@ class OmadaOpenApiClient:
     _SITE_VIRTUAL_WAN_AVAILABLE_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
         r"/setting/available-virtual-wans"
+    )
+    _SITE_WAN_MAX_SPEED_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/wan-max-speed"
     )
     _SITE_VLAN_NETWORK_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/networks/vlans"
@@ -2899,6 +2904,7 @@ class OmadaOpenApiClient:
         ("site_bandwidth_control", "GET /v1/sites/{site_ref}/bandwidth-control"),
         ("site_wan_ports_summary", "GET /v1/sites/{site_ref}/wan-ports-summary"),
         ("site_virtual_wan_summary", "GET /v1/sites/{site_ref}/virtual-wan-summary"),
+        ("site_wan_max_speed_summary", "GET /v1/sites/{site_ref}/wan-max-speed-summary"),
         ("site_vlan_network_summary", "GET /v1/sites/{site_ref}/vlan-network-summary"),
         ("site_internet_summary", "GET /v1/sites/{site_ref}/internet-summary"),
         ("site_vpn_session_summary", "GET /v1/sites/{site_ref}/vpn-session-summary"),
@@ -11451,6 +11457,28 @@ class OmadaOpenApiClient:
         return {"status": "ok", "resource": "site_virtual_wan_summary",
                 "site_ref": site_ref, **projected}
 
+    @_track_capability("site_wan_max_speed_summary")
+    def read_site_wan_max_speed_summary(self, site_ref: str) -> dict[str, object]:
+        """Read configured WAN speed values without assuming their unit."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_WAN_MAX_SPEED_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_wan_max_speed_summary import (
+                SiteWanMaxSpeedError, project_site_wan_max_speed,
+            )
+        except ImportError:  # direct execution in the image
+            from site_wan_max_speed_summary import (
+                SiteWanMaxSpeedError, project_site_wan_max_speed,
+            )
+        try:
+            projected = project_site_wan_max_speed(result)
+        except SiteWanMaxSpeedError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_wan_max_speed_summary",
+                "site_ref": site_ref, **projected}
+
     @_track_capability("site_vlan_network_summary")
     def read_site_vlan_network_summary(self, site_ref: str) -> dict[str, object]:
         """Summarize a bounded VLAN-network listing without returning identifiers."""
@@ -14020,6 +14048,7 @@ class OmadaOpenApiClient:
                                   self._site_wan_ports_request_valid(path) or
                                   self._site_virtual_wan_request_valid(path) or
                                   self._site_virtual_wan_available_request_valid(path) or
+                                  self._site_wan_max_speed_request_valid(path) or
                                   self._site_vlan_network_request_valid(path) or
                                   self._site_lan_networks_v3_request_valid(path) or
                                   self._site_lan_network_inventory_request_valid(path) or
@@ -15277,6 +15306,10 @@ class OmadaOpenApiClient:
 
     def _site_virtual_wan_available_request_valid(self, path: str) -> bool:
         match = self._SITE_VIRTUAL_WAN_AVAILABLE_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_wan_max_speed_request_valid(self, path: str) -> bool:
+        match = self._SITE_WAN_MAX_SPEED_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
 
     def _site_vlan_network_request_valid(self, path: str) -> bool:

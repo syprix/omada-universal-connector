@@ -840,3 +840,5 @@ omada_controller_backup_inventory_summary summarizes controller-listed backup me
 `omada_site_channel_reuse_summary` accepts one site reference and 1–16 selected AP references. It compares reported radio channels and bandwidth with matching values in existing channel-load results. Equal channels are grouped by band. Adjacent-channel overlap and interference cause are left unknown. The tool is read-only and starts no scan.
 
 A synthetic eight-AP fixture with 608 channel-load rows measured 9,324 source JSON tokens and 2,046 report tokens (7,278 fewer; 78.06%) using `js-tiktoken` 1.0.21 / `o200k_base`. It includes inventory plus eight radio-detail and eight existing channel-load responses; schemas, prompts, framing and billed agent usage are excluded.
+
+`omada_site_wan_max_speed_summary` reads the documented site WAN maximum-speed configuration. It returns upstream/downstream int32 values without interpreting units; the source schema specifies no unit. This is configuration and does not report current throughput. Live support is unknown.
