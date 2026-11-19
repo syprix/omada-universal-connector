@@ -268,3 +268,7 @@ and eight existing channel-load responses, `js-tiktoken` 1.0.21 (`o200k_base`)
 counted 9,324 source JSON tokens and 2,046 report tokens (7,278 fewer; 78.06%).
 This fixture included 608 channel-load rows and detailed radio counters; it
 excludes tool schemas, prompts, transport framing and billed agent usage.
+Integer and digit-string channel values are normalized before applying the
+same 1–1000 validity range; zero and out-of-range values remain unknown. The
+54 focused channel-reuse/integration/registry tests and the 235-test evidence
+gate passed after this correction. The checks are offline only.

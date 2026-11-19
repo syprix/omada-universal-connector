@@ -42,6 +42,27 @@ class SiteChannelReuseTests(unittest.TestCase):
         self.assertIsNone(band["reported_channel_load"])
         self.assertTrue(result["partial"])
 
+    def test_numeric_string_channels_use_the_same_valid_range_as_integers(self):
+        valid_a = self.row("a", "6", 4)
+        valid_b = self.row("b", 6, 7)
+        zero_a = self.row("c", "0", 1)
+        zero_b = self.row("d", "0", 2)
+        high_a = self.row("e", "1001", 3)
+        high_b = self.row("f", 1001, 5)
+        result = summarize_site_channel_reuse(
+            [valid_a, valid_b, zero_a, zero_b, high_a, high_b])
+        self.assertEqual(result["same_channel_reuse"], [{
+            "band": "2g", "channel": 6, "device_refs": ["a" * 24, "b" * 24],
+            "access_point_count": 2, "radio_count": 2,
+            "reported_bandwidths": ["20MHz"], "bandwidth_unavailable_count": 0,
+            "assessment": "same_reported_channel_reuse",
+        }])
+        by_ref = {ap["device_ref"]: ap for ap in result["access_points"]}
+        for suffix in ("c", "d", "e", "f"):
+            self.assertEqual(by_ref[suffix * 24]["bands"][0]["channel_status"],
+                             "unknown_or_auto")
+        self.assertEqual(by_ref["a" * 24]["bands"][0]["channel"], 6)
+
     def test_rejects_duplicate_refs_and_oversized_inputs(self):
         row = self.row("a", 1, 2)
         with self.assertRaises(SiteChannelReuseError):

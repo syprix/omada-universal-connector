@@ -19,11 +19,14 @@ class SiteChannelReuseError(ValueError):
 
 
 def _channel(value: Any) -> int | str | None:
-    if type(value) is int and 1 <= value <= 1000:
-        return value
-    if isinstance(value, str) and 1 <= len(value) <= 8 and value.isascii() and value.isdigit():
-        return int(value)
-    return None
+    if type(value) is int:
+        channel = value
+    elif (isinstance(value, str) and 1 <= len(value) <= 8 and
+          value.isascii() and value.isdigit()):
+        channel = int(value)
+    else:
+        return None
+    return channel if 1 <= channel <= 1000 else None
 
 
 def summarize_site_channel_reuse(rows: Any) -> dict[str, object]:
