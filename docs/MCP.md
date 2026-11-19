@@ -780,6 +780,8 @@ A synthetic page of eight gateways, each with one WAN status record, measured 1,
 
 `omada_site_wan_ports_summary` counts WAN and USB-LTE ports and summarizes documented protocol/configuration codes and IPv6/DSL flags. It never returns port identifiers, addresses, MAC values, account names, passwords, PINs, APNs, or raw settings. Live support is unknown.
 
+`omada_site_virtual_wan_summary` reads up to 1,000 documented virtual WAN rows and returns enabled/disabled counts plus completeness. It omits WAN identifiers and settings. The supplied source contracts do not define an identifier crosswalk to physical port configuration or current WAN status, so the summary leaves physical reconciliation unresolved. Live support is unknown.
+
 `omada_site_vlan_network_summary` reads at most five fixed pages of 100 VLAN-network rows, aggregates purpose-code counts and distinct VLAN count, and omits network names, IDs and VLAN numbers. A larger listing is reported as truncated. Live support is unknown.
 
 `omada_site_lan_network_config_summary` reads at most five fixed pages of 100 LAN-network rows and reports purpose counts plus counts for 20 shared Boolean fields. Network and device identifiers, VLANs, addresses, DHCP and portal configuration are omitted. The three API exports differ in optional row properties and nested schemas; the reader uses only fields present in all three. Live support is unknown.

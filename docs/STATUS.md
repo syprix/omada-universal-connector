@@ -301,6 +301,27 @@ source JSON and 5,533 for the compact endpoint result (18,121 fewer; 76.61%) wit
 `js-tiktoken` 1.0.21 and `o200k_base`. The source fixture included synthetic
 identity, text and setting fields that the result drops. Counts cover JSON only,
 not schemas, prompts, transport framing or billed agent use.
-Eight focused offline tests and the 235-test registry, API-matrix and evidence
-gate passed. Python compilation and diff checks passed. Hosted checks for this
-function are pending; no live controller request was made.
+Fifty-nine focused offline tests and the 235-test registry, API-matrix and
+evidence gate passed. The corrected commit passed both exact-head GitHub CI
+runs (push `44482564502`, pull request `44482572662`). The full local Python
+suite then passed all 3,197 tests. No live controller request was made.
+
+## Virtual WAN inventory summary
+
+Added read-only `GET /v1/sites/{site_ref}/virtual-wan-summary` and the matching
+MCP tool. It reads at most 1,000 documented grid rows and reports declared and
+returned counts, enabled/disabled totals, missing-reference counts and whether
+the inventory is complete. It omits IDs, names and nested settings. The three
+source exports document `physicalWanId`, `physicalWanPortId` and physical port
+configuration fields, but do not define a crosswalk between those identifiers
+or the live WAN status port; the implementation does not join them. Physical
+configuration and current usage therefore remain separate, and reconciliation
+is still open. Fixtures cover projection, fixed paginated read, HTTP and MCP;
+live support remains unknown. A synthetic 200-row grid used 27,642 `o200k_base`
+tokens as upstream JSON and 94 tokens for the compact result (27,548 fewer;
+99.66%) with `js-tiktoken` 1.0.21. This measures JSON only and excludes
+schemas, prompts, transport framing and billed agent use. No live controller
+request was made. The complete local Python suite passed 3,203 tests in
+469.456 seconds; the local runtime smoke check also passed. The suite reported
+an unclosed loopback test socket warning at process shutdown, without a test
+failure.

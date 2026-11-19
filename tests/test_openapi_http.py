@@ -1883,6 +1883,15 @@ class FakeOpenApiClient:
                 "missing_field_count": 0, "invalid_field_count": 0,
                 "unknown_field_count": 0, "partial": False}
 
+    def read_site_virtual_wan_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_virtual_wan_summary", site_ref))
+        return {"status": "ok", "resource": "site_virtual_wan_summary",
+                "site_ref": site_ref, "virtual_wan_count": 1, "declared_total": 1,
+                "enabled_count": 1, "disabled_count": 0,
+                "missing_status_count": 0, "missing_physical_wan_id_count": 0,
+                "missing_physical_wan_port_id_count": 0, "invalid_row_count": 0,
+                "complete": True, "physical_join": "not_defined_by_source_contract"}
+
     def read_site_vlan_network_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_vlan_network_summary", site_ref))
         return {"status": "ok", "resource": "site_vlan_network_summary",
@@ -6816,6 +6825,23 @@ class OpenApiHttpTests(unittest.TestCase):
                          "site_wan_ports_summary")
         self.assertEqual(self.fake.calls,
                          [("site_wan_ports_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_site_virtual_wan_summary(self) -> None:
+        site_ref = "8" * 24
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/virtual-wan-summary", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_virtual_wan_summary")
+        self.assertEqual(response["enabled_count"], 1)
+        request = {"jsonrpc": "2.0", "id": 194, "method": "tools/call",
+                   "params": {"name": "omada_site_virtual_wan_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"]["resource"],
+                         "site_virtual_wan_summary")
+        self.assertEqual(self.fake.calls,
+                         [("site_virtual_wan_summary", site_ref)] * 2)
 
     def test_http_and_mcp_expose_site_vlan_network_summary(self) -> None:
         site_ref = "8" * 24

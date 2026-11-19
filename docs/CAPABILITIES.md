@@ -709,6 +709,8 @@ Gateway DHCP lease classification uses the paged `GET /v1/sites/{site_ref}/gatew
 
 Gateway internet metadata uses the fixed `GET /v1/sites/{site_ref}/gateways/{device_ref}/internet-info` route. It returns the documented WAN support booleans, selected non-identifying setting codes and counts grouped by raw `onlineDetection` code. It does not assign online/offline meanings to undocumented codes. Gateway/port/VLAN identifiers, WAN settings, network labels and address-bearing configuration are omitted. The same schema and permission choices are present in all three supplied exports; fixture tests cover the projection, fixed request, inventory binding, HTTP/MCP route and gateway diagnostic. Live support remains unknown.
 
+Virtual WAN inventory is available at `GET /v1/sites/{site_ref}/virtual-wan-summary`. The read reports a bounded row count, enabled/disabled counts and whether all declared rows were returned. It omits names and identifiers. The source exports do not establish a key that joins `physicalWanId` or `physicalWanPortId` to physical port configuration or current WAN status; these remain separate facts until the contract is clarified. Live support is unknown.
+
 Site switch-family support is available through the read-only
 `GET /v1/sites/{site_ref}/switch-support` route and MCP tool
 `omada_site_switch_support`. The request is bound to a known site. The

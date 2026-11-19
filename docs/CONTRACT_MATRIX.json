@@ -2082,6 +2082,18 @@
             "connector_projection": "Bounded client-detail GET preserves validated documented counters and connection scalars. A documented wireless apMac maps to an opaque AP reference only when the current same-site device inventory binds it; raw client/AP identifiers and descriptive fields are omitted.",
             "live_support": "unknown"
           }
+        },
+        "site_virtual_wan_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridVirtualWan",
+            "tag": "Site Configuration",
+            "permission": "not specified by the source operation",
+            "query": "page (int32), pageSize (int32)",
+            "response": "VirtualWanGridOpenApiVOVirtualWanInfoOpenApiVO defines totalRows, currentPage, currentSize and data. Each VirtualWanInfoOpenApiVO row defines boolean status, physicalWanId (string), physicalWanPortId (int32), id, display names and nested WAN settings. The source fields do not define that physicalWanId or physicalWanPortId equal WanSettingOpenApiVO.portId, or gateway WAN status port.",
+            "projection": "site-bound HTTP/MCP GET; bounds pages to 10 x 100 rows and returns row totals, enabled/disabled counts, missing-reference counts and completeness. Omits identifiers, labels and nested settings. Physical/live joins are not inferred."
+          }
         }
       }
     },
@@ -4137,6 +4149,18 @@
             "connector_projection": "Bounded client-detail GET preserves validated documented counters and connection scalars. A documented wireless apMac maps to an opaque AP reference only when the current same-site device inventory binds it; raw client/AP identifiers and descriptive fields are omitted.",
             "live_support": "unknown"
           }
+        },
+        "site_virtual_wan_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridVirtualWan",
+            "tag": "Site Configuration",
+            "permission": "not specified by the source operation",
+            "query": "page (int32), pageSize (int32)",
+            "response": "VirtualWanGridOpenApiVOVirtualWanInfoOpenApiVO defines totalRows, currentPage, currentSize and data. Each VirtualWanInfoOpenApiVO row defines boolean status, physicalWanId (string), physicalWanPortId (int32), id, display names and nested WAN settings. The source fields do not define that physicalWanId or physicalWanPortId equal WanSettingOpenApiVO.portId, or gateway WAN status port.",
+            "projection": "site-bound HTTP/MCP GET; bounds pages to 10 x 100 rows and returns row totals, enabled/disabled counts, missing-reference counts and completeness. Omits identifiers, labels and nested settings. Physical/live joins are not inferred."
+          }
         }
       }
     },
@@ -6173,6 +6197,18 @@
             "response": "Client Detail defines wireless, optional apMac and apName wireless fields, and optional int32 rssi (dBm), snr, channel, radioId, rxRate and txRate. The AP MAC field is described as the wireless AP MAC address.",
             "connector_projection": "Bounded client-detail GET preserves validated documented counters and connection scalars. A documented wireless apMac maps to an opaque AP reference only when the current same-site device inventory binds it; raw client/AP identifiers and descriptive fields are omitted.",
             "live_support": "unknown"
+          }
+        },
+        "site_virtual_wan_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridVirtualWan",
+            "tag": "Site Configuration",
+            "permission": "not specified by the source operation",
+            "query": "page (int32), pageSize (int32)",
+            "response": "VirtualWanGridOpenApiVOVirtualWanInfoOpenApiVO defines totalRows, currentPage, currentSize and data. Each VirtualWanInfoOpenApiVO row defines boolean status, physicalWanId (string), physicalWanPortId (int32), id, display names and nested WAN settings. The source fields do not define that physicalWanId or physicalWanPortId equal WanSettingOpenApiVO.portId, or gateway WAN status port.",
+            "projection": "site-bound HTTP/MCP GET; bounds pages to 10 x 100 rows and returns row totals, enabled/disabled counts, missing-reference counts and completeness. Omits identifiers, labels and nested settings. Physical/live joins are not inferred."
           }
         }
       }
