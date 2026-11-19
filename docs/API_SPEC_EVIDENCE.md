@@ -128,3 +128,16 @@ support for nonblocking and no-follow opens; directory synchronization after
 replacement is best effort. The older `tools/full_api_matrix.py` produces a
 broader report that may include source text and server URLs; review and redact
 its output before sharing it.
+
+## Stack and LLDP source review
+
+The three exports contain `getGridOswStackList` at
+`GET /openapi/v1/{omadacId}/sites/{siteId}/stacks` and
+`getGridStackLldpNeighborTable` at
+`GET /openapi/v1/{omadacId}/sites/{siteId}/stack/{stackId}/lldp-neighbors`.
+Hardware Controller 6.3.0 and Omada CBC 6.3.0 expose generic response
+contracts; ER7212PC 6.2.14 documents stack `id`, status and member MAC fields,
+plus LLDP local `portId` and neighbor identity strings. The LLDP contract does
+not define a format or join rule for `deviceId`, so the connector reports
+per-port neighbor counts but does not infer topology links from those strings.
+No source export proves live endpoint support on another controller.

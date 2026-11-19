@@ -681,6 +681,11 @@ class FakeOpenApiClient:
         self.calls.append(("site_topology", site_ref))
         return {"status": "ok", "resource": "site_topology", "nodes": [], "edges": []}
 
+    def read_site_stack_connections_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_stack_connections_summary", site_ref))
+        return {"status": "ok", "resource": "site_stack_connections_summary",
+                "site_ref": site_ref, "data": {"stacks": []}, "partial": False}
+
     def read_site_topology_network_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_topology_network_summary", site_ref))
         return {"status": "ok", "resource": "site_topology_network_summary",
@@ -2717,6 +2722,22 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(response["result"]["structuredContent"]["resource"], "site_topology")
         self.assertEqual(self.fake.calls, [("site_topology", "a" * 24)])
+
+    def test_http_and_mcp_expose_site_stack_connections_summary(self) -> None:
+        site_ref = "a" * 24
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/stack-connections-summary", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_stack_connections_summary")
+        request = {"jsonrpc": "2.0", "id": 140, "method": "tools/call",
+                   "params": {"name": "omada_site_stack_connections_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"]["resource"],
+                         "site_stack_connections_summary")
+        self.assertEqual(self.fake.calls,
+                         [("site_stack_connections_summary", site_ref)] * 2)
 
     def test_mcp_ssid_network_summary_uses_current_inventories_and_redacts_refs(self) -> None:
         site_ref, ssid_a, ssid_b, network_ref = "a" * 24, "b" * 24, "c" * 24, "d" * 24
