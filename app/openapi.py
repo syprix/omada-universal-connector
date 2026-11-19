@@ -28,6 +28,15 @@ from dataclasses import dataclass
 from urllib.parse import parse_qs, quote, urlencode, urlsplit
 
 try:
+    from .site_capability_comparison import (
+        SiteCapabilityComparisonError, project_site_capability_comparison,
+    )
+except ImportError:  # direct execution in the image
+    from site_capability_comparison import (
+        SiteCapabilityComparisonError, project_site_capability_comparison,
+    )
+
+try:
     from .finite_values import is_finite_number
 except ImportError:  # direct execution in the image
     from finite_values import is_finite_number
@@ -5410,6 +5419,29 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {"status": "ok", "resource": "site_capabilities",
                 "site_ref": site_ref, **projected}
+
+    def read_site_capability_comparison(self, site_refs: list[str]) -> dict[str, object]:
+        """Compare explicitly selected sites using fresh site inventory references."""
+        if (not isinstance(site_refs, list) or not 2 <= len(site_refs) <= 16 or
+                any(not isinstance(ref, str) or not re.fullmatch(r"[0-9a-f]{24}", ref)
+                    for ref in site_refs) or len(set(site_refs)) != len(site_refs)):
+            raise OpenApiError("site_refs_invalid")
+        inventory = self.list_sites()
+        current_refs = {item.get("site_ref") for item in inventory.get("items", [])
+                        if isinstance(item, dict)}
+        results: dict[str, object] = {}
+        for ref in site_refs:
+            if ref not in current_refs:
+                results[ref] = {"status": "error", "error": "site_ref_unknown"}
+                continue
+            try:
+                results[ref] = self.read_site_capabilities(ref)
+            except OpenApiError as exc:
+                results[ref] = {"status": "error", "error": exc.code}
+        try:
+            return project_site_capability_comparison(site_refs, results)
+        except SiteCapabilityComparisonError:
+            raise OpenApiError("openapi_response_invalid") from None
 
     @_track_capability("site_duplicate_ssid_summary")
     def read_site_duplicate_ssid_summary(self, site_ref: str) -> dict[str, object]:

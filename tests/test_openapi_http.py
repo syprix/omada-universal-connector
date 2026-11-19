@@ -3489,6 +3489,44 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(response["result"]["structuredContent"]["resource"],
                          "client_outage_timeline")
 
+    def test_selected_site_capability_comparison_is_available_over_http_and_mcp(self) -> None:
+        site_refs = ["a" * 24, "b" * 24]
+        seen = []
+
+        def comparison(refs):
+            seen.append(refs)
+            return {"status": "ok", "resource": "site_capability_comparison",
+                    "site_refs": refs, "sites": [], "feature_columns": [],
+                    "feature_values": [], "partial": False}
+
+        self.fake.read_site_capability_comparison = comparison
+        query = urlencode([("site_ref", ref) for ref in site_refs])
+        status, response = self.request(
+            "/v1/sites/capability-comparison?" + query, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_capability_comparison")
+
+        request = {"jsonrpc": "2.0", "id": 199, "method": "tools/call",
+                   "params": {"name": "omada_compare_site_capabilities",
+                              "arguments": {"site_refs": site_refs}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"]["resource"],
+                         "site_capability_comparison")
+        self.assertEqual(seen, [site_refs, site_refs])
+
+        invalid = {"jsonrpc": "2.0", "id": 200, "method": "tools/call",
+                   "params": {"name": "omada_compare_site_capabilities",
+                              "arguments": {"site_refs": [site_refs[0], site_refs[0]]}}}
+        status, invalid_rpc = self.request_post("/mcp", invalid, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(invalid_rpc["error"]["message"], "arguments_invalid")
+
+        status, invalid_http = self.request(
+            "/v1/sites/capability-comparison?site_ref=" + site_refs[0], self.token)
+        self.assertEqual(status, 400)
+        self.assertEqual(invalid_http["error"], "site_refs_invalid")
+
     def test_http_and_mcp_expose_dhcp_and_dns_reads(self) -> None:
         operations = (
             ("dhcp_leases", "dhcp/leases", "list_dhcp_leases"),

@@ -1607,6 +1607,13 @@ class Handler(BaseHTTPRequestHandler):
         self._send(HTTPStatus.OK, response)
 
     def _mcp_read(self, operation_id: str, arguments: dict[str, str]) -> dict[str, object]:
+        if operation_id == "site_capability_comparison":
+            refs = arguments.get("site_refs", "").split(",")
+            try:
+                with _OPENAPI_LOCK:
+                    return _openapi_client().read_site_capability_comparison(refs)
+            except OpenApiError as exc:
+                return {"status": "error", "error": exc.code}
         if operation_id == "diagnostic_capability_summary":
             try:
                 with _OPENAPI_LOCK:
@@ -2173,6 +2180,26 @@ class Handler(BaseHTTPRequestHandler):
                 else HTTPStatus.BAD_GATEWAY)
             self._send(status, {"status": "error", "error": str(exc)})
 
+    def _serve_site_capability_comparison(self, parsed_request: object) -> None:
+        if not self._authorized():
+            return
+        try:
+            query_values = parse_qs(parsed_request.query, keep_blank_values=True,
+                                    strict_parsing=True)
+            refs = query_values.get("site_ref", [])
+            if set(query_values) != {"site_ref"} or not 2 <= len(refs) <= 16:
+                raise RegistryError("site refs invalid")
+            with _OPENAPI_LOCK:
+                result = _openapi_client().read_site_capability_comparison(refs)
+            self._send(HTTPStatus.OK, result)
+        except (RegistryError, ValueError):
+            self._send(HTTPStatus.BAD_REQUEST,
+                       {"status": "error", "error": "site_refs_invalid"})
+        except OpenApiError as exc:
+            status = (HTTPStatus.BAD_REQUEST if exc.code == "site_refs_invalid"
+                      else HTTPStatus.BAD_GATEWAY)
+            self._send(status, {"status": "error", "error": exc.code})
+
     def _serve_gateway_wan_incident_window(self, parsed_request: object,
                                            match: object) -> None:
         if not self._authorized():
@@ -2253,6 +2280,9 @@ class Handler(BaseHTTPRequestHandler):
         registry_match = None
         try:
             parsed_request = urlsplit(self.path)
+            if parsed_request.path == "/v1/sites/capability-comparison":
+                self._serve_site_capability_comparison(parsed_request)
+                return
             outage_match = re.fullmatch(
                 r"/v1/sites/([0-9a-f]{24})/outage-summary", parsed_request.path)
             if outage_match is not None:

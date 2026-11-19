@@ -110,3 +110,14 @@ payloads; the bundled redacted timeline serialized to 3,546 tokens (61.82%
 fewer) with js-tiktoken 1.0.21. This excludes tool schemas, prompts, framing,
 inventory reads, live data and billed agent usage. No controller request or
 network operation was made.
+
+## 2026-11-19 — Selected-site capability comparison
+
+A bounded HTTP/MCP workflow compares documented site capability flags for 2–16
+explicitly selected opaque site references after refreshing the site inventory.
+It distinguishes permission-denied reads, stale/unknown references and missing
+capability fields; no broad probes are run. Offline fixture tests pass. An
+eight-site, 49-feature fixture measured 2,674 tokens across separate projected
+source responses and 1,372 tokens for the aligned compact report (48.69% fewer;
+js-tiktoken 1.0.21/o200k_base). This excludes tool schemas, prompts, framing,
+inventory reads and billed agent usage. No live request was made.

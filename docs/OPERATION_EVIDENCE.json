@@ -6889,6 +6889,7 @@
         "test_site_batch_interference_history.py",
         "test_site_beacon_control_integration.py",
         "test_site_capabilities_integration.py",
+        "test_site_capability_comparison.py",
         "test_site_category_application_summary_integration.py",
         "test_site_category_client_summary_integration.py",
         "test_site_client_activity_summary_integration.py",
@@ -9216,7 +9217,8 @@
         "test_openapi_http.py",
         "test_operation_registry.py",
         "test_site_capabilities.py",
-        "test_site_capabilities_integration.py"
+        "test_site_capabilities_integration.py",
+        "test_site_capability_comparison.py"
       ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",

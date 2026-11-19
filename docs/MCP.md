@@ -22,6 +22,8 @@ framing, the agent's request and billed usage. No live network data was used.
 
 `omada_diagnostic_capability_summary` groups the current catalog into the complete WLAN, client, AP, gateway, switch and site-network read workflows. For each required read it distinguishes source documentation, an observed successful controller response with a supported shape, unknown evidence and recorded failures. It makes no controller requests and omits runtime target references. Documentation counts refer to the bundled source exports, not necessarily the controller currently connected to the process; the catalog remains explicitly incomplete.
 
+`omada_compare_site_capabilities` compares 2–16 explicitly selected `site_ref` values, refreshing the site inventory first. `GET /v1/sites/capability-comparison` accepts the same references as repeated `site_ref` query parameters. Feature values are aligned to the returned `site_refs` columns (`1` enabled, `0` disabled, `null` unknown). Missing values, permission failures and references absent from the current inventory remain distinguishable; no route probes or broad site discovery is performed.
+
 `omada_ap_uplink_config` exposes the distinct read-only AP auto-uplink and port configuration. It is separate from the wired-link status reader and is not called automatically by a diagnostic workflow.
 
 `omada_site_rogue_ap_results` summarizes stored rogue-AP scan results for a site. It removes SSIDs, BSSIDs, AP identities, record identifiers and timestamps; scan freshness is unknown. `omada_wifi_diagnose_site` includes this summary. Both paths read saved results only and never start a scan.
