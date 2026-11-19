@@ -27,6 +27,12 @@ class TopologyReadTests(unittest.TestCase):
             self.switch_device_ref: self.switch_mac, self.ap_device_ref: self.ap_mac}
         self.client._switch_macs_by_site_ref[self.site_ref] = {self.switch_device_ref: self.switch_mac}
         self.client._device_macs_by_site_ref[self.site_ref] = {self.ap_device_ref: self.ap_mac}
+        self.stack_summary_patch = patch.object(
+            self.client, "read_site_stack_connections_summary",
+            return_value={"status": "ok", "resource": "site_stack_connections_summary",
+                          "partial": False, "data": {"stacks": []}})
+        self.stack_summary_patch.start()
+        self.addCleanup(self.stack_summary_patch.stop)
 
     def topology_payload(self):
         return {"result": {"lastUpdateTime": 1_800_000_000_000, "topologyArray": [{
@@ -46,6 +52,8 @@ class TopologyReadTests(unittest.TestCase):
         request.assert_called_once_with(
             "GET", "/openapi/v3/ctrl/sites/site_1/topology?filters.deviceStatus=0%2C1", token="token")
         self.assertEqual(result["resource"], "site_topology")
+        self.assertEqual(result["stack_connections"]["resource"],
+                         "site_stack_connections_summary")
         self.assertEqual(len(result["nodes"]), 2)
         nodes = {node["device_type"]: node for node in result["nodes"]}
         self.assertEqual(nodes["switch"]["disconnected"], False)
@@ -110,6 +118,22 @@ class TopologyReadTests(unittest.TestCase):
         self.assertEqual(result["edges"], [])
         self.assertTrue(result["partial"])
         self.assertEqual(result["omitted_edge_count"], 1)
+
+    def test_topology_reports_incomplete_stack_coverage(self) -> None:
+        self.stack_summary_patch.stop()
+        self.stack_summary_patch = patch.object(
+            self.client, "read_site_stack_connections_summary",
+            return_value={"status": "partial", "resource": "site_stack_connections_summary",
+                          "partial": True, "data": {"stacks": []}})
+        self.stack_summary_patch.start()
+        self.addCleanup(self.stack_summary_patch.stop)
+        payload = {"result": {"topologyArray": [
+            {"type": "switch", "mac": self.switch_mac, "successors": []}]}}
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value=payload):
+            result = self.client.read_site_topology(self.site_ref)
+        self.assertTrue(result["partial"])
+        self.assertEqual(result["stack_connections"]["status"], "partial")
 
     def test_malformed_schema_or_unbounded_arrays_fail_closed(self) -> None:
         payload = self.topology_payload()

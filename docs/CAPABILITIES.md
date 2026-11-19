@@ -460,6 +460,14 @@ remain visible as partial data. The source gives integer scores but no scale;
 the report does not rank switches or infer severity. This is fixture-tested;
 live support remains unknown.
 
+The site switch-port anomaly summary is a bounded HTTP/MCP workflow over the
+fresh device inventory and the existing switch port overview and counter
+feeds. It reports raw port status codes and nonzero cumulative error counters
+as review signals without decoding controller-specific status codes. The
+documented per-port counter response contains error totals but no drop
+counters; one snapshot cannot provide rates or trends. No live read has
+been performed for this workflow.
+
 The AP health-score timeline is a separate, read-only AP route. All three
 supplied exports document its endpoint. The connector fixes the window at 24
 hours and projects redacted timestamps and int32 score values without
@@ -590,6 +598,17 @@ profile names, IDs and timestamps are omitted; the
 next-execution field is reduced to presence because its unit is undocumented.
 The other two exports have generic response schemas. Fixtures cover the
 projection and route, but no controller or live support was tested.
+
+`site_stack_connections_summary` reads the documented site stack list and a
+bounded LLDP page for each stack. Stack member MACs are joined internally to
+unique references from a fresh switch inventory. Output keeps opaque stack and
+switch references, documented status codes, and local stack-port neighbor
+counts; names and LLDP neighbor identities are omitted. Because `deviceId` is
+not contractually tied to inventory MACs, these counts are not topology edges.
+The export schemas are detailed only in ER7212PC; hardware support remains
+unknown and no live controller read was made. The existing site topology
+response includes the same stack section and marks the combined report partial
+when stack coverage is incomplete.
 
 
 Gateway health timeline is a redacted read using an opaque inventoried
@@ -1201,3 +1220,7 @@ The LAN network detail summary resolves one opaque network reference within the 
 ### Scheduled reboot summary
 
 GET /v1/sites/{site_ref}/reboot-schedule-summary reads the documented site reboot schedule list. It returns enabled state, recurrence, schedule clock fields, a next-execution timestamp when supplied, and current-inventory device references. Names, source IDs, and MAC addresses are omitted. The source does not specify the schedule timezone; the report does not guess it. A configured schedule is not evidence that a reboot occurred. Detailed response fields are available in the ER7212PC 6.2.14 export; Hardware Controller and Omada CBC 6.3 exports have generic response schemas. Schedule rows use a declared compact column list so the same field names are not repeated per schedule. A synthetic 12-schedule payload measured 796 source JSON tokens and 464 projected tokens (41.71% fewer with js-tiktoken 1.0.21/o200k_base). This compares serialized fixture payloads only and excludes inventory responses, prompts, schemas, framing and billed agent context. No live controller compatibility check has been made for this route.
+
+### Backup inventory summaries
+
+GET /v1/controller/maintenance/backup-inventory-summary summarizes controller-listed backup metadata alongside the existing controller backup status and schedule reads. GET /v1/sites/{site_ref}/backup-inventory-summary does the same for one selected site, without probing other sites. Both expose file count, listed bytes, the maximum timestamp in the returned list, status, and safe schedule fields. They omit filenames, paths, download URLs, credentials, and raw identifiers. Timestamp and size semantics are detailed only in ER7212PC 6.2.14; the Hardware Controller and CBC 6.3 schemas are generic. The status code 0 combines initial and finished states. A synthetic 12-file fixture measured 459 source JSON tokens and 103 summary tokens (77.56% fewer with js-tiktoken 1.0.21/o200k_base). This compares serialized fixture payloads and excludes tool schemas, prompts, framing and billed agent usage. No backup is downloaded or restored.

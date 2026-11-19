@@ -779,6 +779,25 @@ class ChangePlanJournal:
                 raise ChangeJournalError("plan_unknown")
             return str(plan["state"])
 
+    def summary(self) -> dict[str, object]:
+        """Return bounded status counts without exposing journal records or refs."""
+        with self._mutex:
+            self._ensure_open()
+            counts = {"in_doubt": 0, "verified": 0, "closed_outcome_unknown": 0}
+            for plan in self._plans.values():
+                state = plan.get("state")
+                if state not in counts:
+                    raise ChangeJournalError("journal_corrupt")
+                counts[str(state)] += 1
+            return {
+                "status": "ok",
+                "resource": "change_journal_summary",
+                "integrity": "validated_at_open",
+                "total_plans": len(self._plans),
+                "counts_by_state": counts,
+                "record_details_included": False,
+            }
+
     def close(self) -> None:
         mutex = getattr(self, "_mutex", None)
         if mutex is None:

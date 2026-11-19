@@ -173,6 +173,10 @@
           "documented": true,
           "live_support": "unknown"
         },
+        "client_health_detail_v2": {
+          "documented": true,
+          "live_support": "unknown"
+        },
         "clients": {
           "documented": true,
           "live_support": "unknown"
@@ -2224,6 +2228,10 @@
           "documented": true,
           "live_support": "unknown"
         },
+        "client_health_detail_v2": {
+          "documented": true,
+          "live_support": "unknown"
+        },
         "clients": {
           "documented": true,
           "live_support": "unknown"
@@ -4263,6 +4271,10 @@
           "live_support": "unknown"
         },
         "client_health_incidents": {
+          "documented": false,
+          "live_support": "unknown"
+        },
+        "client_health_detail_v2": {
           "documented": false,
           "live_support": "unknown"
         },

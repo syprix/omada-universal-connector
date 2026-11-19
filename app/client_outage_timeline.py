@@ -33,7 +33,11 @@ def project_client_outage_timeline(client_ref: str, start_ms: int, end_ms: int,
                                    client_timeline_results: dict[str, object],
                                    health_result: object, event_result: object,
                                    alert_result: object, now_ms: int,
-                                   ap_assignment_available: bool = True
+                                   ap_assignment_available: bool = True,
+                                   ap_health_results: dict[str, object] | None = None,
+                                   retention_result: object = None,
+                                   client_retention_result: object = None,
+                                   ap_assignments_omitted: bool = False,
                                    ) -> dict[str, object]:
     """Join only validated millisecond points and bounded aggregate site context.
 
@@ -88,6 +92,7 @@ def project_client_outage_timeline(client_ref: str, start_ms: int, end_ms: int,
         latest = max((item["time_ms"] for item in samples), default=None)
         event_sources[kind] = {
             "status": "ok", "sample_count": len(samples),
+            "earliest_timestamp_ms": min((item["time_ms"] for item in samples), default=None),
             "latest_timestamp_ms": latest, "data_age_ms": _age(latest, now_ms),
             "partial": partial, "missing_field_count": missing_count,
             "omitted_field_count": omitted_count,
@@ -138,6 +143,7 @@ def project_client_outage_timeline(client_ref: str, start_ms: int, end_ms: int,
         latest = max((item["time_ms"] for item in health_points), default=None)
         health_source = {
             "status": "ok", "sample_count": len(health_points),
+            "earliest_timestamp_ms": min((item["time_ms"] for item in health_points), default=None),
             "latest_timestamp_ms": latest, "data_age_ms": _age(latest, now_ms),
             "partial": partial, "missing_field_count": missing_count,
             "omitted_field_count": omitted_count,
@@ -158,6 +164,8 @@ def project_client_outage_timeline(client_ref: str, start_ms: int, end_ms: int,
                   ("returned_count", "total_count", "partial", "module_counts",
                    "severity_counts", "pagination") if key in value}
         output["status"] = "ok"
+        output["observed_first_timestamp"] = value.get("first_event_ms")
+        output["observed_last_timestamp"] = value.get("last_event_ms")
         indicators = []
         if value.get("partial") is True:
             indicators.append("partial_source")
@@ -169,8 +177,53 @@ def project_client_outage_timeline(client_ref: str, start_ms: int, end_ms: int,
         return output
 
     sites = {"events": site_source(event_result), "alerts": site_source(alert_result)}
+    ap_coverage: dict[str, object] = {}
+    for ap_ref, value in (ap_health_results or {}).items():
+        if not re.fullmatch(r"[0-9a-f]{24}", ap_ref):
+            continue
+        raw_scores = (value.get("data", {}).get("scores")
+                      if isinstance(value, dict) and isinstance(value.get("data"), dict)
+                      else None)
+        points = [point["time_ms"] for point in raw_scores if isinstance(point, dict) and
+                  type(point.get("time_ms")) is int] if isinstance(raw_scores, list) else []
+        available = isinstance(value, dict) and value.get("status") == "ok"
+        partial = value.get("partial") is not False if isinstance(value, dict) else True
+        indicators = []
+        if not available:
+            indicators.append("source_unavailable")
+        if partial:
+            indicators.append("partial_source")
+        if not points:
+            indicators.append("no_samples")
+        ap_coverage[ap_ref] = {
+            "status": "ok" if available else "unavailable",
+            "error": value.get("error") if isinstance(value, dict) and
+                     isinstance(value.get("error"), str) else None,
+            "sample_count": len(points),
+            "earliest_timestamp_ms": min(points, default=None),
+            "latest_timestamp_ms": max(points, default=None),
+            "partial": partial,
+            "omitted_field_count": value.get("omitted_field_count", 0)
+                                  if isinstance(value, dict) else 0,
+            "gap_indicators": indicators,
+        }
+    if ap_assignments_omitted:
+        ap_coverage["additional_assignments_omitted"] = True
+
+    def retention_coverage(value: object) -> dict[str, object]:
+        if not isinstance(value, dict) or value.get("status") != "ok":
+            return {"status": "unavailable", "partial": True}
+        return {"status": "ok", "partial": value.get("partial") is not False,
+                "data": value.get("data")}
+
+    retention_sources = (retention_coverage(retention_result),
+                         retention_coverage(client_retention_result))
     all_partial = (event_partial or health_source.get("partial") is True or
-                   any(item.get("partial") is True for item in sites.values()))
+                   any(item.get("partial") is True for item in sites.values()) or
+                   any(item.get("status") != "ok" or item.get("partial") is True
+                       for item in ap_coverage.values()) or
+                   any(item.get("status") != "ok" or item.get("partial") is True
+                       for item in retention_sources) or ap_assignments_omitted)
     return {
         "status": "ok", "resource": "client_outage_timeline",
         "client_ref": client_ref, "window_start_ms": start_ms, "window_end_ms": end_ms,
@@ -178,6 +231,28 @@ def project_client_outage_timeline(client_ref: str, start_ms: int, end_ms: int,
         "health_scores": health_points,
         "sources": {"client_events": event_sources, "health_scores": health_source,
                     "site_event_context": sites},
+        "history_coverage": {
+            "requested_window_ms": {"start": start_ms, "end": end_ms},
+            "client_event_bounds_ms": {
+                "earliest": min((item["time_ms"] for item in projected_events), default=None),
+                "latest": max((item["time_ms"] for item in projected_events), default=None),
+            },
+            "client_health_bounds_ms": {
+                "earliest": min((item["time_ms"] for item in health_points), default=None),
+                "latest": max((item["time_ms"] for item in health_points), default=None),
+            },
+            "site_log_coverage": {
+                kind: {key: sites[kind].get(key) for key in
+                       ("returned_count", "total_count", "partial", "pagination",
+                        "observed_first_timestamp", "observed_last_timestamp", "gap_indicators")
+                       if key in sites[kind]}
+                for kind in ("events", "alerts")
+            },
+            "ap_health_coverage": ap_coverage,
+            "client_history_recording": retention_sources[1],
+            "controller_retention": retention_sources[0],
+            "completeness": "unknown_without_source_total_sample_evidence",
+        },
         "site_wide_event_context_only": True,
         "connection_cause": "not_inferred",
         "ap_assignment_available": ap_assignment_available,
