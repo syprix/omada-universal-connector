@@ -213,5 +213,41 @@ no-sample client. Regression fixtures cover the repeated-source failure and
 The final combined offline suite passed 3,171 tests in 467.282 seconds; 55
 focused #31/#32 projection and transport checks, the 235-test registry/API-
 matrix/operation-evidence gate, runtime smoke, Python compilation and diff
-checks passed. The exact new GitHub commit and CI runs are being checked. Live
-controller behavior remains unverified.
+checks passed. The exact-head push run initially failed in the IPTV redaction test because
+its random opaque reference happened to contain `123`, matching the old
+substring search for a raw VLAN value. The regression fixture now uses a fixed
+opaque reference containing that sequence, checks it separately, and asserts
+the exact projected fields while preserving string-redaction checks. The fix
+was included in PR #19 and is now on main at
+`c60394ab1d47f7599012b912c75e8d37451e8c81`; both exact-head CI runs passed.
+Live controller behavior remains unverified.
+
+## Follow-up 33: selected AP uplink and mesh path
+
+Added `GET /v1/sites/{site_ref}/ap-uplink-paths?device_ref=...` and MCP tool
+`omada_site_ap_uplink_path_summary` for 1–16 explicitly selected current APs.
+The workflow refreshes the selected site's device inventory, then reads each
+AP's existing wired-uplink and mesh-statistics endpoints. It resolves peer
+MACs only to unique same-site opaque device/AP references. The result reports
+one evidenced next hop; the continuation is marked unexamined. A positive
+documented wired rate can establish that hop even if the mesh read is
+unavailable. Successful partial sources remain distinct from unavailable
+sources. Unknown segments, missing peers and inventory status signals remain
+visible; counters are review signals without cause or rate interpretation. No
+scan or network change is initiated.
+
+The three supplied API exports document the upstream reads and inventory.
+ER7212PC 6.2.14 provides detailed response fields/examples; Hardware Controller
+6.3 and CBC 6.3 include the schemas but do not provide the same detailed
+operation response fields. RSSI/SNR thresholds and wired link-status/speed
+meanings remain undocumented, and live compatibility is unverified.
+
+Forty-eight focused local projection, inventory binding, HTTP/MCP and related
+regression checks passed. A synthetic eight-AP comparison measured 2,485
+`o200k_base` tokens for the inventory plus 16 separate connector endpoint
+responses, versus 1,513 for the bundled report: 972 fewer (39.11%), using
+`js-tiktoken` 1.0.21. This compares serialized connector JSON only; it excludes
+tool schemas, prompts, framing, live data and billed agent use. The full offline suite passed 3,181 tests in 468.724 seconds. The required
+registry/API-matrix/operation-evidence gate passed 235 tests, focused projection
+and HTTP/MCP checks passed 48 tests, and runtime smoke, Python compilation and
+diff checks passed. These are offline checks only; no controller was contacted.

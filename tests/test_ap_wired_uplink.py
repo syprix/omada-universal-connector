@@ -29,6 +29,18 @@ def complete_info() -> dict[str, object]:
 
 
 class ApWiredUplinkProjectionTests(unittest.TestCase):
+    def test_optional_inventory_reference_redacts_and_maps_the_upstream_mac(self) -> None:
+        ref = "a" * 24
+        info = complete_info()
+        info["uplinkMac"] = "00:11:22:33:44:55"
+        projected = project_ap_wired_uplink(
+            {"wiredUplink": info},
+            device_ref_by_mac={"001122334455": ref})
+        data = projected["data"]["wiredUplink"]
+        self.assertEqual(data["uplink_device_ref"], ref)
+        self.assertEqual(data["uplink_device_ref_status"], "mapped")
+        self.assertNotIn("00:11:22:33:44:55", repr(projected))
+
     def test_projects_documented_core_fields_as_reported(self) -> None:
         raw = {"wiredUplink": complete_info()}
         result = project_ap_wired_uplink(raw)

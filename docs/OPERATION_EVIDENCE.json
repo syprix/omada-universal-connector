@@ -8309,7 +8309,8 @@
         "test_capability_completeness.py",
         "test_live_read_probe.py",
         "test_mesh_integration.py",
-        "test_operation_registry.py"
+        "test_operation_registry.py",
+        "test_site_ap_uplink_path_integration.py"
       ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
@@ -8767,6 +8768,7 @@
         "test_ap_wired_uplink_integration.py",
         "test_openapi_http.py",
         "test_operation_registry.py",
+        "test_site_ap_uplink_path_integration.py",
         "test_wifi_diagnose_ap.py"
       ],
       "test_execution": "not_assessed_by_this_report",

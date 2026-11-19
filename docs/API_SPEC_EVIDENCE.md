@@ -179,3 +179,23 @@ No source export proves live endpoint support on another controller.
 ## Backup inventory source review
 
 All three exports document controller-level getSelfServerFileList at GET /openapi/v1/{omadacId}/maintenance/backup/files and site-level getSelfServerSiteFileList at GET /openapi/v1/{omadacId}/sites/{siteId}/maintenance/backup/files. They also document getBackupResult and getSiteBackupResult status reads. Hardware Controller 6.3 and Omada CBC 6.3 use generic response schemas; ER7212PC 6.2.14 documents fileList rows with fileName, backupTime in milliseconds, and size in bytes, and status 0 (finished or initial) / 1 (running). The inventory summaries expose counts, aggregate listed bytes, the highest timestamp among returned rows, and the existing schedule/status summaries. Filenames, paths, URLs, credentials, and raw controller/site identifiers are omitted. The site route is bound to one selected site and does not enumerate sites. A listed timestamp is evidence only for the returned list, not proof of a successful restore or a complete history.
+
+## Selected AP uplink and mesh path source review
+
+All three exports include `getUplinkWiredDetail` at
+`GET /openapi/v1/{omadacId}/sites/{siteId}/aps/{apMac}/wired-uplink` and
+`getMeshStatistics` at
+`GET /openapi/v1/{omadacId}/sites/{siteId}/aps/{apMac}/mesh/statistics`.
+They also include the site device inventory operation. The 6.3.0 hardware and
+CBC exports use response schemas for the two AP reads; the ER7212PC 6.2.14
+export supplies operation-specific fields and examples. `ApWiredUplinkInfo`
+documents a peer MAC, negotiated rate (`0` means disconnected), duplex, byte,
+packet, drop/error counters, and link fields. `ApMeshStatisticsOpenApiVO`
+documents the `wirelessLinked` Boolean and `wirelessUplink` peer AP, RSSI, SNR,
+and integer transmit/receive rates in Mbps. `DeviceInfo` documents
+`uplinkDeviceMac`, status codes `0`–`4`, and link-speed codes. The connector
+maps peer MACs only to current same-site opaque references, exposes only one
+observed hop, reports unknown continuations, and treats nonzero cumulative
+counters as review signals rather than rates. No source documents thresholds
+for RSSI/SNR or meanings for wired `linkStatus`/`linkSpeed`; these remain raw
+values without quality labels. These contracts do not establish live support.

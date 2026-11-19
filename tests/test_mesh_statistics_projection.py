@@ -10,6 +10,18 @@ from app.mesh_statistics import (
 
 
 class MeshStatisticsProjectionTests(unittest.TestCase):
+    def test_optional_inventory_mapping_returns_only_an_opaque_mesh_parent_ref(self) -> None:
+        ref = "a" * 24
+        mac = "00:11:22:33:44:55"
+        projected = project_mesh_statistics(
+            {"wirelessUplink": {"uplinkMac": mac, "rssi": -55}},
+            access_point_ref_by_mac={"001122334455": ref})
+        uplink = projected["wireless_uplink"]
+        self.assertEqual(uplink["uplink_ap_ref"], ref)
+        self.assertEqual(uplink["uplink_ap_ref_status"], "mapped")
+        self.assertEqual(uplink["omitted_field_count"], 0)
+        self.assertNotIn(mac, repr(projected))
+
     def test_projects_typed_values_and_discards_identifiers(self) -> None:
         secret_mac = "00:11:22:33:44:55"
         source = {

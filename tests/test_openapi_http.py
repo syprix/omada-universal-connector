@@ -8199,5 +8199,38 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn("arguments_invalid", json.dumps(rpc))
 
+    def test_site_ap_uplink_path_is_available_over_http_and_mcp(self) -> None:
+        site_ref, refs = "a" * 24, ["b" * 24, "c" * 24]
+        seen = []
+
+        def summary(site, selected_refs):
+            seen.append((site, selected_refs))
+            return {"status": "ok", "resource": "site_ap_uplink_path_summary",
+                    "site_ref": site, "selected_ap_count": len(selected_refs),
+                    "aps": [], "partial": False}
+
+        self.fake.read_site_ap_uplink_path_summary = summary
+        query = f"device_ref={refs[0]}&device_ref={refs[1]}"
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/ap-uplink-paths?{query}", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_ap_uplink_path_summary")
+        self.assertEqual(seen[-1], (site_ref, refs))
+
+        request = {"jsonrpc": "2.0", "id": 46, "method": "tools/call",
+                   "params": {"name": "omada_site_ap_uplink_path_summary",
+                              "arguments": {"site_ref": site_ref, "device_refs": refs}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"]["selected_ap_count"], 2)
+        self.assertEqual(seen[-1], (site_ref, refs))
+
+        invalid = {**request, "id": 47,
+                   "params": {"name": "omada_site_ap_uplink_path_summary",
+                              "arguments": {"site_ref": site_ref, "device_refs": [refs[0]] * 2}}}
+        status, rpc = self.request_post("/mcp", invalid, self.token)
+        self.assertEqual(status, 200)
+        self.assertIn("arguments_invalid", json.dumps(rpc))
+
 if __name__ == "__main__":
     unittest.main()
