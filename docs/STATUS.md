@@ -456,3 +456,8 @@ The SSID client-list operation (#52) remains open. Hardware Controller and CBC d
 The port-schedule summary (#54) reads a bounded schedule page and the same-site supported-port list. It counts documented enabled state and time-reference/next-execution field presence, then compares schedule port memberships only when the documented MAC reference is unique. Device MACs, schedule IDs/names, time-range IDs, and port IDs are omitted. The `nextExecute` unit is unspecified; no execution or effect is inferred. Focused client, projector, registry, and HTTP/MCP checks pass. Live support remains unknown.
 
 The routing-table summary (#55) accepts only the documented `gateway` or `switch` scope and one bounded page. It returns route totals and coverage plus counts of uninterpreted row type values; the exports do not enumerate those values. Destinations, hops, VRFs, interfaces and device identity fields are omitted. No route settings are changed, and live support remains unknown.
+
+
+The VPN client status summary is implemented as an authenticated HTTP/MCP read, bound to one selected site and a documented protocol filter. Status values remain uninterpreted because no code mapping exists in the source exports. Live controller behavior is unconfirmed.
+
+The selected-SSID client count read is implemented for the two source exports that document `getGridSsidClients`. It sends only the OpenAPI 3.0.1 default flat `page` and `pageSize` query fields, binds the SSID to its selected site inventory, and reports page coverage. The endpoint is absent from the ER7212PC export; live behavior remains unconfirmed.

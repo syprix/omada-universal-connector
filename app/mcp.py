@@ -675,6 +675,9 @@ def _tool(operation: Any) -> dict[str, object]:
             if operation.operation_id == "site_vpn_server_status_summary":
                 properties[name] = {"type": "integer", "enum": list(range(6)),
                                     "description": "VPN protocol: 0 L2TP, 1 PPTP, 2 IPsec, 3 OpenVPN, 4 WireGuard, 5 SSL VPN."}
+            elif operation.operation_id == "site_vpn_client_status_summary":
+                properties[name] = {"type": "integer", "enum": [0, 1, 3, 4],
+                                    "description": "VPN protocol: 0 L2TP, 1 PPTP, 3 OpenVPN, 4 WireGuard."}
             else:
                 properties[name] = {"type": "integer", "enum": [0, 1],
                                     "description": "VPN type: 0 server or 1 client."}
@@ -1295,7 +1298,10 @@ def _invoke_tool(registry: Any, name: object, arguments: object,
             safe_arguments[key] = str(value)
         elif key == "vpn_type":
             value = arguments.get(key)
-            allowed_values = range(6) if operation.operation_id == "site_vpn_server_status_summary" else (0, 1)
+            allowed_values = (
+                range(6) if operation.operation_id == "site_vpn_server_status_summary"
+                else (0, 1, 3, 4) if operation.operation_id == "site_vpn_client_status_summary"
+                else (0, 1))
             if type(value) is not int or value not in allowed_values:
                 raise McpRequestError("arguments_invalid")
             safe_arguments[key] = str(value)

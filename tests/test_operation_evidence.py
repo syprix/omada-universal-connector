@@ -141,8 +141,8 @@ class OperationEvidenceTests(unittest.TestCase):
         self.assertEqual(generated, expected)
         self.assertEqual(generated["operation_count"], 2445)
         self.assertEqual(generated["connector_evidence_counts"], {
-            "not_mapped": 2011,
-            "fixed_get_registry_route": 409,
+            "not_mapped": 2009,
+            "fixed_get_registry_route": 411,
             "manual_source_map_only": 25,
         })
         registry_rows = [row for row in generated["operations"]
@@ -154,10 +154,11 @@ class OperationEvidenceTests(unittest.TestCase):
             "/v1/sites/{site_ref}/networks/{network_ref}/vlans/affected-ports-summary",
             "/v1/sites/{site_ref}/port-schedules/summary",
             "/v1/sites/{site_ref}/routing-table/summary",
+            "/v1/sites/{site_ref}/vpn/clients/status-summary",
         }
         new_rows = [row for row in registry_rows
                     if public_templates.intersection(row["public_templates"])]
-        self.assertEqual(len(new_rows), 4)
+        self.assertEqual(len(new_rows), 5)
         self.assertTrue(all(row["documented_in"] == [
             "er7212pc-6.2.14", "hardware-controller-6.3.0",
             "omada-cbc-standard-6.3.0"] for row in new_rows))
@@ -171,6 +172,15 @@ class OperationEvidenceTests(unittest.TestCase):
             self.assertEqual(affected["operation_id"],
                              "getGridVlanNetworkAffectedDevicePorts")
             self.assertIn("not unique physical ports", affected["connector_projection"])
+            vpn = source["operations"]["site_vpn_client_status_summary"]["contract_review"]
+            self.assertEqual(vpn["operation_id"], "getGridVpnClientStatus")
+            self.assertIn("no status-code semantics", vpn["response"])
+            ssid_clients = source["operations"]["site_ssid_client_count_summary"]
+            if source["label"].startswith("ER7212PC"):
+                self.assertFalse(ssid_clients["documented"])
+            else:
+                self.assertEqual(ssid_clients["contract_review"]["operation_id"],
+                                 "getGridSsidClients")
             schedules = source["operations"]["site_port_schedule_summary"]["contract_review"]
             self.assertEqual(schedules["operation_id"], "getPortScheduleList")
             self.assertEqual(schedules["additional_operation_id"], "getPortSchedulePorts")

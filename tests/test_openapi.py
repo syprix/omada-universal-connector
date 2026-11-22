@@ -133,6 +133,45 @@ class OpenApiClientTests(unittest.TestCase):
         self.assertIn("page=1", request.call_args.args[1])
         self.assertIn("pageSize=2", request.call_args.args[1])
 
+    def test_vpn_client_status_read_binds_documented_protocol_and_redacts_rows(self) -> None:
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={"result": {
+                    "totalRows": 2, "currentPage": 1, "currentSize": 2,
+                    "data": [{"vpnType": 4, "status": 9, "userName": "private",
+                              "remotePeerIp": "192.0.2.1"},
+                             {"vpnType": 4, "status": 9, "virtualIp": "198.51.100.1"}]}}) as request:
+            result = self.client.read_site_vpn_client_status_summary(site_ref, 4)
+        self.assertEqual(result["by_source_status_code"], {"9": 2})
+        for secret in ("private", "192.0.2.1", "198.51.100.1"):
+            self.assertNotIn(secret, json.dumps(result))
+        self.assertIn("filters.vpnType=4", request.call_args.args[1])
+        self.assertIn("page=1", request.call_args.args[1])
+        self.assertIn("pageSize=2", request.call_args.args[1])
+        with self.assertRaises(OpenApiError):
+            self.client.read_site_vpn_client_status_summary(site_ref, 2)
+
+    def test_ssid_client_count_binds_selected_site_and_uses_flat_query_fields(self) -> None:
+        site_ref, ssid_ref = "a" * 24, "b" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        self.client._ssid_ids_by_site_ref[site_ref] = {ssid_ref: "ssid-1"}
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={"result": {
+                    "totalRows": 2, "currentPage": 1, "currentSize": 2,
+                    "data": [{"mac": "00:11:22:33:44:55", "name": "private"},
+                             {"id": "secret"}]}}) as request:
+            result = self.client.read_site_ssid_client_count_summary(site_ref, ssid_ref)
+        self.assertEqual(result["client_count"], 2)
+        self.assertTrue(result["coverage_complete"])
+        self.assertNotIn("private", json.dumps(result))
+        url = request.call_args.args[1]
+        self.assertIn("/clientList/ssid-1?page=1&pageSize=100", url)
+        self.client._site_ids_by_ref["c" * 24] = "site-2"
+        with patch.object(self.client, "list_ssids", return_value={"items": []}):
+            with self.assertRaises(OpenApiError):
+                self.client.read_site_ssid_client_count_summary("c" * 24, ssid_ref)
+
     def test_site_poe_schedule_summary_reads_each_fixed_site_feed(self) -> None:
         site_ref = "a" * 24
         switch_ref = "b" * 24

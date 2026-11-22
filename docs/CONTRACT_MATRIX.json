@@ -2353,6 +2353,40 @@
             "response": "page envelope with totalRows/currentPage/currentSize and route rows. Row type is a string with no enumerated values; rows can include destination addresses, next hops, VRF, interface, metric and device identifiers.",
             "connector_projection": "one requested page up to 100 rows, after validating gateway/switch. Returns route counts and count of distinct uninterpreted row type values; destination, hop, interface, VRF and identity fields are omitted."
           }
+        },
+        "site_vpn_client_status_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridVpnClientStatus",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/setting/vpn/stats/client",
+            "query": {
+              "filters.vpnType": "required string (0 L2TP, 1 PPTP, 3 OpenVPN, 4 WireGuard)",
+              "page": "required int32",
+              "pageSize": "required int32"
+            },
+            "request_body": false,
+            "response": "Paginated VpnTunnelStatusVO rows include integer status and protocol fields plus user, peer, IP and traffic data; the exports define no status-code semantics.",
+            "projection": "One explicitly selected documented VPN protocol is counted by source status code; user, peer, IP, traffic and VPN identifiers are omitted. Missing, invalid or unknown fields are marked partial."
+          }
+        },
+        "site_ssid_client_count_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridSsidClients",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/clientList/{ssidId}",
+            "query": {
+              "queryDataVO": "required object; OpenAPI 3.0.1 default style=form/explode=true",
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, 1–100"
+            },
+            "request_body": false,
+            "response": "ClientGridVOSsidClientVO provides totalRows, currentPage, currentSize and a data array; totalRows describes all rows.",
+            "projection": "Binds one selected SSID through the selected site inventory; requests only page=1 and pageSize=100 as flat query fields. Returns totalRows and sampled row count only, marks whether that page covers all rows, and omits every client row. No online state is inferred."
+          }
         }
       }
     },
@@ -4679,6 +4713,40 @@
             "response": "page envelope with totalRows/currentPage/currentSize and route rows. Row type is a string with no enumerated values; rows can include destination addresses, next hops, VRF, interface, metric and device identifiers.",
             "connector_projection": "one requested page up to 100 rows, after validating gateway/switch. Returns route counts and count of distinct uninterpreted row type values; destination, hop, interface, VRF and identity fields are omitted."
           }
+        },
+        "site_vpn_client_status_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridVpnClientStatus",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/setting/vpn/stats/client",
+            "query": {
+              "filters.vpnType": "required string (0 L2TP, 1 PPTP, 3 OpenVPN, 4 WireGuard)",
+              "page": "required int32",
+              "pageSize": "required int32"
+            },
+            "request_body": false,
+            "response": "Paginated VpnTunnelStatusVO rows include integer status and protocol fields plus user, peer, IP and traffic data; the exports define no status-code semantics.",
+            "projection": "One explicitly selected documented VPN protocol is counted by source status code; user, peer, IP, traffic and VPN identifiers are omitted. Missing, invalid or unknown fields are marked partial."
+          }
+        },
+        "site_ssid_client_count_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridSsidClients",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/clientList/{ssidId}",
+            "query": {
+              "queryDataVO": "required object; OpenAPI 3.0.1 default style=form/explode=true",
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, 1–100"
+            },
+            "request_body": false,
+            "response": "ClientGridVOSsidClientVO provides totalRows, currentPage, currentSize and a data array; totalRows describes all rows.",
+            "projection": "Binds one selected SSID through the selected site inventory; requests only page=1 and pageSize=100 as flat query fields. Returns totalRows and sampled row count only, marks whether that page covers all rows, and omits every client row. No online state is inferred."
+          }
         }
       }
     },
@@ -6983,6 +7051,34 @@
             },
             "response": "page envelope with totalRows/currentPage/currentSize and route rows. Row type is a string with no enumerated values; rows can include destination addresses, next hops, VRF, interface, metric and device identifiers.",
             "connector_projection": "one requested page up to 100 rows, after validating gateway/switch. Returns route counts and count of distinct uninterpreted row type values; destination, hop, interface, VRF and identity fields are omitted."
+          }
+        },
+        "site_vpn_client_status_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridVpnClientStatus",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/setting/vpn/stats/client",
+            "query": {
+              "filters.vpnType": "required string (0 L2TP, 1 PPTP, 3 OpenVPN, 4 WireGuard)",
+              "page": "required int32",
+              "pageSize": "required int32"
+            },
+            "request_body": false,
+            "response": "Paginated VpnTunnelStatusVO rows include integer status and protocol fields plus user, peer, IP and traffic data; the exports define no status-code semantics.",
+            "projection": "One explicitly selected documented VPN protocol is counted by source status code; user, peer, IP, traffic and VPN identifiers are omitted. Missing, invalid or unknown fields are marked partial."
+          }
+        },
+        "site_ssid_client_count_summary": {
+          "documented": false,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridSsidClients",
+            "path": null,
+            "query": null,
+            "response": null,
+            "projection": "Not implemented for this source because the endpoint is absent from the export."
           }
         }
       }

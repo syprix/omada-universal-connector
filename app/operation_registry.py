@@ -96,7 +96,8 @@ class OperationRegistry:
                 ("pon_port", "page_number", "page_size"): "olt_onu_autofind_inventory_summary",
                 ("vpn_type",): ("site_vpn_tunnel_summary",
                                 "site_open_vpn_tunnel_summary",
-                                "site_vpn_server_status_summary"),
+                                "site_vpn_server_status_summary",
+                                "site_vpn_client_status_summary"),
             }
             if (not isinstance(item.extra_arguments, tuple) or
                     item.extra_arguments not in supported_extra or
@@ -741,6 +742,16 @@ REGISTRY = OperationRegistry((
               "/openapi/v1/{controller_id}/sites/{site_id}/setting/vpn/stats/server",
               (("controller_id", "$config"), ("site_id", "site_ref")),
               extra_arguments=("vpn_type",), max_items=10000),
+    Operation("site_vpn_client_status_summary", "GET",
+              "/v1/sites/{site_ref}/vpn/clients/status-summary", "GET",
+              "/openapi/v1/{controller_id}/sites/{site_id}/setting/vpn/stats/client",
+              (("controller_id", "$config"), ("site_id", "site_ref")),
+              extra_arguments=("vpn_type",), max_items=10000),
+    Operation("site_ssid_client_count_summary", "GET",
+              "/v1/sites/{site_ref}/ssids/{ssid_ref}/clients/summary", "GET",
+              "/openapi/v1/{controller_id}/sites/{site_id}/clientList/{ssid_id}",
+              (("controller_id", "$config"), ("site_id", "site_ref"),
+               ("ssid_id", "ssid_ref")), max_items=100),
     Operation("site_wan_qos_summary", "GET",
               "/v1/sites/{site_ref}/wan-qos-summary", "GET",
               "/openapi/v1/{controller_id}/sites/{site_id}/qos/gateway/wans",

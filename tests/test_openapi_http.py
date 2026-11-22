@@ -761,6 +761,24 @@ class FakeOpenApiClient:
                 "unknown_field_count": 0, "invalid_row_count": 0,
                 "partial": False, "identity_fields_returned": False}
 
+    def read_site_vpn_client_status_summary(self, site_ref: str,
+                                            vpn_type: int) -> dict[str, object]:
+        self.calls.append(("site_vpn_client_status_summary", site_ref, vpn_type))
+        return {"status": "ok", "resource": "site_vpn_client_status_summary",
+                "site_ref": site_ref, "protocol": "wireguard", "client_row_count": 2,
+                "by_source_status_code": {"2": 2}, "missing_status_count": 0,
+                "unknown_field_count": 0, "invalid_row_count": 0,
+                "partial": False, "identity_fields_returned": False}
+
+    def read_site_ssid_client_count_summary(self, site_ref: str,
+                                            ssid_ref: str) -> dict[str, object]:
+        self.calls.append(("site_ssid_client_count_summary", site_ref, ssid_ref))
+        return {"status": "ok", "resource": "site_ssid_client_count_summary",
+                "site_ref": site_ref, "ssid_ref": ssid_ref, "client_count": 12,
+                "sampled_client_count": 12, "sample_page": 1, "sample_page_size": 100,
+                "coverage_complete": True, "client_details_returned": False,
+                "online_status_provided": False}
+
     def read_site_ipsec_sa_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_ipsec_sa_summary", site_ref))
         return {"status": "ok", "resource": "site_ipsec_sa_summary",
@@ -4291,6 +4309,36 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(response["result"]["structuredContent"], direct)
         self.assertEqual(self.fake.calls,
                          [("site_vpn_server_status_summary", site_ref, 5)] * 2)
+
+    def test_http_and_mcp_expose_vpn_client_status_summary(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/vpn/clients/status-summary?vpn_type=4"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(direct["resource"], "site_vpn_client_status_summary")
+        request = {"jsonrpc": "2.0", "id": 238, "method": "tools/call",
+                   "params": {"name": "omada_site_vpn_client_status_summary",
+                              "arguments": {"site_ref": site_ref, "vpn_type": 4}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_vpn_client_status_summary", site_ref, 4)] * 2)
+
+    def test_http_and_mcp_expose_selected_ssid_client_count(self) -> None:
+        site_ref, ssid_ref = "a" * 24, "b" * 24
+        path = f"/v1/sites/{site_ref}/ssids/{ssid_ref}/clients/summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(direct["resource"], "site_ssid_client_count_summary")
+        request = {"jsonrpc": "2.0", "id": 239, "method": "tools/call",
+                   "params": {"name": "omada_site_ssid_client_count_summary",
+                              "arguments": {"site_ref": site_ref, "ssid_ref": ssid_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_ssid_client_count_summary", site_ref, ssid_ref)] * 2)
 
     def test_http_and_mcp_expose_ipsec_sa_summary(self) -> None:
         site_ref = "a" * 24

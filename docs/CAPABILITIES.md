@@ -1319,3 +1319,15 @@ A synthetic 20-row routing table measured 3,151 source JSON tokens and 108 proje
 A synthetic 20-row routing table measured 3,151 source JSON tokens and 108 projected tokens (3,043 fewer; 96.57%) with js-tiktoken 1.0.21/o200k_base. This is serialized fixture size, not billed agent usage.
 
 A synthetic 10-schedule/four-device response measured 1,729 source JSON tokens and 188 projected tokens (1,541 fewer; 89.13%) with js-tiktoken 1.0.21/o200k_base. This is serialized fixture size, not billed agent usage.
+
+## VPN client status summary
+
+`GET /v1/sites/{site_ref}/vpn/clients/status-summary?vpn_type=` accepts only the documented client protocol codes: 0 L2TP, 1 PPTP, 3 OpenVPN, or 4 WireGuard. It paginates the site-bound client status read and counts integer source status codes. The three exports define no meaning for those status codes. User, peer, address, traffic, and VPN identifiers are omitted; malformed or unknown fields mark the projection partial. Live support is unknown.
+
+## VPN client status summary
+
+`GET /v1/sites/{site_ref}/vpn/clients/status-summary?vpn_type=` accepts only the documented client protocol codes: 0 L2TP, 1 PPTP, 3 OpenVPN, or 4 WireGuard. It reads the selected site's paginated client status list and counts integer source status codes. The three exports define no meaning for those status codes. User, peer, address, traffic, and VPN identifiers are omitted; malformed or unknown fields mark the projection partial. Live support is unknown.
+
+## Selected SSID client count
+
+`GET /v1/sites/{site_ref}/ssids/{ssid_ref}/clients/summary` binds the opaque SSID reference to that site's SSID inventory. It uses only the documented first page (`page=1&pageSize=100`) and returns the source's documented `totalRows` plus sampled-row coverage, without client details or online-state claims. The operation exists in the Hardware Controller 6.3.0 and CBC 6.3.0 exports; it is absent from the ER7212PC 6.2.14 export. OpenAPI 3.0.1 defaults the required `queryDataVO` object to flat `form`/`explode` query parameters when no other serialization is specified. Live behavior is unknown.
