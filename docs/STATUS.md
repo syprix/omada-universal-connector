@@ -444,3 +444,15 @@ The UPnP site/template comparison is implemented using the existing redacted rea
 Bridge inventory is summarized from adopted/pending list reads with identity fields discarded. No adoption or live controller test was performed.
 
 The per-switch DHCP-snooping and ARP-detection capability endpoints have no documented row schema in any supplied export; the ER7212PC example is an empty result object. Safe inventory binding and missing-device accounting therefore cannot be established. No output fields or capability classifications have been guessed; #48 remains open pending a usable response contract.
+
+The recent-client summary (#51) uses the documented `getGridKnownClients` time filters and one bounded page. It returns only the controller-reported total and sampled row count. `lastSeen` is an integer with no documented unit, so it is not interpreted; missing clients are not treated as outages. The route and projector passed focused HTTP, MCP, client, and contract checks. Live support remains unknown.
+
+The VLAN affected-port summary (#53) uses `getGridVlanNetworkAffectedDevicePorts`, explicitly bound to a selected site, network, and VLAN. It reports device-class and port/LAG membership counts for one page, with identities and downstream client data omitted. Hardware Controller/CBC use integer port arrays while ER7212PC uses strings; the projection counts each documented representation separately and does not claim unique physical ports. Live support remains unknown.
+
+The required registry, source-matrix, and evidence gate passed 262 tests with #51; focused tests for #53 also pass. No live controller read or network change was made. Synthetic token impact measurements are recorded in the capability notes; they measure serialized fixtures, not billed agent usage.
+
+The SSID client-list operation (#52) remains open. Hardware Controller and CBC document it, but the ER7212PC export has no matching route. Its required `queryDataVO` object parameter also lacks an explicit serialization style, so the connector does not guess its wire encoding.
+
+The port-schedule summary (#54) reads a bounded schedule page and the same-site supported-port list. It counts documented enabled state and time-reference/next-execution field presence, then compares schedule port memberships only when the documented MAC reference is unique. Device MACs, schedule IDs/names, time-range IDs, and port IDs are omitted. The `nextExecute` unit is unspecified; no execution or effect is inferred. Focused client, projector, registry, and HTTP/MCP checks pass. Live support remains unknown.
+
+The routing-table summary (#55) accepts only the documented `gateway` or `switch` scope and one bounded page. It returns route totals and coverage plus counts of uninterpreted row type values; the exports do not enumerate those values. Destinations, hops, VRFs, interfaces and device identity fields are omitted. No route settings are changed, and live support remains unknown.

@@ -141,14 +141,47 @@ class OperationEvidenceTests(unittest.TestCase):
         self.assertEqual(generated, expected)
         self.assertEqual(generated["operation_count"], 2445)
         self.assertEqual(generated["connector_evidence_counts"], {
-            "not_mapped": 2015,
-            "fixed_get_registry_route": 405,
+            "not_mapped": 2011,
+            "fixed_get_registry_route": 409,
             "manual_source_map_only": 25,
         })
         registry_rows = [row for row in generated["operations"]
                          if row["connector_evidence"] == "fixed_get_registry_route"]
         self.assertTrue(all(row["static_test_references"] for row in registry_rows))
         self.assertTrue(all(not row["function_verified"] for row in generated["operations"]))
+        public_templates = {
+            "/v1/sites/{site_ref}/clients/recent-summary",
+            "/v1/sites/{site_ref}/networks/{network_ref}/vlans/affected-ports-summary",
+            "/v1/sites/{site_ref}/port-schedules/summary",
+            "/v1/sites/{site_ref}/routing-table/summary",
+        }
+        new_rows = [row for row in registry_rows
+                    if public_templates.intersection(row["public_templates"])]
+        self.assertEqual(len(new_rows), 4)
+        self.assertTrue(all(row["documented_in"] == [
+            "er7212pc-6.2.14", "hardware-controller-6.3.0",
+            "omada-cbc-standard-6.3.0"] for row in new_rows))
+        matrix = json.loads((root / "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
+        self.assertEqual(len(matrix["sources"]), 3)
+        for source in matrix["sources"]:
+            recent = source["operations"]["site_recent_clients_summary"]["contract_review"]
+            affected = source["operations"]["site_vlan_affected_ports_summary"]["contract_review"]
+            self.assertEqual(recent["operation_id"], "getGridKnownClients")
+            self.assertIn("unit is not specified", recent["response"])
+            self.assertEqual(affected["operation_id"],
+                             "getGridVlanNetworkAffectedDevicePorts")
+            self.assertIn("not unique physical ports", affected["connector_projection"])
+            schedules = source["operations"]["site_port_schedule_summary"]["contract_review"]
+            self.assertEqual(schedules["operation_id"], "getPortScheduleList")
+            self.assertEqual(schedules["additional_operation_id"], "getPortSchedulePorts")
+            routes = source["operations"]["site_routing_table_summary"]["contract_review"]
+            self.assertEqual(routes["operation_id"], "getGridRouting")
+            self.assertEqual(routes["path_parameter"]["type"],
+                             "required string; documented values are gateway and switch")
+            table = source["operations"]["site_routing_table_summary"]["contract_review"]
+            self.assertEqual(table["operation_id"], "getGridRouting")
+            self.assertEqual(table["path_parameter"]["type"],
+                             "required string; documented values are gateway and switch")
 
 
 if __name__ == "__main__":

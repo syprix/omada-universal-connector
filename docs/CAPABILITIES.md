@@ -1297,3 +1297,25 @@ A synthetic site/template comparison measured 75 source JSON tokens versus 49 pr
 `omada_site_bridge_device_summary` combines the paginated adopted and pending bridge-device grids. It returns source status-code counts and stack-group status-code counts without interpreting those codes or exposing identifiers, names, IPs, serials or telemetry. Each grid reports its source total and whether all rows were returned. No adoption is initiated.
 
 A synthetic 10-adopted/4-pending bridge-device fixture measured 1,042 source JSON tokens versus 127 projected tokens (915 fewer; 87.81%) with js-tiktoken 1.0.21/o200k_base. This excludes schemas, MCP framing and billed agent usage.
+
+`omada_site_recent_clients_summary` requires a site and a millisecond start/end window no longer than 24 hours. It requests one page of up to 100 rows and returns the reported total and sampled count without identities. The source does not state the unit of `lastSeen`, so the connector does not interpret it or infer an outage.
+
+A synthetic 20-client response measured 1,546 source JSON tokens and 83 projected tokens (1,463 fewer; 94.63%) with js-tiktoken 1.0.21/o200k_base. This is serialized fixture size, not agent billing.
+
+`omada_site_vlan_affected_ports_summary` requires a selected site, network, and VLAN and returns one requested page of up to 100 devices. It counts device classes and reported numeric-port, standard-port, and LAG memberships, omitting identifiers and client data. Membership counts are not unique physical-port counts.
+
+A synthetic 10-device response measured 1,445 source JSON tokens and 121 projected tokens (1,324 fewer; 91.63%) with js-tiktoken 1.0.21/o200k_base. ER7212PC documents these port arrays as strings; the other two exports use integers for numeric ports and LAGs. Live support is unknown.
+
+The SSID client-list route `getGridSsidClients` is not exposed. It is absent from the ER7212PC export, and the required `queryDataVO` parameter has no explicit serialization style in the supplied schemas.
+
+`omada_site_port_schedule_summary` requires a site and one page (up to 100 schedule rows). It counts enabled/disabled schedules, presence of time-range and next-execution values, DST flags and configured port memberships. It joins schedule MAC keys and integer port IDs against the unique same-site supported-port inventory, but returns only aggregate counts. The `nextExecute` unit is not specified, and the connector does not predict execution or its effect. Live support is unknown.
+
+A synthetic 10-schedule/four-device response measured 1,729 source JSON tokens and 188 projected tokens (1,541 fewer; 89.13%) with js-tiktoken 1.0.21/o200k_base. This is serialized fixture size, not billed agent usage.
+
+`omada_site_routing_table_summary` requires `device_type` (`gateway` or `switch`) plus a page number and page size. It reports sampled and total route counts and counts distinct, uninterpreted row type values. Destinations, next hops, VRFs, interfaces and device identities are omitted because the route table can contain those values and the source does not enumerate route type codes. Live support is unknown.
+
+A synthetic 20-row routing table measured 3,151 source JSON tokens and 108 projected tokens (3,043 fewer; 96.57%) with js-tiktoken 1.0.21/o200k_base. This is serialized fixture size, not billed agent usage.
+
+A synthetic 20-row routing table measured 3,151 source JSON tokens and 108 projected tokens (3,043 fewer; 96.57%) with js-tiktoken 1.0.21/o200k_base. This is serialized fixture size, not billed agent usage.
+
+A synthetic 10-schedule/four-device response measured 1,729 source JSON tokens and 188 projected tokens (1,541 fewer; 89.13%) with js-tiktoken 1.0.21/o200k_base. This is serialized fixture size, not billed agent usage.

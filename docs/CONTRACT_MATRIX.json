@@ -2284,6 +2284,75 @@
             "projection": "No safe device identifier, support flag or completeness field can be projected. The endpoint cannot be joined to switch inventory or report missing devices until a row contract is supplied.",
             "state": "open_contract_blocker"
           }
+        },
+        "site_recent_clients_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridKnownClients",
+            "permission": "not stated by these exports",
+            "upstream_route": "GET /openapi/v1/{omadacId}/sites/{siteId}/insight/clients",
+            "query": {
+              "page": "required int32; starts at 1",
+              "pageSize": "required int32; source range 1..1000",
+              "filters.timeStart": "optional string; Unix timestamp in milliseconds",
+              "filters.timeEnd": "optional string; Unix timestamp in milliseconds"
+            },
+            "response": "page envelope with totalRows/currentPage/currentSize/data; client rows include identity and lastSeen integer fields; the lastSeen unit is not specified.",
+            "connector_projection": "one requested page up to 100 rows, within a caller-selected window up to 24 hours; returns reported and sampled counts only, no identities; does not infer outages or interpret lastSeen."
+          }
+        },
+        "site_vlan_affected_ports_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridVlanNetworkAffectedDevicePorts",
+            "permission": "not stated by these exports",
+            "upstream_route": "GET /openapi/v1/{omadacId}/sites/{siteId}/networks/{networkId}/vlan/{vlan}/ports",
+            "query": {
+              "page": "required int32; starts at 1",
+              "pageSize": "required int32; source range 1..1000"
+            },
+            "response": "page of affected device rows with documented device type and nested switch/easy-switch/stack affectedPorts. Port membership arrays are integers in Hardware Controller and CBC Standard, strings in ER7212PC.",
+            "connector_projection": "selected site/network/VLAN binding, one page up to 100 rows; counts device classes and numeric-port, standard-port and LAG memberships; omits identifiers and client records; counts are memberships, not unique physical ports."
+          }
+        },
+        "site_port_schedule_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getPortScheduleList",
+            "additional_operation_id": "getPortSchedulePorts",
+            "permission": "not stated by these exports",
+            "upstream_routes": [
+              "GET /openapi/v1/{omadacId}/sites/{siteId}/port-schedules",
+              "GET /openapi/v1/{omadacId}/sites/{siteId}/port-status-ports"
+            ],
+            "query": {
+              "page": "required int32; starts at 1",
+              "pageSize": "required int32; source range 1..1000"
+            },
+            "response": "schedule page contains required boolean status, turnOnTime range reference, portsMap keyed by device MAC with integer port sets, optional nextExecute int64 and notInDst boolean. The separate same-site port inventory reports device MAC and supported portIds; nextExecute timestamp unit is unspecified.",
+            "connector_projection": "one page up to 100 schedules; joins MAC and port IDs only when unique in the same-site supported-port list; returns aggregate counts only and does not infer schedule execution or effect."
+          }
+        },
+        "site_routing_table_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridRouting",
+            "permission": "not stated by these exports",
+            "upstream_route": "GET /openapi/v1/{omadacId}/sites/{siteId}/insight/routing/{type}",
+            "path_parameter": {
+              "type": "required string; documented values are gateway and switch"
+            },
+            "query": {
+              "page": "required int32; starts at 1",
+              "pageSize": "required int32; source range 1..1000"
+            },
+            "response": "page envelope with totalRows/currentPage/currentSize and route rows. Row type is a string with no enumerated values; rows can include destination addresses, next hops, VRF, interface, metric and device identifiers.",
+            "connector_projection": "one requested page up to 100 rows, after validating gateway/switch. Returns route counts and count of distinct uninterpreted row type values; destination, hop, interface, VRF and identity fields are omitted."
+          }
         }
       }
     },
@@ -4541,6 +4610,75 @@
             "projection": "No safe device identifier, support flag or completeness field can be projected. The endpoint cannot be joined to switch inventory or report missing devices until a row contract is supplied.",
             "state": "open_contract_blocker"
           }
+        },
+        "site_recent_clients_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridKnownClients",
+            "permission": "not stated by these exports",
+            "upstream_route": "GET /openapi/v1/{omadacId}/sites/{siteId}/insight/clients",
+            "query": {
+              "page": "required int32; starts at 1",
+              "pageSize": "required int32; source range 1..1000",
+              "filters.timeStart": "optional string; Unix timestamp in milliseconds",
+              "filters.timeEnd": "optional string; Unix timestamp in milliseconds"
+            },
+            "response": "page envelope with totalRows/currentPage/currentSize/data; client rows include identity and lastSeen integer fields; the lastSeen unit is not specified.",
+            "connector_projection": "one requested page up to 100 rows, within a caller-selected window up to 24 hours; returns reported and sampled counts only, no identities; does not infer outages or interpret lastSeen."
+          }
+        },
+        "site_vlan_affected_ports_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridVlanNetworkAffectedDevicePorts",
+            "permission": "not stated by these exports",
+            "upstream_route": "GET /openapi/v1/{omadacId}/sites/{siteId}/networks/{networkId}/vlan/{vlan}/ports",
+            "query": {
+              "page": "required int32; starts at 1",
+              "pageSize": "required int32; source range 1..1000"
+            },
+            "response": "page of affected device rows with documented device type and nested switch/easy-switch/stack affectedPorts. Port membership arrays are integers in Hardware Controller and CBC Standard, strings in ER7212PC.",
+            "connector_projection": "selected site/network/VLAN binding, one page up to 100 rows; counts device classes and numeric-port, standard-port and LAG memberships; omits identifiers and client records; counts are memberships, not unique physical ports."
+          }
+        },
+        "site_port_schedule_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getPortScheduleList",
+            "additional_operation_id": "getPortSchedulePorts",
+            "permission": "not stated by these exports",
+            "upstream_routes": [
+              "GET /openapi/v1/{omadacId}/sites/{siteId}/port-schedules",
+              "GET /openapi/v1/{omadacId}/sites/{siteId}/port-status-ports"
+            ],
+            "query": {
+              "page": "required int32; starts at 1",
+              "pageSize": "required int32; source range 1..1000"
+            },
+            "response": "schedule page contains required boolean status, turnOnTime range reference, portsMap keyed by device MAC with integer port sets, optional nextExecute int64 and notInDst boolean. The separate same-site port inventory reports device MAC and supported portIds; nextExecute timestamp unit is unspecified.",
+            "connector_projection": "one page up to 100 schedules; joins MAC and port IDs only when unique in the same-site supported-port list; returns aggregate counts only and does not infer schedule execution or effect."
+          }
+        },
+        "site_routing_table_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridRouting",
+            "permission": "not stated by these exports",
+            "upstream_route": "GET /openapi/v1/{omadacId}/sites/{siteId}/insight/routing/{type}",
+            "path_parameter": {
+              "type": "required string; documented values are gateway and switch"
+            },
+            "query": {
+              "page": "required int32; starts at 1",
+              "pageSize": "required int32; source range 1..1000"
+            },
+            "response": "page envelope with totalRows/currentPage/currentSize and route rows. Row type is a string with no enumerated values; rows can include destination addresses, next hops, VRF, interface, metric and device identifiers.",
+            "connector_projection": "one requested page up to 100 rows, after validating gateway/switch. Returns route counts and count of distinct uninterpreted row type values; destination, hop, interface, VRF and identity fields are omitted."
+          }
         }
       }
     },
@@ -6776,6 +6914,75 @@
             "response": "All three exports reference generic OperationResponse with no result properties. ER7212PC examples show only an empty result object.",
             "projection": "No safe device identifier, support flag or completeness field can be projected. The endpoint cannot be joined to switch inventory or report missing devices until a row contract is supplied.",
             "state": "open_contract_blocker"
+          }
+        },
+        "site_recent_clients_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridKnownClients",
+            "permission": "not stated by these exports",
+            "upstream_route": "GET /openapi/v1/{omadacId}/sites/{siteId}/insight/clients",
+            "query": {
+              "page": "required int32; starts at 1",
+              "pageSize": "required int32; source range 1..1000",
+              "filters.timeStart": "optional string; Unix timestamp in milliseconds",
+              "filters.timeEnd": "optional string; Unix timestamp in milliseconds"
+            },
+            "response": "page envelope with totalRows/currentPage/currentSize/data; client rows include identity and lastSeen integer fields; the lastSeen unit is not specified.",
+            "connector_projection": "one requested page up to 100 rows, within a caller-selected window up to 24 hours; returns reported and sampled counts only, no identities; does not infer outages or interpret lastSeen."
+          }
+        },
+        "site_vlan_affected_ports_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridVlanNetworkAffectedDevicePorts",
+            "permission": "not stated by these exports",
+            "upstream_route": "GET /openapi/v1/{omadacId}/sites/{siteId}/networks/{networkId}/vlan/{vlan}/ports",
+            "query": {
+              "page": "required int32; starts at 1",
+              "pageSize": "required int32; source range 1..1000"
+            },
+            "response": "page of affected device rows with documented device type and nested switch/easy-switch/stack affectedPorts. Port membership arrays are integers in Hardware Controller and CBC Standard, strings in ER7212PC.",
+            "connector_projection": "selected site/network/VLAN binding, one page up to 100 rows; counts device classes and numeric-port, standard-port and LAG memberships; omits identifiers and client records; counts are memberships, not unique physical ports."
+          }
+        },
+        "site_port_schedule_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getPortScheduleList",
+            "additional_operation_id": "getPortSchedulePorts",
+            "permission": "not stated by these exports",
+            "upstream_routes": [
+              "GET /openapi/v1/{omadacId}/sites/{siteId}/port-schedules",
+              "GET /openapi/v1/{omadacId}/sites/{siteId}/port-status-ports"
+            ],
+            "query": {
+              "page": "required int32; starts at 1",
+              "pageSize": "required int32; source range 1..1000"
+            },
+            "response": "schedule page contains required boolean status, turnOnTime range reference, portsMap keyed by device MAC with integer port sets, optional nextExecute int64 and notInDst boolean. The separate same-site port inventory reports device MAC and supported portIds; nextExecute timestamp unit is unspecified.",
+            "connector_projection": "one page up to 100 schedules; joins MAC and port IDs only when unique in the same-site supported-port list; returns aggregate counts only and does not infer schedule execution or effect."
+          }
+        },
+        "site_routing_table_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridRouting",
+            "permission": "not stated by these exports",
+            "upstream_route": "GET /openapi/v1/{omadacId}/sites/{siteId}/insight/routing/{type}",
+            "path_parameter": {
+              "type": "required string; documented values are gateway and switch"
+            },
+            "query": {
+              "page": "required int32; starts at 1",
+              "pageSize": "required int32; source range 1..1000"
+            },
+            "response": "page envelope with totalRows/currentPage/currentSize and route rows. Row type is a string with no enumerated values; rows can include destination addresses, next hops, VRF, interface, metric and device identifiers.",
+            "connector_projection": "one requested page up to 100 rows, after validating gateway/switch. Returns route counts and count of distinct uninterpreted row type values; destination, hop, interface, VRF and identity fields are omitted."
           }
         }
       }
