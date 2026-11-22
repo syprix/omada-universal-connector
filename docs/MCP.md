@@ -865,3 +865,17 @@ A synthetic pair of existing-format outage reports measured 688 source JSON toke
 For the synthetic 20-row example, the redacted IPsec summary used 52 tokens versus 1,863 for the source-shaped JSON (1,811 fewer; 97.21%; js-tiktoken 1.0.21, o200k_base). This is serialized fixture size only, not measured agent billing.
 
 For a synthetic 20-rule policy-routing fixture, the summary used 142 tokens versus 2,562 for source-shaped JSON (2,420 fewer; 94.46%; js-tiktoken 1.0.21, o200k_base). This is fixture serialization only.
+
+`omada_site_vpn_server_status_summary` requires a site and a protocol code (0 L2TP, 1 PPTP, 2 IPsec, 3 OpenVPN, 4 WireGuard, 5 SSL VPN). It returns only counts by the source's integer status code. The exports do not define status-code meanings, and user or address fields are not returned.
+
+On a synthetic 20-row VPN server status fixture, the redacted summary used 67 tokens versus 1,535 source-shaped tokens (1,468 fewer; 95.64%; js-tiktoken 1.0.21, o200k_base). This is serialized fixture size only.
+
+`omada_site_wan_qos_summary` reports configured WAN and rule counts with exact, unique port association. Because bandwidth units are unspecified, it omits numeric bandwidth and ratio values. On a synthetic 10-port/20-rule fixture the projection measured 118 tokens versus 1,180 for the source-shaped JSON (1,062 fewer; 90.00%; js-tiktoken 1.0.21, o200k_base), excluding schemas, MCP framing and billed usage.
+
+`omada_site_upnp_template_comparison` requires an explicit site and template reference. It compares enabled state, WAN-reference count, network-reference count and the DS-Lite/Map-E support flag; it does not infer template assignment. The template API is documented only for CBC Standard 6.3.0.
+
+A synthetic four-field comparison measured 40 projected tokens versus 68 for the two source-shaped responses (28 fewer; 41.18%; js-tiktoken 1.0.21, o200k_base), excluding schemas, MCP framing and billed usage.
+
+`omada_site_bridge_device_summary` reads only the documented adopted and pending bridge-device lists. It reports redacted status-code and group counts plus per-list pagination coverage; code meanings are not inferred.
+
+On a synthetic 10-adopted/4-pending bridge inventory, the projection measured 127 tokens versus 1,042 source-shaped tokens (915 fewer; 87.81%; js-tiktoken 1.0.21, o200k_base), excluding schemas, framing and billed usage.

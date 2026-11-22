@@ -2066,6 +2066,60 @@ class FullApiMatrixTests(unittest.TestCase):
         self.assertEqual(row["connector_source_status"], "implemented_read")
         self.assertEqual(row["live_status"], "unknown_not_checked_by_this_offline_tool")
 
+    def test_switch_dhcp_arp_capability_gap_has_no_safe_row_contract(self) -> None:
+        matrix = json.loads((Path(__file__).resolve().parents[1] /
+                             "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
+        for source in matrix["sources"]:
+            review = source["operations"]["site_switch_dhcp_arp_capabilities_contract_gap"]["contract_review"]
+            self.assertEqual(review["dhcp_operation_id"], "getOswsSupportDhcpSnoop")
+            self.assertEqual(review["arp_operation_id"], "getOswsSupportArpDetect")
+            self.assertIn("generic OperationResponse", review["response"])
+            self.assertIn("open_contract_blocker", review["state"])
+
+    def test_site_bridge_device_summary_matches_all_source_exports(self) -> None:
+        matrix = json.loads((Path(__file__).resolve().parents[1] /
+                             "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
+        for source in matrix["sources"]:
+            review = source["operations"]["site_bridge_device_summary"]["contract_review"]
+            self.assertEqual(review["adopted_operation_id"], "getGridAdoptedBridgeDevicesBySite")
+            self.assertEqual(review["pending_operation_id"], "getGridPendingBridgeDevicesBySite")
+            self.assertIn("stackData", review["adopted_response"])
+            self.assertIn("status", review["pending_response"])
+
+    def test_site_upnp_template_comparison_source_coverage(self) -> None:
+        matrix = json.loads((Path(__file__).resolve().parents[1] /
+                             "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
+        for source in matrix["sources"]:
+            review = source["operations"]["site_upnp_template_comparison"]["contract_review"]
+            self.assertEqual(review["site_operation_id"], "getUpnpSetting")
+            self.assertEqual(review["shared_fields"],
+                             ["enable", "wanPortIds", "networkIds", "supportByDsLiteAndMapE"])
+            if source["label"] == "CBC Standard 6.3.0":
+                self.assertEqual(review["template_operation_id"], "getUpnpSettingTemplate")
+            else:
+                self.assertIsNone(review["template_operation_id"])
+
+    def test_site_wan_qos_summary_matches_all_source_exports(self) -> None:
+        matrix = json.loads((Path(__file__).resolve().parents[1] /
+                             "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
+        for source in matrix["sources"]:
+            review = source["operations"]["site_wan_qos_summary"]["contract_review"]
+            self.assertEqual(review["wan_operation_id"], "getQosWans")
+            self.assertEqual(review["rules_operation_id"], "getBandwidthCtrlGrid")
+            self.assertIn("configured", review["response"])
+            self.assertIn("direction", review["response"])
+            self.assertIn("unit is unspecified", review["projection"])
+
+    def test_site_vpn_server_status_summary_matches_all_source_exports(self) -> None:
+        matrix = json.loads((Path(__file__).resolve().parents[1] /
+                             "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
+        for source in matrix["sources"]:
+            review = source["operations"]["site_vpn_server_status_summary"]["contract_review"]
+            self.assertEqual(review["operation_id"], "getGridVpnServerStatus")
+            self.assertEqual(review["query"]["pageSize"], "required int32")
+            self.assertIn("filters.vpnType", review["query"])
+            self.assertIn("no status-code semantics", review["response"])
+
     def test_site_ipsec_sa_summary_matches_all_source_exports(self) -> None:
         matrix = json.loads((Path(__file__).resolve().parents[1] /
                              "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))

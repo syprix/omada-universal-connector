@@ -672,8 +672,12 @@ def _tool(operation: Any) -> dict[str, object]:
                                 "description": "Page size, capped at 100 rows."}
             required.append(name)
         elif name == "vpn_type":
-            properties[name] = {"type": "integer", "enum": [0, 1],
-                                "description": "VPN type: 0 server or 1 client."}
+            if operation.operation_id == "site_vpn_server_status_summary":
+                properties[name] = {"type": "integer", "enum": list(range(6)),
+                                    "description": "VPN protocol: 0 L2TP, 1 PPTP, 2 IPsec, 3 OpenVPN, 4 WireGuard, 5 SSL VPN."}
+            else:
+                properties[name] = {"type": "integer", "enum": [0, 1],
+                                    "description": "VPN type: 0 server or 1 client."}
             required.append(name)
     base_local = tuple(getattr(operation, "local_arguments", ()))
     alternatives = tuple(getattr(operation, "local_argument_alternatives", ()))
@@ -1286,7 +1290,8 @@ def _invoke_tool(registry: Any, name: object, arguments: object,
             safe_arguments[key] = str(value)
         elif key == "vpn_type":
             value = arguments.get(key)
-            if type(value) is not int or value not in (0, 1):
+            allowed_values = range(6) if operation.operation_id == "site_vpn_server_status_summary" else (0, 1)
+            if type(value) is not int or value not in allowed_values:
                 raise McpRequestError("arguments_invalid")
             safe_arguments[key] = str(value)
     for key in set(arguments) & local_names:

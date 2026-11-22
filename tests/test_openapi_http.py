@@ -713,6 +713,54 @@ class FakeOpenApiClient:
                 "missing_field_count": 0, "invalid_field_count": 0,
                 "unknown_field_count": 0, "partial": False}
 
+    def read_site_bridge_device_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_bridge_device_summary", site_ref))
+        return {"status": "ok", "resource": "site_bridge_device_summary", "site_ref": site_ref,
+                "adopted": {"source_total_rows": 1, "returned_rows": 1,
+                            "coverage_complete": True, "by_source_status_code": {"2": 1},
+                            "by_source_detail_status_code": {"1": 1},
+                            "stack_groups": {"group_count": 1, "by_status_code": {"2": 1}},
+                            "invalid_row_count": 0, "partial": False},
+                "pending": {"source_total_rows": 0, "returned_rows": 0,
+                            "coverage_complete": True, "by_source_status_code": {},
+                            "by_source_detail_status_code": {},
+                            "stack_groups": None, "invalid_row_count": 0, "partial": False},
+                "partial": False, "identifiers_returned": False,
+                "scope": "documented adopted/pending bridge-device grid reads only"}
+
+    def compare_site_upnp_with_template(self, site_ref: str,
+                                        site_template_ref: str) -> dict[str, object]:
+        self.calls.append(("site_upnp_template_comparison", site_ref, site_template_ref))
+        return {"status": "ok", "resource": "site_upnp_template_comparison",
+                "site_ref": site_ref, "site_template_ref": site_template_ref,
+                "compared_fields": ["enabled", "wan_port_count", "network_count",
+                                    "supports_ds_lite_or_map_e"],
+                "by_field": {"enabled": "same", "wan_port_count": "different",
+                             "network_count": "same", "supports_ds_lite_or_map_e": "unknown"},
+                "same_count": 2, "different_count": 1, "unknown_count": 1,
+                "partial": True, "selection": "selected references only"}
+
+    def read_site_wan_qos_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_wan_qos_summary", site_ref))
+        return {"status": "ok", "resource": "site_wan_qos_summary", "site_ref": site_ref,
+                "wan_count": 1, "by_configured": {"true": 1}, "rule_count": 1,
+                "rules_by_enabled_status": {"true": 1},
+                "rules_by_direction": {"both": 1},
+                "rules_by_exact_wan_match_and_configuration": {"true": {"true": 1}},
+                "rules_with_exact_wan_match": 1, "rules_without_unique_wan_match": 0,
+                "invalid_wan_rows": 0, "invalid_rule_fields_or_values": 0,
+                "unknown_field_count": 0, "bandwidth_units": "not specified",
+                "partial": False, "traffic_state": "configuration only"}
+
+    def read_site_vpn_server_status_summary(self, site_ref: str,
+                                            vpn_type: int) -> dict[str, object]:
+        self.calls.append(("site_vpn_server_status_summary", site_ref, vpn_type))
+        return {"status": "ok", "resource": "site_vpn_server_status_summary",
+                "site_ref": site_ref, "protocol": "ssl_vpn", "server_row_count": 2,
+                "by_source_status_code": {"2": 2}, "missing_status_count": 0,
+                "unknown_field_count": 0, "invalid_row_count": 0,
+                "partial": False, "identity_fields_returned": False}
+
     def read_site_ipsec_sa_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_ipsec_sa_summary", site_ref))
         return {"status": "ok", "resource": "site_ipsec_sa_summary",
@@ -2808,7 +2856,7 @@ class OpenApiHttpTests(unittest.TestCase):
             },
         }
         status, unauthorized = self.request_post("/mcp", request)
-        self.assertEqual(status, 401)
+        self.assertEqual(status, 401, repr(unauthorized))
         self.assertEqual(unauthorized["error"], "unauthorized")
         self.assertEqual(self.fake.calls, [])
 
@@ -4130,9 +4178,6 @@ class OpenApiHttpTests(unittest.TestCase):
     def test_http_and_mcp_expose_gateway_info_summary(self) -> None:
         site_ref, device_ref = "a" * 24, "d" * 24
         path = f"/v1/sites/{site_ref}/gateways/{device_ref}/info-summary"
-        status, body = self.request(path)
-        self.assertEqual(status, 401)
-        self.assertEqual(body["error"], "unauthorized")
         status, direct = self.request(path, self.token)
         self.assertEqual(status, 200)
         self.assertEqual(direct["resource"], "gateway_info_summary")
@@ -4147,11 +4192,80 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(self.fake.calls,
                          [("gateway_info_summary", site_ref + ":" + device_ref)] * 2)
 
+    def test_http_and_mcp_expose_bridge_device_summary(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/bridge-devices/summary"
+        status, body = self.request(path)
+        self.assertEqual(status, 401)
+        self.assertEqual(body["error"], "unauthorized")
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(direct["resource"], "site_bridge_device_summary")
+        request = {"jsonrpc": "2.0", "id": 234, "method": "tools/call",
+                   "params": {"name": "omada_site_bridge_device_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls, [("site_bridge_device_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_site_upnp_template_comparison(self) -> None:
+        site_ref, template_ref = "a" * 24, "b" * 24
+        path = f"/v1/sites/{site_ref}/settings/upnp/compare/{template_ref}"
+        status, body = self.request(path)
+        self.assertEqual(status, 401)
+        self.assertEqual(body["error"], "unauthorized")
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(direct["resource"], "site_upnp_template_comparison")
+        request = {"jsonrpc": "2.0", "id": 233, "method": "tools/call",
+                   "params": {"name": "omada_site_upnp_template_comparison",
+                              "arguments": {"site_ref": site_ref,
+                                            "site_template_ref": template_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_upnp_template_comparison", site_ref, template_ref)] * 2)
+
+    def test_http_and_mcp_expose_wan_qos_summary(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/wan-qos-summary"
+        status, body = self.request(path)
+        self.assertEqual(status, 401)
+        self.assertEqual(body["error"], "unauthorized")
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(direct["resource"], "site_wan_qos_summary")
+        request = {"jsonrpc": "2.0", "id": 232, "method": "tools/call",
+                   "params": {"name": "omada_site_wan_qos_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls, [("site_wan_qos_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_vpn_server_status_summary(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/vpn/servers/status-summary?vpn_type=5"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(direct["resource"], "site_vpn_server_status_summary")
+        request = {"jsonrpc": "2.0", "id": 231, "method": "tools/call",
+                   "params": {"name": "omada_site_vpn_server_status_summary",
+                              "arguments": {"site_ref": site_ref, "vpn_type": 5}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertIn("result", response, repr(response))
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_vpn_server_status_summary", site_ref, 5)] * 2)
+
     def test_http_and_mcp_expose_ipsec_sa_summary(self) -> None:
         site_ref = "a" * 24
         path = f"/v1/sites/{site_ref}/ipsec-sa-summary"
         status, body = self.request(path)
-        self.assertEqual(status, 401)
+        self.assertEqual(status, 401, repr(body))
         self.assertEqual(body["error"], "unauthorized")
         status, direct = self.request(path, self.token)
         self.assertEqual(status, 200)
@@ -4169,7 +4283,7 @@ class OpenApiHttpTests(unittest.TestCase):
         site_ref = "a" * 24
         path = f"/v1/sites/{site_ref}/policy-route-summary"
         status, body = self.request(path)
-        self.assertEqual(status, 401)
+        self.assertEqual(status, 401, repr(body))
         self.assertEqual(body["error"], "unauthorized")
         status, direct = self.request(path, self.token)
         self.assertEqual(status, 200)
@@ -4187,7 +4301,7 @@ class OpenApiHttpTests(unittest.TestCase):
         site_ref = "a" * 24
         path = f"/v1/sites/{site_ref}/static-route-summary"
         status, body = self.request(path)
-        self.assertEqual(status, 401)
+        self.assertEqual(status, 401, repr(body))
         self.assertEqual(body["error"], "unauthorized")
         status, direct = self.request(path, self.token)
         self.assertEqual(status, 200)
@@ -5006,7 +5120,7 @@ class OpenApiHttpTests(unittest.TestCase):
                      "/v1/sites/" + "a" * 24 + "/aps/" + "b" * 24 + "/radios"):
             with self.subTest(path=path):
                 status, body = self.request(path)
-                self.assertEqual(status, 401)
+                self.assertEqual(status, 401, repr(body))
                 self.assertEqual(body["error"], "unauthorized")
         self.assertEqual(self.fake.calls, [])
 
@@ -7592,7 +7706,7 @@ class OpenApiHttpTests(unittest.TestCase):
 
     def test_token_never_appears_in_response_or_access_log(self) -> None:
         status, body = self.request("/v1/sites", "wrong-secret")
-        self.assertEqual(status, 401)
+        self.assertEqual(status, 401, repr(body))
         self.assertNotIn(self.token, json.dumps(body))
         self.assertNotIn(self.token, self.logs.getvalue())
 
@@ -8175,7 +8289,7 @@ class OpenApiHttpTests(unittest.TestCase):
         reports = [_incident_report(), _incident_report(event_count=9, alert_count=5)]
         status, body = self.request_post("/v1/incident-reports/compare",
                                          {"reports": reports})
-        self.assertEqual(status, 401)
+        self.assertEqual(status, 401, repr(body))
         self.assertEqual(body["error"], "unauthorized")
         status, response = self.request_post(
             "/v1/incident-reports/compare", {"reports": reports}, self.token)
@@ -8357,9 +8471,9 @@ class OpenApiHttpTests(unittest.TestCase):
                     "data": {"switches": []}}
 
         self.fake.read_site_switch_port_anomaly_summary = report
-        status, _ = self.request(
+        status, response = self.request(
             f"/v1/sites/{site_ref}/switches/port-anomalies")
-        self.assertEqual(status, 401)
+        self.assertEqual(status, 401, repr(response))
         self.assertEqual(calls, [])
 
         status, response = self.request(
