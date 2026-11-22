@@ -141,8 +141,8 @@ class OperationEvidenceTests(unittest.TestCase):
         self.assertEqual(generated, expected)
         self.assertEqual(generated["operation_count"], 2445)
         self.assertEqual(generated["connector_evidence_counts"], {
-            "not_mapped": 2009,
-            "fixed_get_registry_route": 411,
+            "not_mapped": 2007,
+            "fixed_get_registry_route": 413,
             "manual_source_map_only": 25,
         })
         registry_rows = [row for row in generated["operations"]
@@ -155,10 +155,12 @@ class OperationEvidenceTests(unittest.TestCase):
             "/v1/sites/{site_ref}/port-schedules/summary",
             "/v1/sites/{site_ref}/routing-table/summary",
             "/v1/sites/{site_ref}/vpn/clients/status-summary",
+            "/v1/sites/{site_ref}/remote-logging/summary",
+            "/v1/controller/firmware-upgrades/summary",
         }
         new_rows = [row for row in registry_rows
                     if public_templates.intersection(row["public_templates"])]
-        self.assertEqual(len(new_rows), 5)
+        self.assertEqual(len(new_rows), 7)
         self.assertTrue(all(row["documented_in"] == [
             "er7212pc-6.2.14", "hardware-controller-6.3.0",
             "omada-cbc-standard-6.3.0"] for row in new_rows))
@@ -175,6 +177,12 @@ class OperationEvidenceTests(unittest.TestCase):
             vpn = source["operations"]["site_vpn_client_status_summary"]["contract_review"]
             self.assertEqual(vpn["operation_id"], "getGridVpnClientStatus")
             self.assertIn("no status-code semantics", vpn["response"])
+            remote = source["operations"]["site_remote_logging_summary"]["contract_review"]
+            self.assertEqual(remote["operation_id"], "getRemoteLoggingSetting")
+            self.assertIn("host and port", remote["projection"])
+            upgrade = source["operations"]["controller_upgrade_log_summary"]["contract_review"]
+            self.assertEqual(upgrade["operation_id"], "getGridUpgradeLogs")
+            self.assertIn("no timestamps", upgrade["projection"].lower())
             ssid_clients = source["operations"]["site_ssid_client_count_summary"]
             if source["label"].startswith("ER7212PC"):
                 self.assertFalse(ssid_clients["documented"])
@@ -187,10 +195,6 @@ class OperationEvidenceTests(unittest.TestCase):
             routes = source["operations"]["site_routing_table_summary"]["contract_review"]
             self.assertEqual(routes["operation_id"], "getGridRouting")
             self.assertEqual(routes["path_parameter"]["type"],
-                             "required string; documented values are gateway and switch")
-            table = source["operations"]["site_routing_table_summary"]["contract_review"]
-            self.assertEqual(table["operation_id"], "getGridRouting")
-            self.assertEqual(table["path_parameter"]["type"],
                              "required string; documented values are gateway and switch")
 
 

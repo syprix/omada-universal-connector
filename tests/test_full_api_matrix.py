@@ -2131,9 +2131,30 @@ class FullApiMatrixTests(unittest.TestCase):
                 continue
             review = operation["contract_review"]
             self.assertEqual(review["operation_id"], "getGridSsidClients")
+            self.assertEqual(review["permission"], "Network Config Page View Only")
             self.assertIn("style=form/explode=true", review["query"]["queryDataVO"])
             self.assertIn("totalRows", review["response"])
             self.assertIn("No online state is inferred", review["projection"])
+
+    def test_controller_upgrade_log_summary_matches_all_source_exports(self) -> None:
+        matrix = json.loads((Path(__file__).resolve().parents[1] /
+                             "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
+        for source in matrix["sources"]:
+            review = source["operations"]["controller_upgrade_log_summary"]["contract_review"]
+            self.assertEqual(review["operation_id"], "getGridUpgradeLogs")
+            self.assertEqual(review["permission"], "Site Manual Firmware Upgrade View Only")
+            self.assertIn("pageSize", review["query"])
+            self.assertIn("no timestamps, names, ids, versions", review["projection"].lower())
+
+    def test_site_remote_logging_summary_matches_all_source_exports(self) -> None:
+        matrix = json.loads((Path(__file__).resolve().parents[1] /
+                             "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
+        for source in matrix["sources"]:
+            review = source["operations"]["site_remote_logging_summary"]["contract_review"]
+            self.assertEqual(review["operation_id"], "getRemoteLoggingSetting")
+            self.assertIn("Site Settings Manager View Only", review["permission"])
+            self.assertIn("remoteLog.enable", review["response"])
+            self.assertIn("host and port", review["projection"])
 
     def test_site_vpn_client_status_summary_matches_all_source_exports(self) -> None:
         matrix = json.loads((Path(__file__).resolve().parents[1] /

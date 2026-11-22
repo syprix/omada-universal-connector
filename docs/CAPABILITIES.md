@@ -1331,3 +1331,11 @@ A synthetic 10-schedule/four-device response measured 1,729 source JSON tokens a
 ## Selected SSID client count
 
 `GET /v1/sites/{site_ref}/ssids/{ssid_ref}/clients/summary` binds the opaque SSID reference to that site's SSID inventory. It uses only the documented first page (`page=1&pageSize=100`) and returns the source's documented `totalRows` plus sampled-row coverage, without client details or online-state claims. The operation exists in the Hardware Controller 6.3.0 and CBC 6.3.0 exports; it is absent from the ER7212PC 6.2.14 export. OpenAPI 3.0.1 defaults the required `queryDataVO` object to flat `form`/`explode` query parameters when no other serialization is specified. Live behavior is unknown.
+
+## Site remote-logging summary
+
+`GET /v1/sites/{site_ref}/remote-logging/summary` reports the documented enable flag, optional client-log flag, and `resource` category (0 new, 1 template, 2 override). It only indicates whether destination host and port are configured; their values are omitted. The connector does not claim that logs were delivered. All three API exports document this read; live behavior is unknown.
+
+## Controller upgrade-log summary
+
+`GET /v1/controller/firmware-upgrades/summary` reads only the first 100 rows from the authenticated controller's documented upgrade log. It reports source total and sample coverage plus counts of rollbacked entries, rows with reported failed devices, and rows with an upgrade time. It returns no dates, device/model details, site names, operator names, versions, or identifiers. It never starts or changes an upgrade. Live support is unknown.

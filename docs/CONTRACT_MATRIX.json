@@ -2376,7 +2376,7 @@
           "live_support": "unknown",
           "contract_review": {
             "operation_id": "getGridSsidClients",
-            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "permission": "Network Config Page View Only",
             "path": "/openapi/v1/{omadacId}/sites/{siteId}/clientList/{ssidId}",
             "query": {
               "queryDataVO": "required object; OpenAPI 3.0.1 default style=form/explode=true",
@@ -2386,6 +2386,37 @@
             "request_body": false,
             "response": "ClientGridVOSsidClientVO provides totalRows, currentPage, currentSize and a data array; totalRows describes all rows.",
             "projection": "Binds one selected SSID through the selected site inventory; requests only page=1 and pageSize=100 as flat query fields. Returns totalRows and sampled row count only, marks whether that page covers all rows, and omits every client row. No online state is inferred."
+          }
+        },
+        "site_remote_logging_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getRemoteLoggingSetting",
+            "permission": "Site Settings Manager View Only, Site Map Manager View Only, Site Hotspot Manager View Only, or Site Device Manager View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/remote-logging",
+            "query": {},
+            "request_body": false,
+            "response": "SiteRemoteLoggingSetting contains remoteLog; RemoteLogSettingVO requires remoteLog.enable and defines optional moreClientLog plus resource values 0 (new created), 1 (template), and 2 (override). Host is an address and port is the remote log server port.",
+            "projection": "Reports enable, optional client-log flag, documented resource category, and host/port presence only; host and port values are omitted. Unknown fields or unrecognized resource categories mark the result partial. Delivery success is not assessed."
+          }
+        },
+        "controller_upgrade_log_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridUpgradeLogs",
+            "path": "/openapi/v1/{omadacId}/upgrade/overview/logs",
+            "query": {
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, 1–1000",
+              "sorts.upgradeTime": "optional string (asc/desc)",
+              "sorts.modelTypeInfo": "optional string (asc/desc)"
+            },
+            "request_body": false,
+            "response": "Paginated UpgradeLogOpenApiInfo fields include upgradeTime, rollbacked and failedDeviceNum, as well as device model, sites, operator, versions and ID.",
+            "projection": "Reads one controller-config-bound page of up to 100 rows, reports source total and page coverage, counts rollbacked values, logs with reported failed devices and upgradeTime presence. No timestamps, names, IDs, versions or model details are returned; this is not an upgrade action.",
+            "permission": "Site Manual Firmware Upgrade View Only"
           }
         }
       }
@@ -4736,7 +4767,7 @@
           "live_support": "unknown",
           "contract_review": {
             "operation_id": "getGridSsidClients",
-            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "permission": "Network Config Page View Only",
             "path": "/openapi/v1/{omadacId}/sites/{siteId}/clientList/{ssidId}",
             "query": {
               "queryDataVO": "required object; OpenAPI 3.0.1 default style=form/explode=true",
@@ -4746,6 +4777,37 @@
             "request_body": false,
             "response": "ClientGridVOSsidClientVO provides totalRows, currentPage, currentSize and a data array; totalRows describes all rows.",
             "projection": "Binds one selected SSID through the selected site inventory; requests only page=1 and pageSize=100 as flat query fields. Returns totalRows and sampled row count only, marks whether that page covers all rows, and omits every client row. No online state is inferred."
+          }
+        },
+        "site_remote_logging_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getRemoteLoggingSetting",
+            "permission": "Site Settings Manager View Only, Site Map Manager View Only, Site Hotspot Manager View Only, or Site Device Manager View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/remote-logging",
+            "query": {},
+            "request_body": false,
+            "response": "SiteRemoteLoggingSetting contains remoteLog; RemoteLogSettingVO requires remoteLog.enable and defines optional moreClientLog plus resource values 0 (new created), 1 (template), and 2 (override). Host is an address and port is the remote log server port.",
+            "projection": "Reports enable, optional client-log flag, documented resource category, and host/port presence only; host and port values are omitted. Unknown fields or unrecognized resource categories mark the result partial. Delivery success is not assessed."
+          }
+        },
+        "controller_upgrade_log_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridUpgradeLogs",
+            "path": "/openapi/v1/{omadacId}/upgrade/overview/logs",
+            "query": {
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, 1–1000",
+              "sorts.upgradeTime": "optional string (asc/desc)",
+              "sorts.modelTypeInfo": "optional string (asc/desc)"
+            },
+            "request_body": false,
+            "response": "Paginated UpgradeLogOpenApiInfo fields include upgradeTime, rollbacked and failedDeviceNum, as well as device model, sites, operator, versions and ID.",
+            "projection": "Reads one controller-config-bound page of up to 100 rows, reports source total and page coverage, counts rollbacked values, logs with reported failed devices and upgradeTime presence. No timestamps, names, IDs, versions or model details are returned; this is not an upgrade action.",
+            "permission": "Site Manual Firmware Upgrade View Only"
           }
         }
       }
@@ -7079,6 +7141,37 @@
             "query": null,
             "response": null,
             "projection": "Not implemented for this source because the endpoint is absent from the export."
+          }
+        },
+        "site_remote_logging_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getRemoteLoggingSetting",
+            "permission": "Site Settings Manager View Only, Site Map Manager View Only, Site Hotspot Manager View Only, or Site Device Manager View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/remote-logging",
+            "query": {},
+            "request_body": false,
+            "response": "SiteRemoteLoggingSetting contains remoteLog; RemoteLogSettingVO requires remoteLog.enable and defines optional moreClientLog plus resource values 0 (new created), 1 (template), and 2 (override). Host is an address and port is the remote log server port.",
+            "projection": "Reports enable, optional client-log flag, documented resource category, and host/port presence only; host and port values are omitted. Unknown fields or unrecognized resource categories mark the result partial. Delivery success is not assessed."
+          }
+        },
+        "controller_upgrade_log_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridUpgradeLogs",
+            "path": "/openapi/v1/{omadacId}/upgrade/overview/logs",
+            "query": {
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, 1–1000",
+              "sorts.upgradeTime": "optional string (asc/desc)",
+              "sorts.modelTypeInfo": "optional string (asc/desc)"
+            },
+            "request_body": false,
+            "response": "Paginated UpgradeLogOpenApiInfo fields include upgradeTime, rollbacked and failedDeviceNum, as well as device model, sites, operator, versions and ID.",
+            "projection": "Reads one controller-config-bound page of up to 100 rows, reports source total and page coverage, counts rollbacked values, logs with reported failed devices and upgradeTime presence. No timestamps, names, IDs, versions or model details are returned; this is not an upgrade action.",
+            "permission": "Site Manual Firmware Upgrade View Only"
           }
         }
       }

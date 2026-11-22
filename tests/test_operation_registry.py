@@ -51,6 +51,21 @@ class OperationRegistryTests(unittest.TestCase):
         self.assertEqual(route.operation_id, "site_ssid_client_count_summary")
         self.assertEqual(dict(bindings), {"site_ref": "a" * 24, "ssid_ref": "b" * 24})
 
+    def test_site_remote_logging_summary_is_site_bound(self):
+        operation = REGISTRY.get("site_remote_logging_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/remote-logging/summary")
+        self.assertEqual(route.operation_id, "site_remote_logging_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
+
+    def test_controller_upgrade_log_summary_is_controller_scoped(self):
+        operation = REGISTRY.get("controller_upgrade_log_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"], [])
+        route, bindings = REGISTRY.match("GET", "/v1/controller/firmware-upgrades/summary")
+        self.assertEqual(route.operation_id, "controller_upgrade_log_summary")
+        self.assertEqual(dict(bindings), {})
+
     def test_site_ipsec_sa_summary_is_a_site_bound_read(self):
         operation = REGISTRY.get("site_ipsec_sa_summary")
         self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
@@ -710,6 +725,8 @@ class OperationRegistryTests(unittest.TestCase):
             "site_vpn_server_status_summary",
             "site_vpn_client_status_summary",
             "site_ssid_client_count_summary",
+            "site_remote_logging_summary",
+            "controller_upgrade_log_summary",
             "site_wan_qos_summary",
             "site_vlan_network_summary",
             "site_lan_network_detail_summary",

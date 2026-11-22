@@ -2730,6 +2730,8 @@ class OmadaOpenApiClient:
         ("site_vpn_server_status_summary", "GET /v1/sites/{site_ref}/vpn/servers/status-summary"),
         ("site_vpn_client_status_summary", "GET /v1/sites/{site_ref}/vpn/clients/status-summary"),
         ("site_ssid_client_count_summary", "GET /v1/sites/{site_ref}/ssids/{ssid_ref}/clients/summary"),
+        ("site_remote_logging_summary", "GET /v1/sites/{site_ref}/remote-logging/summary"),
+        ("controller_upgrade_log_summary", "GET /v1/controller/firmware-upgrades/summary"),
         ("site_wan_qos_summary", "GET /v1/sites/{site_ref}/wan-qos-summary"),
         ("gateway_wan_health", "GET /v1/sites/{site_ref}/gateways/{device_ref}/wan-health"),
         ("gateway_health", "GET /v1/sites/{site_ref}/gateways/{gateway_ref}/health"),
@@ -8453,6 +8455,51 @@ class OmadaOpenApiClient:
         except SiteSsidClientCountSummaryError:
             raise OpenApiError("openapi_response_invalid") from None
         return {**projected, "site_ref": site_ref, "ssid_ref": ssid_ref}
+
+    @_track_capability("site_remote_logging_summary")
+    def read_site_remote_logging_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize site remote-logging settings without returning its target."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/"
+                "remote-logging")
+        payload = self._request_json("GET", path, token=self._access_token())
+        result = payload.get("result")
+        remote_log = result.get("remoteLog") if isinstance(result, dict) else None
+        try:
+            from .site_remote_logging_summary import (
+                SiteRemoteLoggingSummaryError, summarize_site_remote_logging,
+            )
+        except ImportError:  # direct execution in the image
+            from site_remote_logging_summary import (
+                SiteRemoteLoggingSummaryError, summarize_site_remote_logging,
+            )
+        try:
+            projected = summarize_site_remote_logging(remote_log)
+        except SiteRemoteLoggingSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**projected, "site_ref": site_ref}
+
+    @_track_capability("controller_upgrade_log_summary")
+    def read_controller_upgrade_log_summary(self) -> dict[str, object]:
+        """Aggregate one bounded page of controller-wide upgrade log metadata."""
+        path = (f"/openapi/v1/{self.config.controller_id}/upgrade/overview/logs"
+                "?page=1&pageSize=100")
+        payload = self._request_json("GET", path, token=self._access_token())
+        result = payload.get("result")
+        rows = result.get("data") if isinstance(result, dict) else None
+        try:
+            from .controller_upgrade_log_summary import (
+                ControllerUpgradeLogSummaryError, summarize_upgrade_log_page,
+            )
+        except ImportError:  # direct execution in the image
+            from controller_upgrade_log_summary import (
+                ControllerUpgradeLogSummaryError, summarize_upgrade_log_page,
+            )
+        try:
+            projected = summarize_upgrade_log_page(result, rows)
+        except ControllerUpgradeLogSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return projected
 
     @_track_capability("site_wan_qos_summary")
     def read_site_wan_qos_summary(self, site_ref: str) -> dict[str, object]:

@@ -172,6 +172,38 @@ class OpenApiClientTests(unittest.TestCase):
             with self.assertRaises(OpenApiError):
                 self.client.read_site_ssid_client_count_summary("c" * 24, ssid_ref)
 
+    def test_site_remote_logging_read_redacts_destination_values(self) -> None:
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={"result": {
+                    "remoteLog": {"enable": True, "host": "logs.example.invalid",
+                                  "port": 6514, "moreClientLog": True, "resource": 2}}}) as request:
+            result = self.client.read_site_remote_logging_summary(site_ref)
+        self.assertTrue(result["enabled"])
+        self.assertTrue(result["client_logs_enabled"])
+        self.assertEqual(result["resource_source"], "override")
+        self.assertTrue(result["destination_host_configured"])
+        self.assertTrue(result["destination_port_configured"])
+        self.assertNotIn("logs.example.invalid", json.dumps(result))
+        self.assertNotIn("6514", json.dumps(result))
+        self.assertIn("/sites/site-1/remote-logging", request.call_args.args[1])
+
+    def test_controller_upgrade_log_summary_reads_one_redacted_page(self) -> None:
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={"result": {
+                    "totalRows": 1, "currentPage": 1, "currentSize": 1,
+                    "data": [{"id": "private", "siteNames": ["private-site"],
+                              "operator": "operator", "currentVersion": ["1.0"],
+                              "targetVersion": "2.0", "upgradeTime": "2026-01-01",
+                              "rollbacked": False, "failedDeviceNum": 0}]}}) as request:
+            result = self.client.read_controller_upgrade_log_summary()
+        self.assertEqual(result["rollbacked_counts"], {"true": 0, "false": 1})
+        self.assertTrue(result["coverage_complete"])
+        for secret in ("private", "private-site", "operator", "1.0", "2.0", "2026-01-01"):
+            self.assertNotIn(secret, json.dumps(result))
+        self.assertTrue(request.call_args.args[1].endswith("/upgrade/overview/logs?page=1&pageSize=100"))
+
     def test_site_poe_schedule_summary_reads_each_fixed_site_feed(self) -> None:
         site_ref = "a" * 24
         switch_ref = "b" * 24

@@ -779,6 +779,23 @@ class FakeOpenApiClient:
                 "coverage_complete": True, "client_details_returned": False,
                 "online_status_provided": False}
 
+    def read_site_remote_logging_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_remote_logging_summary", site_ref))
+        return {"status": "ok", "resource": "site_remote_logging_summary",
+                "site_ref": site_ref, "enabled": True, "client_logs_enabled": False,
+                "resource_source": "template", "destination_host_configured": True,
+                "destination_port_configured": True, "destination_values_returned": False,
+                "partial": False, "delivery_success": "not assessed"}
+
+    def read_controller_upgrade_log_summary(self) -> dict[str, object]:
+        self.calls.append(("controller_upgrade_log_summary", None))
+        return {"status": "ok", "resource": "controller_upgrade_log_summary",
+                "source_total_rows": 1, "sampled_log_count": 1,
+                "sample_page": 1, "sample_page_size": 100, "coverage_complete": True,
+                "rollbacked_counts": {"true": 0, "false": 1},
+                "logs_with_failed_devices_count": 0, "partial": False,
+                "identities_and_versions_returned": False}
+
     def read_site_ipsec_sa_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_ipsec_sa_summary", site_ref))
         return {"status": "ok", "resource": "site_ipsec_sa_summary",
@@ -4339,6 +4356,35 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(response["result"]["structuredContent"], direct)
         self.assertEqual(self.fake.calls,
                          [("site_ssid_client_count_summary", site_ref, ssid_ref)] * 2)
+
+    def test_http_and_mcp_expose_redacted_site_remote_logging(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/remote-logging/summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(direct["resource"], "site_remote_logging_summary")
+        request = {"jsonrpc": "2.0", "id": 240, "method": "tools/call",
+                   "params": {"name": "omada_site_remote_logging_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_remote_logging_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_bounded_upgrade_log_summary(self) -> None:
+        path = "/v1/controller/firmware-upgrades/summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200, repr(direct))
+        self.assertEqual(direct["resource"], "controller_upgrade_log_summary")
+        request = {"jsonrpc": "2.0", "id": 241, "method": "tools/call",
+                   "params": {"name": "omada_controller_upgrade_log_summary",
+                              "arguments": {}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("controller_upgrade_log_summary", None)] * 2)
 
     def test_http_and_mcp_expose_ipsec_sa_summary(self) -> None:
         site_ref = "a" * 24

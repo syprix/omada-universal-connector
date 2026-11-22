@@ -461,3 +461,7 @@ The routing-table summary (#55) accepts only the documented `gateway` or `switch
 The VPN client status summary is implemented as an authenticated HTTP/MCP read, bound to one selected site and a documented protocol filter. Status values remain uninterpreted because no code mapping exists in the source exports. Live controller behavior is unconfirmed.
 
 The selected-SSID client count read is implemented for the two source exports that document `getGridSsidClients`. It sends only the OpenAPI 3.0.1 default flat `page` and `pageSize` query fields, binds the SSID to its selected site inventory, and reports page coverage. The endpoint is absent from the ER7212PC export; live behavior remains unconfirmed.
+
+Site remote logging is exposed as a redacted HTTP/MCP read. Destination values and delivery claims are excluded; only documented enablement, category and target presence are summarized. Live behavior is unconfirmed.
+
+The controller-wide firmware upgrade-log read is bounded to a 100-row page and reports only documented aggregate state and coverage. It redacts identities, versions, model details and raw timestamps; no update action is exposed. Live behavior is unconfirmed.
