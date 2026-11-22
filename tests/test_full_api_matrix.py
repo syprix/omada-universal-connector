@@ -2120,6 +2120,30 @@ class FullApiMatrixTests(unittest.TestCase):
             self.assertIn("filters.vpnType", review["query"])
             self.assertIn("no status-code semantics", review["response"])
 
+    def test_site_ssid_client_count_summary_matches_documented_sources(self) -> None:
+        matrix = json.loads((Path(__file__).resolve().parents[1] /
+                             "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
+        for source in matrix["sources"]:
+            operation = source["operations"]["site_ssid_client_count_summary"]
+            if source["label"].startswith("ER7212PC"):
+                self.assertFalse(operation["documented"])
+                self.assertIsNone(operation["contract_review"]["path"])
+                continue
+            review = operation["contract_review"]
+            self.assertEqual(review["operation_id"], "getGridSsidClients")
+            self.assertIn("style=form/explode=true", review["query"]["queryDataVO"])
+            self.assertIn("totalRows", review["response"])
+            self.assertIn("No online state is inferred", review["projection"])
+
+    def test_site_vpn_client_status_summary_matches_all_source_exports(self) -> None:
+        matrix = json.loads((Path(__file__).resolve().parents[1] /
+                             "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
+        for source in matrix["sources"]:
+            review = source["operations"]["site_vpn_client_status_summary"]["contract_review"]
+            self.assertEqual(review["operation_id"], "getGridVpnClientStatus")
+            self.assertIn("0 L2TP, 1 PPTP, 3 OpenVPN, 4 WireGuard", review["query"]["filters.vpnType"])
+            self.assertIn("no status-code semantics", review["response"])
+
     def test_site_ipsec_sa_summary_matches_all_source_exports(self) -> None:
         matrix = json.loads((Path(__file__).resolve().parents[1] /
                              "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))

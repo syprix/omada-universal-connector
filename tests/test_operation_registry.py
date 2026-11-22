@@ -36,6 +36,21 @@ class OperationRegistryTests(unittest.TestCase):
         self.assertEqual(schema["required"], ["site_ref", "vpn_type"])
         self.assertEqual(schema["properties"]["vpn_type"]["type"], "integer")
 
+    def test_site_vpn_client_status_summary_requires_documented_protocol(self):
+        operation = REGISTRY.get("site_vpn_client_status_summary")
+        schema = _tool(operation)["inputSchema"]
+        self.assertEqual(schema["required"], ["site_ref", "vpn_type"])
+        self.assertEqual(schema["properties"]["vpn_type"]["enum"], [0, 1, 3, 4])
+
+    def test_site_ssid_client_count_summary_binds_site_and_selected_ssid(self):
+        operation = REGISTRY.get("site_ssid_client_count_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"],
+                         ["site_ref", "ssid_ref"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/ssids/" + "b" * 24 + "/clients/summary")
+        self.assertEqual(route.operation_id, "site_ssid_client_count_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24, "ssid_ref": "b" * 24})
+
     def test_site_ipsec_sa_summary_is_a_site_bound_read(self):
         operation = REGISTRY.get("site_ipsec_sa_summary")
         self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
@@ -693,6 +708,8 @@ class OperationRegistryTests(unittest.TestCase):
             "site_policy_route_summary",
             "site_ipsec_sa_summary",
             "site_vpn_server_status_summary",
+            "site_vpn_client_status_summary",
+            "site_ssid_client_count_summary",
             "site_wan_qos_summary",
             "site_vlan_network_summary",
             "site_lan_network_detail_summary",

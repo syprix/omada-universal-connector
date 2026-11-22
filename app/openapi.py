@@ -2728,6 +2728,8 @@ class OmadaOpenApiClient:
         ("site_policy_route_summary", "GET /v1/sites/{site_ref}/policy-route-summary"),
         ("site_ipsec_sa_summary", "GET /v1/sites/{site_ref}/ipsec-sa-summary"),
         ("site_vpn_server_status_summary", "GET /v1/sites/{site_ref}/vpn/servers/status-summary"),
+        ("site_vpn_client_status_summary", "GET /v1/sites/{site_ref}/vpn/clients/status-summary"),
+        ("site_ssid_client_count_summary", "GET /v1/sites/{site_ref}/ssids/{ssid_ref}/clients/summary"),
         ("site_wan_qos_summary", "GET /v1/sites/{site_ref}/wan-qos-summary"),
         ("gateway_wan_health", "GET /v1/sites/{site_ref}/gateways/{device_ref}/wan-health"),
         ("gateway_health", "GET /v1/sites/{site_ref}/gateways/{gateway_ref}/health"),
@@ -2977,6 +2979,7 @@ class OmadaOpenApiClient:
         ("site_client_association_activity_summary", "GET /v1/sites/{site_ref}/client-association-activity-summary"),
         ("site_client_traffic_summary", "GET /v1/sites/{site_ref}/client-traffic-summary"),
         ("site_recent_clients_summary", "GET /v1/sites/{site_ref}/clients/recent-summary"),
+        ("site_ssid_client_count_summary", "GET /v1/sites/{site_ref}/ssids/{ssid_ref}/clients/summary"),
         ("site_topology_network_summary", "GET /v1/sites/{site_ref}/topology/network-summary"),
         ("site_topology_vlan_summary", "GET /v1/sites/{site_ref}/topology/vlan-summary"),
         ("site_unresolved_incident_count", "GET /v1/sites/{site_ref}/incidents/unresolved-count"),
@@ -8388,6 +8391,68 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {**projected, "site_ref": site_ref,
                 "source_total_rows": payload.get("totalRows")}
+
+    @_track_capability("site_vpn_client_status_summary")
+    def read_site_vpn_client_status_summary(self, site_ref: str,
+                                            vpn_type: int) -> dict[str, object]:
+        """Count client VPN source status codes without exposing peer identities."""
+        if type(vpn_type) is not int or vpn_type not in {0, 1, 3, 4}:
+            raise OpenApiError("request_invalid")
+        site_id = self._resolve_site_ref(site_ref)
+        path = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/"
+                "setting/vpn/stats/client")
+        payload = self._read_pages_result(
+            path, self._access_token(), max_items=10_000,
+            query_parameters={"filters.vpnType": str(vpn_type)})
+        rows = payload.get("data")
+        if not isinstance(rows, list):
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            from .site_vpn_client_status_summary import (
+                SiteVpnClientStatusSummaryError, summarize_vpn_client_status,
+            )
+        except ImportError:  # direct execution in the image
+            from site_vpn_client_status_summary import (
+                SiteVpnClientStatusSummaryError, summarize_vpn_client_status,
+            )
+        try:
+            projected = summarize_vpn_client_status(rows, vpn_type)
+        except SiteVpnClientStatusSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**projected, "site_ref": site_ref,
+                "source_total_rows": payload.get("totalRows")}
+
+    @_track_capability("site_ssid_client_count_summary")
+    def read_site_ssid_client_count_summary(self, site_ref: str,
+                                            ssid_ref: str) -> dict[str, object]:
+        """Count a selected site's SSID clients without returning client rows."""
+        site_id = self._resolve_site_ref(site_ref)
+        if not isinstance(ssid_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", ssid_ref):
+            raise OpenApiError("ssid_ref_invalid")
+        ssid_id = self._ssid_ids_by_site_ref.get(site_ref, {}).get(ssid_ref)
+        if not ssid_id:
+            self.list_ssids(site_ref)
+            ssid_id = self._ssid_ids_by_site_ref.get(site_ref, {}).get(ssid_ref)
+        if not ssid_id:
+            raise OpenApiError("ssid_ref_unknown")
+        path = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/"
+                f"clientList/{ssid_id}?page=1&pageSize=100")
+        payload = self._request_json("GET", path, token=self._access_token())
+        result = payload.get("result")
+        rows = result.get("data") if isinstance(result, dict) else None
+        try:
+            from .site_ssid_client_count_summary import (
+                SiteSsidClientCountSummaryError, project_ssid_client_count,
+            )
+        except ImportError:  # direct execution in the image
+            from site_ssid_client_count_summary import (
+                SiteSsidClientCountSummaryError, project_ssid_client_count,
+            )
+        try:
+            projected = project_ssid_client_count(result, rows)
+        except SiteSsidClientCountSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**projected, "site_ref": site_ref, "ssid_ref": ssid_ref}
 
     @_track_capability("site_wan_qos_summary")
     def read_site_wan_qos_summary(self, site_ref: str) -> dict[str, object]:

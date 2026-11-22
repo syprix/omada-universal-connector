@@ -893,3 +893,11 @@ A synthetic 10-schedule/four-device fixture measured 1,729 source tokens and 188
 `omada_site_routing_table_summary` accepts a site, `device_type` (`gateway` or `switch`), zero-based `page_number`, and `page_size` (1–100). It returns only page coverage and counts of uninterpreted route type values. It omits destinations and hops and makes no configuration changes.
 
 A synthetic 20-row route table measured 3,151 source tokens and 108 summary tokens (96.57% fewer; js-tiktoken 1.0.21/o200k_base), excluding schemas and billed usage.
+
+`omada_site_vpn_client_status_summary` requires a site and `vpn_type` (0 L2TP, 1 PPTP, 3 OpenVPN, 4 WireGuard). It returns only row counts grouped by the integer status code. The API exports do not define status-code meanings; user, peer, IP, traffic and VPN identifiers are omitted. Fixture checks do not establish live controller support.
+
+`omada_site_vpn_client_status_summary` requires a site and `vpn_type` (0 L2TP, 1 PPTP, 3 OpenVPN, 4 WireGuard). It returns only row counts grouped by the integer status code. The API exports do not define status-code meanings; user, peer, IP, traffic and VPN identifiers are omitted. Fixture checks do not establish live controller support.
+
+A synthetic 50-row client VPN payload measured 3,472 tokens before projection and 81 after projection (3,391 fewer; 97.67%) with `js-tiktoken` 1.0.21 using `o200k_base`. This fixture comparison excludes tool schemas, prompts, transport framing, and billed agent usage; it is not a live response or model-token measurement.
+
+`omada_site_ssid_client_count_summary` requires an explicitly selected `site_ref` and opaque `ssid_ref`. It returns the documented total row count and whether the sampled first page covers the total; it omits client rows and makes no online-state claim. `queryDataVO` is sent as `page=1&pageSize=100`, following the OpenAPI 3.0.1 default `form`/`explode` serialization. This operation is absent from the ER7212PC export. A synthetic 100-row response measured 4,723 tokens before projection and 73 after (4,650 fewer; 98.45%) using `js-tiktoken` 1.0.21 / `o200k_base`; this excludes schemas, prompts, transport framing, and billed agent usage.
