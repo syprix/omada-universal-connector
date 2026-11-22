@@ -5,6 +5,20 @@ from app.mcp import _tool
 
 
 class OperationRegistryTests(unittest.TestCase):
+    def test_site_ipsec_sa_summary_is_a_site_bound_read(self):
+        operation = REGISTRY.get("site_ipsec_sa_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
+        route, bindings = REGISTRY.match("GET", "/v1/sites/" + "a" * 24 + "/ipsec-sa-summary")
+        self.assertEqual(route.operation_id, "site_ipsec_sa_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
+
+    def test_site_policy_route_summary_is_a_site_bound_read(self):
+        operation = REGISTRY.get("site_policy_route_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
+        route, bindings = REGISTRY.match("GET", "/v1/sites/" + "a" * 24 + "/policy-route-summary")
+        self.assertEqual(route.operation_id, "site_policy_route_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
+
     def test_site_static_route_summary_is_a_site_bound_read(self):
         operation = REGISTRY.get("site_static_route_summary")
         self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
@@ -643,6 +657,8 @@ class OperationRegistryTests(unittest.TestCase):
             "site_wan_max_speed_summary",
             "gateway_info_summary",
             "site_static_route_summary",
+            "site_policy_route_summary",
+            "site_ipsec_sa_summary",
             "site_vlan_network_summary",
             "site_lan_network_detail_summary",
             "site_lan_network_config_summary",

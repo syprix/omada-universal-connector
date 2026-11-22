@@ -2066,6 +2066,30 @@ class FullApiMatrixTests(unittest.TestCase):
         self.assertEqual(row["connector_source_status"], "implemented_read")
         self.assertEqual(row["live_status"], "unknown_not_checked_by_this_offline_tool")
 
+    def test_site_ipsec_sa_summary_matches_all_source_exports(self) -> None:
+        matrix = json.loads((Path(__file__).resolve().parents[1] /
+                             "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
+        for source in matrix["sources"]:
+            review = source["operations"]["site_ipsec_sa_summary"]["contract_review"]
+            self.assertEqual(review["operation_id"], "getGridVpnIpSec")
+            self.assertEqual(review["query"], {"page": "required int32", "pageSize": "required int32"})
+            self.assertIn("direction", review["response"])
+            self.assertIn("connectivity is unknown", review["projection"])
+
+    def test_site_policy_route_summary_matches_all_source_exports(self) -> None:
+        matrix = json.loads((Path(__file__).resolve().parents[1] /
+                             "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
+        expected_ids = {"Hardware Controller 6.3.0": "getGridPolicyRouting",
+                        "CBC Standard 6.3.0": "getGridPolicyRouting",
+                        "ER7212PC 6.2.14": "getGridPolicyRouting"}
+        for source in matrix["sources"]:
+            review = source["operations"]["site_policy_route_summary"]["contract_review"]
+            self.assertEqual(review["operation_id"], expected_ids[source["label"]])
+            self.assertEqual(review["query"], {"page": "required int32", "pageSize": "required int32"})
+            self.assertIn("sourceType", review["response"])
+            self.assertIn("index", review["response"])
+            self.assertIn("precedence", review["projection"])
+
     def test_site_internet_summary_matches_all_source_exports(self) -> None:
         matrix = json.loads((Path(__file__).resolve().parents[1] /
                              "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))

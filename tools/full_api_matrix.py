@@ -391,6 +391,8 @@ IMPLEMENTED: dict[tuple[str, str], str] = {
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/setting/available-virtual-wans"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/wan-max-speed"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/routing/static-routings"): "implemented_read",
+    ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/routing/policy-routings"): "implemented_read",
+    ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/setting/vpn/stats/ipsec"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/networks/vlans"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/internet"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/setting/vpn/stats/tunnel"): "implemented_read",

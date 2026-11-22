@@ -2160,6 +2160,38 @@
             "response": "Paginated result fields totalRows/currentPage/currentSize/data and support flags; each route row documents status, routeType, destinations, optional nextHopIp/interfaceType/interfaceId/metric and VPN/virtual-WAN reference flags. ER7212PC omits optional featureDescription.",
             "projection": "Counts only documented route type (0 next hop, 1 interface), boolean status, and occurrences of interface/VPN-client/virtual-WAN references. Omits IDs, names, destination addresses, next-hop addresses, metrics and feature descriptions. Reports unknown route type/status/reference fields."
           }
+        },
+        "site_policy_route_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridPolicyRouting",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/routing/policy-routings",
+            "query": {
+              "page": "required int32",
+              "pageSize": "required int32"
+            },
+            "request_body": false,
+            "response": "Paginated totalRows/currentPage/currentSize/data. PolicyRoutingInfo documents index, status, sourceType/sourceIds, destinationType/destinationIds, interfaceType/interface references, backupInterface, and feature flags. Protocol values refer to a guide outside these exports and are not mapped.",
+            "projection": "Counts documented source, destination and interface type values, enabled state and reference occurrences; redacts identifiers and rule names. Marks unknown values/fields and index quality; does not resolve references or infer route precedence or active traffic."
+          }
+        },
+        "site_ipsec_sa_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridVpnIpSec",
+            "permission": "Site Insight Manager View Only or Device Config Page View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/setting/vpn/stats/ipsec",
+            "query": {
+              "page": "required int32",
+              "pageSize": "required int32"
+            },
+            "request_body": false,
+            "response": "Paginated totalRows/currentPage/currentSize/data. Rows document vpnId:int32, spi:int64, name, direction (in/out), peer IPs, local/remote SA, protocol and authentication/encryption strings.",
+            "projection": "Counts security-association rows by documented direction. All row values and identifiers are discarded; invalid/unknown fields are counted. The source has no tunnel connection state, so actual connectivity is unknown."
+          }
         }
       }
     },
@@ -4293,6 +4325,38 @@
             "response": "Paginated result fields totalRows/currentPage/currentSize/data and support flags; each route row documents status, routeType, destinations, optional nextHopIp/interfaceType/interfaceId/metric and VPN/virtual-WAN reference flags. ER7212PC omits optional featureDescription.",
             "projection": "Counts only documented route type (0 next hop, 1 interface), boolean status, and occurrences of interface/VPN-client/virtual-WAN references. Omits IDs, names, destination addresses, next-hop addresses, metrics and feature descriptions. Reports unknown route type/status/reference fields."
           }
+        },
+        "site_policy_route_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridPolicyRouting",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/routing/policy-routings",
+            "query": {
+              "page": "required int32",
+              "pageSize": "required int32"
+            },
+            "request_body": false,
+            "response": "Paginated totalRows/currentPage/currentSize/data. PolicyRoutingInfo documents index, status, sourceType/sourceIds, destinationType/destinationIds, interfaceType/interface references, backupInterface, and feature flags. Protocol values refer to a guide outside these exports and are not mapped.",
+            "projection": "Counts documented source, destination and interface type values, enabled state and reference occurrences; redacts identifiers and rule names. Marks unknown values/fields and index quality; does not resolve references or infer route precedence or active traffic."
+          }
+        },
+        "site_ipsec_sa_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridVpnIpSec",
+            "permission": "Site Insight Manager View Only or Device Config Page View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/setting/vpn/stats/ipsec",
+            "query": {
+              "page": "required int32",
+              "pageSize": "required int32"
+            },
+            "request_body": false,
+            "response": "Paginated totalRows/currentPage/currentSize/data. Rows document vpnId:int32, spi:int64, name, direction (in/out), peer IPs, local/remote SA, protocol and authentication/encryption strings.",
+            "projection": "Counts security-association rows by documented direction. All row values and identifiers are discarded; invalid/unknown fields are counted. The source has no tunnel connection state, so actual connectivity is unknown."
+          }
         }
       }
     },
@@ -6404,6 +6468,38 @@
             "request_body": false,
             "response": "Paginated result fields totalRows/currentPage/currentSize/data and support flags; each route row documents status, routeType, destinations, optional nextHopIp/interfaceType/interfaceId/metric and VPN/virtual-WAN reference flags. ER7212PC omits optional featureDescription.",
             "projection": "Counts only documented route type (0 next hop, 1 interface), boolean status, and occurrences of interface/VPN-client/virtual-WAN references. Omits IDs, names, destination addresses, next-hop addresses, metrics and feature descriptions. Reports unknown route type/status/reference fields."
+          }
+        },
+        "site_policy_route_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridPolicyRouting",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/routing/policy-routings",
+            "query": {
+              "page": "required int32",
+              "pageSize": "required int32"
+            },
+            "request_body": false,
+            "response": "Paginated totalRows/currentPage/currentSize/data. PolicyRoutingInfo documents index, status, sourceType/sourceIds, destinationType/destinationIds, interfaceType/interface references, backupInterface, and feature flags. Protocol values refer to a guide outside these exports and are not mapped.",
+            "projection": "Counts documented source, destination and interface type values, enabled state and reference occurrences; redacts identifiers and rule names. Marks unknown values/fields and index quality; does not resolve references or infer route precedence or active traffic."
+          }
+        },
+        "site_ipsec_sa_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridVpnIpSec",
+            "permission": "Site Insight Manager View Only or Device Config Page View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/setting/vpn/stats/ipsec",
+            "query": {
+              "page": "required int32",
+              "pageSize": "required int32"
+            },
+            "request_body": false,
+            "response": "Paginated totalRows/currentPage/currentSize/data. Rows document vpnId:int32, spi:int64, name, direction (in/out), peer IPs, local/remote SA, protocol and authentication/encryption strings.",
+            "projection": "Counts security-association rows by documented direction. All row values and identifiers are discarded; invalid/unknown fields are counted. The source has no tunnel connection state, so actual connectivity is unknown."
           }
         }
       }

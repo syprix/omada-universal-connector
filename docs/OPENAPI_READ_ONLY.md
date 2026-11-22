@@ -3,6 +3,8 @@
 ## Static gateway-route summary
 
 `GET /v1/sites/{site_ref}/static-route-summary` and MCP
+`omada_site_policy_route_summary` is exposed as `GET /v1/sites/{site_ref}/policy-route-summary`; it reads the selected site’s documented policy-routing list with a 10,000-row bound. The response contains aggregate type and enabled-state counts, reference counts, and partial-data indicators.
+
 `omada_site_static_route_summary` call the documented paginated GET
 `/openapi/v1/{omadacId}/sites/{siteId}/routing/static-routings`. All three
 source exports require `page` and `pageSize` and document route status and
@@ -1335,3 +1337,5 @@ A synthetic two-row source JSON payload measured 133 tokens versus 35 tokens for
 
 
 `GET /v1/sites/{site_ref}/networks/{network_ref}/vlan-port-support/summary?vlan_id={id}` reports returned-port support counts for the network’s assigned VLAN. The connector validates the network/VLAN pairing from LAN inventory before reading the support map. It omits device and port identifiers and reports partial coverage where the source shape or row fields are incomplete. This is a read-only, fixture-tested operation; live controller support is unknown.
+
+`GET /v1/sites/{site_ref}/ipsec-sa-summary` and MCP tool `omada_site_ipsec_sa_summary` read the paginated IPsec association list with a 10,000-row limit and return redacted counts by direction. They do not claim that a tunnel is connected.

@@ -847,6 +847,8 @@ A synthetic eight-AP fixture with 608 channel-load rows measured 9,324 source JS
 
 `omada_gateway_info_summary` requires a gateway `device_ref` from the selected site's device inventory. It returns only the documented model, firmware version, and unscaled `lastSeen` integer. The source does not define the time unit or epoch, so no online/offline status is inferred. Addresses, MAC values, IPv6 values, and port details are omitted. Live support is unknown.
 
+`omada_site_policy_route_summary` accepts `site_ref` and returns redacted counts from the paginated policy-routing read. Protocol mapping is omitted because the three API exports refer to an external guide. Unique indices are reported without inferring route precedence.
+
 `omada_site_static_route_summary` reads the selected site's paginated static gateway-route list. It counts only documented route types, enabled status and occurrences of interface, VPN-client and virtual-WAN references. Route names, IDs, destination and next-hop addresses, metrics and descriptions are omitted. Pagination is bounded by the connector limit; an incomplete or oversized response is reported as an error rather than a complete summary. Live support is unknown.
 
 
@@ -856,3 +858,10 @@ A synthetic eight-AP fixture with 608 channel-load rows measured 9,324 source JS
 `omada_compare_incident_reports` accepts 2–8 already-redacted JSON documents from the local site-outage report workflow. It does not call the controller. Only `site_outage_report` schema version 1 is comparable; other schemas are counted and explicitly marked unsupported. Event and alert totals are compared only when report windows are identical and every report is complete. Current reachability snapshots are compared only when their observation timestamps match exactly. Overlapping windows and pagination/missing-field gaps are shown; names, identifiers, free text and raw observations are omitted. The accepted JSON is capped at 60 KiB.
 
 A synthetic pair of existing-format outage reports measured 688 source JSON tokens and 783 comparison-result tokens (95 more) with js-tiktoken 1.0.21 / `o200k_base`. This payload-only sample excludes prompts, schemas, framing and billed agent use; the comparison metadata exceeds the two compact input reports in this case.
+
+`omada_site_ipsec_sa_summary` takes `site_ref` and returns a bounded count of IPsec security-association rows by direction. It omits peer addresses and all row details. The source contract has no connected/disconnected field, so connectivity remains unknown.
+
+
+For the synthetic 20-row example, the redacted IPsec summary used 52 tokens versus 1,863 for the source-shaped JSON (1,811 fewer; 97.21%; js-tiktoken 1.0.21, o200k_base). This is serialized fixture size only, not measured agent billing.
+
+For a synthetic 20-rule policy-routing fixture, the summary used 142 tokens versus 2,562 for source-shaped JSON (2,420 fewer; 94.46%; js-tiktoken 1.0.21, o200k_base). This is fixture serialization only.

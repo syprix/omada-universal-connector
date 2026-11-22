@@ -429,3 +429,8 @@ comparison measured 1,571 source JSON tokens and 83 projected-result tokens
 (1,488 fewer; 94.72%) with js-tiktoken 1.0.21 / `o200k_base`; it excludes
 schemas, prompts, framing, and billed agent usage. Exact-head hosted CI is not
 yet available because this change has not been uploaded.
+
+Policy-routing summary is implemented for the documented read contract and exposed through HTTP and MCP. Live controller support has not been checked.
+
+
+The IPsec security-association summary is implemented as a read-only HTTP and MCP operation. Live controller support and actual tunnel state remain unverified.

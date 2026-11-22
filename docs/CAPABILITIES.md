@@ -1,6 +1,8 @@
 # Capability evidence
 
 `GET /v1/sites/{site_ref}/static-route-summary` and MCP tool
+`omada_site_policy_route_summary` provides a bounded, read-only summary of documented policy-routing rows for one selected site. It counts source, destination and interface types, enabled state and opaque reference occurrences; it marks unknown values and index quality. It does not disclose IDs or names, infer precedence, or claim that a route is carrying traffic.
+
 `omada_site_static_route_summary` provide a bounded read-only overview of the
 selected site's static gateway routes. The response counts documented route
 types, status values and occurrences of interface, VPN-client and virtual-WAN
@@ -1272,3 +1274,10 @@ The AP-specific SSID override audit read is documented by Hardware Controller 6.
 ### Existing incident report comparison
 
 `POST /v1/incident-reports/compare` and MCP tool `omada_compare_incident_reports` summarize 2–8 existing redacted `site_outage_report` JSON documents. They perform only local processing and make zero controller requests. The versioned allowlist compares event/alert totals only for identical windows with complete sources and compares current reachability only for identical observation timestamps. Different windows, partial reports, pagination limits, unsupported schemas and missing data remain visible. Report text, names, identifiers and raw observations are never copied into the result.
+
+`omada_site_ipsec_sa_summary` provides redacted counts of documented IPsec security associations for one selected site, grouped by in/out direction. Peer addresses, IDs and algorithm details are not returned. The API has no connection-state field; this summary does not confirm tunnel connectivity.
+
+
+A synthetic 20-row IPsec fixture measured 1,863 source JSON tokens versus 52 tokens for the projected counts (1,811 fewer; 97.21%) using js-tiktoken 1.0.21 with o200k_base. This excludes schemas, MCP framing, live responses and billed agent usage.
+
+A synthetic 20-row policy-routing fixture measured 2,562 source JSON tokens versus 142 tokens for its redacted projection (2,420 fewer; 94.46%) using js-tiktoken 1.0.21 with o200k_base. This excludes schemas, MCP framing, live responses and billed agent usage.
