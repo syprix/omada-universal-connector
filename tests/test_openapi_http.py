@@ -713,6 +713,30 @@ class FakeOpenApiClient:
                 "missing_field_count": 0, "invalid_field_count": 0,
                 "unknown_field_count": 0, "partial": False}
 
+    def read_site_ipsec_sa_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_ipsec_sa_summary", site_ref))
+        return {"status": "ok", "resource": "site_ipsec_sa_summary",
+                "site_ref": site_ref, "security_association_count": 2,
+                "by_direction": {"in": 1, "out": 1},
+                "missing_direction_count": 0, "invalid_row_count": 0,
+                "invalid_field_count": 0, "unknown_field_count": 0,
+                "partial": False,
+                "connection_status": "not provided by the source contract; tunnel state is unknown"}
+
+    def read_site_policy_route_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_policy_route_summary", site_ref))
+        return {"status": "ok", "resource": "site_policy_route_summary",
+                "site_ref": site_ref, "count": 1,
+                "summary": {"by_source_type": {"network": 1},
+                            "by_destination_type": {"ip_group": 1},
+                            "by_interface_type": {"wan": 1},
+                            "by_enabled": {"true": 1},
+                            "reference_occurrences": {"source": 1},
+                            "index_count": 1, "indices_unique": True,
+                            "unknown_fields": 0, "invalid_fields": 0,
+                            "invalid_rows": 0}, "partial": False,
+                "ordering": "indices observed without precedence inference"}
+
     def read_site_static_route_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_static_route_summary", site_ref))
         return {"status": "ok", "resource": "site_static_route_summary",
@@ -4122,6 +4146,42 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(response["result"]["structuredContent"], direct)
         self.assertEqual(self.fake.calls,
                          [("gateway_info_summary", site_ref + ":" + device_ref)] * 2)
+
+    def test_http_and_mcp_expose_ipsec_sa_summary(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/ipsec-sa-summary"
+        status, body = self.request(path)
+        self.assertEqual(status, 401)
+        self.assertEqual(body["error"], "unauthorized")
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(direct["resource"], "site_ipsec_sa_summary")
+        request = {"jsonrpc": "2.0", "id": 230, "method": "tools/call",
+                   "params": {"name": "omada_site_ipsec_sa_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_ipsec_sa_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_policy_route_summary(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/policy-route-summary"
+        status, body = self.request(path)
+        self.assertEqual(status, 401)
+        self.assertEqual(body["error"], "unauthorized")
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(direct["resource"], "site_policy_route_summary")
+        request = {"jsonrpc": "2.0", "id": 229, "method": "tools/call",
+                   "params": {"name": "omada_site_policy_route_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_policy_route_summary", site_ref)] * 2)
 
     def test_http_and_mcp_expose_static_route_summary(self) -> None:
         site_ref = "a" * 24
