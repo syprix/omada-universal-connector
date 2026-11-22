@@ -1099,6 +1099,15 @@ class FakeOpenApiClient:
         return {"status": "ok", "resource": "site_vlan_port_support_summary",
                 "supported_port_count": 2, "unsupported_port_count": 1, "partial": False}
 
+    def read_site_vlan_affected_ports_summary(self, site_ref: str, network_ref: str,
+                                              vlan_id: int, page_number: int,
+                                              page_size: int) -> dict[str, object]:
+        self.calls.append(("site_vlan_affected_ports_summary", site_ref, network_ref,
+                           vlan_id, page_number, page_size))
+        return {"status": "ok", "resource": "site_vlan_affected_ports_summary",
+                "reported_affected_device_count": 3, "sampled_device_count": 2,
+                "partial": True}
+
     def read_site_wifi_calling_profiles_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_wifi_calling_profiles_summary", site_ref))
         return {"status": "ok", "resource": "site_wifi_calling_profiles_summary",
@@ -1663,6 +1672,21 @@ class FakeOpenApiClient:
         self.calls.append(("site_poe_schedule_summary", site_ref))
         return {"status": "ok", "resource": "site_poe_schedule_summary",
                 "site_ref": site_ref, "data": {"switches": []}, "partial": False}
+
+    def read_site_port_schedule_summary(self, site_ref: str, page_number: int,
+                                        page_size: int) -> dict[str, object]:
+        self.calls.append(("site_port_schedule_summary", site_ref, page_number, page_size))
+        return {"status": "ok", "resource": "site_port_schedule_summary",
+                "reported_schedule_count": 2, "sampled_schedule_count": 1,
+                "partial": True}
+
+    def read_site_routing_table_summary(self, site_ref: str, device_type: str,
+                                        page_number: int, page_size: int) -> dict[str, object]:
+        self.calls.append(("site_routing_table_summary", site_ref, device_type,
+                           page_number, page_size))
+        return {"status": "ok", "resource": "site_routing_table_summary",
+                "device_type": device_type, "reported_route_count": 5,
+                "sampled_route_count": 3, "partial": True}
 
     def read_site_device_counts_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_device_counts_summary", site_ref))
@@ -2333,6 +2357,13 @@ class FakeOpenApiClient:
                 "page_size": page_size, "total_rows": 3, "returned_client_count": 2,
                 "has_more_pages": True, "client_traffic_total": 80},
                 "partial": True}
+
+    def read_site_recent_clients_summary(self, site_ref: str, start_ms: int,
+                                          end_ms: int) -> dict[str, object]:
+        self.calls.append(("site_recent_clients_summary", site_ref, start_ms, end_ms))
+        return {"status": "ok", "resource": "site_recent_clients_summary",
+                "site_ref": site_ref, "reported_client_count": 7,
+                "sampled_row_count": 5, "partial": True}
 
     def read_site_device_tag_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_device_tag_summary", site_ref))
@@ -6319,6 +6350,42 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(self.fake.calls,
                          [("site_poe_schedule_summary", site_ref)] * 2)
 
+    def test_http_and_mcp_expose_bounded_site_port_schedule_summary(self) -> None:
+        site_ref = "a" * 24
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/port-schedules/summary?page_number=1&page_size=25",
+            self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["reported_schedule_count"], 2)
+        request = {"jsonrpc": "2.0", "id": 140, "method": "tools/call",
+                   "params": {"name": "omada_site_port_schedule_summary",
+                              "arguments": {"site_ref": site_ref,
+                                            "page_number": 1, "page_size": 25}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"]["resource"],
+                         "site_port_schedule_summary")
+        self.assertEqual(self.fake.calls,
+                         [("site_port_schedule_summary", site_ref, 1, 25)] * 2)
+
+    def test_http_and_mcp_expose_selected_routing_table_type(self) -> None:
+        site_ref = "a" * 24
+        route = (f"/v1/sites/{site_ref}/routing-table/summary?device_type=switch&"
+                 "page_number=0&page_size=20")
+        status, response = self.request(route, self.token)
+        self.assertEqual(status, 200, repr(response))
+        self.assertEqual(response["device_type"], "switch")
+        request = {"jsonrpc": "2.0", "id": 141, "method": "tools/call",
+                   "params": {"name": "omada_site_routing_table_summary",
+                              "arguments": {"site_ref": site_ref, "device_type": "switch",
+                                            "page_number": 0, "page_size": 20}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"].get("resource"),
+                         "site_routing_table_summary", repr(rpc))
+        self.assertEqual(self.fake.calls,
+                         [("site_routing_table_summary", site_ref, "switch", 0, 20)] * 2)
+
     def test_http_and_mcp_expose_site_device_counts_summary(self) -> None:
         site_ref = "a" * 24
         status, response = self.request(
@@ -7609,6 +7676,25 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(self.fake.calls,
                          [("site_client_traffic_summary", site_ref, 0, 2)] * 2)
 
+    def test_http_and_mcp_expose_windowed_recent_client_counts(self) -> None:
+        site_ref = "a" * 24
+        start_ms, end_ms = 1790000000000, 1790000001000
+        query = f"start_ms={start_ms}&end_ms={end_ms}"
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/clients/recent-summary?{query}", self.token)
+        self.assertEqual(status, 200, (repr(response), repr(self.fake.calls)))
+        self.assertEqual(response["reported_client_count"], 7)
+        request = {"jsonrpc": "2.0", "id": 169, "method": "tools/call",
+                   "params": {"name": "omada_site_recent_clients_summary",
+                              "arguments": {"site_ref": site_ref,
+                                            "start_ms": start_ms, "end_ms": end_ms}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"]["resource"],
+                         "site_recent_clients_summary")
+        self.assertEqual(self.fake.calls,
+                         [("site_recent_clients_summary", site_ref, start_ms, end_ms)] * 2)
+
     def test_http_and_mcp_expose_redacted_site_device_tag_summary(self) -> None:
         site_ref = "a" * 24
         status, response = self.request(f"/v1/sites/{site_ref}/device-tags/summary", self.token)
@@ -7969,6 +8055,28 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(body["resource"], "site_vlan_device_usage_summary")
         self.assertEqual(self.fake.calls[-1],
                          ("site_vlan_device_usage_summary", site_ref, network_ref, 24))
+
+    def test_site_vlan_affected_ports_summary_is_available_over_http_and_mcp(self) -> None:
+        site_ref, network_ref = "a" * 24, "b" * 24
+        route = (f"/v1/sites/{site_ref}/networks/{network_ref}/"
+                 "vlans/affected-ports-summary?vlan_id=52&page_number=0&page_size=10")
+        status, body = self.request(route, self.token)
+        self.assertEqual(status, 200, repr(body))
+        self.assertEqual(body["resource"], "site_vlan_affected_ports_summary")
+        self.assertTrue(body["partial"])
+        self.assertEqual(self.fake.calls[-1],
+                         ("site_vlan_affected_ports_summary", site_ref, network_ref, 52, 0, 10))
+        status, response = self.request_post("/mcp", {
+            "jsonrpc": "2.0", "id": 395, "method": "tools/call",
+            "params": {"name": "omada_site_vlan_affected_ports_summary",
+                       "arguments": {"site_ref": site_ref, "network_ref": network_ref,
+                                     "vlan_id": 52, "page_number": 0, "page_size": 10}},
+        }, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"]["resource"],
+                         "site_vlan_affected_ports_summary")
+        self.assertEqual(self.fake.calls[-1],
+                         ("site_vlan_affected_ports_summary", site_ref, network_ref, 52, 0, 10))
 
     def test_site_vlan_port_support_summary_is_available_over_http_and_mcp(self) -> None:
         site_ref, network_ref = "a" * 24, "b" * 24

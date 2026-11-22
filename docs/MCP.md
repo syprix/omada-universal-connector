@@ -879,3 +879,17 @@ A synthetic four-field comparison measured 40 projected tokens versus 68 for the
 `omada_site_bridge_device_summary` reads only the documented adopted and pending bridge-device lists. It reports redacted status-code and group counts plus per-list pagination coverage; code meanings are not inferred.
 
 On a synthetic 10-adopted/4-pending bridge inventory, the projection measured 127 tokens versus 1,042 source-shaped tokens (915 fewer; 87.81%; js-tiktoken 1.0.21, o200k_base), excluding schemas, framing and billed usage.
+
+`omada_site_recent_clients_summary` accepts `site_ref`, `start_ms` and `end_ms`. The window is limited to 24 hours and returns one page of up to 100 rows as counts only. It does not interpret the undocumented `lastSeen` unit or infer outages. A synthetic 20-client fixture measured 1,546 source tokens and 83 summary tokens (94.63% fewer; js-tiktoken 1.0.21/o200k_base).
+
+`omada_site_vlan_affected_ports_summary` accepts `site_ref`, `network_ref`, `vlan_id`, `page_number` and `page_size` (1–100). It counts documented device types and port/LAG memberships for the selected network/VLAN; identifiers and client details are omitted. The counts are memberships, not unique physical ports. A synthetic 10-device fixture measured 1,445 source tokens and 121 summary tokens (91.63% fewer; js-tiktoken 1.0.21/o200k_base).
+
+The documented SSID client-list read is not exposed because the ER7212PC export omits the route and leaves `queryDataVO` serialization unspecified.
+
+`omada_site_port_schedule_summary` accepts a site plus `page_number` (zero-based) and `page_size` (1–100). It returns redacted schedule and supported-port counts. The join uses the documented device MAC key only when it is unique in the selected site. It does not expose port identifiers or predict schedule execution; the `nextExecute` timestamp unit is unspecified.
+
+A synthetic 10-schedule/four-device fixture measured 1,729 source tokens and 188 summary tokens (89.13% fewer; js-tiktoken 1.0.21/o200k_base), excluding schemas and billed usage.
+
+`omada_site_routing_table_summary` accepts a site, `device_type` (`gateway` or `switch`), zero-based `page_number`, and `page_size` (1–100). It returns only page coverage and counts of uninterpreted route type values. It omits destinations and hops and makes no configuration changes.
+
+A synthetic 20-row route table measured 3,151 source tokens and 108 summary tokens (96.57% fewer; js-tiktoken 1.0.21/o200k_base), excluding schemas and billed usage.

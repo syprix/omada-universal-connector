@@ -722,6 +722,11 @@ def _tool(operation: Any) -> dict[str, object]:
                 "type": "integer", "enum": [1, 2, 3],
                 "description": "Device type: 1 access points, 2 wireless routers, 3 both.",
             }
+        elif name == "device_type" and operation.operation_id == "site_routing_table_summary":
+            properties[name] = {
+                "type": "string", "enum": ["gateway", "switch"],
+                "description": "Documented route table scope.",
+            }
         if not alternatives:
             required.append(name)
     input_schema: dict[str, object] = {
@@ -1329,6 +1334,10 @@ def _invoke_tool(registry: Any, name: object, arguments: object,
             if type(value) is not int or value not in (1, 2, 3):
                 raise McpRequestError("arguments_invalid")
             safe_arguments[key] = str(value)
+        elif key == "device_type" and operation.operation_id == "site_routing_table_summary":
+            if value not in {"gateway", "switch"}:
+                raise McpRequestError("arguments_invalid")
+            safe_arguments[key] = value
     if {"start_local", "end_local", "time_zone"} <= set(safe_arguments):
         try:
             resolve_local_site_log_window(

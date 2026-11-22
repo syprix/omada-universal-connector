@@ -1380,6 +1380,8 @@ class OmadaOpenApiClient:
     _SITE_POE_USAGE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/poe-usage"
     _SITE_POE_PORTS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/poe-ports"
     _SITE_POE_SCHEDULES_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/poe-schedules"
+    _SITE_PORT_SCHEDULES_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/port-schedules"
+    _SITE_PORT_SCHEDULE_PORTS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/port-status-ports"
     _SITE_TIME_RANGE_PROFILES_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/time-range-profiles"
     _SITE_DEVICE_COUNTS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/card/overview"
     _SITE_IPSEC_TUNNEL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/lpset-tunnel-stats"
@@ -1862,6 +1864,11 @@ class OmadaOpenApiClient:
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
         r"/dashboard/clientTraffic\?start=([0-9]{1,16})&end=([0-9]{1,16})"
         r"&page=(0|[1-9][0-9]{0,4})&pageSize=([1-9][0-9]{0,2})"
+    )
+    _SITE_RECENT_CLIENTS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/insight/clients\?page=1&pageSize=([1-9][0-9]{0,2})"
+        r"&filters\.timeStart=([0-9]{1,16})&filters\.timeEnd=([0-9]{1,16})"
     )
     _SITE_TEMPLATE_REQUEST = re.compile(r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sitetemplates\?page=[0-9]+&pageSize=[0-9]+")
     _RRM_INCOMPATIBLE_REQUEST = re.compile(
@@ -2893,6 +2900,8 @@ class OmadaOpenApiClient:
         ("site_client_connection_summary", "GET /v1/sites/{site_ref}/client-connection-summary"),
         ("site_poe_usage_summary", "GET /v1/sites/{site_ref}/poe-usage-summary"),
         ("site_poe_schedule_summary", "GET /v1/sites/{site_ref}/poe/schedule-summary"),
+        ("site_port_schedule_summary", "GET /v1/sites/{site_ref}/port-schedules/summary"),
+        ("site_routing_table_summary", "GET /v1/sites/{site_ref}/routing-table/summary"),
         ("site_device_counts_summary", "GET /v1/sites/{site_ref}/device-counts-summary"),
         ("site_ipsec_tunnel_summary", "GET /v1/sites/{site_ref}/ipsec-tunnel-summary"),
         ("site_client_association_time_summary", "GET /v1/sites/{site_ref}/client-association-time-summary"),
@@ -2967,6 +2976,7 @@ class OmadaOpenApiClient:
         ("site_client_activity_summary", "GET /v1/sites/{site_ref}/client-activity-summary"),
         ("site_client_association_activity_summary", "GET /v1/sites/{site_ref}/client-association-activity-summary"),
         ("site_client_traffic_summary", "GET /v1/sites/{site_ref}/client-traffic-summary"),
+        ("site_recent_clients_summary", "GET /v1/sites/{site_ref}/clients/recent-summary"),
         ("site_topology_network_summary", "GET /v1/sites/{site_ref}/topology/network-summary"),
         ("site_topology_vlan_summary", "GET /v1/sites/{site_ref}/topology/vlan-summary"),
         ("site_unresolved_incident_count", "GET /v1/sites/{site_ref}/incidents/unresolved-count"),
@@ -3041,6 +3051,7 @@ class OmadaOpenApiClient:
         ("site_vlan_ssid_usage_summary", "GET /v1/sites/{site_ref}/networks/{network_ref}/vlan-ssids/summary"),
         ("site_vlan_device_usage_summary", "GET /v1/sites/{site_ref}/networks/{network_ref}/vlan-devices/summary"),
         ("site_vlan_port_support_summary", "GET /v1/sites/{site_ref}/networks/{network_ref}/vlan-port-support/summary"),
+        ("site_vlan_affected_ports_summary", "GET /v1/sites/{site_ref}/networks/{network_ref}/vlans/affected-ports-summary"),
         ("site_wifi_calling_profiles_summary", "GET /v1/sites/{site_ref}/wifi-calling/profiles/summary"),
         ("site_client_filter_options_summary", "GET /v1/sites/{site_ref}/clients/filter-options/summary"),
         ("site_eap_dot1x_candidates_summary", "GET /v1/sites/{site_ref}/dot1x/eap-candidates/summary"),
@@ -6583,6 +6594,45 @@ class OmadaOpenApiClient:
         except VlanPortSupportError:
             raise OpenApiError("openapi_response_invalid") from None
         return {"status": "ok", "resource": "site_vlan_port_support_summary",
+                "site_ref": site_ref, "network_ref": network_ref,
+                "vlan_id": vlan_id, **summary}
+
+    @_track_capability("site_vlan_affected_ports_summary")
+    def read_site_vlan_affected_ports_summary(self, site_ref: str, network_ref: str,
+                                              vlan_id: int, page_number: int,
+                                              page_size: int) -> dict[str, object]:
+        """Summarize redacted page counts for a selected network and VLAN."""
+        if (type(vlan_id) is not int or not 1 <= vlan_id <= 4094 or
+                type(page_number) is not int or not 0 <= page_number <= 10_000 or
+                type(page_size) is not int or not 1 <= page_size <= 100):
+            raise OpenApiError("query_arguments_invalid")
+        inventory = self.list_networks(site_ref)
+        selected = next((row for row in inventory["items"]
+                         if isinstance(row, dict) and row.get("network_ref") == network_ref), None)
+        if selected is None:
+            raise OpenApiError("network_ref_unknown")
+        if selected.get("purpose") != 0 or selected.get("vlan") != vlan_id:
+            raise OpenApiError("network_vlan_mismatch")
+        site_id = self._resolve_site_ref(site_ref)
+        network_id = self._network_ids_by_site_ref.get(site_ref, {}).get(network_ref, "")
+        if not network_id:
+            raise OpenApiError("network_ref_unknown")
+        path = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/networks/"
+                f"{network_id}/vlan/{vlan_id}/ports?page={page_number + 1}&pageSize={page_size}")
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_vlan_affected_ports_summary import (
+                VlanAffectedPortsError, project_site_vlan_affected_ports,
+            )
+        except ImportError:  # direct execution in the image
+            from site_vlan_affected_ports_summary import (
+                VlanAffectedPortsError, project_site_vlan_affected_ports,
+            )
+        try:
+            summary = project_site_vlan_affected_ports(result, page_number, page_size)
+        except VlanAffectedPortsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_vlan_affected_ports_summary",
                 "site_ref": site_ref, "network_ref": network_ref,
                 "vlan_id": vlan_id, **summary}
 
@@ -10854,6 +10904,65 @@ class OmadaOpenApiClient:
         except ValueError:
             raise OpenApiError("openapi_response_invalid") from None
 
+    @_track_capability("site_port_schedule_summary")
+    def read_site_port_schedule_summary(self, site_ref: str, page_number: int,
+                                        page_size: int) -> dict[str, object]:
+        """Summarize one page of schedules and their supported port membership."""
+        if (type(page_number) is not int or not 0 <= page_number <= 10_000 or
+                type(page_size) is not int or not 1 <= page_size <= 100):
+            raise OpenApiError("query_arguments_invalid")
+        site_id = self._resolve_site_ref(site_ref)
+        token = self._access_token()
+        schedule_path = (self._SITE_PORT_SCHEDULES_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id) +
+            "?" + urlencode({"page": page_number + 1, "pageSize": page_size}))
+        schedule_result = self._request_json("GET", schedule_path, token=token).get("result")
+        port_result = self._request_json("GET", self._SITE_PORT_SCHEDULE_PORTS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id), token=token).get("result")
+        try:
+            from .site_port_schedule_summary import (
+                SitePortScheduleError, project_site_port_schedule_summary,
+            )
+        except ImportError:  # direct execution in the image
+            from site_port_schedule_summary import (
+                SitePortScheduleError, project_site_port_schedule_summary,
+            )
+        try:
+            summary = project_site_port_schedule_summary(
+                schedule_result, port_result, page_number, page_size)
+        except SitePortScheduleError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_port_schedule_summary",
+                "site_ref": site_ref, **summary}
+
+    @_track_capability("site_routing_table_summary")
+    def read_site_routing_table_summary(self, site_ref: str, device_type: str,
+                                        page_number: int, page_size: int) -> dict[str, object]:
+        """Read one redacted page for a documented gateway or switch table."""
+        if (device_type not in {"gateway", "switch"} or
+                type(page_number) is not int or not 0 <= page_number <= 10_000 or
+                type(page_size) is not int or not 1 <= page_size <= 100):
+            raise OpenApiError("query_arguments_invalid")
+        site_id = self._resolve_site_ref(site_ref)
+        path = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/insight/"
+                f"routing/{device_type}?page={page_number + 1}&pageSize={page_size}")
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_routing_table_summary import (
+                SiteRoutingTableError, project_site_routing_table,
+            )
+        except ImportError:  # direct execution in the image
+            from site_routing_table_summary import (
+                SiteRoutingTableError, project_site_routing_table,
+            )
+        try:
+            summary = project_site_routing_table(
+                result, device_type, page_number, page_size)
+        except SiteRoutingTableError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_routing_table_summary",
+                "site_ref": site_ref, **summary}
+
     @_track_capability("site_poe_usage_summary")
     def read_site_poe_usage_summary(self, site_ref: str) -> dict[str, object]:
         """Read PoE use and rated capacity without returning switch identities."""
@@ -12767,6 +12876,37 @@ class OmadaOpenApiClient:
         return {"status": "ok", "resource": "site_client_traffic_summary",
                 "site_ref": site_ref, **projected}
 
+    @_track_capability("site_recent_clients_summary")
+    def read_site_recent_clients_summary(self, site_ref: str, start_ms: int,
+                                         end_ms: int) -> dict[str, object]:
+        """Count a bounded known-client sample using the documented ms filters."""
+        try:
+            from .site_recent_clients_summary import (
+                SiteRecentClientsError, project_site_recent_clients,
+            )
+        except ImportError:  # direct execution in the image
+            from site_recent_clients_summary import (
+                SiteRecentClientsError, project_site_recent_clients,
+            )
+        size = min(self.config.page_size, 100)
+        try:
+            project_site_recent_clients(
+                {"totalRows": 0, "currentPage": 1, "currentSize": 0, "data": []},
+                start_ms, end_ms, size)
+        except SiteRecentClientsError:
+            raise OpenApiError("query_arguments_invalid") from None
+        site_id = self._resolve_site_ref(site_ref)
+        path = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/insight/clients"
+                f"?page=1&pageSize={size}&filters.timeStart={start_ms}"
+                f"&filters.timeEnd={end_ms}")
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            projected = project_site_recent_clients(payload.get("result"), start_ms, end_ms, size)
+        except SiteRecentClientsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_recent_clients_summary",
+                "site_ref": site_ref, **projected}
+
     @_track_capability("site_switch_qos_mode")
     def read_site_switch_qos_mode(self, site_ref: str) -> dict[str, object]:
         """Read the documented switch QoS mode and transition state only."""
@@ -14398,6 +14538,11 @@ class OmadaOpenApiClient:
                                   self._site_client_activity_request_valid(path) or
                                   self._site_client_association_activity_request_valid(path) or
                                   self._site_client_traffic_request_valid(path) or
+                                  self._site_recent_clients_request_valid(path) or
+                                  self._site_vlan_affected_ports_request_valid(path) or
+                                  self._site_port_schedules_request_valid(path) or
+                                  self._site_port_schedule_ports_request_valid(path) or
+                                  self._site_routing_table_request_valid(path) or
                                   self._site_mesh_request_valid(path) or
                                   self._site_multicast_rate_limit_request_valid(path) or
                                   self._site_gre_tunnel_request_valid(path) or
@@ -15868,6 +16013,58 @@ class OmadaOpenApiClient:
         try:
             return (int(match.group(3)) - int(match.group(2)) == 86_400 and
                     int(match.group(4)) <= 10_000 and 1 <= int(match.group(5)) <= 100)
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_recent_clients_request_valid(self, path: str) -> bool:
+        match = self._SITE_RECENT_CLIENTS_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            start, end, size = int(match.group(3)), int(match.group(4)), int(match.group(2))
+            return 1 <= size <= 100 and 0 <= start < end <= (1 << 63) - 1 and end - start <= 31 * 86_400_000
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_vlan_affected_ports_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+            r"/networks/[A-Za-z0-9_-]{1,128}/vlan/([1-9][0-9]{0,3})/ports"
+            r"\?page=([1-9][0-9]{0,4})&pageSize=([1-9][0-9]{0,2})", path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return (int(match.group(2)) <= 4094 and int(match.group(3)) <= 10_001 and
+                    1 <= int(match.group(4)) <= 100)
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_port_schedules_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+            r"/port-schedules\?page=([1-9][0-9]{0,4})&pageSize=([1-9][0-9]{0,2})", path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(2)) <= 10_001 and 1 <= int(match.group(3)) <= 100
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_port_schedule_ports_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+            r"/port-status-ports", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_routing_table_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+            r"/insight/routing/(gateway|switch)\?page=([1-9][0-9]{0,4})"
+            r"&pageSize=([1-9][0-9]{0,2})", path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(3)) <= 10_001 and 1 <= int(match.group(4)) <= 100
         except (ValueError, OverflowError):
             return False
 
