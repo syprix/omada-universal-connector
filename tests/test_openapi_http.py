@@ -2856,7 +2856,7 @@ class OpenApiHttpTests(unittest.TestCase):
             },
         }
         status, unauthorized = self.request_post("/mcp", request)
-        self.assertEqual(status, 401, repr(body))
+        self.assertEqual(status, 401, repr(unauthorized))
         self.assertEqual(unauthorized["error"], "unauthorized")
         self.assertEqual(self.fake.calls, [])
 
@@ -8471,9 +8471,9 @@ class OpenApiHttpTests(unittest.TestCase):
                     "data": {"switches": []}}
 
         self.fake.read_site_switch_port_anomaly_summary = report
-        status, _ = self.request(
+        status, response = self.request(
             f"/v1/sites/{site_ref}/switches/port-anomalies")
-        self.assertEqual(status, 401, repr(body))
+        self.assertEqual(status, 401, repr(response))
         self.assertEqual(calls, [])
 
         status, response = self.request(
