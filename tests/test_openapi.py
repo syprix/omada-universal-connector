@@ -57,6 +57,82 @@ class OpenApiClientTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.tempdir.cleanup()
 
+    def test_bridge_device_summary_reads_both_bounded_grids(self) -> None:
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", side_effect=[
+                    {"result": {"totalRows": 1, "currentPage": 1, "currentSize": 1,
+                                "data": [{"mac": "00:11:22:33:44:55", "name": "secret",
+                                          "type": "bridge", "status": 2, "detailStatus": 1}],
+                                "stackData": [{"stackId": "secret-stack", "stackStatus": 2}]}},
+                    {"result": {"totalRows": 1, "currentPage": 1, "currentSize": 1,
+                                "data": [{"mac": "00:11:22:33:44:66", "type": "bridge",
+                                          "status": 0, "detailStatus": 1}]}}
+                ]) as request:
+            result = self.client.read_site_bridge_device_summary(site_ref)
+        self.assertEqual(result["adopted"]["by_source_status_code"], {"2": 1})
+        self.assertEqual(result["pending"]["by_source_status_code"], {"0": 1})
+        for secret in ("00:11:22:33:44:55", "00:11:22:33:44:66", "secret-stack"):
+            self.assertNotIn(secret, json.dumps(result))
+        self.assertIn("bridge-devices/adopted?page=1&pageSize=2", request.call_args_list[0].args[1])
+        self.assertIn("bridge-devices/pending?page=1&pageSize=2", request.call_args_list[1].args[1])
+
+    def test_site_upnp_template_comparison_uses_selected_inventories(self) -> None:
+        site_ref, template_ref = "a" * 24, "b" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        self.client._site_template_ids_by_ref[template_ref] = "template-1"
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", side_effect=[
+                    {"result": {"enable": True, "wanPortIds": ["wan-a", "wan-b"],
+                                "networkIds": ["network-a"], "supportByDsLiteAndMapE": True}},
+                    {"result": {"enable": True, "wanPortIds": ["wan-a"],
+                                "networkIds": ["network-a"], "supportByDsLiteAndMapE": False}},
+                ]) as request:
+            result = self.client.compare_site_upnp_with_template(site_ref, template_ref)
+        self.assertEqual(result["by_field"], {"enabled": "same", "wan_port_count": "different",
+                                              "network_count": "same",
+                                              "supports_ds_lite_or_map_e": "different"})
+        self.assertEqual(request.call_count, 2)
+        self.assertIn("sites/site-1/upnp", request.call_args_list[0].args[1])
+        self.assertIn("sitetemplates/template-1/upnp", request.call_args_list[1].args[1])
+
+    def test_wan_qos_summary_reads_wans_and_paginated_rules(self) -> None:
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", side_effect=[
+                    {"result": {"data": [{"id": "wan-id", "name": "Private WAN",
+                                            "configured": True}]}},
+                    {"result": {"totalRows": 1, "currentPage": 1, "currentSize": 1,
+                                "data": [{"id": "rule-id", "wan": "wan-id", "status": True,
+                                          "direction": 2, "inBandwidth": 1000,
+                                          "outBandwidth": 2000}]}}
+                ]) as request:
+            result = self.client.read_site_wan_qos_summary(site_ref)
+        self.assertEqual(result["rules_with_exact_wan_match"], 1)
+        for secret in ("wan-id", "rule-id", "Private WAN", "1000", "2000"):
+            self.assertNotIn(secret, json.dumps(result))
+        self.assertIn("/qos/gateway/wans", request.call_args_list[0].args[1])
+        self.assertIn("/qos/gateway/bwcs?page=1&pageSize=2", request.call_args_list[1].args[1])
+
+    def test_vpn_server_status_read_binds_selected_protocol_and_redacts_rows(self) -> None:
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={"result": {
+                    "totalRows": 2, "currentPage": 1, "currentSize": 2,
+                    "data": [{"vpnType": 5, "status": 2, "userName": "private",
+                              "loginIp": "192.0.2.1"},
+                             {"vpnType": 5, "status": 2, "virtualIp": "198.51.100.1"}]}}) as request:
+            result = self.client.read_site_vpn_server_status_summary(site_ref, 5)
+        self.assertEqual(result["by_source_status_code"], {"2": 2})
+        for secret in ("private", "192.0.2.1", "198.51.100.1"):
+            self.assertNotIn(secret, json.dumps(result))
+        self.assertIn("filters.vpnType=5", request.call_args.args[1])
+        self.assertIn("page=1", request.call_args.args[1])
+        self.assertIn("pageSize=2", request.call_args.args[1])
+
     def test_site_poe_schedule_summary_reads_each_fixed_site_feed(self) -> None:
         site_ref = "a" * 24
         switch_ref = "b" * 24

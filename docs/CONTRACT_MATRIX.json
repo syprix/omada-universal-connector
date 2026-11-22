@@ -2192,6 +2192,98 @@
             "response": "Paginated totalRows/currentPage/currentSize/data. Rows document vpnId:int32, spi:int64, name, direction (in/out), peer IPs, local/remote SA, protocol and authentication/encryption strings.",
             "projection": "Counts security-association rows by documented direction. All row values and identifiers are discarded; invalid/unknown fields are counted. The source has no tunnel connection state, so actual connectivity is unknown."
           }
+        },
+        "site_vpn_server_status_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridVpnServerStatus",
+            "permission": "Site Settings Manager View Only or Device Config Page View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/setting/vpn/stats/server",
+            "query": {
+              "filters.vpnType": "required string (0 L2TP, 1 PPTP, 2 IPsec, 3 OpenVPN, 4 WireGuard, 5 SSL VPN)",
+              "page": "required int32",
+              "pageSize": "required int32"
+            },
+            "request_body": false,
+            "response": "Paginated server-status rows. VpnTunnelStatusVO includes an integer status code and vpnType, plus user, peer, virtual-IP and traffic fields; no status-code semantics are documented in these exports.",
+            "projection": "Reads one explicitly selected protocol. Counts rows by source status code without assigning meaning; redacts user, peer, address, traffic, and server identifiers. Missing/invalid fields make the result partial."
+          }
+        },
+        "site_wan_qos_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "wan_operation_id": "getQosWans",
+            "rules_operation_id": "getBandwidthCtrlGrid",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "paths": [
+              "/openapi/v1/{omadacId}/sites/{siteId}/qos/gateway/wans",
+              "/openapi/v1/{omadacId}/sites/{siteId}/qos/gateway/bwcs"
+            ],
+            "query": {
+              "WAN list": "none",
+              "rules": "required page and pageSize int32"
+            },
+            "request_body": false,
+            "response": "WAN rows document id, name, configured:boolean. Rule rows document wan reference, status:boolean, direction codes (0 inbound, 1 outbound, 2 both), UDP/class ratios and integer inbound/outbound bandwidth fields. Units for bandwidth are not specified in the three exports.",
+            "projection": "Counts configured WANs and rule status/direction. Associates rules only where the rule wan string exactly matches one unique WAN id. Redacts all identifiers/names and omits bandwidth values and ratios because their unit is unspecified and ratio semantics are not fully mapped. Does not infer traffic state."
+          }
+        },
+        "site_upnp_template_comparison": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "site_operation_id": "getUpnpSetting",
+            "template_operation_id": null,
+            "site_path": "/openapi/v1/{omadacId}/sites/{siteId}/upnp",
+            "template_path": null,
+            "shared_fields": [
+              "enable",
+              "wanPortIds",
+              "networkIds",
+              "supportByDsLiteAndMapE"
+            ],
+            "projection": "Compares only enabled state, WAN-reference count, network-reference count and the documented DS-Lite/Map-E support flag. Both references are explicitly selected; assignment is not inferred. IDs and names are omitted.",
+            "variant_limit": "The template endpoint and operation are present in CBC Standard 6.3.0 only; absent from Hardware Controller 6.3.0 and ER7212PC 6.2.14 exports. Live support remains unknown."
+          }
+        },
+        "site_bridge_device_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "adopted_operation_id": "getGridAdoptedBridgeDevicesBySite",
+            "pending_operation_id": "getGridPendingBridgeDevicesBySite",
+            "paths": [
+              "/openapi/v1/{omadacId}/sites/{siteId}/grid/bridge-devices/adopted",
+              "/openapi/v1/{omadacId}/sites/{siteId}/grid/bridge-devices/pending"
+            ],
+            "query": {
+              "page": "required int32",
+              "pageSize": "required int32"
+            },
+            "adopted_response": "Paginated data rows with type, status and detailStatus; adopted result additionally exposes stackData with stackStatus. Device, uplink and stack identifiers/names, addresses, serials and telemetry are excluded.",
+            "pending_response": "Paginated data rows with type, status and detailStatus. Names, IDs, IPs and serial numbers are excluded.",
+            "projection": "Aggregates raw documented status codes and stack-group status codes without assigning code meanings. Reports source total, returned count and complete pagination coverage separately for adopted and pending grids.",
+            "live_support": "unknown"
+          }
+        },
+        "site_switch_dhcp_arp_capabilities_contract_gap": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "dhcp_operation_id": "getOswsSupportDhcpSnoop",
+            "dhcp_path": "/openapi/v1/{omadacId}/sites/{siteId}/switches/supportDhcpSnoop",
+            "arp_operation_id": "getOswsSupportArpDetect",
+            "arp_path": "/openapi/v1/{omadacId}/sites/{siteId}/switches/supportArpDetect",
+            "query": {
+              "page": "required int32",
+              "pageSize": "required int32"
+            },
+            "response": "All three exports reference generic OperationResponse with no result properties. ER7212PC examples show only an empty result object.",
+            "projection": "No safe device identifier, support flag or completeness field can be projected. The endpoint cannot be joined to switch inventory or report missing devices until a row contract is supplied.",
+            "state": "open_contract_blocker"
+          }
         }
       }
     },
@@ -4357,6 +4449,98 @@
             "response": "Paginated totalRows/currentPage/currentSize/data. Rows document vpnId:int32, spi:int64, name, direction (in/out), peer IPs, local/remote SA, protocol and authentication/encryption strings.",
             "projection": "Counts security-association rows by documented direction. All row values and identifiers are discarded; invalid/unknown fields are counted. The source has no tunnel connection state, so actual connectivity is unknown."
           }
+        },
+        "site_vpn_server_status_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridVpnServerStatus",
+            "permission": "Site Settings Manager View Only or Device Config Page View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/setting/vpn/stats/server",
+            "query": {
+              "filters.vpnType": "required string (0 L2TP, 1 PPTP, 2 IPsec, 3 OpenVPN, 4 WireGuard, 5 SSL VPN)",
+              "page": "required int32",
+              "pageSize": "required int32"
+            },
+            "request_body": false,
+            "response": "Paginated server-status rows. VpnTunnelStatusVO includes an integer status code and vpnType, plus user, peer, virtual-IP and traffic fields; no status-code semantics are documented in these exports.",
+            "projection": "Reads one explicitly selected protocol. Counts rows by source status code without assigning meaning; redacts user, peer, address, traffic, and server identifiers. Missing/invalid fields make the result partial."
+          }
+        },
+        "site_wan_qos_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "wan_operation_id": "getQosWans",
+            "rules_operation_id": "getBandwidthCtrlGrid",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "paths": [
+              "/openapi/v1/{omadacId}/sites/{siteId}/qos/gateway/wans",
+              "/openapi/v1/{omadacId}/sites/{siteId}/qos/gateway/bwcs"
+            ],
+            "query": {
+              "WAN list": "none",
+              "rules": "required page and pageSize int32"
+            },
+            "request_body": false,
+            "response": "WAN rows document id, name, configured:boolean. Rule rows document wan reference, status:boolean, direction codes (0 inbound, 1 outbound, 2 both), UDP/class ratios and integer inbound/outbound bandwidth fields. Units for bandwidth are not specified in the three exports.",
+            "projection": "Counts configured WANs and rule status/direction. Associates rules only where the rule wan string exactly matches one unique WAN id. Redacts all identifiers/names and omits bandwidth values and ratios because their unit is unspecified and ratio semantics are not fully mapped. Does not infer traffic state."
+          }
+        },
+        "site_upnp_template_comparison": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "site_operation_id": "getUpnpSetting",
+            "template_operation_id": "getUpnpSettingTemplate",
+            "site_path": "/openapi/v1/{omadacId}/sites/{siteId}/upnp",
+            "template_path": "/openapi/v1/{omadacId}/sitetemplates/{siteTemplateId}/upnp",
+            "shared_fields": [
+              "enable",
+              "wanPortIds",
+              "networkIds",
+              "supportByDsLiteAndMapE"
+            ],
+            "projection": "Compares only enabled state, WAN-reference count, network-reference count and the documented DS-Lite/Map-E support flag. Both references are explicitly selected; assignment is not inferred. IDs and names are omitted.",
+            "variant_limit": "The template endpoint and operation are present in CBC Standard 6.3.0 only; absent from Hardware Controller 6.3.0 and ER7212PC 6.2.14 exports. Live support remains unknown."
+          }
+        },
+        "site_bridge_device_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "adopted_operation_id": "getGridAdoptedBridgeDevicesBySite",
+            "pending_operation_id": "getGridPendingBridgeDevicesBySite",
+            "paths": [
+              "/openapi/v1/{omadacId}/sites/{siteId}/grid/bridge-devices/adopted",
+              "/openapi/v1/{omadacId}/sites/{siteId}/grid/bridge-devices/pending"
+            ],
+            "query": {
+              "page": "required int32",
+              "pageSize": "required int32"
+            },
+            "adopted_response": "Paginated data rows with type, status and detailStatus; adopted result additionally exposes stackData with stackStatus. Device, uplink and stack identifiers/names, addresses, serials and telemetry are excluded.",
+            "pending_response": "Paginated data rows with type, status and detailStatus. Names, IDs, IPs and serial numbers are excluded.",
+            "projection": "Aggregates raw documented status codes and stack-group status codes without assigning code meanings. Reports source total, returned count and complete pagination coverage separately for adopted and pending grids.",
+            "live_support": "unknown"
+          }
+        },
+        "site_switch_dhcp_arp_capabilities_contract_gap": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "dhcp_operation_id": "getOswsSupportDhcpSnoop",
+            "dhcp_path": "/openapi/v1/{omadacId}/sites/{siteId}/switches/supportDhcpSnoop",
+            "arp_operation_id": "getOswsSupportArpDetect",
+            "arp_path": "/openapi/v1/{omadacId}/sites/{siteId}/switches/supportArpDetect",
+            "query": {
+              "page": "required int32",
+              "pageSize": "required int32"
+            },
+            "response": "All three exports reference generic OperationResponse with no result properties. ER7212PC examples show only an empty result object.",
+            "projection": "No safe device identifier, support flag or completeness field can be projected. The endpoint cannot be joined to switch inventory or report missing devices until a row contract is supplied.",
+            "state": "open_contract_blocker"
+          }
         }
       }
     },
@@ -6500,6 +6684,98 @@
             "request_body": false,
             "response": "Paginated totalRows/currentPage/currentSize/data. Rows document vpnId:int32, spi:int64, name, direction (in/out), peer IPs, local/remote SA, protocol and authentication/encryption strings.",
             "projection": "Counts security-association rows by documented direction. All row values and identifiers are discarded; invalid/unknown fields are counted. The source has no tunnel connection state, so actual connectivity is unknown."
+          }
+        },
+        "site_vpn_server_status_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridVpnServerStatus",
+            "permission": "Site Settings Manager View Only or Device Config Page View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/setting/vpn/stats/server",
+            "query": {
+              "filters.vpnType": "required string (0 L2TP, 1 PPTP, 2 IPsec, 3 OpenVPN, 4 WireGuard, 5 SSL VPN)",
+              "page": "required int32",
+              "pageSize": "required int32"
+            },
+            "request_body": false,
+            "response": "Paginated server-status rows. VpnTunnelStatusVO includes an integer status code and vpnType, plus user, peer, virtual-IP and traffic fields; no status-code semantics are documented in these exports.",
+            "projection": "Reads one explicitly selected protocol. Counts rows by source status code without assigning meaning; redacts user, peer, address, traffic, and server identifiers. Missing/invalid fields make the result partial."
+          }
+        },
+        "site_wan_qos_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "wan_operation_id": "getQosWans",
+            "rules_operation_id": "getBandwidthCtrlGrid",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "paths": [
+              "/openapi/v1/{omadacId}/sites/{siteId}/qos/gateway/wans",
+              "/openapi/v1/{omadacId}/sites/{siteId}/qos/gateway/bwcs"
+            ],
+            "query": {
+              "WAN list": "none",
+              "rules": "required page and pageSize int32"
+            },
+            "request_body": false,
+            "response": "WAN rows document id, name, configured:boolean. Rule rows document wan reference, status:boolean, direction codes (0 inbound, 1 outbound, 2 both), UDP/class ratios and integer inbound/outbound bandwidth fields. Units for bandwidth are not specified in the three exports.",
+            "projection": "Counts configured WANs and rule status/direction. Associates rules only where the rule wan string exactly matches one unique WAN id. Redacts all identifiers/names and omits bandwidth values and ratios because their unit is unspecified and ratio semantics are not fully mapped. Does not infer traffic state."
+          }
+        },
+        "site_upnp_template_comparison": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "site_operation_id": "getUpnpSetting",
+            "template_operation_id": null,
+            "site_path": "/openapi/v1/{omadacId}/sites/{siteId}/upnp",
+            "template_path": null,
+            "shared_fields": [
+              "enable",
+              "wanPortIds",
+              "networkIds",
+              "supportByDsLiteAndMapE"
+            ],
+            "projection": "Compares only enabled state, WAN-reference count, network-reference count and the documented DS-Lite/Map-E support flag. Both references are explicitly selected; assignment is not inferred. IDs and names are omitted.",
+            "variant_limit": "The template endpoint and operation are present in CBC Standard 6.3.0 only; absent from Hardware Controller 6.3.0 and ER7212PC 6.2.14 exports. Live support remains unknown."
+          }
+        },
+        "site_bridge_device_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "adopted_operation_id": "getGridAdoptedBridgeDevicesBySite",
+            "pending_operation_id": "getGridPendingBridgeDevicesBySite",
+            "paths": [
+              "/openapi/v1/{omadacId}/sites/{siteId}/grid/bridge-devices/adopted",
+              "/openapi/v1/{omadacId}/sites/{siteId}/grid/bridge-devices/pending"
+            ],
+            "query": {
+              "page": "required int32",
+              "pageSize": "required int32"
+            },
+            "adopted_response": "Paginated data rows with type, status and detailStatus; adopted result additionally exposes stackData with stackStatus. Device, uplink and stack identifiers/names, addresses, serials and telemetry are excluded.",
+            "pending_response": "Paginated data rows with type, status and detailStatus. Names, IDs, IPs and serial numbers are excluded.",
+            "projection": "Aggregates raw documented status codes and stack-group status codes without assigning code meanings. Reports source total, returned count and complete pagination coverage separately for adopted and pending grids.",
+            "live_support": "unknown"
+          }
+        },
+        "site_switch_dhcp_arp_capabilities_contract_gap": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "dhcp_operation_id": "getOswsSupportDhcpSnoop",
+            "dhcp_path": "/openapi/v1/{omadacId}/sites/{siteId}/switches/supportDhcpSnoop",
+            "arp_operation_id": "getOswsSupportArpDetect",
+            "arp_path": "/openapi/v1/{omadacId}/sites/{siteId}/switches/supportArpDetect",
+            "query": {
+              "page": "required int32",
+              "pageSize": "required int32"
+            },
+            "response": "All three exports reference generic OperationResponse with no result properties. ER7212PC examples show only an empty result object.",
+            "projection": "No safe device identifier, support flag or completeness field can be projected. The endpoint cannot be joined to switch inventory or report missing devices until a row contract is supplied.",
+            "state": "open_contract_blocker"
           }
         }
       }

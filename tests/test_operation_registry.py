@@ -5,6 +5,37 @@ from app.mcp import _tool
 
 
 class OperationRegistryTests(unittest.TestCase):
+    def test_site_bridge_device_summary_is_site_bound(self):
+        operation = REGISTRY.get("site_bridge_device_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
+        route, bindings = REGISTRY.match("GET", "/v1/sites/" + "a" * 24 +
+                                         "/bridge-devices/summary")
+        self.assertEqual(route.operation_id, "site_bridge_device_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
+
+    def test_site_upnp_template_comparison_requires_both_selected_refs(self):
+        operation = REGISTRY.get("site_upnp_template_comparison")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"],
+                         ["site_ref", "site_template_ref"])
+        path = "/v1/sites/" + "a" * 24 + "/settings/upnp/compare/" + "b" * 24
+        route, bindings = REGISTRY.match("GET", path)
+        self.assertEqual(route.operation_id, "site_upnp_template_comparison")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24,
+                                          "site_template_ref": "b" * 24})
+
+    def test_site_wan_qos_summary_is_a_site_bound_read(self):
+        operation = REGISTRY.get("site_wan_qos_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
+        route, bindings = REGISTRY.match("GET", "/v1/sites/" + "a" * 24 + "/wan-qos-summary")
+        self.assertEqual(route.operation_id, "site_wan_qos_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
+
+    def test_site_vpn_server_status_summary_requires_protocol(self):
+        operation = REGISTRY.get("site_vpn_server_status_summary")
+        schema = _tool(operation)["inputSchema"]
+        self.assertEqual(schema["required"], ["site_ref", "vpn_type"])
+        self.assertEqual(schema["properties"]["vpn_type"]["type"], "integer")
+
     def test_site_ipsec_sa_summary_is_a_site_bound_read(self):
         operation = REGISTRY.get("site_ipsec_sa_summary")
         self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
@@ -605,6 +636,8 @@ class OperationRegistryTests(unittest.TestCase):
             "site_switch_qos_scheduler_summary",
             "site_switch_qos_dscp_summary",
             "site_upnp_summary",
+            "site_upnp_template_comparison",
+            "site_bridge_device_summary",
             "site_iot_aging_time",
             "site_iot_radio_summary",
             "site_mesh_summary",
@@ -659,6 +692,8 @@ class OperationRegistryTests(unittest.TestCase):
             "site_static_route_summary",
             "site_policy_route_summary",
             "site_ipsec_sa_summary",
+            "site_vpn_server_status_summary",
+            "site_wan_qos_summary",
             "site_vlan_network_summary",
             "site_lan_network_detail_summary",
             "site_lan_network_config_summary",

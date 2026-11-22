@@ -434,3 +434,13 @@ Policy-routing summary is implemented for the documented read contract and expos
 
 
 The IPsec security-association summary is implemented as a read-only HTTP and MCP operation. Live controller support and actual tunnel state remain unverified.
+
+VPN server status codes are summarized per selected protocol through a read-only HTTP/MCP operation. The source exports do not define status code meanings; live support is unverified.
+
+WAN QoS configuration is summarized with explicit unmatched/duplicate-reference coverage. Bandwidth values are omitted because the exports do not specify their units. No live-read was performed.
+
+The UPnP site/template comparison is implemented using the existing redacted reads. The template source endpoint is documented only for CBC Standard 6.3.0; other controller variants remain unsupported by the supplied contract evidence.
+
+Bridge inventory is summarized from adopted/pending list reads with identity fields discarded. No adoption or live controller test was performed.
+
+The per-switch DHCP-snooping and ARP-detection capability endpoints have no documented row schema in any supplied export; the ER7212PC example is an empty result object. Safe inventory binding and missing-device accounting therefore cannot be established. No output fields or capability classifications have been guessed; #48 remains open pending a usable response contract.

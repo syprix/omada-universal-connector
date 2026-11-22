@@ -1281,3 +1281,19 @@ The AP-specific SSID override audit read is documented by Hardware Controller 6.
 A synthetic 20-row IPsec fixture measured 1,863 source JSON tokens versus 52 tokens for the projected counts (1,811 fewer; 97.21%) using js-tiktoken 1.0.21 with o200k_base. This excludes schemas, MCP framing, live responses and billed agent usage.
 
 A synthetic 20-row policy-routing fixture measured 2,562 source JSON tokens versus 142 tokens for its redacted projection (2,420 fewer; 94.46%) using js-tiktoken 1.0.21 with o200k_base. This excludes schemas, MCP framing, live responses and billed agent usage.
+
+The selected VPN server status summary reads one protocol per call, counts source status codes without guessing their meaning, and omits user, peer, address and traffic fields. The query accepts protocol codes 0–5 as documented by the API. No controller live-read has been made.
+
+A synthetic 20-row VPN server status fixture measured 1,983 source JSON tokens versus 63 tokens for the code-count projection (1,920 fewer; 96.82%) using js-tiktoken 1.0.21 with o200k_base. This excludes schemas, MCP framing, live responses and billed agent usage.
+
+`omada_site_wan_qos_summary` combines the documented WAN QoS list and paginated rule list. It counts configured ports, rule status and direction, and joins rules only on an exact unique WAN ID match. It omits IDs, names, bandwidth values and ratios: the exports do not specify bandwidth units or fully map ratio semantics. It describes configuration, not observed traffic.
+
+A synthetic 10-port/20-rule fixture measured 1,180 source JSON tokens versus 118 tokens for the summary (1,062 fewer; 90.00%) using js-tiktoken 1.0.21 with o200k_base. This excludes schemas, MCP framing, live responses and billed usage.
+
+`omada_site_upnp_template_comparison` compares four redacted fields for an explicitly selected site and template. It does not infer that the site is assigned to the template. The template read is documented only in CBC Standard 6.3.0; the two other exports do not include that endpoint. Live support is unverified.
+
+A synthetic site/template comparison measured 75 source JSON tokens versus 49 projected tokens (26 fewer; 34.67%) with js-tiktoken 1.0.21/o200k_base. The comparison is limited to this fixture and excludes schemas, MCP framing and billed usage.
+
+`omada_site_bridge_device_summary` combines the paginated adopted and pending bridge-device grids. It returns source status-code counts and stack-group status-code counts without interpreting those codes or exposing identifiers, names, IPs, serials or telemetry. Each grid reports its source total and whether all rows were returned. No adoption is initiated.
+
+A synthetic 10-adopted/4-pending bridge-device fixture measured 1,042 source JSON tokens versus 127 projected tokens (915 fewer; 87.81%) with js-tiktoken 1.0.21/o200k_base. This excludes schemas, MCP framing and billed agent usage.

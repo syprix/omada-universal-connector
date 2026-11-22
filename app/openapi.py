@@ -2720,6 +2720,8 @@ class OmadaOpenApiClient:
         ("site_static_route_summary", "GET /v1/sites/{site_ref}/static-route-summary"),
         ("site_policy_route_summary", "GET /v1/sites/{site_ref}/policy-route-summary"),
         ("site_ipsec_sa_summary", "GET /v1/sites/{site_ref}/ipsec-sa-summary"),
+        ("site_vpn_server_status_summary", "GET /v1/sites/{site_ref}/vpn/servers/status-summary"),
+        ("site_wan_qos_summary", "GET /v1/sites/{site_ref}/wan-qos-summary"),
         ("gateway_wan_health", "GET /v1/sites/{site_ref}/gateways/{device_ref}/wan-health"),
         ("gateway_health", "GET /v1/sites/{site_ref}/gateways/{gateway_ref}/health"),
         ("gateway_health_timeline", "GET /v1/sites/{site_ref}/gateways/{gateway_ref}/health/timeline"),
@@ -2858,6 +2860,8 @@ class OmadaOpenApiClient:
         ("site_switch_qos_scheduler_summary", "GET /v1/sites/{site_ref}/switches/qos/scheduler-summary"),
         ("site_switch_qos_dscp_summary", "GET /v1/sites/{site_ref}/switches/qos/dscp-summary"),
         ("site_upnp_summary", "GET /v1/sites/{site_ref}/settings/upnp-summary"),
+        ("site_upnp_template_comparison", "GET /v1/sites/{site_ref}/settings/upnp/compare/{site_template_ref}"),
+        ("site_bridge_device_summary", "GET /v1/sites/{site_ref}/bridge-devices/summary"),
         ("site_iot_aging_time", "GET /v1/sites/{site_ref}/iot/aging-time-summary"),
         ("site_iot_radio_summary", "GET /v1/sites/{site_ref}/iot/radio-summary"),
         ("site_mesh_summary", "GET /v1/sites/{site_ref}/mesh-summary"),
@@ -8305,6 +8309,62 @@ class OmadaOpenApiClient:
         return {**projected, "site_ref": site_ref,
                 "source_total_rows": payload.get("totalRows")}
 
+    @_track_capability("site_vpn_server_status_summary")
+    def read_site_vpn_server_status_summary(self, site_ref: str,
+                                            vpn_type: int) -> dict[str, object]:
+        """Count source status codes for one protocol without exposing identities."""
+        if type(vpn_type) is not int or vpn_type not in range(6):
+            raise OpenApiError("request_invalid")
+        site_id = self._resolve_site_ref(site_ref)
+        path = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/"
+                "setting/vpn/stats/server")
+        payload = self._read_pages_result(
+            path, self._access_token(), max_items=10_000,
+            query_parameters={"filters.vpnType": str(vpn_type)})
+        rows = payload.get("data")
+        if not isinstance(rows, list):
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            from .site_vpn_server_status_summary import (
+                SiteVpnServerStatusSummaryError, summarize_vpn_server_status,
+            )
+        except ImportError:  # direct execution in the image
+            from site_vpn_server_status_summary import (
+                SiteVpnServerStatusSummaryError, summarize_vpn_server_status,
+            )
+        try:
+            projected = summarize_vpn_server_status(rows, vpn_type)
+        except SiteVpnServerStatusSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**projected, "site_ref": site_ref,
+                "source_total_rows": payload.get("totalRows")}
+
+    @_track_capability("site_wan_qos_summary")
+    def read_site_wan_qos_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize WAN QoS configuration using only exact port references."""
+        site_id = self._resolve_site_ref(site_ref)
+        base = f"/openapi/v1/{self.config.controller_id}/sites/{site_id}"
+        wan_result = self._request_json(
+            "GET", base + "/qos/gateway/wans", token=self._access_token()).get("result")
+        wans = wan_result.get("data") if isinstance(wan_result, dict) else None
+        if not isinstance(wans, list):
+            raise OpenApiError("openapi_response_invalid")
+        rules_payload = self._read_pages_result(
+            base + "/qos/gateway/bwcs", self._access_token(), max_items=10_000)
+        rules = rules_payload.get("data")
+        if not isinstance(rules, list):
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            from .site_wan_qos_summary import SiteWanQosSummaryError, summarize_site_wan_qos
+        except ImportError:  # direct execution in the image
+            from site_wan_qos_summary import SiteWanQosSummaryError, summarize_site_wan_qos
+        try:
+            projected = summarize_site_wan_qos(wans, rules)
+        except SiteWanQosSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**projected, "site_ref": site_ref,
+                "source_rule_total_rows": rules_payload.get("totalRows")}
+
     @_track_capability("gateway_lan_status")
     def read_gateway_lan_status(self, site_ref: str, gateway_ref: str) -> dict[str, object]:
         """Read redacted LAN counters for one inventoried gateway."""
@@ -10537,6 +10597,45 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {"status": "ok", "resource": "site_upnp_summary",
                 "site_ref": site_ref, **projected}
+
+    @_track_capability("site_upnp_template_comparison")
+    def compare_site_upnp_with_template(self, site_ref: str,
+                                        site_template_ref: str) -> dict[str, object]:
+        """Compare common redacted UPnP fields for two explicitly chosen references."""
+        site_summary = self.read_site_upnp_summary(site_ref)
+        template_summary = self.read_site_template_upnp_summary(site_template_ref)
+        try:
+            from .site_upnp_template_comparison import compare_site_and_template_upnp
+        except ImportError:  # direct execution in the image
+            from site_upnp_template_comparison import compare_site_and_template_upnp
+        try:
+            result = compare_site_and_template_upnp(site_summary, template_summary)
+        except ValueError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**result, "site_ref": site_ref,
+                "site_template_ref": site_template_ref}
+
+    @_track_capability("site_bridge_device_summary")
+    def read_site_bridge_device_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize adopted and pending bridge inventories without identities."""
+        site_id = self._resolve_site_ref(site_ref)
+        base = f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/grid/bridge-devices"
+        token = self._access_token()
+        adopted = self._read_pages_result(base + "/adopted", token, max_items=10_000)
+        pending = self._read_pages_result(base + "/pending", token, max_items=10_000)
+        try:
+            from .site_bridge_device_summary import (
+                SiteBridgeDeviceSummaryError, summarize_site_bridge_devices,
+            )
+        except ImportError:  # direct execution in the image
+            from site_bridge_device_summary import (
+                SiteBridgeDeviceSummaryError, summarize_site_bridge_devices,
+            )
+        try:
+            summary = summarize_site_bridge_devices(adopted, pending)
+        except SiteBridgeDeviceSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**summary, "site_ref": site_ref}
 
     @_track_capability("site_iot_aging_time")
     def read_site_iot_aging_time(self, site_ref: str) -> dict[str, object]:
@@ -16736,12 +16835,16 @@ class OmadaOpenApiClient:
         return token
 
     def _read_pages_result(self, base_path: str, token: str, *,
-                           max_items: int | None = None) -> dict[str, object]:
+                           max_items: int | None = None,
+                           query_parameters: dict[str, str] | None = None) -> dict[str, object]:
         rows: list[object] = []
         expected_total: int | None = None
         first_result: dict[str, object] | None = None
         for page in range(1, self.config.max_pages + 1):
-            query = urlencode({"page": page, "pageSize": self.config.page_size})
+            query_values = {"page": page, "pageSize": self.config.page_size}
+            if query_parameters:
+                query_values.update(query_parameters)
+            query = urlencode(query_values)
             payload = self._request_json("GET", base_path + "?" + query, token=token)
             result = payload.get("result")
             data = result.get("data") if isinstance(result, dict) else None
