@@ -7,7 +7,7 @@ import zipfile
 from pathlib import Path
 
 from app.operation_registry import REGISTRY
-from tools.full_api_matrix import build_matrix
+from tools.full_api_matrix import IMPLEMENTED, build_matrix
 
 
 def document(*, suffix: str = "", method: str = "get", media: str = "application/json") -> dict[str, object]:
@@ -45,6 +45,41 @@ class FullApiMatrixTests(unittest.TestCase):
             wlan = source["operations"]["site_ssid_topology_reference_count"]
             self.assertEqual(wlan["documented"], source["label"] != "ER7212PC 6.2.14")
             self.assertEqual(wlan["live_support"], "unknown")
+
+    def test_ipsec_failover_has_a_fixed_deprecated_registry_route(self):
+        path = "/openapi/v1/{controller_id}/sites/{site_id}/vpn/ipsec_failovers"
+        self.assertEqual(IMPLEMENTED[("GET", path)], "implemented_read")
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/ipsec-failovers/summary")
+        self.assertEqual(route.operation_id, "site_ipsec_failover_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
+
+    def test_ipsec_failover_is_documented_and_deprecated_in_all_exports(self):
+        path = Path(__file__).resolve().parents[1] / "docs/CONTRACT_MATRIX.json"
+        matrix = json.loads(path.read_text(encoding="utf-8"))
+        for source in matrix["sources"]:
+            row = source["operations"]["site_ipsec_failover_summary"]
+            self.assertTrue(row["documented"])
+            self.assertEqual(row["live_support"], "unknown")
+            self.assertTrue(row["contract_review"]["deprecated"])
+
+    def test_gateway_sim_sms_support_has_a_fixed_registry_and_matrix_route(self):
+        path = "/openapi/v1/{controller_id}/sites/{site_id}/gateways/{gateway_mac}/sim/sms/support"
+        self.assertEqual(IMPLEMENTED[("GET", path)], "implemented_read")
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/gateways/" + "b" * 24 +
+            "/sim-capabilities-summary")
+        self.assertEqual(route.operation_id, "site_gateway_sim_sms_support_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24, "gateway_ref": "b" * 24})
+
+    def test_gateway_sim_sms_support_is_documented_in_all_exports(self):
+        path = Path(__file__).resolve().parents[1] / "docs/CONTRACT_MATRIX.json"
+        matrix = json.loads(path.read_text(encoding="utf-8"))
+        for source in matrix["sources"]:
+            row = source["operations"]["site_gateway_sim_sms_support_summary"]
+            self.assertTrue(row["documented"])
+            self.assertEqual(row["live_support"], "unknown")
+            self.assertIn("getSupportSmsByMac", row["contract_review"]["operation_id"])
 
     def test_vlan_v2_opaque_topology_count_is_hardware_and_cbc_only(self):
         path = Path(__file__).resolve().parents[1] / "docs/CONTRACT_MATRIX.json"

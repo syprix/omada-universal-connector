@@ -921,7 +921,7 @@ matrix and operation-evidence gate passed 314 tests. Three-export contract
 checks, compileall and diff checks passed. Hosted CI is pending. Live support is
 unknown.
 
-## 2026-11-23 — Switch LAN assignments and SSID topology references (local verification complete)
+## 2026-11-23 — Switch LAN assignments and SSID topology references (integrated)
 
 #123 uses the documented direct `GridVOOswProfileOpenApiVO` response, with a
 fixed page size and a 1,000-row cap. The summary counts device rows and
@@ -946,10 +946,11 @@ regression. Evidence counts were regenerated from the repository registry. `comp
 1.0.21 / `o200k_base`: 20 switch rows with 480 assignments, 4,302→84 tokens
 (98.05% fewer); 20 opaque topology references, 191→55 (71.20% fewer). Tool
 schemas, transport framing, prompts and billed agent usage are excluded. No
-controller or network was contacted; hosted CI has not run because the GitHub
-push is blocked by missing Git credentials.
+controller or network was contacted. PR #64 is merged in main at
+`80a87eb5243bc0980dbd214f6a66934c4f154f96`; both its push and pull-request CI
+runs passed.
 
-## 2026-11-23 — VLAN topology reference count (local verification complete)
+## 2026-11-23 — VLAN topology reference count (integrated in main)
 
 #125 reuses the bounded string-list projector from #124 for the separate
 `getDevicesOfVlan` v2 contract. It refreshes the selected site's LAN network
@@ -960,3 +961,27 @@ Hardware/CBC document the v2 operation; ER7212PC does not. A synthetic
 20-reference response measured 231 source JSON tokens and 60 summary JSON
 tokens (74.03% fewer) using `js-tiktoken` 1.0.21 / `o200k_base`; this excludes
 schemas, transport, prompts and billed usage. Live support has not been checked.
+
+
+## 2026-11-23 — Gateway SIM capability summary (local verification complete)
+
+#126 implements the documented SMS/LTE support fields and dual-SMS count for
+one gateway selected from a freshly refreshed site inventory. The un-enumerated
+Dual-SIM integer is not interpreted; only its presence is reported. Hardware,
+CBC and ER7212PC exports all document the read. No SIM identifiers, messages,
+reachability, or live controller support are reported.
+
+
+## 2026-11-23 — IPsec failover configuration summary (local verification complete)
+
+#127 reads the deprecated, paginated `getGridIpsecFailover` operation and
+counts bounded rule/reference metadata, failback flags, and failback-time field
+presence. The unitless time values, identifiers, names, and nested tunnel states
+are omitted. All three exports document the route; the vendor recommends newer
+site-to-site VPN summary/detail operations. Live support is unknown. A
+synthetic three-rule fixture measured 181 source JSON tokens and 142 projected
+tokens (21.55% fewer; `js-tiktoken` 1.0.21 / `o200k_base`), excluding schemas,
+transport, prompts and billed agent usage.
+
+
+The #126/#127 package was verified on main `80a87eb5243bc0980dbd214f6a66934c4f154f96` with 826 offline tests across the registry, API matrix, operation evidence, OpenAPI, HTTP/MCP and function modules. `compileall` and `git diff --check` passed. The three source exports and full route matrix were checked; live controller behavior remains unknown. GitHub CI for the next draft has not run yet.

@@ -1175,6 +1175,27 @@ class FakeOpenApiClient:
                 "partial": False, "omitted_count": 0, "unknown_field_count": 0,
                 "redacted_field_count": 0}
 
+    def read_site_ipsec_failover_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_ipsec_failover_summary", site_ref))
+        return {"status": "ok", "resource": "site_ipsec_failover_summary",
+                "site_ref": site_ref, "rule_count": 1, "reported_rule_count": 1,
+                "primary_reference_count": 1, "primary_reference_unknown_count": 0,
+                "candidate_reference_count": 2, "candidate_list_unknown_count": 0,
+                "failback_enabled_count": 1, "failback_disabled_count": 0,
+                "failback_unknown_count": 0, "failback_time_field_present_count": 1,
+                "failback_time_field_missing_count": 0, "partial": False,
+                "identifier_values_returned": False, "tunnel_status_returned": False,
+                "failback_time_values_returned": False, "deprecated_source_endpoint": True}
+
+    def read_site_gateway_sim_sms_support_summary(
+            self, site_ref: str, gateway_ref: str) -> dict[str, object]:
+        self.calls.append(("site_gateway_sim_sms_support_summary", site_ref + ":" + gateway_ref))
+        return {"status": "ok", "resource": "site_gateway_sim_sms_support_summary",
+                "site_ref": site_ref, "gateway_ref": gateway_ref,
+                "sim_sms_supported": None, "lte_supported": True,
+                "dual_sms_supported_sim_count": 0, "dual_sms_state": "known",
+                "dual_sim_capability": "unknown", "dual_sim_source_value_present": False}
+
     def read_gateway_internet_info(self, site_ref: str, gateway_ref: str) -> dict[str, object]:
         self.calls.append(("gateway_internet_info", site_ref + ":" + gateway_ref))
         return {"status": "ok", "resource": "gateway_internet_info", "site_ref": site_ref,
@@ -10556,6 +10577,34 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(response["result"]["structuredContent"], direct)
         self.assertEqual(self.fake.calls,
                          [("site_ssid_topology_reference_count", site_ref, ssid_ref)] * 2)
+
+    def test_http_and_mcp_expose_ipsec_failover_summary(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/ipsec-failovers/summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        request = {"jsonrpc": "2.0", "id": 253, "method": "tools/call",
+                   "params": {"name": "omada_site_ipsec_failover_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls, [("site_ipsec_failover_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_gateway_sim_sms_support(self) -> None:
+        site_ref, gateway_ref = "a" * 24, "b" * 24
+        path = f"/v1/sites/{site_ref}/gateways/{gateway_ref}/sim-capabilities-summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        request = {"jsonrpc": "2.0", "id": 252, "method": "tools/call",
+                   "params": {"name": "omada_site_gateway_sim_sms_support_summary",
+                              "arguments": {"site_ref": site_ref,
+                                            "gateway_ref": gateway_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_gateway_sim_sms_support_summary", site_ref + ":" + gateway_ref)] * 2)
 
     def test_http_and_mcp_expose_vlan_topology_opaque_reference_count(self) -> None:
         site_ref, network_ref, vlan_id = "a" * 24, "b" * 24, 42

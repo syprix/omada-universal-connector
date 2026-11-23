@@ -113,6 +113,37 @@ topology edges. The vendor notes that a gateway can result in an empty list,
 so emptiness is not presented as a missing-topology finding. Live support is
 unknown.
 
+## IPsec failover configuration summary
+
+`GET /v1/sites/{site_ref}/ipsec-failovers/summary` and its MCP tool read the
+vendor-deprecated `getGridIpsecFailover` list, bounded to 1,000 rows. They count
+rules, presence of primary references, candidate references, failback enablement
+and failback-time field presence. Names, identifiers, nested tunnel status and
+time values are omitted; the source does not document the time unit. The read
+does not imply a failover, tunnel availability or current connectivity. The
+vendor recommends its site-to-site VPN summary/detail operations instead. All
+three source exports document this deprecated read; live support is unknown. A
+synthetic three-rule response measured 181 source JSON tokens and 142 summary
+tokens (21.55% fewer) using `js-tiktoken` 1.0.21 / `o200k_base`; schemas,
+transport, prompts and billed agent usage are excluded.
+
+## Gateway SIM, SMS and LTE capabilities
+
+`GET /v1/sites/{site_ref}/gateways/{gateway_ref}/sim-capabilities-summary`
+and its MCP tool refresh the selected site's device inventory, require one
+unique gateway reference with a documented gateway type, then read
+`getSupportSmsByMac`. The result reports the documented SIM SMS and LTE Boolean
+flags, the documented count of SIMs supporting SMS, and whether the Dual-SIM
+source field was present. The Dual-SIM integer has no documented value mapping,
+so capability remains unknown. No SIM identity, message, send operation or
+reachability is returned or inferred. The endpoint is documented in all three
+source exports; live support is unknown. A synthetic four-field response
+measured 33 source JSON tokens and 71 tokens for the projected response
+(115.15% more) using `js-tiktoken` 1.0.21 / `o200k_base`. The extra size comes
+from the bound references, response labels and explicit unknown-state fields;
+this small read is not a token-saving summary. Counts cover serialized payloads
+only, excluding schemas, transport, prompts and billed agent usage.
+
 ## Devices present in a selected VLAN topology
 
 `GET /v1/sites/{site_ref}/networks/{network_ref}/vlan-topology-summary` and

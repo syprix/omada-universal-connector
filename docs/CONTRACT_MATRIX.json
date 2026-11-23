@@ -3341,6 +3341,31 @@
             "connector_projection": "Refreshes site network inventory, requires one selected network_ref with LAN purpose and the caller-supplied VLAN matching its current documented VLAN, then counts at most 4,096 returned strings as opaque references. No reference strings are returned. This remains distinct from the existing v3 getFilterDevicesOfVlan response, which classifies a topology MAC list by same-site device inventory.",
             "live_support": "unknown"
           }
+        },
+        "site_gateway_sim_sms_support_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getSupportSmsByMac",
+            "method": "GET",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/gateways/{gatewayMac}/sim/sms/support",
+            "response": "OperationResponseSupportSmsOpenApiVO; optional Boolean supportSms/supportLte and int32 supportDualSms/supportDualSim",
+            "projection": "SMS/LTE booleans and documented dual-SMS supported-SIM count; Dual-SIM value meaning unknown, only source-field presence reported",
+            "permissions": "Site Settings Manager View Only; Site Device Manager View Only"
+          }
+        },
+        "site_ipsec_failover_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridIpsecFailover",
+            "method": "GET",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/vpn/ipsec_failovers",
+            "deprecated": true,
+            "response": "OperationResponseGridVOIPsecFailover Information; rows have id, name, primary, candidates, failBack and int32 failBackTime; nested IPSec info has id, name and documented status codes",
+            "projection": "Counts rows, primary/candidate object references and failBack boolean values. FailBackTime values and nested tunnel status are omitted; only time-field presence is counted.",
+            "permissions": "Site Settings Manager View Only; Network Config Page View Only"
+          }
         }
       }
     },
@@ -6626,6 +6651,31 @@
             "connector_projection": "Refreshes site network inventory, requires one selected network_ref with LAN purpose and the caller-supplied VLAN matching its current documented VLAN, then counts at most 4,096 returned strings as opaque references. No reference strings are returned. This remains distinct from the existing v3 getFilterDevicesOfVlan response, which classifies a topology MAC list by same-site device inventory.",
             "live_support": "unknown"
           }
+        },
+        "site_gateway_sim_sms_support_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getSupportSmsByMac",
+            "method": "GET",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/gateways/{gatewayMac}/sim/sms/support",
+            "response": "OperationResponseSupportSmsOpenApiVO; optional Boolean supportSms/supportLte and int32 supportDualSms/supportDualSim",
+            "projection": "SMS/LTE booleans and documented dual-SMS supported-SIM count; Dual-SIM value meaning unknown, only source-field presence reported",
+            "permissions": "Site Settings Manager View Only; Site Device Manager View Only"
+          }
+        },
+        "site_ipsec_failover_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridIpsecFailover",
+            "method": "GET",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/vpn/ipsec_failovers",
+            "deprecated": true,
+            "response": "OperationResponseGridVOIPsecFailover Information; rows have id, name, primary, candidates, failBack and int32 failBackTime; nested IPSec info has id, name and documented status codes",
+            "projection": "Counts rows, primary/candidate object references and failBack boolean values. FailBackTime values and nested tunnel status are omitted; only time-field presence is counted.",
+            "permissions": "Site Settings Manager View Only; Network Config Page View Only"
+          }
         }
       }
     },
@@ -9820,6 +9870,31 @@
         "site_vlan_topology_reference_count": {
           "documented": false,
           "live_support": "unknown"
+        },
+        "site_gateway_sim_sms_support_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getSupportSmsByMac",
+            "method": "GET",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/gateways/{gatewayMac}/sim/sms/support",
+            "response": "OperationResponseSupportSmsOpenApiVO; optional Boolean supportSms/supportLte and int32 supportDualSms/supportDualSim",
+            "projection": "SMS/LTE booleans and documented dual-SMS supported-SIM count; Dual-SIM value meaning unknown, only source-field presence reported",
+            "permissions": "Site Settings Manager View Only; Site Device Manager View Only"
+          }
+        },
+        "site_ipsec_failover_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridIpsecFailover",
+            "method": "GET",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/vpn/ipsec_failovers",
+            "deprecated": true,
+            "response": "OperationResponseGridVOIPsecFailover Information; rows have id, name, primary, candidates, failBack and int32 failBackTime; nested IPSec info has id, name and documented status codes",
+            "projection": "Counts rows, primary/candidate object references and failBack boolean values. FailBackTime values and nested tunnel status are omitted; only time-field presence is counted.",
+            "permissions": "Site Settings Manager View Only; Network Config Page View Only"
+          }
         }
       }
     }
