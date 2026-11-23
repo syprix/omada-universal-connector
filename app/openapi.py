@@ -1496,6 +1496,10 @@ class OmadaOpenApiClient:
         "/openapi/v2/{controller_id}/sites/{site_id}/vpn/site-to-site-vpns")
     _SITE_VPN_SERVER_CONFIG_V2_PATH = (
         "/openapi/v2/{controller_id}/sites/{site_id}/vpn/client-to-site-vpn-servers")
+    _SITE_REMOTE_ACCESS_TUNNEL_STATUS_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/remoteAccess/tunnel/status")
+    _SITE_IDS_IPS_CONFIG_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/network-security/ips")
     _SITE_S2S_PEER_STATUS_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/setting/vpn/stats/s2s/{vpn_id}/peer")
     _SITE_AP_TOPOLOGY_CLIENTS_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/topology/devices/{ap_mac}/clients"
@@ -1951,6 +1955,14 @@ class OmadaOpenApiClient:
     _SITE_VPN_SERVER_CONFIG_V2_REQUEST = re.compile(
         r"/openapi/v2/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})"
         r"/vpn/client-to-site-vpn-servers\?page=([1-9][0-9]*)&pageSize=100"
+    )
+    _SITE_REMOTE_ACCESS_TUNNEL_STATUS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})"
+        r"/remoteAccess/tunnel/status"
+    )
+    _SITE_IDS_IPS_CONFIG_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})"
+        r"/network-security/ips"
     )
     _SITE_S2S_PEER_STATUS_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})"
@@ -2878,7 +2890,9 @@ class OmadaOpenApiClient:
         ("site_static_route_interface_options_summary", "GET /v1/sites/{site_ref}/static-routing/interfaces/summary"),
         ("site_policy_route_summary", "GET /v1/sites/{site_ref}/policy-route-summary"),
         ("site_ipsec_sa_summary", "GET /v1/sites/{site_ref}/ipsec-sa-summary"),
+        ("site_ids_ips_config_summary", "GET /v1/sites/{site_ref}/security/ids-ips-summary"),
         ("site_vpn_server_status_summary", "GET /v1/sites/{site_ref}/vpn/servers/status-summary"),
+        ("site_remote_access_tunnel_status_summary", "GET /v1/sites/{site_ref}/remote-access/tunnels/status-summary"),
         ("site_vpn_client_status_summary", "GET /v1/sites/{site_ref}/vpn/clients/status-summary"),
         ("site_vpn_s2s_status_summary", "GET /v1/sites/{site_ref}/vpn/site-to-site/status-summary"),
         ("site_s2s_vpn_inventory_summary", "GET /v1/sites/{site_ref}/vpn/site-to-site/summary"),
@@ -8745,6 +8759,53 @@ class OmadaOpenApiClient:
             )
         try:
             projected = summarize_vpn_server_config_rows(rows, omitted)
+        except ValueError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"site_ref": site_ref, **projected}
+
+    @_track_capability("site_remote_access_tunnel_status_summary")
+    def read_site_remote_access_tunnel_status_summary(self, site_ref: str) -> dict[str, object]:
+        """Count documented remote-access tunnel connection and open states."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_REMOTE_ACCESS_TUNNEL_STATUS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        result = payload.get("result")
+        rows = result.get("tunnelsStatus") if isinstance(result, Mapping) else None
+        if not isinstance(rows, list):
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            from .site_remote_access_tunnel_status_summary import (
+                summarize_remote_access_tunnel_status,
+            )
+        except ImportError:  # direct execution in the image
+            from site_remote_access_tunnel_status_summary import (
+                summarize_remote_access_tunnel_status,
+            )
+        try:
+            projected = summarize_remote_access_tunnel_status(rows)
+        except ValueError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"site_ref": site_ref, **projected}
+
+    @_track_capability("site_ids_ips_config_summary")
+    def read_site_ids_ips_config_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize documented IDS/IPS configuration without exposing raw settings."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_IDS_IPS_CONFIG_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        result = payload.get("result")
+        try:
+            from .site_ids_ips_config_summary import summarize_site_ids_ips_config
+        except ImportError:  # direct execution in the image
+            from site_ids_ips_config_summary import summarize_site_ids_ips_config
+        try:
+            projected = summarize_site_ids_ips_config(result)
         except ValueError:
             raise OpenApiError("openapi_response_invalid") from None
         return {"site_ref": site_ref, **projected}
@@ -16022,6 +16083,8 @@ class OmadaOpenApiClient:
                                   self._site_s2s_vpn_inventory_request_valid(path) or
                                   self._site_s2s_vpn_v2_request_valid(path) or
                                   self._site_vpn_server_config_v2_request_valid(path) or
+                                  self._site_remote_access_tunnel_status_request_valid(path) or
+                                  self._site_ids_ips_config_request_valid(path) or
                                   self._site_s2s_peer_status_request_valid(path) or
                                   self._site_ssid_topology_devices_request_valid(path) or
                                   self._site_ap_topology_clients_request_valid(path) or
@@ -17585,6 +17648,14 @@ class OmadaOpenApiClient:
         match = self._SITE_VPN_SERVER_CONFIG_V2_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id and
                     int(match.group(3)) <= min(self.config.max_pages, 10))
+
+    def _site_remote_access_tunnel_status_request_valid(self, path: str) -> bool:
+        match = self._SITE_REMOTE_ACCESS_TUNNEL_STATUS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_ids_ips_config_request_valid(self, path: str) -> bool:
+        match = self._SITE_IDS_IPS_CONFIG_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
 
     def _site_s2s_peer_status_request_valid(self, path: str) -> bool:
         match = self._SITE_S2S_PEER_STATUS_REQUEST.fullmatch(path)

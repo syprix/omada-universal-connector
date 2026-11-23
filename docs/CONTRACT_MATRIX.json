@@ -2773,6 +2773,32 @@
             "response": "Paginated VpnSummaryOpenApiGridVOVpnSummaryVO with data[] VpnSummaryVO rows. vpnType is int32 with documented codes 0 L2TP, 1 PPTP, 2 IPSec, 3 OpenVPN, 4 WireGuard, 5 SSL VPN. status is an optional boolean described as VPN status; IDs, names, WAN/network values, credentials-related objects, and user/client counts are also present but not needed for this summary.",
             "projection": "Counts rows by documented vpnType and by the documented boolean status flag true/false/unreported. Omits IDs, names, WAN/network values, failover settings, user/client counts and all other row values. The boolean is reported as a source activation/status flag and is not interpreted as tunnel connectivity; the separate VPN operational-status route remains distinct."
           }
+        },
+        "site_remote_access_tunnel_status_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getTunnelsStatus",
+            "permission": "Site Tools Manager View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/remoteAccess/tunnel/status",
+            "query": {},
+            "request_body": false,
+            "response": "OperationResponseNatTraversalTunnelsStatusVO.result.tunnelsStatus[] contains optional tunnelId:int32, status:int32, openStatus:boolean and name:string. status codes are documented: 0 disconnected, 1 connected, 2 opening, -1 heartbeat missed, -2 expired. openStatus is the separate open/closed state.",
+            "projection": "Counts documented connection statuses and openStatus true/false coverage, with unknown and missing fields retained as unknown. Omits tunnel IDs and names. The complete source list is capped at 1,024 rows and truncation is reported."
+          }
+        },
+        "site_ids_ips_config_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getIpsConfig",
+            "permission": "Site Settings Manager View Only; Network Config Page View Only; or Site Device Manager View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/network-security/ips",
+            "query": {},
+            "request_body": false,
+            "response": "OperationResponseIpsInfo.result is IpsInfo; enable:boolean is required. Optional fields are ipsMode:int32 (0 detect only, 1 detect and block), dpLevel:int32 (0 Low, 1 Medium, 2 High, 3 Custom), geoEnable:boolean, customCategories:int32[] and timeRangeId:string.",
+            "projection": "Returns the documented enable and geo flags, documented mode and detection-level codes, and custom category list length. IDs, raw category values, timeRangeId and raw response are omitted. Describes configuration only; no attack detection or enforcement is inferred."
+          }
         }
       }
     },
@@ -5519,6 +5545,32 @@
             "response": "Paginated VpnSummaryOpenApiGridVOVpnSummaryVO with data[] VpnSummaryVO rows. vpnType is int32 with documented codes 0 L2TP, 1 PPTP, 2 IPSec, 3 OpenVPN, 4 WireGuard, 5 SSL VPN. status is an optional boolean described as VPN status; IDs, names, WAN/network values, credentials-related objects, and user/client counts are also present but not needed for this summary.",
             "projection": "Counts rows by documented vpnType and by the documented boolean status flag true/false/unreported. Omits IDs, names, WAN/network values, failover settings, user/client counts and all other row values. The boolean is reported as a source activation/status flag and is not interpreted as tunnel connectivity; the separate VPN operational-status route remains distinct."
           }
+        },
+        "site_remote_access_tunnel_status_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getTunnelsStatus",
+            "permission": "Site Tools Manager View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/remoteAccess/tunnel/status",
+            "query": {},
+            "request_body": false,
+            "response": "OperationResponseNatTraversalTunnelsStatusVO.result.tunnelsStatus[] contains optional tunnelId:int32, status:int32, openStatus:boolean and name:string. status codes are documented: 0 disconnected, 1 connected, 2 opening, -1 heartbeat missed, -2 expired. openStatus is the separate open/closed state.",
+            "projection": "Counts documented connection statuses and openStatus true/false coverage, with unknown and missing fields retained as unknown. Omits tunnel IDs and names. The complete source list is capped at 1,024 rows and truncation is reported."
+          }
+        },
+        "site_ids_ips_config_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getIpsConfig",
+            "permission": "Site Settings Manager View Only; Network Config Page View Only; or Site Device Manager View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/network-security/ips",
+            "query": {},
+            "request_body": false,
+            "response": "OperationResponseIpsInfo.result is IpsInfo; enable:boolean is required. Optional fields are ipsMode:int32 (0 detect only, 1 detect and block), dpLevel:int32 (0 Low, 1 Medium, 2 High, 3 Custom), geoEnable:boolean, customCategories:int32[] and timeRangeId:string.",
+            "projection": "Returns the documented enable and geo flags, documented mode and detection-level codes, and custom category list length. IDs, raw category values, timeRangeId and raw response are omitted. Describes configuration only; no attack detection or enforcement is inferred."
+          }
         }
       }
     },
@@ -8223,6 +8275,32 @@
             "request_body": false,
             "response": "Paginated VpnSummaryOpenApiGridVOVpnSummaryVO with data[] VpnSummaryVO rows. vpnType is int32 with documented codes 0 L2TP, 1 PPTP, 2 IPSec, 3 OpenVPN, 4 WireGuard, 5 SSL VPN. status is an optional boolean described as VPN status; IDs, names, WAN/network values, credentials-related objects, and user/client counts are also present but not needed for this summary.",
             "projection": "Counts rows by documented vpnType and by the documented boolean status flag true/false/unreported. Omits IDs, names, WAN/network values, failover settings, user/client counts and all other row values. The boolean is reported as a source activation/status flag and is not interpreted as tunnel connectivity; the separate VPN operational-status route remains distinct."
+          }
+        },
+        "site_remote_access_tunnel_status_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getTunnelsStatus",
+            "permission": "Site Tools Manager View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/remoteAccess/tunnel/status",
+            "query": {},
+            "request_body": false,
+            "response": "OperationResponseNatTraversalTunnelsStatusVO.result.tunnelsStatus[] contains optional tunnelId:int32, status:int32, openStatus:boolean and name:string. status codes are documented: 0 disconnected, 1 connected, 2 opening, -1 heartbeat missed, -2 expired. openStatus is the separate open/closed state.",
+            "projection": "Counts documented connection statuses and openStatus true/false coverage, with unknown and missing fields retained as unknown. Omits tunnel IDs and names. The complete source list is capped at 1,024 rows and truncation is reported."
+          }
+        },
+        "site_ids_ips_config_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getIpsConfig",
+            "permission": "Site Settings Manager View Only; Network Config Page View Only; or Site Device Manager View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/network-security/ips",
+            "query": {},
+            "request_body": false,
+            "response": "OperationResponseIpsInfo.result is IpsInfo; enable:boolean is required. Optional fields are ipsMode:int32 (0 detect only, 1 detect and block), dpLevel:int32 (0 Low, 1 Medium, 2 High, 3 Custom), geoEnable:boolean, customCategories:int32[] and timeRangeId:string.",
+            "projection": "Returns the documented enable and geo flags, documented mode and detection-level codes, and custom category list length. IDs, raw category values, timeRangeId and raw response are omitted. Describes configuration only; no attack detection or enforcement is inferred."
           }
         }
       }

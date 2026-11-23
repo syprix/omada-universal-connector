@@ -152,6 +152,8 @@ OPERATIONS = {
     'site_port_schedule_ports_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/port-status-ports'),
     'site_s2s_vpn_inventory_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/vpn/site-to-site-vpns'),
     'site_s2s_vpn_v2_summary': ('GET', '/openapi/v2/{omadacId}/sites/{siteId}/vpn/site-to-site-vpns'),
+    'site_remote_access_tunnel_status_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/remoteAccess/tunnel/status'),
+    'site_ids_ips_config_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/network-security/ips'),
     'site_s2s_peer_status_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/setting/vpn/stats/s2s/{vpnId}/peer'),
     'controller_global_log_notification_summary': ('GET', '/openapi/v2/{omadacId}/log-notification'),
     'controller_upgrade_model_list_summary': ('GET', '/openapi/v1/{omadacId}/upgrade/plan/models'),

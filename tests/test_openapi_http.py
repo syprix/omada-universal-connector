@@ -752,6 +752,23 @@ class FakeOpenApiClient:
                 "unknown_field_count": 0, "bandwidth_units": "not specified",
                 "partial": False, "traffic_state": "configuration only"}
 
+    def read_site_remote_access_tunnel_status_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_remote_access_tunnel_status_summary", site_ref))
+        return {"status": "ok", "resource": "site_remote_access_tunnel_status_summary",
+                "site_ref": site_ref, "reported_tunnel_count": 2,
+                "by_documented_connection_status": {"connected": 1, "expired": 1},
+                "by_documented_open_status": {"open": 1, "closed": 1, "unreported": 0},
+                "identity_fields_returned": False}
+
+    def read_site_ids_ips_config_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_ids_ips_config_summary", site_ref))
+        return {"status": "ok", "resource": "site_ids_ips_config_summary",
+                "site_ref": site_ref,
+                "enable": True, "ips_mode": 1, "dp_level": 2,
+                "geo_enable": False,
+                "custom_category_count": 2,
+                "configuration_only": True}
+
     def read_site_vpn_server_status_summary(self, site_ref: str,
                                             vpn_type: int) -> dict[str, object]:
         self.calls.append(("site_vpn_server_status_summary", site_ref, vpn_type))
@@ -4587,6 +4604,35 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(response["result"]["structuredContent"], direct)
         self.assertEqual(self.fake.calls, [("site_wan_qos_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_remote_access_tunnel_status_summary(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/remote-access/tunnels/status-summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200, repr(direct))
+        self.assertEqual(direct["resource"], "site_remote_access_tunnel_status_summary")
+        request = {"jsonrpc": "2.0", "id": 308, "method": "tools/call",
+                   "params": {"name": "omada_site_remote_access_tunnel_status_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_remote_access_tunnel_status_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_site_ids_ips_config_summary(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/security/ids-ips-summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200, repr(direct))
+        self.assertEqual(direct["resource"], "site_ids_ips_config_summary")
+        request = {"jsonrpc": "2.0", "id": 331, "method": "tools/call",
+                   "params": {"name": "omada_site_ids_ips_config_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls, [("site_ids_ips_config_summary", site_ref)] * 2)
 
     def test_http_and_mcp_expose_vpn_server_status_summary(self) -> None:
         site_ref = "a" * 24
