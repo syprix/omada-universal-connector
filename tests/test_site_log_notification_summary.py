@@ -48,6 +48,29 @@ class SiteLogNotificationSummaryTests(unittest.TestCase):
         self.assertEqual(result["channel_enablement_counts"]["alert"]["unknown"], 1)
         self.assertEqual(result["webhook_master_enablement_counts"]["unknown"], 1)
 
+    def test_controller_notification_collections_are_projected_without_labels(self):
+        result = summarize_site_log_notifications({
+            "webhookConfig": {"webhookEnable": False},
+            "alertNotifications": [{"key": "PRIVATE_ALERT", "shortMsg": "private",
+                                    "enable": True, "email": False, "webhook": True}],
+            "eventNotifications": [{"key": "PRIVATE_EVENT", "shortMsg": "private",
+                                    "enable": False, "email": True, "webhook": False}],
+            "alertEmailSetting": {"alertEmailEnable": True, "delayEnable": False,
+                                  "delay": 20},
+            "eventEmailSetting": {"alertEmailEnable": False, "delayEnable": True,
+                                  "delay": 10},
+        })
+        self.assertEqual(result["notification_category_count"], 2)
+        self.assertEqual(result["channel_enablement_counts"]["alert"]["enabled"], 1)
+        self.assertEqual(result["channel_enablement_counts"]["event"]["disabled"], 1)
+        self.assertEqual(result["channel_enablement_counts"]["email"]["enabled"], 1)
+        self.assertEqual(result["channel_enablement_counts"]["webhook"]["enabled"], 1)
+        self.assertEqual(result["email_setting_enablement_counts"]["event_email"]["disabled"], 1)
+        self.assertEqual(result["email_delay_value_presence"]["present"], 2)
+        self.assertFalse(result["partial"])
+        self.assertNotIn("PRIVATE_ALERT", str(result))
+        self.assertNotIn("PRIVATE_EVENT", str(result))
+
     def test_rejects_invalid_documented_types(self):
         for data in (settings(logNotifications="invalid"),
                      settings(webhookConfig={"webhookEnable": 1}),

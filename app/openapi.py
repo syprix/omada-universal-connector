@@ -25,7 +25,12 @@ from collections.abc import Callable, Mapping
 from datetime import datetime, timezone, timedelta
 from functools import wraps
 from dataclasses import dataclass
-from urllib.parse import parse_qs, quote, urlencode, urlsplit
+from urllib.parse import parse_qs, parse_qsl, quote, urlencode, urlsplit
+
+try:
+    from .operation_registry import REGISTRY
+except ImportError:  # direct execution in the image
+    from operation_registry import REGISTRY
 
 try:
     from .site_capability_comparison import (
@@ -1692,6 +1697,32 @@ class OmadaOpenApiClient:
         r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/ssid-overrides")
     _CONTROLLER_AUDIT_LOG_PATH = "/openapi/v1/{controller_id}/audit-logs"
     _IDENTIFIER = re.compile(r"[A-Za-z0-9_-]{1,128}")
+    _DOCUMENTED_READ_PATH_PROFILES = {
+        "site_bridge_device_summary": "paged_200",
+        "site_beacon_control_summary": "plain",
+        "site_static_route_summary": "paged_200",
+        "site_nat_exception_summary": "paged_100",
+        "site_policy_route_summary": "paged_200",
+        "site_ipsec_sa_summary": "paged_200",
+        "site_vpn_server_status_summary": "vpn_server",
+        "site_vpn_client_status_summary": "vpn_client",
+        "site_ssid_client_count_summary": "paged_100",
+        "site_ssid_topology_reference_count": "plain",
+        "site_lan_switch_profile_assignments_summary": "paged_1000",
+        "site_lan_multicast_summary": "paged_100",
+        "site_bandwidth_rules_summary": "paged_100",
+        "site_log_notification_summary": "plain",
+        "site_lan_network_interface_summary": "optional_interface",
+        "controller_try_beta_settings_summary": "plain",
+        "controller_auto_check_upgrade_summary": "paged_100",
+        "site_remote_logging_summary": "plain",
+        "site_wan_qos_summary": "plain",
+        "site_lan_network_detail_summary": "plain",
+        "site_ipsec_failover_summary": "paged_200",
+        "site_speed_test_settings": "plain",
+        "site_gateway_sim_sms_support_summary": "plain",
+        "ap_interference_result_summary": "paged_100",
+    }
     _SITE_REQUEST = re.compile(r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites\?page=[0-9]+&pageSize=[0-9]+")
     _SITE_IOT_TRANSMIT_POWER_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
@@ -10217,7 +10248,11 @@ class OmadaOpenApiClient:
             payload = self._request_json("GET", base + "?" + urlencode(
                 {"page": page, "pageSize": page_size}), token=token)
             try:
-                summary = project_lan_switch_profile_page(payload, page, page_size, max_rows=1_000 - rows)
+                grid_result = (payload.get("result") if isinstance(payload, Mapping) and
+                               payload.get("errorCode") == 0 and
+                               isinstance(payload.get("result"), Mapping) else payload)
+                summary = project_lan_switch_profile_page(
+                    grid_result, page, page_size, max_rows=1_000 - rows)
             except LanSwitchProfileError:
                 raise OpenApiError("openapi_response_invalid") from None
             if total is None:
@@ -17907,6 +17942,7 @@ class OmadaOpenApiClient:
                                   self._controller_upgrade_plans_request_valid(path) or
                                   self._controller_upgrade_logs_request_valid(path) or
                                   self._controller_upgrade_failed_devices_request_valid(path) or
+                                  self._documented_read_path_request_valid(path) or
                                   self._site_dhcp_candidates_request_valid(path) or
                                   self._site_network_reservation_request_valid(path) or
                                   self._site_dhcp_reservations_request_valid(path) or
@@ -19586,6 +19622,86 @@ class OmadaOpenApiClient:
         return bool(match and match.group(1) == self.config.controller_id and
                     int(match.group(3)) <= 10 and int(match.group(4)) <= 100)
 
+    def _documented_read_path_request_valid(self, path: str) -> bool:
+        """Allow only selected registry reads with bounded, operation-specific queries."""
+        try:
+            parts = urlsplit(path)
+            if parts.scheme or parts.netloc or parts.fragment or not parts.path.startswith("/"):
+                return False
+            query_pairs = parse_qsl(parts.query, keep_blank_values=True,
+                                    strict_parsing=bool(parts.query), max_num_fields=4)
+        except (TypeError, ValueError):
+            return False
+        if len({key for key, _ in query_pairs}) != len(query_pairs):
+            return False
+        query = dict(query_pairs)
+
+        def query_valid(profile: str) -> bool:
+            if profile == "plain":
+                return not query
+            if profile == "optional_interface":
+                return not query or query == {"type": "0"}
+            if profile in {"paged_100", "paged_200", "paged_1000"}:
+                if set(query) != {"page", "pageSize"}:
+                    return False
+                try:
+                    page, size = int(query["page"]), int(query["pageSize"])
+                except ValueError:
+                    return False
+                page_limit, size_limit = {
+                    "paged_100": (10, 100),
+                    "paged_200": (20, 200),
+                    "paged_1000": (10, 1000),
+                }[profile]
+                return (query["page"] == str(page) and
+                        query["pageSize"] == str(size) and
+                        1 <= page <= page_limit and 1 <= size <= size_limit)
+            if profile in {"vpn_server", "vpn_client"}:
+                if set(query) != {"page", "pageSize", "filters.vpnType"}:
+                    return False
+                try:
+                    page, size = int(query["page"]), int(query["pageSize"])
+                    vpn_type = int(query["filters.vpnType"])
+                except ValueError:
+                    return False
+                valid_types = set(range(6)) if profile == "vpn_server" else {0, 1, 3, 4}
+                return (query["page"] == str(page) and
+                        query["pageSize"] == str(size) and
+                        query["filters.vpnType"] == str(vpn_type) and
+                        1 <= page <= self.config.max_pages and
+                        1 <= size <= self.config.page_size and
+                        vpn_type in valid_types)
+            return False
+
+        def path_pattern(template: str) -> str:
+            pattern = re.escape(template)
+            variables = re.findall(r"\{([a-z][a-z0-9_]*)\}", template)
+            for name in variables:
+                token = re.escape("{" + name + "}")
+                if name == "controller_id":
+                    value = re.escape(self.config.controller_id)
+                elif name.endswith("_mac"):
+                    value = r"(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}"
+                else:
+                    value = self._IDENTIFIER.pattern
+                pattern = pattern.replace(token, value)
+            return pattern
+
+        candidates: list[tuple[str, str]] = []
+        for operation_id, profile in self._DOCUMENTED_READ_PATH_PROFILES.items():
+            operation = REGISTRY.get(operation_id)
+            candidates.append((operation.upstream_template, profile))
+        # These GETs are part of the same documented read summaries but do not
+        # have separate public operations in the registry.
+        bridge = REGISTRY.get("site_bridge_device_summary").upstream_template
+        candidates.append((bridge.rsplit("/", 1)[0] + "/pending", "paged_200"))
+        qos = REGISTRY.get("site_wan_qos_summary").upstream_template
+        candidates.append((qos.rsplit("/", 1)[0] + "/bwcs", "paged_200"))
+        beta = REGISTRY.get("controller_try_beta_settings_summary").upstream_template
+        candidates.append((beta + "/channel", "plain"))
+        return any(re.fullmatch(path_pattern(template), parts.path) and query_valid(profile)
+                   for template, profile in candidates)
+
     def _site_open_vpn_tunnel_request_valid(self, path: str) -> bool:
         match = self._SITE_OPEN_VPN_TUNNEL_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
@@ -20797,9 +20913,12 @@ class OmadaOpenApiClient:
             total = result.get("totalRows") if isinstance(result, dict) else None
             current_page = result.get("currentPage") if isinstance(result, dict) else None
             current_size = result.get("currentSize") if isinstance(result, dict) else None
+            empty_zero_based_page = (page == 1 and total == 0 and not data and
+                                     type(current_page) is int and current_page == 0)
             if (not isinstance(data, list) or len(data) > self.config.page_size or
                     isinstance(total, bool) or not isinstance(total, int) or total < 0 or
-                    type(current_page) is not int or current_page != page or
+                    type(current_page) is not int or
+                    (current_page != page and not empty_zero_based_page) or
                     isinstance(current_size, bool) or not isinstance(current_size, int) or
                     current_size not in (len(data), self.config.page_size)):
                 raise OpenApiError("openapi_response_invalid")

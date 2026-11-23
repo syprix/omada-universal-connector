@@ -418,6 +418,35 @@ class OpenApiClientTests(unittest.TestCase):
         self.assertIn("/lan-switch-setting?page=1&pageSize=2", request.call_args_list[0].args[1])
         self.assertIn("/lan-switch-setting?page=2&pageSize=2", request.call_args_list[1].args[1])
 
+    def test_lan_switch_profile_assignments_unwraps_controller_grid_result(self):
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        self.client.config = replace(self.config, page_size=100)
+        response = {"errorCode": 0, "msg": "", "result": {
+            "totalRows": 0, "currentPage": 1, "currentSize": 100, "data": []}}
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value=response):
+            result = self.client.read_site_lan_switch_profile_assignments_summary(site_ref)
+        self.assertEqual(result["device_rows"], 0)
+        self.assertEqual(result["profile_assignment_count"], 0)
+        self.assertFalse(result["partial"])
+
+    def test_paged_reader_accepts_zero_based_page_only_for_reported_empty_result(self):
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        empty = {"errorCode": 0, "msg": "", "result": {
+            "totalRows": 0, "currentPage": 0, "currentSize": 2, "data": []}}
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value=empty):
+            result = self.client.read_site_static_route_summary(site_ref)
+        self.assertEqual(result["count"], 0)
+        nonempty = {"errorCode": 0, "msg": "", "result": {
+            "totalRows": 0, "currentPage": 0, "currentSize": 2, "data": [{}]}}
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value=nonempty):
+            with self.assertRaisesRegex(OpenApiError, "openapi_response_invalid"):
+                self.client.read_site_static_route_summary(site_ref)
+
     def test_lan_switch_profile_assignments_caps_non_dividing_pages_at_1000(self):
         site_ref = "a" * 24
         self.client._site_ids_by_ref[site_ref] = "site-1"
@@ -795,6 +824,48 @@ class OpenApiClientTests(unittest.TestCase):
              "failed-devices?page=1&pageSize=101"),
             ("/openapi/v1/controller_1/logs/../upgrade/overview/failed-devices"
              "?page=1&pageSize=100"),
+        ]
+        with patch.object(self.client, "_connection",
+                          side_effect=OpenApiError("connection_reached")):
+            for path in allowed_paths:
+                with self.subTest(path_kind="allowed"), self.assertRaisesRegex(
+                        OpenApiError, "connection_reached"):
+                    self.client._request_json("GET", path, token="token")
+            for path in rejected_paths:
+                with self.subTest(path_kind="rejected"), self.assertRaisesRegex(
+                        OpenApiError, "openapi_path_rejected"):
+                    self.client._request_json("GET", path, token="token")
+
+    def test_documented_read_path_guards_bind_paths_and_queries(self) -> None:
+        allowed_paths = [
+            ("/openapi/v1/controller_1/sites/site-1/routing/static-routings"
+             "?page=1&pageSize=100"),
+            ("/openapi/v1/controller_1/sites/site-1/setting/vpn/stats/server"
+             "?page=1&pageSize=2&filters.vpnType=5"),
+            ("/openapi/v2/controller_1/sites/site-1/lan-networks/interface?type=0"),
+            ("/openapi/v1/controller_1/sites/site-1/grid/bridge-devices/pending"
+             "?page=1&pageSize=100"),
+            ("/openapi/v1/controller_1/sites/site-1/qos/gateway/bwcs"
+             "?page=10&pageSize=200"),
+            "/openapi/v1/controller_1/sites/site-1/qos/gateway/wans",
+            ("/openapi/v1/controller_1/sites/site-1/aps/00:11:22:33:44:55/"
+             "full-channel-detect/grid/interference?page=1&pageSize=100"),
+            "/openapi/v1/controller_1/upgrade/overview/try-beta/channel",
+        ]
+        rejected_paths = [
+            ("/openapi/v1/other-controller/sites/site-1/routing/static-routings"
+             "?page=1&pageSize=100"),
+            ("/openapi/v1/controller_1/sites/../routing/static-routings"
+             "?page=1&pageSize=100"),
+            ("/openapi/v1/controller_1/sites/site-1/setting/vpn/stats/server"
+             "?page=1&pageSize=100&filters.vpnType=6"),
+            ("/openapi/v1/controller_1/sites/site-1/routing/static-routings"
+             "?page=21&pageSize=100"),
+            ("/openapi/v1/controller_1/sites/site-1/routing/static-routings"
+             "?page=1&pageSize=201"),
+            ("/openapi/v1/controller_1/sites/site-1/routing/static-routings"
+             "?page=1&page=2&pageSize=100"),
+            ("/openapi/v1/controller_1/sites/site-1/beacon-control?unexpected=1"),
         ]
         with patch.object(self.client, "_connection",
                           side_effect=OpenApiError("connection_reached")):
