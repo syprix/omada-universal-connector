@@ -174,6 +174,15 @@ class OperationRegistryTests(unittest.TestCase):
         self.assertEqual(route.operation_id, "site_static_route_summary")
         self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
 
+    def test_static_route_interface_options_are_a_site_bound_read(self):
+        operation = REGISTRY.get("site_static_route_interface_options_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 +
+            "/static-routing/interfaces/summary")
+        self.assertEqual(route.operation_id, "site_static_route_interface_options_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
+
     def test_gateway_info_summary_requires_one_opaque_site_gateway_reference(self):
         operation = REGISTRY.get("gateway_info_summary")
         self.assertEqual(_tool(operation)["inputSchema"]["required"],
@@ -819,6 +828,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_wan_max_speed_summary",
             "gateway_info_summary",
             "site_static_route_summary",
+            "site_static_route_interface_options_summary",
             "site_policy_route_summary",
             "site_ipsec_sa_summary",
             "site_vpn_server_status_summary",
@@ -1092,6 +1102,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_interference_scan_eligible_summary",
             "site_wlan_group_summary",
             "site_wlan_group_ssids_summary",
+            "site_wlan_group_ssid_config_summary",
             "ssid_configuration",
             "dhcp_leases",
             "dns_cache_settings",
@@ -1288,6 +1299,14 @@ class OperationRegistryTests(unittest.TestCase):
             "GET", f"/v1/sites/{site_ref}/wlan-groups/{group_ref}/ssids-summary")
         self.assertEqual(operation.operation_id, "site_wlan_group_ssids_summary")
         self.assertEqual(bindings, (("site_ref", site_ref), ("wlan_group_ref", group_ref)))
+
+    def test_site_wlan_group_ssid_config_requires_site_group_and_ssid_refs(self):
+        site_ref, group_ref, ssid_ref = "0" * 24, "1" * 24, "2" * 24
+        operation, bindings = REGISTRY.match(
+            "GET", f"/v1/sites/{site_ref}/wlan-groups/{group_ref}/ssids/{ssid_ref}/config-summary")
+        self.assertEqual(operation.operation_id, "site_wlan_group_ssid_config_summary")
+        self.assertEqual(bindings, (("site_ref", site_ref), ("wlan_group_ref", group_ref),
+                                    ("ssid_ref", ssid_ref)))
 
     def test_site_wlan_group_detail_requires_opaque_group_reference(self):
         site_ref = "0123456789abcdef01234567"

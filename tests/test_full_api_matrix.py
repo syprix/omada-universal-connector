@@ -2083,6 +2083,30 @@ class FullApiMatrixTests(unittest.TestCase):
         self.assertEqual(row["connector_source_status"], "implemented_read")
         self.assertEqual(row["live_status"], "unknown_not_checked_by_this_offline_tool")
 
+    def test_static_route_interface_options_match_all_source_exports(self) -> None:
+        matrix = json.loads((Path(__file__).resolve().parents[1] /
+                             "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
+        for source in matrix["sources"]:
+            row = source["operations"]["site_static_route_interface_options_summary"]
+            self.assertTrue(row["documented"])
+            self.assertEqual(row["live_support"], "unknown")
+            review = row["contract_review"]
+            self.assertEqual(review["operation_id"], "getStaticRoutingInterfaceList")
+            self.assertEqual(review["query"], {})
+            self.assertIn("interfaceType", review["response"])
+            self.assertIn("needNextHop", review["response"])
+            self.assertIn("selection options only", review["projection"])
+
+    def test_wlan_group_ssid_config_operation_matches_source_exports(self) -> None:
+        matrix = json.loads((Path(__file__).resolve().parents[1] /
+                             "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
+        for source in matrix["sources"]:
+            row = source["operations"]["site_wlan_group_ssid_config_summary"]
+            self.assertTrue(row["documented"])
+            self.assertEqual(row["live_support"], "unknown")
+            self.assertEqual(row["contract_review"]["operation_id"], "getSsidDetail")
+            self.assertIn("wlanId", row["contract_review"]["path"])
+
     def test_switch_dhcp_arp_capability_gap_has_no_safe_row_contract(self) -> None:
         matrix = json.loads((Path(__file__).resolve().parents[1] /
                              "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))

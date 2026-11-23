@@ -14,6 +14,32 @@ next-hop values, metrics and descriptions. It accepts only a current local site
 reference and enforces the configured page limit. Controller support remains
 unknown.
 
+`GET /v1/sites/{site_ref}/static-routing/interfaces/summary` and
+`omada_site_static_route_interface_options_summary` read the unpaginated
+`getStaticRoutingInterfaceList` response for the selected site. The connector
+counts the documented interface types (WAN, LAN, L2TP, PPTP, virtual WAN) and
+the `needNextHop` Boolean values. It may also return the documented
+`hasWanEnable` Boolean. Interface IDs and names are omitted. This endpoint
+returns choices offered by the static-route editor; it does not describe
+configured routes or show whether a route is effective. The response is capped
+at 1,000 rows and marks truncation or unknown fields as partial. All three
+source exports document the operation; live support is unknown.
+
+`GET /v1/sites/{site_ref}/wlan-groups/{wlan_group_ref}/ssids/{ssid_ref}/config-summary`
+uses the group-scoped `getSsidDetail` contract. It refreshes the selected site's
+WLAN-group and SSID inventories, verifies that the selected SSID appears
+exactly once in the selected group's list, and then returns only the documented
+enable flag, band bits and EAP/gateway device-type bits. Names, IDs, VLAN values
+and credentials are omitted. Missing fields are reported as partial; live
+support is unknown.
+
+`getGridAvailableSsids` is documented only by Hardware Controller and CBC.
+Both require integer `page` and `pageSize` query parameters and a string
+`searchKey`, but the search-field description is incomplete and neither export
+provides a request example or no-filter value. ER7212PC does not document the
+operation. The connector does not guess a `searchKey` value or claim that a
+partial fuzzy search lists every available SSID.
+
 ## Controller threat severity counts
 
 `GET /v1/controller/threat-severity-summary?start_ms=<UTC-epoch-ms>&end_ms=<UTC-epoch-ms>`

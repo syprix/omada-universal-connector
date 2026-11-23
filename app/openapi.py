@@ -1205,6 +1205,8 @@ class OmadaOpenApiClient:
         "/openapi/v1/{controller_id}/sites/{site_id}/wireless-network/wlans")
     _SITE_WLAN_GROUP_SSIDS_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/wireless-network/wlans/{wlan_id}/ssids")
+    _SITE_WLAN_GROUP_SSID_DETAIL_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/wireless-network/wlans/{wlan_id}/ssids/{ssid_id}")
     _AP_READ_PATHS = {
         "radio_config": "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/radio-config",
         "radios": "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/radios",
@@ -1437,6 +1439,8 @@ class OmadaOpenApiClient:
         "/openapi/v2/{controller_id}/sites/{site_id}/topology/isolated-and-pre-config")
     _SITE_VLAN_TOPOLOGY_PATH = (
         "/openapi/v3/{controller_id}/sites/{site_id}/topology/{network_id}/vlan/{vlan}/devices")
+    _SITE_STATIC_ROUTE_INTERFACE_OPTIONS_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/routing/static-routings/interfaces")
     _SITE_ES_NETWORK_OVERVIEW_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/switches/es/{switch_mac}/network-overview")
     _SITE_SWITCH_PORT_DETAIL_PATH = (
@@ -1822,6 +1826,10 @@ class OmadaOpenApiClient:
     _SITE_VLAN_TOPOLOGY_REQUEST = re.compile(
         r"/openapi/v3/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
         r"/topology/([A-Za-z0-9_-]{1,128})/vlan/([1-9][0-9]{0,3})/devices"
+    )
+    _SITE_STATIC_ROUTE_INTERFACE_OPTIONS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/routing/static-routings/interfaces"
     )
     _SITE_ES_NETWORK_OVERVIEW_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
@@ -2787,6 +2795,7 @@ class OmadaOpenApiClient:
         ("site_interference_scan_eligible_summary", "GET /v1/sites/{site_ref}/wifi/interference-scan-eligible-summary"),
         ("site_wlan_group_summary", "GET /v1/sites/{site_ref}/wlan-group-summary"),
         ("site_wlan_group_ssids_summary", "GET /v1/sites/{site_ref}/wlan-groups/{wlan_group_ref}/ssids-summary"),
+        ("site_wlan_group_ssid_config_summary", "GET /v1/sites/{site_ref}/wlan-groups/{wlan_group_ref}/ssids/{ssid_ref}/config-summary"),
         ("ssid_configuration", "GET /v1/sites/{site_ref}/ssids/{ssid_ref}"),
         ("ssid_enable_change_preview", "POST /v1/sites/{site_ref}/ssids/{ssid_ref}/enable-preview"),
         ("ap_radio_change_preview", "POST /v1/sites/{site_ref}/aps/{device_ref}/radio-preview"),
@@ -2830,6 +2839,7 @@ class OmadaOpenApiClient:
         ("gateway_wan_status", "GET /v1/sites/{site_ref}/gateways/{device_ref}/wan-status"),
         ("gateway_info_summary", "GET /v1/sites/{site_ref}/gateways/{device_ref}/info-summary"),
         ("site_static_route_summary", "GET /v1/sites/{site_ref}/static-route-summary"),
+        ("site_static_route_interface_options_summary", "GET /v1/sites/{site_ref}/static-routing/interfaces/summary"),
         ("site_policy_route_summary", "GET /v1/sites/{site_ref}/policy-route-summary"),
         ("site_ipsec_sa_summary", "GET /v1/sites/{site_ref}/ipsec-sa-summary"),
         ("site_vpn_server_status_summary", "GET /v1/sites/{site_ref}/vpn/servers/status-summary"),
@@ -3082,6 +3092,7 @@ class OmadaOpenApiClient:
         ("site_isolated_preconfig_summary", "GET /v1/sites/{site_ref}/topology/isolated-preconfig/summary"),
         ("site_vlan_topology_summary", "GET /v1/sites/{site_ref}/networks/{network_ref}/vlan-topology-summary"),
         ("site_es_network_overview_summary", "GET /v1/sites/{site_ref}/switches/{switch_ref}/es-network-overview/summary"),
+        ("site_static_route_interface_options_summary", "GET /v1/sites/{site_ref}/static-routing/interfaces/summary"),
         ("site_port_schedule_ports_summary", "GET /v1/sites/{site_ref}/port-schedule-capable-ports/summary"),
         ("site_internet_load_balance_summary", "GET /v1/sites/{site_ref}/internet/load-balance-summary"),
         ("site_internet_basic_port_summary", "GET /v1/sites/{site_ref}/internet/basic-port-summary"),
@@ -5273,6 +5284,94 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {"status": "ok", "resource": "site_wlan_group_ssids_summary",
                 "site_ref": site_ref, "wlan_group_ref": wlan_group_ref, **projected}
+
+    @_track_capability("site_wlan_group_ssid_config_summary")
+    def read_site_wlan_group_ssid_config_summary(
+            self, site_ref: str, wlan_group_ref: str, ssid_ref: str) -> dict[str, object]:
+        """Read safe SSID fields only after binding the SSID to a current group."""
+        site_id = self._resolve_site_ref(site_ref)
+        if (not isinstance(wlan_group_ref, str) or
+                not re.fullmatch(r"[0-9a-f]{24}", wlan_group_ref)):
+            raise OpenApiError("wlan_group_ref_invalid")
+        if not isinstance(ssid_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", ssid_ref):
+            raise OpenApiError("ssid_ref_invalid")
+
+        # Refresh both site inventories before resolving opaque references.
+        groups = self.read_site_wlan_group_summary(site_ref)
+        ssids = self.list_ssids(site_ref)
+        group_items = groups.get("items") if isinstance(groups, Mapping) else None
+        ssid_items = ssids.get("items") if isinstance(ssids, Mapping) else None
+        group_refs = ([row.get("group_ref") for row in group_items]
+                      if isinstance(group_items, list) and
+                      all(isinstance(row, Mapping) for row in group_items) else None)
+        ssid_refs = ([row.get("ssid_ref") for row in ssid_items]
+                     if isinstance(ssid_items, list) and
+                     all(isinstance(row, Mapping) for row in ssid_items) else None)
+        if (group_refs is None or ssid_refs is None or
+                any(not isinstance(ref, str) for ref in group_refs + ssid_refs) or
+                len(set(group_refs)) != len(group_refs) or
+                len(set(ssid_refs)) != len(ssid_refs)):
+            raise OpenApiError("openapi_response_invalid")
+        wlan_id = self._wlan_group_ids_by_site_ref.get(site_ref, {}).get(wlan_group_ref)
+        ssid_id = self._ssid_ids_by_site_ref.get(site_ref, {}).get(ssid_ref)
+        if not wlan_id:
+            raise OpenApiError("wlan_group_ref_unknown")
+        if not ssid_id:
+            raise OpenApiError("ssid_ref_unknown")
+
+        token = self._access_token()
+        membership_ids: list[str] = []
+        expected_total: int | None = None
+        for page_number in range(1, 6):
+            path = self._SITE_WLAN_GROUP_SSIDS_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id, wlan_id=wlan_id)
+            path += f"?page={page_number}&pageSize=100"
+            result = self._request_json("GET", path, token=token).get("result")
+            if not isinstance(result, Mapping):
+                raise OpenApiError("openapi_response_invalid")
+            rows, total = result.get("data"), result.get("totalRows")
+            if (not isinstance(rows, list) or len(rows) > 100 or type(total) is not int or
+                    total < 0 or type(result.get("currentPage")) is not int or
+                    result["currentPage"] != page_number or
+                    type(result.get("currentSize")) is not int or
+                    result["currentSize"] != len(rows) or
+                    (expected_total is not None and total != expected_total)):
+                raise OpenApiError("openapi_response_invalid")
+            expected_total = total
+            for row in rows:
+                if not isinstance(row, Mapping):
+                    raise OpenApiError("openapi_response_invalid")
+                member_id = self._first_string(row, ("id", "ssidId"))
+                if not member_id or not self._IDENTIFIER.fullmatch(member_id):
+                    raise OpenApiError("openapi_response_invalid")
+                membership_ids.append(member_id)
+            if len(membership_ids) > total:
+                raise OpenApiError("openapi_response_invalid")
+            if len(membership_ids) >= total or len(rows) < 100:
+                break
+        else:
+            raise OpenApiError("openapi_page_limit_reached")
+        if membership_ids.count(ssid_id) != 1:
+            raise OpenApiError("ssid_group_binding_unavailable")
+
+        detail_path = self._SITE_WLAN_GROUP_SSID_DETAIL_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id,
+            wlan_id=wlan_id, ssid_id=ssid_id)
+        detail = self._request_json("GET", detail_path, token=token).get("result")
+        try:
+            from .site_wlan_group_ssid_config_summary import (
+                SiteWlanGroupSsidConfigError, project_site_wlan_group_ssid_config,
+            )
+        except ImportError:  # direct execution in the image
+            from site_wlan_group_ssid_config_summary import (
+                SiteWlanGroupSsidConfigError, project_site_wlan_group_ssid_config,
+            )
+        try:
+            projected = project_site_wlan_group_ssid_config(detail)
+        except SiteWlanGroupSsidConfigError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**projected, "site_ref": site_ref,
+                "wlan_group_ref": wlan_group_ref, "ssid_ref": ssid_ref}
 
     @_track_capability("ssid_configuration")
     def read_ssid_configuration(self, site_ref: str, ssid_ref: str) -> dict[str, object]:
@@ -8442,6 +8541,30 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {**projected, "site_ref": site_ref,
                 "source_total_rows": payload.get("totalRows")}
+
+    @_track_capability("site_static_route_interface_options_summary")
+    def read_site_static_route_interface_options_summary(
+            self, site_ref: str) -> dict[str, object]:
+        """Summarize interface choices offered by the static-route editor."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_STATIC_ROUTE_INTERFACE_OPTIONS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        raw = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_static_route_interface_options_summary import (
+                StaticRouteInterfaceOptionsError,
+                summarize_static_route_interface_options,
+            )
+        except ImportError:  # direct execution in the image
+            from site_static_route_interface_options_summary import (
+                StaticRouteInterfaceOptionsError,
+                summarize_static_route_interface_options,
+            )
+        try:
+            projected = summarize_static_route_interface_options(raw, max_items=1000)
+        except StaticRouteInterfaceOptionsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**projected, "site_ref": site_ref}
 
     @_track_capability("site_policy_route_summary")
     def read_site_policy_route_summary(self, site_ref: str) -> dict[str, object]:
@@ -15594,6 +15717,7 @@ class OmadaOpenApiClient:
                                   self._site_topology_root_candidates_request_valid(path) or
                                   self._site_isolated_preconfig_request_valid(path) or
                                   self._site_vlan_topology_request_valid(path) or
+                                  self._site_static_route_interface_options_request_valid(path) or
                                   self._site_switch_port_detail_request_valid(path) or
                                   self._site_es_network_overview_request_valid(path) or
                                   self._site_port_schedule_ports_request_valid(path) or
@@ -16937,6 +17061,10 @@ class OmadaOpenApiClient:
         match = self._SITE_VLAN_TOPOLOGY_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id and
                     int(match.group(3)) <= 4094)
+
+    def _site_static_route_interface_options_request_valid(self, path: str) -> bool:
+        match = self._SITE_STATIC_ROUTE_INTERFACE_OPTIONS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
 
     def _site_es_network_overview_request_valid(self, path: str) -> bool:
         match = self._SITE_ES_NETWORK_OVERVIEW_REQUEST.fullmatch(path)
