@@ -1286,6 +1286,8 @@ class OmadaOpenApiClient:
     _SITE_STACK_NETWORKS_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/stacks/{stack_id}/networks")
     _CONTROLLER_SDWAN_GROUP_BRIEF_PATH = "/openapi/v1/{controller_id}/sdwan/sdwan-group/brief"
+    _CONTROLLER_SDWAN_GROUP_DEVICES_PATH = (
+        "/openapi/v1/{controller_id}/sdwan/sdwan-group/saved/devices/{group_id}")
     _SITE_STACK_LLDP_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/stack/{stack_id}/lldp-neighbors"
     _SWITCH_HEALTH_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switches/{switch_mac}/health/detail"
     _MSP_SWITCH_HEALTH_PATH = (
@@ -1500,6 +1502,8 @@ class OmadaOpenApiClient:
         "/openapi/v2/{controller_id}/sites/{site_id}/vpn/site-to-site-vpns")
     _SITE_VPN_SERVER_CONFIG_V2_PATH = (
         "/openapi/v2/{controller_id}/sites/{site_id}/vpn/client-to-site-vpn-servers")
+    _SITE_VPN_CLIENT_CONFIG_V2_PATH = (
+        "/openapi/v2/{controller_id}/sites/{site_id}/vpn/client-to-site-vpn-clients")
     _SITE_REMOTE_ACCESS_TUNNEL_STATUS_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/remoteAccess/tunnel/status")
     _SITE_IDS_IPS_CONFIG_PATH = (
@@ -1972,6 +1976,10 @@ class OmadaOpenApiClient:
         r"/openapi/v2/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})"
         r"/vpn/client-to-site-vpn-servers\?page=([1-9][0-9]*)&pageSize=100"
     )
+    _SITE_VPN_CLIENT_CONFIG_V2_REQUEST = re.compile(
+        r"/openapi/v2/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})"
+        r"/vpn/client-to-site-vpn-clients\?page=([1-9][0-9]*)&pageSize=100"
+    )
     _SITE_REMOTE_ACCESS_TUNNEL_STATUS_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})"
         r"/remoteAccess/tunnel/status"
@@ -2143,6 +2151,10 @@ class OmadaOpenApiClient:
     _CONTROLLER_SDWAN_GROUP_BRIEF_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sdwan/sdwan-group/brief"
         r"\?page=([0-9]{1,3})&pageSize=([0-9]{1,4})"
+    )
+    _CONTROLLER_SDWAN_GROUP_DEVICES_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sdwan/sdwan-group/saved/devices/"
+        r"([A-Za-z0-9_-]{1,128})"
     )
     _SITE_STACK_LLDP_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/stack/"
@@ -2924,6 +2936,7 @@ class OmadaOpenApiClient:
         ("site_s2s_vpn_inventory_summary", "GET /v1/sites/{site_ref}/vpn/site-to-site/summary"),
         ("site_s2s_vpn_v2_summary", "GET /v1/sites/{site_ref}/vpn/site-to-site-v2-summary"),
         ("site_vpn_server_config_summary", "GET /v1/sites/{site_ref}/vpn/servers/config-summary"),
+        ("site_vpn_client_config_summary", "GET /v1/sites/{site_ref}/vpn/clients/config-summary"),
         ("site_s2s_peer_status_summary", "GET /v1/sites/{site_ref}/vpn/site-to-site/{vpn_ref}/peers/summary"),
         ("site_ssid_client_count_summary", "GET /v1/sites/{site_ref}/ssids/{ssid_ref}/clients/summary"),
         ("site_ssid_topology_device_summary", "GET /v1/sites/{site_ref}/ssids/{ssid_ref}/topology-device-summary"),
@@ -2964,6 +2977,7 @@ class OmadaOpenApiClient:
         ("site_stack_connections_summary", "GET /v1/sites/{site_ref}/stack-connections-summary"),
         ("site_stack_network_summary", "GET /v1/sites/{site_ref}/stacks/{stack_ref}/networks-summary"),
         ("controller_sdwan_group_summary", "GET /v1/controller/sdwan-groups/summary"),
+        ("controller_sdwan_group_devices_summary", "GET /v1/controller/sdwan-groups/{group_ref}/devices/summary"),
         ("switch_health", "GET /v1/sites/{site_ref}/switches/{switch_ref}/health"),
         ("switch_health_timeline", "GET /v1/sites/{site_ref}/switches/{switch_ref}/health/timeline"),
         ("site_switch_health_history", "GET /v1/sites/{site_ref}/switches/health-history"),
@@ -8903,6 +8917,56 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {"site_ref": site_ref, **projected}
 
+    @_track_capability("site_vpn_client_config_summary")
+    def read_site_vpn_client_config_summary(self, site_ref: str) -> dict[str, object]:
+        """Count documented VPN client configuration values without identities."""
+        site_id = self._resolve_site_ref(site_ref)
+        token = self._access_token()
+        rows: list[object] = []
+        total_rows: int | None = None
+        for page_number in range(1, min(self.config.max_pages, 10) + 1):
+            path = self._SITE_VPN_CLIENT_CONFIG_V2_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id)
+            path += f"?page={page_number}&pageSize=100"
+            payload = self._request_json("GET", path, token=token)
+            if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+                raise OpenApiError("openapi_response_invalid")
+            result = payload.get("result")
+            if not isinstance(result, Mapping):
+                raise OpenApiError("openapi_response_invalid")
+            data = result.get("data")
+            total = result.get("totalRows")
+            current_page = result.get("currentPage")
+            current_size = result.get("currentSize")
+            if (not isinstance(data, list) or len(data) > 100 or
+                    type(total) is not int or total < 0 or
+                    type(current_page) is not int or current_page != page_number or
+                    type(current_size) is not int or current_size not in (len(data), 100)):
+                raise OpenApiError("openapi_response_invalid")
+            if total_rows is None:
+                total_rows = total
+            elif total != total_rows:
+                raise OpenApiError("openapi_response_invalid")
+            rows.extend(data)
+            if len(rows) > 1000 or len(rows) > total:
+                raise OpenApiError("openapi_response_invalid")
+            if not data and len(rows) < total:
+                raise OpenApiError("openapi_response_invalid")
+            if len(rows) >= min(total, 1000):
+                break
+        if total_rows is None:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            from .site_vpn_client_config_summary import summarize_vpn_client_config_rows
+        except ImportError:  # direct execution in the image
+            from site_vpn_client_config_summary import summarize_vpn_client_config_rows
+        try:
+            projected = summarize_vpn_client_config_rows(
+                rows, max(0, total_rows - len(rows)))
+        except ValueError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"site_ref": site_ref, **projected}
+
     @_track_capability("site_remote_access_tunnel_status_summary")
     def read_site_remote_access_tunnel_status_summary(self, site_ref: str) -> dict[str, object]:
         """Count documented remote-access tunnel connection and open states."""
@@ -10937,9 +11001,85 @@ class OmadaOpenApiClient:
                 controller_id=self.config.controller_id),
             self._access_token(), 1000)
         try:
-            return summarize_sdwan_group_rows(rows, omitted)
+            summary = summarize_sdwan_group_rows(rows, omitted)
         except ValueError:
             raise OpenApiError("openapi_response_invalid") from None
+        by_id: dict[str, int] = {}
+        for row in rows:
+            raw_id = row.get("id") if isinstance(row, Mapping) else None
+            if not isinstance(raw_id, str) or not self._IDENTIFIER.fullmatch(raw_id):
+                continue
+            by_id[raw_id] = by_id.get(raw_id, 0) + 1
+        refs = [self._opaque_ref("sdwan_group", self.config.controller_id + ":" + raw_id)
+                for raw_id, count in by_id.items() if count == 1]
+        summary["group_refs"] = refs
+        summary["group_ref_count"] = len(refs)
+        summary["ambiguous_or_unavailable_group_ref_count"] = max(0, len(rows) - len(refs))
+        if omitted or len(refs) != len(rows):
+            summary["partial"] = True
+            summary["status"] = "partial"
+        return summary
+
+    @_track_capability("controller_sdwan_group_devices_summary")
+    def read_controller_sdwan_group_devices_summary(
+            self, group_ref: str) -> dict[str, object]:
+        """Summarize members of one freshly inventoried SD-WAN group."""
+        if not isinstance(group_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", group_ref):
+            raise OpenApiError("group_ref_invalid")
+        token = self._access_token()
+        inventory, omitted = self._read_bounded_grid_rows(
+            self._CONTROLLER_SDWAN_GROUP_BRIEF_PATH.format(
+                controller_id=self.config.controller_id), token, 1000)
+        if omitted or not inventory:
+            raise OpenApiError("group_ref_unknown")
+        matches: list[str] = []
+        seen: set[str] = set()
+        for row in inventory:
+            raw_id = row.get("id") if isinstance(row, Mapping) else None
+            if not isinstance(raw_id, str) or not self._IDENTIFIER.fullmatch(raw_id):
+                raise OpenApiError("group_inventory_ambiguous")
+            if raw_id in seen:
+                raise OpenApiError("group_inventory_ambiguous")
+            seen.add(raw_id)
+            candidate = self._opaque_ref(
+                "sdwan_group", self.config.controller_id + ":" + raw_id)
+            if hmac.compare_digest(candidate, group_ref):
+                matches.append(raw_id)
+        if len(matches) != 1:
+            raise OpenApiError("group_ref_unknown")
+        path = self._CONTROLLER_SDWAN_GROUP_DEVICES_PATH.format(
+            controller_id=self.config.controller_id, group_id=matches[0])
+        payload = self._request_json("GET", path, token=token)
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        result = payload.get("result")
+        members = result.get("port") if isinstance(result, Mapping) else None
+        if not isinstance(members, list) or len(members) > 1000:
+            raise OpenApiError("openapi_response_invalid")
+        nat = {"true": 0, "false": 0, "unreported": 0}
+        invalid_rows = unknown_fields = 0
+        allowed = {"deviceName", "deviceMac", "showModel", "type", "model",
+                   "modelVersion", "siteId", "siteName", "wanIp", "tunnelLimit",
+                   "capacityLevel", "hasPublicIp", "status", "lanNetworks",
+                   "portInfos", "supportSdWanNat"}
+        for member in members:
+            if not isinstance(member, Mapping):
+                invalid_rows += 1
+                nat["unreported"] += 1
+                continue
+            unknown_fields += sum(1 for key in member if key not in allowed)
+            flag = member.get("supportSdWanNat")
+            if type(flag) is bool:
+                nat["true" if flag else "false"] += 1
+            else:
+                nat["unreported"] += 1
+        partial = bool(invalid_rows or unknown_fields or nat["unreported"])
+        return {"status": "partial" if partial else "ok",
+                "resource": "controller_sdwan_group_devices_summary",
+                "group_ref": group_ref, "reported_device_count": len(members),
+                "by_reported_sdwan_nat_capability": nat,
+                "invalid_row_count": invalid_rows, "unknown_field_count": unknown_fields,
+                "partial": partial, "device_identities_and_addresses_returned": False}
 
     @_track_capability("switch_vlans")
     def read_switch_vlans(self, site_ref: str, switch_ref: str) -> dict[str, object]:
@@ -16265,6 +16405,7 @@ class OmadaOpenApiClient:
                                   self._site_s2s_vpn_inventory_request_valid(path) or
                                   self._site_s2s_vpn_v2_request_valid(path) or
                                   self._site_vpn_server_config_v2_request_valid(path) or
+                                  self._site_vpn_client_config_v2_request_valid(path) or
                                   self._site_remote_access_tunnel_status_request_valid(path) or
                                   self._site_ids_ips_config_request_valid(path) or
                                   self._site_gateway_webfilter_request_valid(path) or
@@ -16493,6 +16634,7 @@ class OmadaOpenApiClient:
                                   self._site_stack_list_request_valid(path) or
                                   self._site_stack_networks_request_valid(path) or
                                   self._controller_sdwan_group_brief_request_valid(path) or
+                                  self._controller_sdwan_group_devices_request_valid(path) or
                                   self._site_stack_lldp_request_valid(path) or
                                   self._SWITCH_NETWORKS_DETAIL_REQUEST.fullmatch(path) or
                                   self._GATEWAY_ACL_REQUEST.fullmatch(path) or
@@ -17852,6 +17994,11 @@ class OmadaOpenApiClient:
         return bool(match and match.group(1) == self.config.controller_id and
                     int(match.group(3)) <= min(self.config.max_pages, 10))
 
+    def _site_vpn_client_config_v2_request_valid(self, path: str) -> bool:
+        match = self._SITE_VPN_CLIENT_CONFIG_V2_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id and
+                    int(match.group(3)) <= min(self.config.max_pages, 10))
+
     def _site_remote_access_tunnel_status_request_valid(self, path: str) -> bool:
         match = self._SITE_REMOTE_ACCESS_TUNNEL_STATUS_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
@@ -18889,6 +19036,10 @@ class OmadaOpenApiClient:
                     1 <= int(match.group(3)) <= 1000)
         except (ValueError, OverflowError):
             return False
+
+    def _controller_sdwan_group_devices_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_SDWAN_GROUP_DEVICES_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
 
     def _site_stack_lldp_request_valid(self, path: str) -> bool:
         match = self._SITE_STACK_LLDP_REQUEST.fullmatch(path)

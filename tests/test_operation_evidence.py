@@ -141,8 +141,8 @@ class OperationEvidenceTests(unittest.TestCase):
         self.assertEqual(generated, expected)
         self.assertEqual(generated["operation_count"], 2445)
         self.assertEqual(generated["connector_evidence_counts"], {
-            "not_mapped": 1970,
-            "fixed_get_registry_route": 450,
+            "not_mapped": 1968,
+            "fixed_get_registry_route": 452,
             "manual_source_map_only": 25,
         })
         registry_rows = [row for row in generated["operations"]
@@ -158,6 +158,8 @@ class OperationEvidenceTests(unittest.TestCase):
         self.assertIn("site_stack_network_summary", indexed)
         self.assertIn("controller_sdwan_group_summary", indexed)
         self.assertIn("site_vpn_server_config_summary", indexed)
+        self.assertIn("site_vpn_client_config_summary", indexed)
+        self.assertIn("controller_sdwan_group_devices_summary", indexed)
         self.assertIn("site_gateway_webfilter_summary", indexed)
         self.assertIn("site_gateway_qos_class_summary", indexed)
         self.assertIn("site_wan_unsupported_function_summary", indexed)
@@ -193,6 +195,14 @@ class OperationEvidenceTests(unittest.TestCase):
         matrix = json.loads((root / "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
         self.assertEqual(len(matrix["sources"]), 3)
         for source in matrix["sources"]:
+            vpn_client = source["operations"]["site_vpn_client_config_summary"]["contract_review"]
+            self.assertEqual(vpn_client["operation_id"], "getGridVpnClientV2")
+            sdwan_devices = source["operations"]["controller_sdwan_group_devices_summary"]
+            if source["label"].startswith("ER7212PC"):
+                self.assertFalse(sdwan_devices["documented"])
+            else:
+                self.assertEqual(sdwan_devices["contract_review"]["operation_id"],
+                                 "getSdWanGroupDevices")
             recent = source["operations"]["site_recent_clients_summary"]["contract_review"]
             affected = source["operations"]["site_vlan_affected_ports_summary"]["contract_review"]
             self.assertEqual(recent["operation_id"], "getGridKnownClients")

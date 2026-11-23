@@ -956,7 +956,9 @@ does not establish tunnel connectivity; live support is unknown.
 read is controller-scoped. It reports group counts, hub metadata field coverage
 and the sum of documented device counts across groups (not a distinct-device
 count). IDs, names and hub values are omitted. Hardware/CBC document the read;
-ER7212PC does not. No operational status is inferred.
+ER7212PC does not. Unique current group rows also receive opaque `group_ref`
+handles for the separately documented member summary; raw IDs remain omitted.
+No operational status is inferred.
 
 `omada_site_vpn_server_config_summary` takes a selected `site_ref`. It counts
 configured VPN server rows by documented protocol and by the source boolean
@@ -995,3 +997,27 @@ Bonjour profiles by default-profile flag and by zero to three documented
 service entries. Profile IDs, names and service strings are omitted; results
 are capped at 1,000 profiles. This complements the rule summary and does not
 claim Bonjour reachability. Live support is unknown.
+
+`omada_site_vpn_client_config_summary` takes a selected `site_ref`. It reads
+the documented v2 client grid with only `page` and `pageSize`, then counts
+documented protocol codes and the source boolean VPN status flag. It omits
+addresses, peer details, identifiers, credentials and other settings. The flag
+does not establish a live tunnel connection; controller support is unknown.
+
+`omada_controller_sdwan_group_devices_summary` takes a `group_ref` returned by
+the SD-WAN group inventory summary. Each call refreshes that inventory and
+requires one unique current match before reading the group. It counts returned
+members and documented SD-WAN NAT capability flags. Device, site and group IDs,
+names, WAN IPs, and member details are omitted. The read is documented for
+Hardware Controller and CBC Standard; ER7212PC does not document it. Live
+support is unknown.
+
+A synthetic 20-client V2 grid measured 1,787 source-envelope tokens and 127
+projected JSON tokens (92.89% fewer) with `tiktoken` 0.9.0 and `o200k_base`.
+The count covers only the serialized grid envelope and returned JSON, not
+transport framing or billed agent usage.
+
+A synthetic 20-member SD-WAN group measured 2,798 detail-payload tokens and 78
+summary tokens (97.21% fewer) with `tiktoken` 0.9.0 and `o200k_base`. This
+excludes the separate fresh group-inventory request, transport framing and
+billed agent usage.

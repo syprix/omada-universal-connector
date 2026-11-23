@@ -1664,8 +1664,10 @@ and billed agent usage.
 page counts, field-presence coverage for hub type/model/version, and the sum of
 documented per-group device counts. That sum is group memberships, not distinct
 devices. IDs, group names and hub values are omitted. Hardware Controller and
-CBC Standard document the operation; ER7212PC does not. No status or enabled
-field is documented, and live support is unknown.
+CBC Standard document the operation; ER7212PC does not. It issues opaque refs
+only for unique current group IDs, for the separate member summary; raw IDs
+remain omitted. No status or enabled field is documented, and live support is
+unknown.
 
 A synthetic 20-group fixture measured 902→55 serialized JSON tokens (93.90% fewer) with `js-tiktoken` 1.0.21 and `o200k_base`. The fixture and summary exclude HTTP/MCP framing, live payloads and billed agent usage.
 
@@ -1748,3 +1750,26 @@ live support is unknown.
 A synthetic 20-profile response measured 722 source tokens and 103 summary
 tokens (85.73% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`. This excludes
 prompts, tool schemas, transport framing and billed agent usage.
+
+`site_vpn_client_config_summary` reads the documented v2 client-to-site VPN
+client grid using only its required page parameters. It counts documented
+protocol codes and the boolean VPN status flag, while omitting client
+identities, addresses, peer details and credentials. The flag is not interpreted
+as tunnel connectivity. Live support is unknown.
+
+## Saved SD-WAN group member summary
+
+`GET /v1/controller/sdwan-groups/{group_ref}/devices/summary` accepts an
+opaque `group_ref` from the controller SD-WAN group inventory. The connector
+refreshes that inventory for each read and proceeds only for one unique match.
+It counts member records and documented boolean `supportSdWanNat` values.
+Device/site/group identifiers, names, WAN IPs and member details are omitted;
+NAT support is a documented capability flag, not a routing or traffic result.
+Hardware Controller and CBC Standard document the endpoint; ER7212PC does not.
+Live support is unknown.
+
+Synthetic token measurements used `tiktoken` 0.9.0 / `o200k_base`: a 20-client
+VPN grid was 1,787→127 serialized tokens (92.89% fewer); a 20-member SD-WAN
+group detail was 2,798→78 tokens (97.21% fewer). The latter excludes its fresh
+inventory request. Both measures exclude transport framing and billed agent
+usage.
