@@ -571,3 +571,21 @@ measurement or billed agent usage.
 The selected stack network summary (#87) reads `getStackNetworkList` from all three exports after binding the opaque reference to a unique, fresh stack row in the selected site. It counts DHCP modes and documented status/management/IPv6 fields, while omitting VLAN/network identifiers, names, member details, addresses, DHCP values and VRF identifiers. The scan is capped at 1,000 rows. Fixture tests cover the projection and binding; the required stack hardware was not available for live testing.
 
 A synthetic 20-row stack-network response measured 2,526→138 serialized JSON tokens (94.54% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`. This fixture comparison excludes prompts, schemas, transport framing and billed agent use.
+The controller-wide SD-WAN group summary reads `getGridSdWanGroupBrief` from
+Hardware Controller and CBC Standard only; ER7212PC does not document it. It
+counts groups, hub type/model/version field coverage and the sum of per-group
+device counts, without returning IDs, names or hub values. The sum is group
+membership, not a count of unique devices. The contract has no status or enabled
+field. Live support remains unknown.
+
+A synthetic 20-group fixture measured 902→55 serialized JSON tokens (93.90% fewer) with `js-tiktoken` 1.0.21 and `o200k_base`. The fixture and summary exclude HTTP/MCP framing, live payloads and billed agent usage.
+
+The configured client-to-site VPN server summary (#90) reads `getGridVpnServerV2`
+from all three exports. It counts documented protocol codes and the source
+boolean VPN status flag, and omits IDs, names, WAN/network values and user/client
+counts. This flag does not establish tunnel connectivity and remains separate
+from the existing operational-status read. Live support is unknown.
+
+A synthetic 20-server fixture measured 882→128 serialized JSON tokens (85.49%
+fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; it is not a live measurement
+or billed agent usage.

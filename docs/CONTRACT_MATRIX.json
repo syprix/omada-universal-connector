@@ -2732,6 +2732,47 @@
             "response": "Paginated OperationResponseOswNetworkGridOswNetworkOpenApi. Rows use OswNetworkOpenApi; all three exports require id:string, mode:int32, mvlan:boolean and vlan:int32. mode documents 0=None, 1=DHCP Server, 2=DHCP Relay. status:boolean, ipv6Enable:boolean and grid supportIpv6:boolean are documented fields.",
             "projection": "Binds the selected opaque stack reference to exactly one entry in a fresh site stack inventory. Counts reported rows, documented DHCP modes, enabled state, management-network flag and IPv6 coverage. Omits VLAN IDs, network IDs/names, member details, addresses, DHCP values and VRF identifiers. Reads at most 1,000 rows and reports omissions/unknown fields; live stack hardware was not tested."
           }
+        },
+        "controller_sdwan_group_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridSdWanGroupBrief",
+            "permission": "SD WAN View Only",
+            "path": "GET /openapi/v1/{omadacId}/sdwan/sdwan-group/brief",
+            "query": {
+              "required": [
+                "page:int32",
+                "pageSize:int32 (1–1000)"
+              ]
+            },
+            "request_body": false,
+            "response": "Paginated GridVOSdWanGroupBrief with data[] rows. SdWanGroupBrief documents optional id:string, name:string, hubDeviceType:string, hubModel:string, hubModelVersion:string and deviceNum:int32; no status/enable field or enum is documented.",
+            "projection": "Controller-wide count and page omissions, field-presence coverage for hub type/model/version and documented deviceNum values. Sums deviceNum across groups as group-device memberships, not distinct devices. Omits group IDs/names and hub type/model/version values. No operational status is inferred."
+          }
+        },
+        "site_vpn_server_config_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridVpnServerV2",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path": "GET /openapi/v2/{omadacId}/sites/{siteId}/vpn/client-to-site-vpn-servers",
+            "query": {
+              "required": [
+                "page:int32",
+                "pageSize:int32 (1–1000)"
+              ],
+              "optional_not_used": [
+                "searchKey",
+                "filters.vpnType",
+                "sorts.wans"
+              ]
+            },
+            "request_body": false,
+            "response": "Paginated VpnSummaryOpenApiGridVOVpnSummaryVO with data[] VpnSummaryVO rows. vpnType is int32 with documented codes 0 L2TP, 1 PPTP, 2 IPSec, 3 OpenVPN, 4 WireGuard, 5 SSL VPN. status is an optional boolean described as VPN status; IDs, names, WAN/network values, credentials-related objects, and user/client counts are also present but not needed for this summary.",
+            "projection": "Counts rows by documented vpnType and by the documented boolean status flag true/false/unreported. Omits IDs, names, WAN/network values, failover settings, user/client counts and all other row values. The boolean is reported as a source activation/status flag and is not interpreted as tunnel connectivity; the separate VPN operational-status route remains distinct."
+          }
         }
       }
     },
@@ -5437,6 +5478,47 @@
             "response": "Paginated OperationResponseOswNetworkGridOswNetworkOpenApi. Rows use OswNetworkOpenApi; all three exports require id:string, mode:int32, mvlan:boolean and vlan:int32. mode documents 0=None, 1=DHCP Server, 2=DHCP Relay. status:boolean, ipv6Enable:boolean and grid supportIpv6:boolean are documented fields.",
             "projection": "Binds the selected opaque stack reference to exactly one entry in a fresh site stack inventory. Counts reported rows, documented DHCP modes, enabled state, management-network flag and IPv6 coverage. Omits VLAN IDs, network IDs/names, member details, addresses, DHCP values and VRF identifiers. Reads at most 1,000 rows and reports omissions/unknown fields; live stack hardware was not tested."
           }
+        },
+        "controller_sdwan_group_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridSdWanGroupBrief",
+            "permission": "SD WAN View Only",
+            "path": "GET /openapi/v1/{omadacId}/sdwan/sdwan-group/brief",
+            "query": {
+              "required": [
+                "page:int32",
+                "pageSize:int32 (1–1000)"
+              ]
+            },
+            "request_body": false,
+            "response": "Paginated GridVOSdWanGroupBrief with data[] rows. SdWanGroupBrief documents optional id:string, name:string, hubDeviceType:string, hubModel:string, hubModelVersion:string and deviceNum:int32; no status/enable field or enum is documented.",
+            "projection": "Controller-wide count and page omissions, field-presence coverage for hub type/model/version and documented deviceNum values. Sums deviceNum across groups as group-device memberships, not distinct devices. Omits group IDs/names and hub type/model/version values. No operational status is inferred."
+          }
+        },
+        "site_vpn_server_config_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridVpnServerV2",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path": "GET /openapi/v2/{omadacId}/sites/{siteId}/vpn/client-to-site-vpn-servers",
+            "query": {
+              "required": [
+                "page:int32",
+                "pageSize:int32 (1–1000)"
+              ],
+              "optional_not_used": [
+                "searchKey",
+                "filters.vpnType",
+                "sorts.wans"
+              ]
+            },
+            "request_body": false,
+            "response": "Paginated VpnSummaryOpenApiGridVOVpnSummaryVO with data[] VpnSummaryVO rows. vpnType is int32 with documented codes 0 L2TP, 1 PPTP, 2 IPSec, 3 OpenVPN, 4 WireGuard, 5 SSL VPN. status is an optional boolean described as VPN status; IDs, names, WAN/network values, credentials-related objects, and user/client counts are also present but not needed for this summary.",
+            "projection": "Counts rows by documented vpnType and by the documented boolean status flag true/false/unreported. Omits IDs, names, WAN/network values, failover settings, user/client counts and all other row values. The boolean is reported as a source activation/status flag and is not interpreted as tunnel connectivity; the separate VPN operational-status route remains distinct."
+          }
         }
       }
     },
@@ -8100,6 +8182,47 @@
             "request_body": false,
             "response": "Paginated OperationResponseOswNetworkGridOswNetworkOpenApi. Rows use OswNetworkOpenApi; all three exports require id:string, mode:int32, mvlan:boolean and vlan:int32. mode documents 0=None, 1=DHCP Server, 2=DHCP Relay. status:boolean, ipv6Enable:boolean and grid supportIpv6:boolean are documented fields.",
             "projection": "Binds the selected opaque stack reference to exactly one entry in a fresh site stack inventory. Counts reported rows, documented DHCP modes, enabled state, management-network flag and IPv6 coverage. Omits VLAN IDs, network IDs/names, member details, addresses, DHCP values and VRF identifiers. Reads at most 1,000 rows and reports omissions/unknown fields; live stack hardware was not tested."
+          }
+        },
+        "controller_sdwan_group_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridSdWanGroupBrief",
+            "permission": "SD WAN View Only",
+            "path": "GET /openapi/v1/{omadacId}/sdwan/sdwan-group/brief",
+            "query": {
+              "required": [
+                "page:int32",
+                "pageSize:int32 (1–1000)"
+              ]
+            },
+            "request_body": false,
+            "response": "Paginated GridVOSdWanGroupBrief with data[] rows. SdWanGroupBrief documents optional id:string, name:string, hubDeviceType:string, hubModel:string, hubModelVersion:string and deviceNum:int32; no status/enable field or enum is documented.",
+            "projection": "Controller-wide count and page omissions, field-presence coverage for hub type/model/version and documented deviceNum values. Sums deviceNum across groups as group-device memberships, not distinct devices. Omits group IDs/names and hub type/model/version values. No operational status is inferred."
+          }
+        },
+        "site_vpn_server_config_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridVpnServerV2",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path": "GET /openapi/v2/{omadacId}/sites/{siteId}/vpn/client-to-site-vpn-servers",
+            "query": {
+              "required": [
+                "page:int32",
+                "pageSize:int32 (1–1000)"
+              ],
+              "optional_not_used": [
+                "searchKey",
+                "filters.vpnType",
+                "sorts.wans"
+              ]
+            },
+            "request_body": false,
+            "response": "Paginated VpnSummaryOpenApiGridVOVpnSummaryVO with data[] VpnSummaryVO rows. vpnType is int32 with documented codes 0 L2TP, 1 PPTP, 2 IPSec, 3 OpenVPN, 4 WireGuard, 5 SSL VPN. status is an optional boolean described as VPN status; IDs, names, WAN/network values, credentials-related objects, and user/client counts are also present but not needed for this summary.",
+            "projection": "Counts rows by documented vpnType and by the documented boolean status flag true/false/unreported. Omits IDs, names, WAN/network values, failover settings, user/client counts and all other row values. The boolean is reported as a source activation/status flag and is not interpreted as tunnel connectivity; the separate VPN operational-status route remains distinct."
           }
         }
       }

@@ -1657,3 +1657,25 @@ A synthetic 20-row v2 inventory measured 2,999 serialized source-response
 tokens and 328 projected-result tokens (89.06% fewer) with `js-tiktoken`
 1.0.21 and `o200k_base`. Fixture bodies exclude HTTP/MCP framing, live payloads
 and billed agent usage.
+
+
+`controller_sdwan_group_summary` reads the controller-scoped
+`getGridSdWanGroupBrief` endpoint using bounded pagination. It returns group and
+page counts, field-presence coverage for hub type/model/version, and the sum of
+documented per-group device counts. That sum is group memberships, not distinct
+devices. IDs, group names and hub values are omitted. Hardware Controller and
+CBC Standard document the operation; ER7212PC does not. No status or enabled
+field is documented, and live support is unknown.
+
+A synthetic 20-group fixture measured 902→55 serialized JSON tokens (93.90% fewer) with `js-tiktoken` 1.0.21 and `o200k_base`. The fixture and summary exclude HTTP/MCP framing, live payloads and billed agent usage.
+
+`site_vpn_server_config_summary` reads the documented v2 client-to-site VPN
+server grid and reports counts by protocol and by its boolean VPN status flag.
+It omits identities, WAN/network values, user/client counts and other settings.
+The source flag does not establish tunnel connectivity; the separate operational
+status read remains distinct. All three source exports document the operation;
+live support is unknown.
+
+The synthetic 20-server fixture measured 882→128 serialized JSON tokens
+(85.49% fewer) with `js-tiktoken` 1.0.21 and `o200k_base`; this excludes
+transport framing, live payloads and billed agent usage.

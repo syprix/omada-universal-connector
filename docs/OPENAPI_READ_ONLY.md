@@ -1490,3 +1490,6 @@ identifiers, WAN/network values, custom subnet data, peers and user/client
 counts are omitted. The v1 inventory remains the source for opaque VPN
 references; the v2 status boolean is not tunnel connectivity. All three source
 exports document the operation; live support is unknown.
+
+| `GET /v1/controller/sdwan-groups/summary` | Paginated `GET /openapi/v1/{omadacId}/sdwan/sdwan-group/brief?page=<int>&pageSize=<int>` | Controller-wide group total and omissions, hub type/model/version presence counts and sum of per-group `deviceNum`; IDs/names/hub values omitted; no status field is documented; Hardware/CBC only |
+| `GET /v1/sites/{site_ref}/vpn/servers/config-summary` | Paginated `GET /openapi/v2/{omadacId}/sites/{siteId}/vpn/client-to-site-vpn-servers?page=<int>&pageSize=100` | Counts documented protocol codes and source boolean status flags; omits identities and settings; flag is not tunnel connectivity |

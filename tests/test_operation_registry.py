@@ -152,6 +152,21 @@ class OperationRegistryTests(unittest.TestCase):
         self.assertEqual(route.operation_id, "controller_upgrade_log_summary")
         self.assertEqual(dict(bindings), {})
 
+    def test_controller_sdwan_group_summary_is_controller_scoped(self):
+        operation = REGISTRY.get("controller_sdwan_group_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"], [])
+        route, bindings = REGISTRY.match("GET", "/v1/controller/sdwan-groups/summary")
+        self.assertEqual(route.operation_id, "controller_sdwan_group_summary")
+        self.assertEqual(dict(bindings), {})
+
+    def test_site_vpn_server_config_summary_is_a_site_bound_read(self):
+        operation = REGISTRY.get("site_vpn_server_config_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/vpn/servers/config-summary")
+        self.assertEqual(route.operation_id, "site_vpn_server_config_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
+
     def test_site_ipsec_sa_summary_is_a_site_bound_read(self):
         operation = REGISTRY.get("site_ipsec_sa_summary")
         self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
@@ -840,6 +855,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_static_route_interface_options_summary",
             "site_policy_route_summary",
             "site_ipsec_sa_summary",
+            "site_vpn_server_config_summary",
             "site_vpn_server_status_summary",
             "site_vpn_client_status_summary",
             "site_vpn_s2s_status_summary",
@@ -916,6 +932,7 @@ class OperationRegistryTests(unittest.TestCase):
 
 "site_stack_connections_summary",
             "site_stack_network_summary",
+            "controller_sdwan_group_summary",
             "site_client_health_timeline",
             "site_wifi_summary",
             "site_6ghz_ap_presence",
