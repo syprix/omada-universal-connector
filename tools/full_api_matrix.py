@@ -430,6 +430,8 @@ IMPLEMENTED: dict[tuple[str, str], str] = {
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/url-filters/gateway"): "implemented_read",
     ("GET", "/openapi/v2/{controller_id}/sites/{site_id}/lan-networks/isolate/interfaces"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/ospf/interface"): "implemented_read",
+    ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/switch-qos/qos-rule"): "implemented_read",
+    ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/switches/{switch_mac}/ddm/info"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/url-filters/eap"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/url-filters/globalUrlFilter"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/qos/gateway/class-rules"): "implemented_read",

@@ -863,6 +863,20 @@ class FakeOpenApiClient:
                 "by_documented_network_type": {"broadcast": 1},
                 "ospf_neighbor_state_inferred": False}
 
+    def read_site_switch_qos_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_switch_qos_summary", site_ref))
+        return {"status": "ok", "resource": "site_switch_qos_summary",
+                "site_ref": site_ref, "reported_rule_total": 2,
+                "by_documented_rule_type": {"network": 1, "port": 1, "custom": 0},
+                "traffic_behavior_inferred": False}
+
+    def read_site_switch_ddm_summary(self, site_ref: str, device_ref: str) -> dict[str, object]:
+        self.calls.append(("site_switch_ddm_summary", site_ref, device_ref))
+        return {"status": "ok", "resource": "site_switch_ddm_summary",
+                "site_ref": site_ref, "device_ref": device_ref,
+                "reported_optical_module_count": 1,
+                "device_health_inferred": False}
+
     def read_site_gateway_qos_class_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_gateway_qos_class_summary", site_ref))
         return {"status": "ok", "resource": "site_gateway_qos_class_summary",
@@ -3113,6 +3127,97 @@ class OpenApiHttpTests(unittest.TestCase):
             ("GET", "/openapi/v2/ctrl/sites/site_1/lan-networks/isolate/interfaces"),
             ("GET", "/openapi/v1/ctrl/sites/site_1/ospf/interface?page=1&pageSize=100")])
 
+    def test_switch_qos_and_ddm_adapters_bound_reads_and_bind_fresh_switch_inventory(self) -> None:
+        site_ref = "a" * 24
+        client = OmadaOpenApiClient(OpenApiConfig(
+            "https://controller.example", "ctrl", "id", "secret", cert_sha256="a" * 64))
+        client._site_ids_by_ref[site_ref] = "site_1"
+        mac = "00:11:22:33:44:55"
+        self.assertTrue(client._site_switch_qos_rules_request_valid(
+            "/openapi/v1/ctrl/sites/site_1/switch-qos/qos-rule?page=1&pageSize=100"))
+        self.assertFalse(client._site_switch_qos_rules_request_valid(
+            "/openapi/v1/ctrl/sites/site_1/switch-qos/qos-rule?page=1&pageSize=100&searchKey=x"))
+        self.assertTrue(client._site_switch_ddm_request_valid(
+            f"/openapi/v1/ctrl/sites/site_1/switches/{mac}/ddm/info"))
+        self.assertFalse(client._site_switch_ddm_request_valid(
+            f"/openapi/v1/other/sites/site_1/switches/{mac}/ddm/info"))
+        inventory_rows = [{"deviceId": "switch-1", "mac": mac,
+                           "deviceType": "switch", "name": "private switch"}]
+        device_ref = client._opaque_ref("device", "site_1:switch-1")
+        calls = []
+
+        def upstream(method, path, **kwargs):
+            calls.append((method, path))
+            if "/switch-qos/qos-rule?" in path:
+                return {"errorCode": 0, "result": {
+                    "totalRows": 1, "currentPage": 1, "currentSize": 1,
+                    "data": [{"type": 1, "status": True, "queue": 3,
+                              "name": "private qos", "id": "private-id",
+                              "sPort": 443, "dPort": 8443}]}}
+            return {"errorCode": 0, "result": [
+                {"port": 7, "standardPort": "1/0/7", "dataReady": 1,
+                 "transmitFault": 0, "lossOfSignal": 1,
+                 "rxPower": 0.42, "txPower": 0.81, "temperature": 51.5}]}
+
+        with patch.object(client, "_access_token", return_value="token"), \
+                patch.object(client, "_read_pages", return_value=inventory_rows) as inventory, \
+                patch.object(client, "_request_json", side_effect=upstream):
+            qos = client.read_site_switch_qos_summary(site_ref)
+            ddm = client.read_site_switch_ddm_summary(site_ref, device_ref)
+        self.assertEqual(qos["by_documented_queue"]["3"], 1)
+        self.assertEqual(ddm["reported_controller_flags"]["lossOfSignal"]["reported_loss"], 1)
+        self.assertEqual(inventory.call_count, 1)
+        self.assertEqual(calls, [
+            ("GET", "/openapi/v1/ctrl/sites/site_1/switch-qos/qos-rule?page=1&pageSize=100"),
+            ("GET", f"/openapi/v1/ctrl/sites/site_1/switches/{mac}/ddm/info")])
+        for secret in ("private qos", "private-id", "443", "8443", mac,
+                       "1/0/7", "0.42", "0.81", "51.5"):
+            self.assertNotIn(secret, json.dumps(qos) + json.dumps(ddm))
+
+    def test_switch_ddm_refuses_duplicate_fresh_inventory_match(self) -> None:
+        site_ref = "a" * 24
+        client = OmadaOpenApiClient(OpenApiConfig(
+            "https://controller.example", "ctrl", "id", "secret", cert_sha256="a" * 64))
+        client._site_ids_by_ref[site_ref] = "site_1"
+        rows = [{"deviceId": "switch-1", "mac": "00:11:22:33:44:55",
+                 "deviceType": "switch"}] * 2
+        device_ref = client._opaque_ref("device", "site_1:switch-1")
+        with patch.object(client, "_access_token", return_value="token"), \
+                patch.object(client, "_read_pages", return_value=rows), \
+                patch.object(client, "_request_json") as request:
+            with self.assertRaises(OpenApiError) as raised:
+                client.read_site_switch_ddm_summary(site_ref, device_ref)
+        self.assertEqual(raised.exception.code, "device_ref_ambiguous")
+        request.assert_not_called()
+
+    def test_switch_ddm_rejects_untyped_generic_result(self) -> None:
+        site_ref = "a" * 24
+        client = OmadaOpenApiClient(OpenApiConfig(
+            "https://controller.example", "ctrl", "id", "secret", cert_sha256="a" * 64))
+        client._site_ids_by_ref[site_ref] = "site_1"
+        device_ref = client._opaque_ref("device", "site_1:switch-1")
+        with patch.object(client, "_access_token", return_value="token"), \
+                patch.object(client, "_read_pages", return_value=[{
+                    "deviceId": "switch-1", "mac": "00:11:22:33:44:55",
+                    "deviceType": "switch"}]), \
+                patch.object(client, "_request_json", return_value={
+                    "errorCode": 0, "result": {"untyped": "payload"}}):
+            with self.assertRaises(OpenApiError) as raised:
+                client.read_site_switch_ddm_summary(site_ref, device_ref)
+        self.assertEqual(raised.exception.code, "openapi_response_invalid")
+
+    def test_switch_qos_rejects_untyped_generic_result(self) -> None:
+        site_ref = "a" * 24
+        client = OmadaOpenApiClient(OpenApiConfig(
+            "https://controller.example", "ctrl", "id", "secret", cert_sha256="a" * 64))
+        client._site_ids_by_ref[site_ref] = "site_1"
+        with patch.object(client, "_access_token", return_value="token"), \
+                patch.object(client, "_request_json", return_value={
+                    "errorCode": 0, "result": {"untyped": "payload"}}):
+            with self.assertRaises(OpenApiError) as raised:
+                client.read_site_switch_qos_summary(site_ref)
+        self.assertEqual(raised.exception.code, "openapi_response_invalid")
+
     def test_http_ap_overview_uses_site_bound_reference_and_redacted_projection(self) -> None:
         site_ref, ap_ref = "a" * 24, "b" * 24
         client = OmadaOpenApiClient(OpenApiConfig(
@@ -4959,6 +5064,35 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(response["result"]["structuredContent"], direct)
         self.assertEqual(self.fake.calls,
                          [("site_ospf_interface_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_switch_qos_summary(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/switches/qos-rules/summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200, repr(direct))
+        self.assertEqual(direct["resource"], "site_switch_qos_summary")
+        request = {"jsonrpc": "2.0", "id": 339, "method": "tools/call",
+                   "params": {"name": "omada_site_switch_qos_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls, [("site_switch_qos_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_switch_ddm_summary(self) -> None:
+        site_ref, device_ref = "a" * 24, "b" * 24
+        path = f"/v1/sites/{site_ref}/switches/{device_ref}/ddm-summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200, repr(direct))
+        self.assertEqual(direct["resource"], "site_switch_ddm_summary")
+        request = {"jsonrpc": "2.0", "id": 340, "method": "tools/call",
+                   "params": {"name": "omada_site_switch_ddm_summary",
+                              "arguments": {"site_ref": site_ref, "device_ref": device_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_switch_ddm_summary", site_ref, device_ref)] * 2)
 
     def test_http_and_mcp_expose_site_gateway_qos_class_summary(self) -> None:
         site_ref = "a" * 24

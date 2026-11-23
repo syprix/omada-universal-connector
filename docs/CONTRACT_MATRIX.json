@@ -3007,6 +3007,41 @@
             "response": "Paginated GridVOOspfInterfaceOpenApiVO data[] resolves to OspfInterfaceOpenApiVO. Required in this export: deviceName, mac, vlanInterfaceId, vlanInterfaceName, vlanId, cost, networkType, helloInterval, authenticationType. cost is documented as 1–65535; networkType is 0 broadcast, 1 non-broadcast, 2 point-to-multipoint, 3 point-to-point. Other declared fields include id, deviceName, isStack, mac, type, stackId, vlanInterfaceId, vlanInterfaceName, vlanId, loopbackInterfaceId, loopbackId, cost, networkType, passiveEnable, helloInterval, deadInterval, authenticationType, simpleKey, md5KeyId, md5Key. Authentication key fields simpleKey and md5Key are sensitive.",
             "projection": "Reads at most 1,000 rows using pageSize 100. Counts documented VLAN/loopback interface type, network type and valid costs. Per-field optional data availability is shown only as present/missing/invalid counts, with source-schema omissions reported as unreported. Omits names, IDs, stack and device identifiers, addresses, VLAN values, and all authentication keys. No neighbor or adjacency state is inferred."
           }
+        },
+        "site_switch_qos_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getQosRules",
+            "permission": "Network Config Page View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/switch-qos/qos-rule",
+            "query": {
+              "required": [
+                "page:int32",
+                "pageSize:int32 (1–1000)"
+              ],
+              "optional": [
+                "searchKey:string"
+              ],
+              "sent_by_connector": false
+            },
+            "request_body": false,
+            "response": "Paginated GridVOOswQosRuleVO with OswQosRuleVO rows. Required row fields include status:boolean, type:int32 (0 network, 1 port, 2 custom), and queue:int32 (0–7).",
+            "projection": "Reads at most 1,000 rows in pages of 100 without searchKey. Counts documented enabled state, rule type and queue. Omits names, IDs, addresses, ports and all other rule values. No traffic behavior is inferred."
+          }
+        },
+        "site_switch_ddm_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getOswDDMInfo",
+            "permission": "Site Device Manager View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/switches/{switchMac}/ddm/info",
+            "query": {},
+            "request_body": false,
+            "response": "result is a typed list of OswDDMInfoOpenApiVO rows. dataReady:int32 (0 invalid, 1 valid), transmitFault:int32 (0 false, 1 true), and lossOfSignal:int32 (0 false, 1 true) are documented. Numeric optical readings and port fields are also present.",
+            "projection": "Refreshes same-site device inventory, requires one unique switch device_ref, then counts only the three documented status flags. Omits port identifiers, standard port names and numeric optical readings. No device-health diagnosis is inferred."
+          }
         }
       }
     },
@@ -5987,6 +6022,41 @@
             "response": "Paginated GridVOOspfInterfaceOpenApiVO data[] resolves to OspfInterfaceOpenApiVO. Required in this export: deviceName, mac, vlanInterfaceId, vlanInterfaceName, vlanId, cost, networkType, helloInterval, authenticationType. cost is documented as 1–65535; networkType is 0 broadcast, 1 non-broadcast, 2 point-to-multipoint, 3 point-to-point. Other declared fields include id, deviceName, isStack, mac, type, stackId, vlanInterfaceId, vlanInterfaceName, vlanId, loopbackInterfaceId, loopbackId, cost, networkType, passiveEnable, helloInterval, deadInterval, authenticationType, simpleKey, md5KeyId, md5Key. Authentication key fields simpleKey and md5Key are sensitive.",
             "projection": "Reads at most 1,000 rows using pageSize 100. Counts documented VLAN/loopback interface type, network type and valid costs. Per-field optional data availability is shown only as present/missing/invalid counts, with source-schema omissions reported as unreported. Omits names, IDs, stack and device identifiers, addresses, VLAN values, and all authentication keys. No neighbor or adjacency state is inferred."
           }
+        },
+        "site_switch_qos_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getQosRules",
+            "permission": "Network Config Page View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/switch-qos/qos-rule",
+            "query": {
+              "required": [
+                "page:int32",
+                "pageSize:int32 (1–1000)"
+              ],
+              "optional": [
+                "searchKey:string"
+              ],
+              "sent_by_connector": false
+            },
+            "request_body": false,
+            "response": "Paginated GridVOOswQosRuleVO with OswQosRuleVO rows. Required row fields include status:boolean, type:int32 (0 network, 1 port, 2 custom), and queue:int32 (0–7).",
+            "projection": "Reads at most 1,000 rows in pages of 100 without searchKey. Counts documented enabled state, rule type and queue. Omits names, IDs, addresses, ports and all other rule values. No traffic behavior is inferred."
+          }
+        },
+        "site_switch_ddm_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getOswDDMInfo",
+            "permission": "Site Device Manager View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/switches/{switchMac}/ddm/info",
+            "query": {},
+            "request_body": false,
+            "response": "result is a typed list of OswDDMInfoOpenApiVO rows. dataReady:int32 (0 invalid, 1 valid), transmitFault:int32 (0 false, 1 true), and lossOfSignal:int32 (0 false, 1 true) are documented. Numeric optical readings and port fields are also present.",
+            "projection": "Refreshes same-site device inventory, requires one unique switch device_ref, then counts only the three documented status flags. Omits port identifiers, standard port names and numeric optical readings. No device-health diagnosis is inferred."
+          }
         }
       }
     },
@@ -8915,6 +8985,40 @@
             "request_body": false,
             "response": "Paginated GridVOOspfInterfaceOpenApiVO data[] resolves to OspfInterfaceOpenApiVO. Required in this export: deviceName, mac, vlanInterfaceId, vlanInterfaceName, vlanId, cost, networkType, helloInterval, authenticationType. cost is documented as 1–65535; networkType is 0 broadcast, 1 non-broadcast, 2 point-to-multipoint, 3 point-to-point. Other declared fields include id, deviceName, mac, stackId, vlanInterfaceId, vlanInterfaceName, vlanId, cost, networkType, helloInterval, deadInterval, authenticationType, simpleKey, md5KeyId, md5Key. Authentication key fields simpleKey and md5Key are sensitive. This export does not declare: type, isStack, loopbackInterfaceId, loopbackId, passiveEnable.",
             "projection": "Reads at most 1,000 rows using pageSize 100. Counts documented VLAN/loopback interface type, network type and valid costs. Per-field optional data availability is shown only as present/missing/invalid counts, with source-schema omissions reported as unreported. Omits names, IDs, stack and device identifiers, addresses, VLAN values, and all authentication keys. No neighbor or adjacency state is inferred."
+          }
+        },
+        "site_switch_qos_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getQosRules",
+            "source_status": "Response is generic OperationResponse with result:object; no typed grid or row contract.",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/switch-qos/qos-rule",
+            "query": {
+              "required": [
+                "page:int32",
+                "pageSize:int32 (1–1000)"
+              ],
+              "optional": [
+                "searchKey:string"
+              ],
+              "sent_by_connector": false
+            },
+            "request_body": false,
+            "projection": "The connector accepts only the documented typed grid shape and rejects nonconforming generic results. ER7212PC live support is unknown."
+          }
+        },
+        "site_switch_ddm_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getOswDDMInfo",
+            "source_status": "OperationResponseWithoutResult has no effective typed row/result contract.",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/switches/{switchMac}/ddm/info",
+            "query": {},
+            "request_body": false,
+            "response": "No usable documented result rows for a summary in the ER7212PC 6.2.14 export.",
+            "projection": "The adapter requires the typed list response documented by Hardware/CBC and rejects non-list results. ER7212PC is not claimed as supported."
           }
         }
       }

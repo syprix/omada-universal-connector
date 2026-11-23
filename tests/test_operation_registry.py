@@ -265,6 +265,16 @@ class OperationRegistryTests(unittest.TestCase):
             self.assertEqual(route.operation_id, operation_id)
             self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
 
+    def test_switch_qos_and_ddm_summaries_bind_expected_site_and_switch(self):
+        site_ref, device_ref = "a" * 24, "b" * 24
+        qos, _ = REGISTRY.match(
+            "GET", f"/v1/sites/{site_ref}/switches/qos-rules/summary")
+        self.assertEqual(qos.operation_id, "site_switch_qos_summary")
+        ddm, bindings = REGISTRY.match(
+            "GET", f"/v1/sites/{site_ref}/switches/{device_ref}/ddm-summary")
+        self.assertEqual(ddm.operation_id, "site_switch_ddm_summary")
+        self.assertEqual(dict(bindings), {"site_ref": site_ref, "device_ref": device_ref})
+
     def test_site_gateway_qos_class_summary_is_site_bound(self):
         operation = REGISTRY.get("site_gateway_qos_class_summary")
         self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
@@ -961,6 +971,8 @@ class OperationRegistryTests(unittest.TestCase):
             "site_url_filter_general_summary",
             "site_lan_interface_isolation_summary",
             "site_ospf_interface_summary",
+            "site_switch_qos_summary",
+            "site_switch_ddm_summary",
             "site_gateway_qos_class_summary",
             "site_vpn_server_config_summary",
             "site_vpn_client_config_summary",

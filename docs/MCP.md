@@ -1056,3 +1056,14 @@ counts for documented interface type, network type and valid cost values, plus
 optional field coverage. Names, IDs, addresses, VLAN values and authentication
 keys are omitted. Missing source fields are shown as unreported; neighbor
 state is not inferred.
+
+`omada_site_switch_qos_summary` accepts a `site_ref` and reports bounded counts
+for documented QoS rule state, type and queue. It omits names, IDs, addresses
+and ports and does not describe traffic behavior. The ER7212PC export provides
+no typed grid contract; unsupported response shapes are rejected.
+
+`omada_site_switch_ddm_summary` accepts a `site_ref` and inventoried switch
+`device_ref`. It refreshes the site's device inventory, requires one unique
+switch match, and counts documented data-valid, transmit-fault and signal-loss
+flags. Port values and optical measurements are omitted; no health diagnosis
+is inferred. ER7212PC lacks an effective row contract.

@@ -1817,3 +1817,17 @@ addresses, VLAN values and authentication keys. Missing source fields are
 reported as unreported; no neighbor state is inferred. The ER7212PC export
 does not declare several loopback and passive-interface fields present in the
 Hardware/CBC schemas. Live support remains unknown.
+
+`site_switch_qos_summary` reads a site's typed switch QoS grid, at most 1,000
+rules. It sends only `page` and `pageSize`, and counts documented enabled state,
+rule type and queue 0–7. Names, identifiers, addresses and ports are omitted;
+it makes no claim about actual traffic. The ER7212PC export declares only a
+generic response for this operation, so live support there is unknown and
+nonconforming responses are rejected.
+
+`site_switch_ddm_summary` takes a `site_ref` and `device_ref` from the site's
+device inventory. Each read refreshes that inventory and requires one unique
+switch match. It counts only the documented data-valid, transmit-fault and
+signal-loss flags. Port identifiers and optical readings are omitted; it does
+not diagnose switch or module health. The ER7212PC export has no effective row
+contract, so support is not claimed there.
