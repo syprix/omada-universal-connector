@@ -2901,6 +2901,44 @@
             "response": "OperationResponseSdWanCurrentSelectedDeviceInfo returns result.port as an array of SdWanCandidateDevice. The candidate schema documents device identity, site, WAN, model, status and network/port fields plus supportSdWanNat:boolean.",
             "projection": "Accepts only an opaque ref from a fresh, uniquely matching getGridSdWanGroupBrief inventory. Counts returned member entries and the boolean supportSdWanNat field. Omits all identifiers, names, WAN IPs, status and member fields. No routing or traffic outcome is inferred."
           }
+        },
+        "site_stack_dhcp_user_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridStackDhcpUserList",
+            "permission": "Site Device Manager View Only; Site Settings Manager View Only; Network Config Page View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/stack/{stackId}/dhcp/user-list",
+            "query": {
+              "required": [
+                "page:int32 (starts at 1)",
+                "pageSize:int32 (1–1000)"
+              ],
+              "optional_not_used": []
+            },
+            "request_body": false,
+            "response": "Paginated DhcpUserGridVODhcpUserVO with data:DhcpUserVO, maps for server/network names, and selectedNum. DhcpUserVO documents type:int32 (0=Device, 1=Client) and status:int32 (0=Dynamic Binding, 1=Static Binding), alongside addresses, MACs, names, lease time and network/server identities.",
+            "projection": "Freshly binds the selected opaque stack reference to exactly one stack in a complete inventory for the selected site, then counts documented user type and binding status for at most 1,000 rows. Omits addresses, names, binding rows, network/server identity and all mapping objects. Reports truncation and unknown codes; does not claim current leases or wired client state."
+          }
+        },
+        "site_switch_oui_vlan_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridSwitchOuiBasedVlan",
+            "permission": "Site Settings Manager View Only; Network Config Page View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/switch-oui-rules",
+            "query": {
+              "required": [
+                "page:int32 (starts at 1)",
+                "pageSize:int32 (1–1000)"
+              ],
+              "optional_not_used": []
+            },
+            "request_body": false,
+            "response": "Paginated OuiBasedVlanSwitchQueryOpenApiVO rows document enable:boolean and mode:int32 (0=all device ports, 1=custom device ports), plus id, name, deviceList and ruleCombine.",
+            "projection": "Counts reported enable flags and documented port-scope modes for at most 1,000 rows. Omits rule IDs/names, device and port identities, OUI values and VLAN values; no VLAN enforcement or actual assignment is inferred. The ER7212PC export explicitly restricts this interface to Omada Pro and documents error -44119 for non-Pro use; that platform is not represented as supported."
+          }
         }
       }
     },
@@ -5775,6 +5813,44 @@
             "response": "OperationResponseSdWanCurrentSelectedDeviceInfo returns result.port as an array of SdWanCandidateDevice. The candidate schema documents device identity, site, WAN, model, status and network/port fields plus supportSdWanNat:boolean.",
             "projection": "Accepts only an opaque ref from a fresh, uniquely matching getGridSdWanGroupBrief inventory. Counts returned member entries and the boolean supportSdWanNat field. Omits all identifiers, names, WAN IPs, status and member fields. No routing or traffic outcome is inferred."
           }
+        },
+        "site_stack_dhcp_user_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridStackDhcpUserList",
+            "permission": "Site Device Manager View Only; Site Settings Manager View Only; Network Config Page View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/stack/{stackId}/dhcp/user-list",
+            "query": {
+              "required": [
+                "page:int32 (starts at 1)",
+                "pageSize:int32 (1–1000)"
+              ],
+              "optional_not_used": []
+            },
+            "request_body": false,
+            "response": "Paginated DhcpUserGridVODhcpUserVO with data:DhcpUserVO, maps for server/network names, and selectedNum. DhcpUserVO documents type:int32 (0=Device, 1=Client) and status:int32 (0=Dynamic Binding, 1=Static Binding), alongside addresses, MACs, names, lease time and network/server identities.",
+            "projection": "Freshly binds the selected opaque stack reference to exactly one stack in a complete inventory for the selected site, then counts documented user type and binding status for at most 1,000 rows. Omits addresses, names, binding rows, network/server identity and all mapping objects. Reports truncation and unknown codes; does not claim current leases or wired client state."
+          }
+        },
+        "site_switch_oui_vlan_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridSwitchOuiBasedVlan",
+            "permission": "Site Settings Manager View Only; Network Config Page View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/switch-oui-rules",
+            "query": {
+              "required": [
+                "page:int32 (starts at 1)",
+                "pageSize:int32 (1–1000)"
+              ],
+              "optional_not_used": []
+            },
+            "request_body": false,
+            "response": "Paginated OuiBasedVlanSwitchQueryOpenApiVO rows document enable:boolean and mode:int32 (0=all device ports, 1=custom device ports), plus id, name, deviceList and ruleCombine.",
+            "projection": "Counts reported enable flags and documented port-scope modes for at most 1,000 rows. Omits rule IDs/names, device and port identities, OUI values and VLAN values; no VLAN enforcement or actual assignment is inferred. The ER7212PC export explicitly restricts this interface to Omada Pro and documents error -44119 for non-Pro use; that platform is not represented as supported."
+          }
         }
       }
     },
@@ -8597,6 +8673,45 @@
         "controller_sdwan_group_devices_summary": {
           "documented": false,
           "live_support": "unknown"
+        },
+        "site_stack_dhcp_user_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridStackDhcpUserList",
+            "permission": "Site Device Manager View Only; Site Settings Manager View Only; Network Config Page View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/stack/{stackId}/dhcp/user-list",
+            "query": {
+              "required": [
+                "page:int32 (starts at 1)",
+                "pageSize:int32 (1–1000)"
+              ],
+              "optional_not_used": []
+            },
+            "request_body": false,
+            "response": "Paginated DhcpUserGridVODhcpUserVO with data:DhcpUserVO, maps for server/network names, and selectedNum. DhcpUserVO documents type:int32 (0=Device, 1=Client) and status:int32 (0=Dynamic Binding, 1=Static Binding), alongside addresses, MACs, names, lease time and network/server identities.",
+            "projection": "Freshly binds the selected opaque stack reference to exactly one stack in a complete inventory for the selected site, then counts documented user type and binding status for at most 1,000 rows. Omits addresses, names, binding rows, network/server identity and all mapping objects. Reports truncation and unknown codes; does not claim current leases or wired client state."
+          }
+        },
+        "site_switch_oui_vlan_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridSwitchOuiBasedVlan",
+            "permission": "Site Settings Manager View Only; Network Config Page View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/switch-oui-rules",
+            "query": {
+              "required": [
+                "page:int32 (starts at 1)",
+                "pageSize:int32 (1–1000)"
+              ],
+              "optional_not_used": []
+            },
+            "request_body": false,
+            "response": "Paginated OuiBasedVlanSwitchQueryOpenApiVO rows document enable:boolean and mode:int32 (0=all device ports, 1=custom device ports), plus id, name, deviceList and ruleCombine.",
+            "projection": "Counts reported enable flags and documented port-scope modes for at most 1,000 rows. Omits rule IDs/names, device and port identities, OUI values and VLAN values; no VLAN enforcement or actual assignment is inferred. The ER7212PC export explicitly restricts this interface to Omada Pro and documents error -44119 for non-Pro use; that platform is not represented as supported.",
+            "platform_limit": "Export describes this interface as Omada Pro-only; non-Pro use may return -44119."
+          }
         }
       }
     }

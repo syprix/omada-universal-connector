@@ -952,6 +952,20 @@ does not establish tunnel connectivity; live support is unknown.
 
 
 `omada_site_stack_network_summary` takes a site and an opaque `stack_ref` returned by the stack connection summary. It refreshes stack inventory before reading that stack's VLAN-network configuration, returning counts for documented DHCP modes and status/management/IPv6 coverage. VLAN/network IDs, names, stack members, addresses and DHCP values are omitted. The read is capped at 1,000 rows; live stack support remains untested.
+
+`omada_site_switch_oui_vlan_summary` takes a `site_ref` and returns bounded
+counts of documented rule enable flags and port-scope modes. It omits rule and
+device identities, ports, OUI values and VLAN values, and does not infer VLAN
+enforcement or assignments. The ER7212PC export marks this endpoint as Omada
+Pro-only and documents `-44119` for non-Pro use; ER7212PC is therefore not
+claimed as supported. Live support is unknown.
+
+`omada_site_stack_dhcp_user_summary` takes the selected site's opaque
+`stack_ref`, refreshes the stack inventory and binds it to exactly one current
+stack before the read. It counts documented device/client types and
+dynamic/static binding states from at most 1,000 rows. Addresses, names,
+binding rows and network/server identities are omitted. This is not a claim
+about current leases or wired clients. Live stack support is unknown.
 `omada_controller_sdwan_group_summary` takes no site argument because the API
 read is controller-scoped. It reports group counts, hub metadata field coverage
 and the sum of documented device counts across groups (not a distinct-device

@@ -920,6 +920,24 @@ network IDs/names, member details, addresses, DHCP settings and VRF identifiers
 are omitted. The read caps at 1,000 rows and reports omissions. Offline tests
 cover binding and projection; no stack hardware was available for live testing.
 
+`site_switch_oui_vlan_summary` reports only documented enable flags and port
+scope modes (`0` all device ports, `1` custom device ports) for up to 1,000
+rules. Rule names and IDs, device/port lists, OUI prefixes and VLAN values are
+omitted, and no enforcement or actual assignment is inferred. All three API
+exports contain the operation. The ER7212PC export explicitly restricts it to
+Omada Pro and documents error `-44119` for non-Pro controllers, so ER7212PC is
+not described as supported. Fixture tests cover projection and routing; live
+support remains unknown.
+
+`site_stack_dhcp_user_summary` accepts a stack reference from the site's stack
+inventory, refreshes that inventory, and proceeds only when the reference
+matches exactly one stack in a complete result. It counts documented user
+types (`0` device, `1` client) and binding states (`0` dynamic, `1` static) in
+up to 1,000 returned rows. Addresses, names, binding rows, network/server
+identities and mapping objects are omitted. It does not claim current leases or
+wired-client state. All three exports document the operation; stack hardware
+and live support were not tested.
+
 
 Gateway health timeline is a redacted read using an opaque inventoried
 `gateway_ref` and a fixed 24-hour interval. It returns millisecond timestamps

@@ -149,6 +149,8 @@ OPERATIONS = {
     'site_static_route_interface_options_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/routing/static-routings/interfaces'),
     'site_nat_exception_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/wired-networks/disable-nats'),
     'site_stack_network_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/stacks/{stackId}/networks'),
+    'site_stack_dhcp_user_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/stack/{stackId}/dhcp/user-list'),
+    'site_switch_oui_vlan_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/switch-oui-rules'),
     'controller_sdwan_group_summary': ('GET', '/openapi/v1/{omadacId}/sdwan/sdwan-group/brief'),
     'controller_sdwan_group_devices_summary': ('GET', '/openapi/v1/{omadacId}/sdwan/sdwan-group/saved/devices/{groupId}'),
     'site_vpn_server_config_summary': ('GET', '/openapi/v2/{omadacId}/sites/{siteId}/vpn/client-to-site-vpn-servers'),
