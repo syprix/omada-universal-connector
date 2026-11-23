@@ -3077,6 +3077,7 @@ class OmadaOpenApiClient:
         ("site_lan_multicast_summary", "GET /v1/sites/{site_ref}/lan-multicast-summary"),
         ("site_bandwidth_rules_summary", "GET /v1/sites/{site_ref}/bandwidth-control-rules/summary"),
         ("site_log_notification_summary", "GET /v1/sites/{site_ref}/log-notification-summary"),
+        ("site_voucher_all_time_summary", "GET /v1/sites/{site_ref}/hotspot/vouchers/all-time-summary"),
         ("site_lan_network_interface_summary", "GET /v1/sites/{site_ref}/lan-network-interfaces/summary"),
         ("controller_upgrade_plans_summary", "GET /v1/controller/firmware-upgrade-plans/summary"),
         ("controller_try_beta_settings_summary", "GET /v1/controller/firmware-preview-settings/summary"),
@@ -10075,6 +10076,28 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {**summary, "status": "ok", "resource": "site_log_notification_summary",
                 "site_ref": site_ref}
+
+    @_track_capability("site_voucher_all_time_summary")
+    def read_site_voucher_all_time_summary(self, site_ref: str) -> dict[str, object]:
+        """Read independent all-time voucher counts without money or user details."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/hotspot/"
+                "vouchers/statistics/summary")
+        payload = self._request_json("GET", path, token=self._access_token())
+        if not isinstance(payload, Mapping) or payload.get("errorCode") != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            from .site_voucher_all_time_summary import (
+                VoucherSummaryError, summarize_all_time_vouchers)
+        except ImportError:  # direct execution in the image
+            from site_voucher_all_time_summary import (
+                VoucherSummaryError, summarize_all_time_vouchers)
+        try:
+            summary = summarize_all_time_vouchers(payload.get("result"))
+        except VoucherSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_voucher_all_time_summary",
+                "site_ref": site_ref, **summary}
 
     @_track_capability("site_lan_network_interface_summary")
     def read_site_lan_network_interface_summary(

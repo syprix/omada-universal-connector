@@ -672,6 +672,26 @@ class OpenApiClientTests(unittest.TestCase):
             self.assertNotIn(secret, json.dumps(projected))
         self.assertIn("/site/log-notification", request.call_args.args[1])
 
+    def test_site_voucher_all_time_summary_reports_independent_values_and_redacts_money(self):
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        result = {category: {"count": index + 1, "amount": "120.50",
+                             "duration": index * 60, "currency": "USD"}
+                  for index, category in enumerate(("current", "inuse", "expired", "unused", "created"))}
+        result["supportVoucherTrafficStat"] = False
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={
+                    "errorCode": 0, "msg": "", "result": result}) as request:
+            projected = self.client.read_site_voucher_all_time_summary(site_ref)
+        self.assertEqual(projected["voucher_counts"]["unused"], 4)
+        self.assertEqual(projected["voucher_durations_minutes"]["unused"], 180)
+        self.assertEqual(projected["voucher_traffic_statistics_supported"], False)
+        self.assertEqual(projected["missing_fields"], [])
+        for secret in ("120.50", "USD"):
+            self.assertNotIn(secret, json.dumps(projected))
+        self.assertTrue(request.call_args.args[1].endswith(
+            "/sites/site-1/hotspot/vouchers/statistics/summary"))
+
     def test_site_lan_network_interface_read_redacts_values_and_allows_type_zero(self):
         site_ref = "a" * 24
         self.client._site_ids_by_ref[site_ref] = "site-1"

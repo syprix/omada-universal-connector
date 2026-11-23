@@ -3411,6 +3411,19 @@
             "response": "Result is a list of OswCableTestLogOpenApiVO with type codes 0=start, 1=test done, 2=interrupted, 3=timed out; timeStamp; and testPortList, completePortList, cancelPortList, timeoutPortList arrays of brief port objects.",
             "projection": "Refreshes a complete bounded site stack inventory and binds the selected opaque stack reference. Caps output to counts over at most 64 logs and 128 entries per port list. Counts documented port-list entries and type codes; repeated port mentions across logs are event entries, not unique ports. No port identifiers or raw timestamps, test execution or freshness claim."
           }
+        },
+        "site_voucher_all_time_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getAllTimeVoucherSummary",
+            "permission": "Site Hotspot Manager View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/hotspot/vouchers/statistics/summary",
+            "query": {},
+            "request_body": false,
+            "response": "AllTimeVoucherSummaryOpenApiVO has optional current, inuse, expired, unused and created VoucherSummaryOpenApiVO objects and optional supportVoucherTrafficStat:boolean. Each category has optional count:int64, amount:string (single-voucher amount), duration:int64 (minutes), and currency:string.",
+            "projection": "Reports separate voucher_counts and voucher_durations_minutes maps; missing values are null and missing_fields/invalid_fields identify each affected metric. Amount and currency source values are omitted. No voucher codes, user data, revenue, category arithmetic or traffic-volume inference."
+          }
         }
       }
     },
@@ -6766,6 +6779,19 @@
             "response": "Result is a list of OswCableTestLogOpenApiVO with type codes 0=start, 1=test done, 2=interrupted, 3=timed out; timeStamp; and testPortList, completePortList, cancelPortList, timeoutPortList arrays of brief port objects.",
             "projection": "Refreshes a complete bounded site stack inventory and binds the selected opaque stack reference. Caps output to counts over at most 64 logs and 128 entries per port list. Counts documented port-list entries and type codes; repeated port mentions across logs are event entries, not unique ports. No port identifiers or raw timestamps, test execution or freshness claim."
           }
+        },
+        "site_voucher_all_time_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getAllTimeVoucherSummary",
+            "permission": "Site Hotspot Manager View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/hotspot/vouchers/statistics/summary",
+            "query": {},
+            "request_body": false,
+            "response": "AllTimeVoucherSummaryOpenApiVO has optional current, inuse, expired, unused and created VoucherSummaryOpenApiVO objects and optional supportVoucherTrafficStat:boolean. Each category has optional count:int64, amount:string (single-voucher amount), duration:int64 (minutes), and currency:string.",
+            "projection": "Reports count and duration values independently; missing values are null and missing_fields/invalid_fields identify each affected metric. Amount and currency source values are omitted. No voucher codes, user data, revenue, category arithmetic or traffic-volume inference."
+          }
         }
       }
     },
@@ -10029,6 +10055,19 @@
             "request_body": false,
             "response": "Result is a list of OswCableTestLogOpenApiVO with type codes 0=start, 1=test done, 2=interrupted, 3=timed out; timeStamp; and testPortList, completePortList, cancelPortList, timeoutPortList arrays of brief port objects.",
             "projection": "Refreshes a complete bounded site stack inventory and binds the selected opaque stack reference. Caps output to counts over at most 64 logs and 128 entries per port list. Counts documented port-list entries and type codes; repeated port mentions across logs are event entries, not unique ports. No port identifiers or raw timestamps, test execution or freshness claim."
+          }
+        },
+        "site_voucher_all_time_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getAllTimeVoucherSummary",
+            "permission": "Site Hotspot Manager View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/hotspot/vouchers/statistics/summary",
+            "query": {},
+            "request_body": false,
+            "response": "AllTimeVoucherSummaryOpenApiVO has optional current, inuse, expired, unused and created VoucherSummaryOpenApiVO objects and optional supportVoucherTrafficStat:boolean. Each category has optional count:int64, amount:string (single-voucher amount), duration:int64 (minutes), and currency:string.",
+            "projection": "Reports count and duration values independently; missing values are null and missing_fields/invalid_fields identify each affected metric. Amount and currency source values are omitted. No voucher codes, user data, revenue, category arithmetic or traffic-volume inference."
           }
         }
       }
