@@ -87,6 +87,23 @@ class FullApiMatrixTests(unittest.TestCase):
             self.assertEqual(row["documented"], expected[source["label"]])
             self.assertEqual(row["live_support"], "unknown")
 
+    def test_wan_port_availability_contract_is_hardware_and_cbc_only(self) -> None:
+        matrix = json.loads((Path(__file__).resolve().parents[1] /
+                             "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
+        expected = {"Hardware Controller 6.3.0": True,
+                    "CBC Standard 6.3.0": True,
+                    "ER7212PC 6.2.14": False}
+        for source in matrix["sources"]:
+            row = source["operations"]["site_wan_port_availability_summary"]
+            self.assertEqual(row["documented"], expected[source["label"]])
+            self.assertEqual(row["live_support"], "unknown")
+        op, bindings = REGISTRY.match(
+            "GET", "/v1/sites/0123456789abcdef01234567/wan-ports/availability-summary")
+        self.assertEqual(op.operation_id, "site_wan_port_availability_summary")
+        self.assertEqual(bindings, (("site_ref", "0123456789abcdef01234567"),))
+        tool = __import__("app.mcp", fromlist=["_tool"])._tool(op)
+        self.assertEqual(tool["inputSchema"]["properties"]["function"]["enum"], list(range(16)))
+
     def test_site_ap_oui_vlan_rules_contract_is_common_and_live_unknown(self) -> None:
         matrix = json.loads((Path(__file__).resolve().parents[1] /
                              "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))

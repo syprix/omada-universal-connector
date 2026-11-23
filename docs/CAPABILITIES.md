@@ -10,6 +10,36 @@ references. It does not return route identifiers, names, destination or
 next-hop addresses, metrics or descriptions. Live controller support is
 unknown until verified against a controller.
 
+## Controller-wide event and alert windows
+
+`GET /v1/controller/events/window` and `/v1/controller/alerts/window` (also
+available as `omada_controller_events_window_summary` and
+`omada_controller_alerts_window_summary` MCP tools) read the configured
+controller's global event and alert logs for a bounded time window. The
+projection returns counts, documented categories and time bounds; it omits log
+text and record identifiers. Reads stop after at most 10 pages of 100 rows and
+report partial coverage. All three supplied exports document both operations;
+live support has not been verified.
+
+A synthetic 20-row source-shaped event fixture measured 850 tokens before
+projection and 82 after (768 fewer; 90.35%) with `js-tiktoken` 1.0.21 /
+`o200k_base`. This is serialized payload only; it excludes tool schemas, MCP
+framing, live responses and billed agent usage.
+
+## WAN-port availability by function
+
+`GET /v1/sites/{site_ref}/wan-ports/availability-summary` and its MCP tool
+`omada_site_wan_port_availability_summary` query the selected site with one
+documented function code from 0 through 15. The redacted result counts rows and
+documented flags without returning port labels, UUIDs, protocol strings or IP
+addresses. It does not identify a physical port or report link state. Hardware
+Controller 6.3.0 and CBC 6.3.0 document the operation; ER7212PC does not. Live
+support remains unknown.
+
+A synthetic eight-port response measured 554 serialized source tokens and 98
+projected tokens (456 fewer; 82.31%) with `js-tiktoken` 1.0.21 /
+`o200k_base`. This excludes MCP framing, live data and billed agent usage.
+
 ## Dynamic Wireless IDS blacklist summary
 
 `GET /v1/sites/{site_ref}/wifi/wids-blacklist-summary` and MCP tool

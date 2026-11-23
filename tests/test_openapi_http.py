@@ -3731,6 +3731,69 @@ class OpenApiHttpTests(unittest.TestCase):
                              name.removeprefix("omada_"))
         self.assertEqual(len(calls), 4)
 
+    def test_wan_port_availability_http_and_mcp_require_documented_function(self) -> None:
+        site_ref = "a" * 24
+        calls = []
+
+        def availability(ref, function):
+            calls.append((ref, function))
+            return {"status": "ok", "resource": "site_wan_port_availability_summary",
+                    "site_ref": ref, "function": function, "listed_port_count": 2,
+                    "qos_configured_count": 1, "partial": False}
+
+        self.fake.read_site_wan_port_availability_summary = availability
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/wan-ports/availability-summary?function=7", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["function"], 7)
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/wan-ports/availability-summary?function=16", self.token)
+        self.assertNotEqual(status, 200)
+        status, response = self.request_post("/mcp", {
+            "jsonrpc": "2.0", "id": 92, "method": "tools/call",
+            "params": {"name": "omada_site_wan_port_availability_summary",
+                       "arguments": {"site_ref": site_ref, "function": 7}}}, self.token)
+        self.assertEqual(status, 200)
+        self.assertIn("result", response, (status, response, calls))
+        self.assertFalse(response["result"]["isError"], (response, calls))
+        self.assertEqual(calls, [(site_ref, 7), (site_ref, 7)])
+        status, response = self.request_post("/mcp", {
+            "jsonrpc": "2.0", "id": 93, "method": "tools/call",
+            "params": {"name": "omada_site_wan_port_availability_summary",
+                       "arguments": {"site_ref": site_ref, "function": 16}}}, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["error"]["message"], "arguments_invalid")
+
+    def test_controller_event_and_alert_windows_accept_http_and_mcp(self) -> None:
+        from urllib.parse import urlencode
+        start_ms, end_ms = 1_760_000_000_000, 1_760_000_000_500
+        calls = []
+
+        def summary(kind, start, end):
+            calls.append((kind, start, end))
+            return {"status": "ok", "resource": f"controller_{kind}_window_summary",
+                    "scope": "configured_controller", "window_start_ms": start,
+                    "window_end_ms": end, "returned_count": 0, "total_count": 0,
+                    "partial": False}
+
+        self.fake.read_controller_log_window_summary = summary
+        query = urlencode({"start_ms": start_ms, "end_ms": end_ms})
+        for kind in ("events", "alerts"):
+            status, response = self.request(f"/v1/controller/{kind}/window?{query}", self.token)
+            self.assertEqual(status, 200)
+            self.assertEqual(response["resource"], f"controller_{kind}_window_summary")
+        for index, kind in enumerate(("events", "alerts"), start=91):
+            status, response = self.request_post("/mcp", {
+                "jsonrpc": "2.0", "id": index, "method": "tools/call",
+                "params": {"name": f"omada_controller_{kind}_window_summary",
+                           "arguments": {"start_ms": start_ms, "end_ms": end_ms}}}, self.token)
+            self.assertEqual(status, 200)
+            self.assertFalse(response["result"]["isError"])
+            self.assertEqual(response["result"]["structuredContent"]["scope"],
+                             "configured_controller")
+        self.assertEqual(calls, [(kind, start_ms, end_ms)
+                                 for _ in range(2) for kind in ("events", "alerts")])
+
     def test_client_outage_timeline_accepts_local_window_over_http_and_mcp(self) -> None:
         site_ref, client_ref = "a" * 24, "b" * 24
         seen = []

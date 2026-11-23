@@ -98,6 +98,7 @@ class OperationRegistry:
                                 "site_open_vpn_tunnel_summary",
                                 "site_vpn_server_status_summary",
                                 "site_vpn_client_status_summary"),
+                ("function",): "site_wan_port_availability_summary",
             }
             if (not isinstance(item.extra_arguments, tuple) or
                     item.extra_arguments not in supported_extra or
@@ -113,6 +114,7 @@ class OperationRegistry:
                     "site_events_window_summary", "site_alerts_window_summary",
                     "controller_threat_severity_summary", "client_outage_timeline",
                     "site_audit_log_window_summary", "controller_audit_log_window_summary",
+                    "controller_events_window_summary", "controller_alerts_window_summary",
                     "site_recent_clients_summary"},
                 ("start_ms", "end_ms", "archived"): {
                     "site_threat_window_summary"},
@@ -125,7 +127,8 @@ class OperationRegistry:
                 ("start_local", "end_local", "time_zone"): {
                     "site_events_window_summary", "site_alerts_window_summary",
                     "client_outage_timeline", "site_audit_log_window_summary",
-                    "controller_audit_log_window_summary"},
+                    "controller_audit_log_window_summary",
+                    "controller_events_window_summary", "controller_alerts_window_summary"},
             }
             if (not isinstance(item.local_arguments, tuple) or
                     (item.local_arguments and
@@ -712,6 +715,11 @@ REGISTRY = OperationRegistry((
               "/v1/sites/{site_ref}/wan-ports-summary", "GET",
               "/openapi/v1/{controller_id}/sites/{site_id}/internet/ports-config",
               (("controller_id", "$config"), ("site_id", "site_ref"))),
+    Operation("site_wan_port_availability_summary", "GET",
+              "/v1/sites/{site_ref}/wan-ports/availability-summary", "GET",
+              "/openapi/v1/{controller_id}/sites/{site_id}/setting/wan-ports",
+              (("controller_id", "$config"), ("site_id", "site_ref")),
+              extra_arguments=("function",), max_items=256),
     Operation("site_virtual_wan_summary", "GET",
               "/v1/sites/{site_ref}/virtual-wan-summary", "GET",
               "/openapi/v1/{controller_id}/sites/{site_id}/setting/virtual-wans",
@@ -1676,6 +1684,18 @@ Operation("site_stack_connections_summary", "GET",
     Operation("controller_audit_log_window_summary", "GET",
               "/v1/controller/audit-logs/window", "GET",
               "/openapi/v1/{controller_id}/audit-logs",
+              (("controller_id", "$config"),),
+              local_arguments=("start_ms", "end_ms"), max_items=1_000,
+              local_argument_alternatives=(("start_local", "end_local", "time_zone"),)),
+    Operation("controller_events_window_summary", "GET",
+              "/v1/controller/events/window", "GET",
+              "/openapi/v1/{controller_id}/logs/events",
+              (("controller_id", "$config"),),
+              local_arguments=("start_ms", "end_ms"), max_items=1_000,
+              local_argument_alternatives=(("start_local", "end_local", "time_zone"),)),
+    Operation("controller_alerts_window_summary", "GET",
+              "/v1/controller/alerts/window", "GET",
+              "/openapi/v1/{controller_id}/logs/alerts",
               (("controller_id", "$config"),),
               local_arguments=("start_ms", "end_ms"), max_items=1_000,
               local_argument_alternatives=(("start_local", "end_local", "time_zone"),)),

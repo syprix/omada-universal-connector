@@ -1580,6 +1580,8 @@ class OmadaOpenApiClient:
         "/openapi/v1/{controller_id}/sites/{site_id}/audit-logs/{ap_mac}/ssid-overrides")
     _SITE_EVENT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/logs/events"
     _SITE_ALERT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/logs/alerts"
+    _CONTROLLER_EVENT_PATH = "/openapi/v1/{controller_id}/logs/events"
+    _CONTROLLER_ALERT_PATH = "/openapi/v1/{controller_id}/logs/alerts"
     _SITE_AUDIT_LOG_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/audit-logs"
     _AP_SSID_OVERRIDE_AUDIT_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/audit-logs/"
@@ -1750,6 +1752,9 @@ class OmadaOpenApiClient:
     )
     _SITE_WAN_PORTS_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/internet/ports-config"
+    )
+    _SITE_WAN_PORT_AVAILABILITY_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/setting/wan-ports"
     )
     _SITE_VIRTUAL_WAN_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
@@ -2347,6 +2352,10 @@ class OmadaOpenApiClient:
         r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/logs/(?:events|alerts)"
         r"\?page=[0-9]+&pageSize=[0-9]+&filters\.timeStart=[0-9]{1,16}&filters\.timeEnd=[0-9]{1,16}"
     )
+    _CONTROLLER_LOG_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/logs/(?:events|alerts)"
+        r"\?page=[0-9]+&pageSize=[0-9]+&filters\.timeStart=[0-9]{1,16}&filters\.timeEnd=[0-9]{1,16}"
+    )
     _SITE_ROGUE_AP_RESULTS_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/insight/rogueaps"
         r"\?page=[0-9]+&pageSize=[0-9]+"
@@ -2941,6 +2950,7 @@ class OmadaOpenApiClient:
         ("site_firewall_settings", "GET /v1/sites/{site_ref}/firewall-settings"),
         ("site_bandwidth_control", "GET /v1/sites/{site_ref}/bandwidth-control"),
         ("site_wan_ports_summary", "GET /v1/sites/{site_ref}/wan-ports-summary"),
+        ("site_wan_port_availability_summary", "GET /v1/sites/{site_ref}/wan-ports/availability-summary"),
         ("site_virtual_wan_summary", "GET /v1/sites/{site_ref}/virtual-wan-summary"),
         ("site_wan_max_speed_summary", "GET /v1/sites/{site_ref}/wan-ports/{wan_port_ref}/max-speed-summary"),
         ("site_vlan_network_summary", "GET /v1/sites/{site_ref}/vlan-network-summary"),
@@ -3100,6 +3110,8 @@ class OmadaOpenApiClient:
         ("site_alerts_window_summary", "GET /v1/sites/{site_ref}/alerts/window"),
         ("site_audit_log_window_summary", "GET /v1/sites/{site_ref}/audit-logs/window"),
         ("controller_audit_log_window_summary", "GET /v1/controller/audit-logs/window"),
+        ("controller_events_window_summary", "GET /v1/controller/events/window"),
+        ("controller_alerts_window_summary", "GET /v1/controller/alerts/window"),
         ("site_rogue_ap_results", "GET /v1/sites/{site_ref}/wifi/rogue-ap-results"),
         ("site_wids_summary", "GET /v1/sites/{site_ref}/wifi/wids-summary"),
         ("site_wids_blacklist_summary", "GET /v1/sites/{site_ref}/wifi/wids-blacklist-summary"),
@@ -11925,6 +11937,30 @@ class OmadaOpenApiClient:
         return {"status": "ok", "resource": "site_wan_ports_summary",
                 "site_ref": site_ref, **projected}
 
+    @_track_capability("site_wan_port_availability_summary")
+    def read_site_wan_port_availability_summary(self, site_ref: str,
+                                               function: int) -> dict[str, object]:
+        if type(function) is not int or not 0 <= function <= 15:
+            raise OpenApiError("wan_function_invalid")
+        site_id = self._resolve_site_ref(site_ref)
+        base = ("/openapi/v1/{controller_id}/sites/{site_id}/setting/wan-ports").format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        payload = self._request_json(
+            "GET", f"{base}?function={function}", token=self._access_token())
+        result = payload.get("result")
+        try:
+            from .site_wan_port_availability_summary import (
+                WanPortAvailabilityError, project_wan_port_availability)
+        except ImportError:  # direct execution in the image
+            from site_wan_port_availability_summary import (
+                WanPortAvailabilityError, project_wan_port_availability)
+        try:
+            projected = project_wan_port_availability(result, function)
+        except WanPortAvailabilityError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_wan_port_availability_summary",
+                "site_ref": site_ref, **projected}
+
     @_track_capability("site_virtual_wan_summary")
     def read_site_virtual_wan_summary(self, site_ref: str) -> dict[str, object]:
         """Read a bounded virtual WAN inventory without joining undocumented IDs."""
@@ -14045,6 +14081,36 @@ class OmadaOpenApiClient:
         result = self._read_audit_log_window(base, start_ms, end_ms)
         return {**result, "resource": "controller_audit_log_window_summary"}
 
+    def read_controller_log_window_summary(self, kind: str, start_ms: int,
+                                           end_ms: int) -> dict[str, object]:
+        if kind not in {"events", "alerts"}:
+            raise OpenApiError("controller_log_kind_invalid")
+        try:
+            start_ms, end_ms = validate_site_log_window(start_ms, end_ms)
+        except SiteLogWindowError:
+            raise OpenApiError("time_window_invalid") from None
+        base = (self._CONTROLLER_EVENT_PATH if kind == "events"
+                else self._CONTROLLER_ALERT_PATH).format(
+                    controller_id=self.config.controller_id)
+        page_size = min(max(1, self.config.page_size), 100)
+        page_limit = min(max(1, self.config.max_pages), 10)
+        rows, total_count, module_totals, pages_fetched = self._read_site_log_pages(
+            base, self._access_token(), start_ms, end_ms, allow_partial=True,
+            page_size=page_size, page_limit=page_limit)
+        try:
+            result = summarize_site_log_window(
+                rows, kind, start_ms, end_ms, total_count, module_totals)
+        except SiteLogWindowError:
+            raise OpenApiError("openapi_response_invalid") from None
+        result["pagination"] = {
+            "pages_fetched": pages_fetched,
+            "page_size": page_size,
+            "page_limit": page_limit,
+            "page_limit_reached": result["partial"],
+        }
+        return {**result, "resource": f"controller_{kind}_window_summary",
+                "scope": "configured_controller"}
+
     def _read_audit_log_window(self, base_path: str, start_ms: int,
                                end_ms: int) -> dict[str, object]:
         try:
@@ -14154,13 +14220,17 @@ class OmadaOpenApiClient:
     def _read_site_log_pages(self, base_path: str, token: str,
                              start_ms: int, end_ms: int, *,
                              use_event_summary: bool = False,
-                             allow_partial: bool = False
+                             allow_partial: bool = False,
+                             page_size: int | None = None,
+                             page_limit: int | None = None
                              ) -> tuple[list[object], int, dict[str, int] | None, int]:
+        page_size = self.config.page_size if page_size is None else page_size
+        page_limit = self.config.max_pages if page_limit is None else page_limit
         rows: list[object] = []
         expected_total: int | None = None
         module_totals: dict[str, int] | None = None
-        for page in range(1, self.config.max_pages + 1):
-            query = urlencode({"page": page, "pageSize": self.config.page_size,
+        for page in range(1, page_limit + 1):
+            query = urlencode({"page": page, "pageSize": page_size,
                                "filters.timeStart": start_ms, "filters.timeEnd": end_ms})
             payload = self._request_json("GET", base_path + "?" + query, token=token)
             result = payload.get("result")
@@ -14168,11 +14238,11 @@ class OmadaOpenApiClient:
             total = result.get("totalRows") if isinstance(result, dict) else None
             current_page = result.get("currentPage") if isinstance(result, dict) else None
             current_size = result.get("currentSize") if isinstance(result, dict) else None
-            if (not isinstance(data, list) or len(data) > self.config.page_size or
+            if (not isinstance(data, list) or len(data) > page_size or
                     isinstance(total, bool) or not isinstance(total, int) or total < 0 or
                     type(current_page) is not int or current_page != page or
                     isinstance(current_size, bool) or not isinstance(current_size, int) or
-                    current_size not in (len(data), self.config.page_size)):
+                    current_size not in (len(data), page_size)):
                 raise OpenApiError("openapi_response_invalid")
             if expected_total is None:
                 expected_total = total
@@ -14208,7 +14278,7 @@ class OmadaOpenApiClient:
             if len(rows) >= expected_total:
                 return rows, expected_total, module_totals, page
         if allow_partial and expected_total is not None:
-            return rows, expected_total, module_totals, self.config.max_pages
+            return rows, expected_total, module_totals, page_limit
         raise OpenApiError("openapi_page_limit_reached")
 
     def patch_ap_radio_power(self, site_ref: str, device_ref: str,
@@ -14610,6 +14680,7 @@ class OmadaOpenApiClient:
                                   self._site_firewall_defaults_request_valid(path) or
                                   self._site_bandwidth_control_request_valid(path) or
                                   self._site_wan_ports_request_valid(path) or
+                                  self._site_wan_port_availability_request_valid(path) or
                                   self._site_virtual_wan_request_valid(path) or
                                   self._site_virtual_wan_available_request_valid(path) or
                                   self._site_wan_max_speed_request_valid(path) or
@@ -14985,6 +15056,8 @@ class OmadaOpenApiClient:
                                       rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
                                       rf"[A-Za-z0-9_-]{{1,128}}/qos/gateway/tag-outbound-traffic", path) or
                                   self._SITE_LOG_REQUEST.fullmatch(path) or
+                                  (self._CONTROLLER_LOG_REQUEST.fullmatch(path) and
+                                   self._CONTROLLER_LOG_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
                                   (self._SITE_ROGUE_AP_RESULTS_REQUEST.fullmatch(path) and
                                    self._SITE_ROGUE_AP_RESULTS_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
                                   (self._SITE_WIDS_SUMMARY_REQUEST.fullmatch(path) and
@@ -15875,6 +15948,22 @@ class OmadaOpenApiClient:
     def _site_wan_ports_request_valid(self, path: str) -> bool:
         match = self._SITE_WAN_PORTS_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_wan_port_availability_request_valid(self, path: str) -> bool:
+        parsed = urlsplit(path)
+        match = self._SITE_WAN_PORT_AVAILABILITY_REQUEST.fullmatch(parsed.path)
+        if (not match or match.group(1) != self.config.controller_id or
+                parsed.fragment):
+            return False
+        try:
+            query = parse_qs(parsed.query, keep_blank_values=True, strict_parsing=True)
+        except ValueError:
+            return False
+        if set(query) != {"function"} or len(query["function"]) != 1:
+            return False
+        value = query["function"][0]
+        return (bool(re.fullmatch(r"(?:0|[1-9]|1[0-5])", value)) and
+                urlencode({"function": value}) == parsed.query)
 
     def _site_virtual_wan_request_valid(self, path: str) -> bool:
         match = self._SITE_VIRTUAL_WAN_REQUEST.fullmatch(path)
