@@ -50,6 +50,20 @@ class FullApiMatrixTests(unittest.TestCase):
                 self.assertEqual(operation["contract_review"]["operation_id"], source_id)
 
 
+    def test_all_time_voucher_summary_matches_three_source_contracts(self):
+        path = Path(__file__).resolve().parents[1] / "docs/CONTRACT_MATRIX.json"
+        matrix = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(len(matrix["sources"]), 3)
+        for source in matrix["sources"]:
+            operation = source["operations"]["site_voucher_all_time_summary"]
+            self.assertTrue(operation["documented"])
+            self.assertEqual(operation["live_support"], "unknown")
+            review = operation["contract_review"]
+            self.assertEqual(review["operation_id"], "getAllTimeVoucherSummary")
+            self.assertEqual(review["query"], {})
+            self.assertIn("duration:int64", review["response"])
+            self.assertIn("Amount and currency source values are omitted", review["projection"])
+
     def test_lan_switch_assignment_and_v2_ssid_topology_contracts_are_distinct(self):
         path = Path(__file__).resolve().parents[1] / "docs/CONTRACT_MATRIX.json"
         matrix = json.loads(path.read_text(encoding="utf-8"))

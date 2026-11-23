@@ -1775,6 +1775,12 @@ A synthetic workflow with 20 failed-device rows measured 1,433 source-response t
 
 A synthetic 20-log response with 200 port-list entries measured 1,510 source-response tokens against 124 projected tokens (91.79% fewer) with the same tokenizer. It excludes prompts, tool schemas and billed agent usage.
 
+## All-time hotspot voucher summary
+
+`GET /v1/sites/{site_ref}/hotspot/vouchers/all-time-summary` reads the selected site's documented all-time hotspot voucher summary. It reports independent `voucher_counts` and `voucher_durations_minutes` maps for `current`, `inuse`, `expired`, `unused` and `created`. Missing values are `null`; `missing_fields` and `invalid_fields` identify each affected metric. Amount and currency source values are omitted. The output contains no voucher codes or user data and does not report revenue or derive relationships among category totals. `supportVoucherTrafficStat` is reported only as the documented capability flag; it is not a traffic measurement. Live support is unknown.
+
+A synthetic complete five-category response measured 124 source JSON tokens and 98 tokens in the full connector result (20.97% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`. This fixture measurement is not billed agent usage.
+
 ## Controller upgrade-log summary
 
 `GET /v1/controller/firmware-upgrades/summary` reads only the first 100 rows from the authenticated controller's documented upgrade log. It reports source total and sample coverage plus counts of rollbacked entries, rows with reported failed devices, and rows with an upgrade time. It returns no dates, device/model details, site names, operator names, versions, or identifiers. It never starts or changes an upgrade. Live support is unknown.

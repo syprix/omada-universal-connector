@@ -1052,6 +1052,14 @@ class FakeOpenApiClient:
                                                             "unknown": 0}},
                 "external_destination_or_delivery_inferred": False}
 
+    def read_site_voucher_all_time_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_voucher_all_time_summary", site_ref))
+        return {"status": "ok", "resource": "site_voucher_all_time_summary",
+                "site_ref": site_ref, "voucher_counts": {},
+                "voucher_durations_minutes": {},
+                "voucher_traffic_statistics_supported": None,
+                "missing_fields": [], "invalid_fields": [], "partial": False}
+
     def read_site_lan_network_interface_summary(self, site_ref: str,
                                                 interface_type: int | None = None) -> dict[str, object]:
         self.calls.append(("site_lan_network_interface_summary", site_ref, interface_type))
@@ -5596,6 +5604,21 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(response["result"]["structuredContent"], direct)
         self.assertEqual(self.fake.calls,
                          [("site_log_notification_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_site_voucher_all_time_summary(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/hotspot/vouchers/all-time-summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(direct["resource"], "site_voucher_all_time_summary")
+        request = {"jsonrpc": "2.0", "id": 267, "method": "tools/call",
+                   "params": {"name": "omada_site_voucher_all_time_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_voucher_all_time_summary", site_ref)] * 2)
 
     def test_http_and_mcp_expose_lan_network_interface_summary_and_optional_filter(self) -> None:
         site_ref = "a" * 24

@@ -178,6 +178,14 @@ class OperationRegistryTests(unittest.TestCase):
         self.assertEqual(route.operation_id, "site_log_notification_summary")
         self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
 
+    def test_site_voucher_all_time_summary_is_site_bound(self):
+        operation = REGISTRY.get("site_voucher_all_time_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/hotspot/vouchers/all-time-summary")
+        self.assertEqual(route.operation_id, "site_voucher_all_time_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
+
     def test_site_lan_network_interface_summary_exposes_only_optional_type_zero(self):
         operation = REGISTRY.get("site_lan_network_interface_summary")
         self.assertEqual(operation.optional_arguments, ("interface_type",))
@@ -1159,6 +1167,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_lan_multicast_summary",
             "site_bandwidth_rules_summary",
             "site_log_notification_summary",
+            "site_voucher_all_time_summary",
             "site_lan_network_interface_summary",
             "controller_upgrade_plans_summary",
             "controller_try_beta_settings_summary",
