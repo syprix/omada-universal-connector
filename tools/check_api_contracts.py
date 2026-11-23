@@ -158,6 +158,8 @@ OPERATIONS = {
     'site_gateway_webfilter_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/url-filters/gateway'),
     'site_lan_interface_isolation_summary': ('GET', '/openapi/v2/{omadacId}/sites/{siteId}/lan-networks/isolate/interfaces'),
     'site_ospf_interface_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/ospf/interface'),
+    'site_switch_qos_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/switch-qos/qos-rule'),
+    'site_switch_ddm_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/switches/{switchMac}/ddm/info'),
     'site_ap_webfilter_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/url-filters/eap'),
     'site_url_filter_general_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/url-filters/globalUrlFilter'),
     'site_gateway_qos_class_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/qos/gateway/class-rules'),

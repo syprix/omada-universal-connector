@@ -717,5 +717,25 @@ the ER7212PC operation-ID variant. Focused projection and adapter tests and the
 full HTTP module (370 tests) passed; the registry/matrix/evidence gate passed
 (303 tests). Synthetic JSON measurements with `tiktoken`
 0.9.0 / `o200k_base`: LAN isolation 605→79 tokens (86.94% fewer); OSPF 2,806→283
-(89.91% fewer). Live support is unknown. The changes are not represented as
-merged or released.
+(89.91% fewer). Exact push and pull-request checks for head
+`9631aad1208fc5d16ea7bb795007b3cb4ec71502` passed. Both reads were merged in
+`7df8b60a4b77bd0d99e148de7d89fe24a5b51a5d`, tree
+`6e732a371d9090c6045aa2624aacacd996da4f3d`. Live support was not tested.
+
+## 2026-11-23 — Switch QoS rules and optical DDM flags
+
+Added a bounded switch QoS rule summary and a switch-bound optical DDM summary.
+The QoS read sends only documented pagination and summarizes status, type and
+queue. DDM refreshes the selected site's inventory, requires one unique switch
+match and summarizes only data-valid, transmit-fault and signal-loss flags.
+Names, identifiers, addresses, ports and numeric optical readings are omitted.
+The ER7212PC QoS response is generic and its DDM response has no effective row
+contract; unsupported shapes are rejected and live support remains unknown.
+The full HTTP/MCP module passed (471 tests), and the registry/matrix/evidence
+gate passed (304 tests) after refreshing the generated evidence ledger. Offline
+matrix and contract checks found both operations in the three supplied exports,
+with the documented ER7212PC limitations above. The ledger now records 460
+fixed GET routes, 1,960 unmapped operations and 25 manual-only entries. Synthetic
+JSON measures used `tiktoken` 0.9.0 /
+`o200k_base`: QoS 2,346→163 tokens (93.05% fewer); DDM 1,855→124 (93.32% fewer).
+Live controller behavior was not tested.
