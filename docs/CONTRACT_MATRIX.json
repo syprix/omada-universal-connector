@@ -3174,6 +3174,41 @@
             "response": "OperationResponseGridVOAutoCheckUpgradeInfo resolves to a paged grid with totalRows:int64, currentPage/currentSize:int32 and AutoCheckUpgradeInfo rows. siteNum is int32 selected-site count. channel is int32 with documented values 0=stable, 1=Release Candidate, 2=Beta. Rows also include IDs, model details, site names, autoCheckTime and occurrence schedule fields.",
             "projection": "Reads at most 10 pages of 100 rows. Aggregates documented plan-channel counts and selected-site association totals; missing fields and unknown channel codes remain partial/unknown. Omits identifiers, names, models and schedule values; does not start an update."
           }
+        },
+        "controller_firmware_inventory_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridFirmwareList",
+            "permission": "Site Manual Firmware Upgrade View Only",
+            "path": "GET /openapi/v1/{omadacId}/upgrade/firmwares",
+            "query": {
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32; source maximum 1000, connector caps each page at 100",
+              "sorts.modelTypeInfo": "optional string, not sent",
+              "sorts.uploadTime": "optional string, not sent",
+              "searchKey": "optional string, not sent"
+            },
+            "response": "Typed grid with totalRows:int64, currentPage/currentSize:int32 and FirmwareInfo rows. Documented row fields are id, name, modelTypeInfo (showModel/compoundModel), uploadTime:int64 in milliseconds, and description:string.",
+            "projection": "Reads at most 10 pages of 100 rows. Counts returned entries and presence coverage of the documented metadata fields. Omits all field values; does not infer firmware suitability or device compatibility."
+          }
+        },
+        "site_agile_switch_general_config_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_ids": [
+              "getOswDetailInfoListForPortsView",
+              "getESGeneralConfig"
+            ],
+            "permission": "Site Device Manager View Only",
+            "paths": [
+              "GET /openapi/v1/{omadacId}/sites/{siteId}/switches/ports/switch-detail",
+              "GET /openapi/v1/{omadacId}/sites/{siteId}/switches/es/{switchMac}/general-config"
+            ],
+            "response": "The port-detail list provides mac:string and es:boolean for the same-site Agile check. The general-config result documents ledSetting:int32 (0=off, 1=on, 2=Use Site Settings), jumboEnable:boolean, supportPowerAlert:boolean, and powerAlertEnable:boolean.",
+            "projection": "Refreshes same-site switch inventory, requires one unique MAC match in the port-detail list with es exactly true, then reads one general-config response. Reports only LED, jumbo-frame and power-alert settings; omits names, location, tags and other fields."
+          }
         }
       }
     },
@@ -6292,6 +6327,41 @@
             "response": "OperationResponseGridVOAutoCheckUpgradeInfo resolves to a paged grid with totalRows:int64, currentPage/currentSize:int32 and AutoCheckUpgradeInfo rows. siteNum is int32 selected-site count. channel is int32 with documented values 0=stable, 1=Release Candidate, 2=Beta. Rows also include IDs, model details, site names, autoCheckTime and occurrence schedule fields.",
             "projection": "Reads at most 10 pages of 100 rows. Aggregates documented plan-channel counts and selected-site association totals; missing fields and unknown channel codes remain partial/unknown. Omits identifiers, names, models and schedule values; does not start an update."
           }
+        },
+        "controller_firmware_inventory_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridFirmwareList",
+            "permission": "Site Manual Firmware Upgrade View Only",
+            "path": "GET /openapi/v1/{omadacId}/upgrade/firmwares",
+            "query": {
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32; source maximum 1000, connector caps each page at 100",
+              "sorts.modelTypeInfo": "optional string, not sent",
+              "sorts.uploadTime": "optional string, not sent",
+              "searchKey": "optional string, not sent"
+            },
+            "response": "Typed grid with totalRows:int64, currentPage/currentSize:int32 and FirmwareInfo rows. Documented row fields are id, name, modelTypeInfo (showModel/compoundModel), uploadTime:int64 in milliseconds, and description:string.",
+            "projection": "Reads at most 10 pages of 100 rows. Counts returned entries and presence coverage of the documented metadata fields. Omits all field values; does not infer firmware suitability or device compatibility."
+          }
+        },
+        "site_agile_switch_general_config_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_ids": [
+              "getOswDetailInfoListForPortsView",
+              "getESGeneralConfig"
+            ],
+            "permission": "Site Device Manager View Only",
+            "paths": [
+              "GET /openapi/v1/{omadacId}/sites/{siteId}/switches/ports/switch-detail",
+              "GET /openapi/v1/{omadacId}/sites/{siteId}/switches/es/{switchMac}/general-config"
+            ],
+            "response": "The port-detail list provides mac:string and es:boolean for the same-site Agile check. The general-config result documents ledSetting:int32 (0=off, 1=on, 2=Use Site Settings), jumboEnable:boolean, supportPowerAlert:boolean, and powerAlertEnable:boolean.",
+            "projection": "Refreshes same-site switch inventory, requires one unique MAC match in the port-detail list with es exactly true, then reads one general-config response. Reports only LED, jumbo-frame and power-alert settings; omits names, location, tags and other fields."
+          }
         }
       }
     },
@@ -9347,6 +9417,41 @@
             },
             "response": "OperationResponseGridVOAutoCheckUpgradeInfo resolves to a paged grid with totalRows:int64, currentPage/currentSize:int32 and AutoCheckUpgradeInfo rows. siteNum is int32 selected-site count. channel is int32 with documented values 0=stable, 1=Release Candidate, 2=Beta. Rows also include IDs, model details, site names, autoCheckTime and occurrence schedule fields.",
             "projection": "Reads at most 10 pages of 100 rows. Aggregates documented plan-channel counts and selected-site association totals; missing fields and unknown channel codes remain partial/unknown. Omits identifiers, names, models and schedule values; does not start an update."
+          }
+        },
+        "controller_firmware_inventory_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridFirmwareList",
+            "permission": "Site Manual Firmware Upgrade View Only",
+            "path": "GET /openapi/v1/{omadacId}/upgrade/firmwares",
+            "query": {
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32; source maximum 1000, connector caps each page at 100",
+              "sorts.modelTypeInfo": "optional string, not sent",
+              "sorts.uploadTime": "optional string, not sent",
+              "searchKey": "optional string, not sent"
+            },
+            "response": "Typed grid with totalRows:int64, currentPage/currentSize:int32 and FirmwareInfo rows. Documented row fields are id, name, modelTypeInfo (showModel/compoundModel), uploadTime:int64 in milliseconds, and description:string.",
+            "projection": "Reads at most 10 pages of 100 rows. Counts returned entries and presence coverage of the documented metadata fields. Omits all field values; does not infer firmware suitability or device compatibility."
+          }
+        },
+        "site_agile_switch_general_config_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_ids": [
+              "getOswDetailInfoListForPortsView",
+              "getESGeneralConfig"
+            ],
+            "permission": "Site Device Manager View Only",
+            "paths": [
+              "GET /openapi/v1/{omadacId}/sites/{siteId}/switches/ports/switch-detail",
+              "GET /openapi/v1/{omadacId}/sites/{siteId}/switches/es/{switchMac}/general-config"
+            ],
+            "response": "The port-detail list provides mac:string and es:boolean for the same-site Agile check. The general-config result documents ledSetting:int32 (0=off, 1=on, 2=Use Site Settings), jumboEnable:boolean, supportPowerAlert:boolean, and powerAlertEnable:boolean.",
+            "projection": "Refreshes same-site switch inventory, requires one unique MAC match in the port-detail list with es exactly true, then reads one general-config response. Reports only LED, jumbo-frame and power-alert settings; omits names, location, tags and other fields."
           }
         }
       }

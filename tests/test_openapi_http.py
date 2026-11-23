@@ -971,6 +971,17 @@ class FakeOpenApiClient:
                 "plan_count": 0, "channel_counts": {}, "site_association_count": 0,
                 "partial": False}
 
+    def read_controller_firmware_inventory_summary(self) -> dict[str, object]:
+        self.calls.append(("controller_firmware_inventory_summary",))
+        return {"status": "ok", "resource": "controller_firmware_inventory_summary",
+                "firmware_entry_count": 0, "partial": False}
+
+    def read_site_agile_switch_general_config_summary(
+            self, site_ref: str, switch_ref: str) -> dict[str, object]:
+        self.calls.append(("site_agile_switch_general_config_summary", site_ref, switch_ref))
+        return {"status": "ok", "resource": "site_agile_switch_general_config_summary",
+                "site_ref": site_ref, "switch_ref": switch_ref, "partial": False}
+
     def read_controller_try_beta_settings_summary(self) -> dict[str, object]:
         self.calls.append(("controller_try_beta_settings_summary",))
         return {"status": "ok", "resource": "controller_try_beta_settings_summary",
@@ -5382,6 +5393,33 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(response["result"]["structuredContent"], direct)
         self.assertEqual(self.fake.calls,
                          [("controller_auto_check_upgrade_summary",)] * 2)
+
+    def test_http_and_mcp_expose_controller_firmware_inventory_summary(self) -> None:
+        path = "/v1/controller/firmware-inventory-summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        request = {"jsonrpc": "2.0", "id": 258, "method": "tools/call",
+                   "params": {"name": "omada_controller_firmware_inventory_summary",
+                              "arguments": {}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls, [("controller_firmware_inventory_summary",)] * 2)
+
+    def test_http_and_mcp_expose_agile_switch_general_config_summary(self) -> None:
+        site_ref, switch_ref = "a" * 24, "b" * 24
+        path = (f"/v1/sites/{site_ref}/switches/{switch_ref}/"
+                "agile-general-config-summary")
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        request = {"jsonrpc": "2.0", "id": 259, "method": "tools/call",
+                   "params": {"name": "omada_site_agile_switch_general_config_summary",
+                              "arguments": {"site_ref": site_ref, "switch_ref": switch_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls, [
+            ("site_agile_switch_general_config_summary", site_ref, switch_ref)] * 2)
 
     def test_http_and_mcp_expose_controller_try_beta_settings(self) -> None:
         path = "/v1/controller/firmware-preview-settings/summary"

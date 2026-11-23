@@ -1479,6 +1479,8 @@ The three exports document `getPortForwardStatus`, but describe the required str
 | `GET /v1/controller/firmware-upgrades/summary` | `GET /openapi/v1/{omadacId}/upgrade/overview/logs` | One page capped at 100; rollback, failure-count presence and upgrade-time presence aggregates only; no raw identities, versions, model details or timestamps; read-only |
 | `GET /v1/controller/firmware-preview-settings/summary` | `GET /openapi/v1/{omadacId}/upgrade/overview/try-beta` and `/channel` | Reads the documented enable switch and channel in two fixed calls; missing values are incomplete; channel choice is not update or device status |
 | `GET /v1/controller/automatic-firmware-checks/summary` | Paginated `GET /openapi/v1/{omadacId}/upgrade/autoCheck` | At most 10 pages of 100; counts documented channel and selected-site associations; omits IDs, names, models, times and recurrence; never starts an update |
+| `GET /v1/controller/firmware-inventory-summary` | Paginated `GET /openapi/v1/{omadacId}/upgrade/firmwares` | At most 10 pages of 100; reports entry totals and metadata-field coverage only; omits all firmware values and does not infer compatibility |
+| `GET /v1/sites/{site_ref}/switches/{switch_ref}/agile-general-config-summary` | `GET /openapi/v1/{omadacId}/sites/{siteId}/switches/es/{switchMac}/general-config`, after `getOswDetailInfoListForPortsView` | Requires one unique same-site MAC match with `es: true`; returns documented LED, jumbo-frame and power-alert settings only; omits names, locations, tags and identifiers |
 
 `GET /v1/sites/{site_ref}/nat-exceptions/summary` reads the documented
 `getDisableNatGrid_1` pages. It returns counts for configured rule status,

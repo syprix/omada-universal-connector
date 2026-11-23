@@ -852,3 +852,23 @@ prompts and billed agent usage. The full offline regression run passed 778
 tests; the three focused summary tests passed again after the final response
 size cleanup. Three-export contract/matrix, compileall and diff checks passed.
 Hosted CI is pending. Live support remains unknown.
+
+## 2026-11-23 — Controller firmware inventory and Agile switch settings
+
+#117 reads `getGridFirmwareList` from all three exports with a 10-page, 100-row
+limit. It counts returned entries and documented field coverage while omitting
+firmware names, descriptions, model and firmware identifiers, timestamps and
+raw rows. It does not infer approval or device compatibility. #118 binds the
+selected switch to a fresh same-site inventory lookup and requires one exact
+MAC match with the documented `es: true` Agile flag before reading
+`getESGeneralConfig`. The result includes only the documented LED, jumbo-frame
+and power-alert settings; location, name, tags and other fields are dropped.
+Both operations are present in the three original exports. No live controller
+read was made.
+
+Synthetic token measurements with `js-tiktoken` 1.0.21 / `o200k_base` compared
+source JSON with the actual response projection. Twenty firmware entries were
+1,542→161 tokens (89.56% fewer). One small Agile settings response was 49→82
+tokens (33 more, including the connector's status and resource envelope).
+These measurements exclude tool schemas, transport framing, prompts and billed
+agent usage.
