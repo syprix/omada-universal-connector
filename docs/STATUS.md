@@ -547,3 +547,10 @@ Synthetic serialized JSON token counts for #81 and #83 use `js-tiktoken` 1.0.21 
 The LTE WAN configuration summary (#84) reads `getLteWanPortsConfig` from all three exports. It counts documented mobile-data/roaming flags, network and band modes, dial-up modes, failover-setting presence, and the documented modem and SIM-card state codes. Settings and reported modem status are separate, and no Internet reachability is inferred. SIM/port IDs, names, provider values, APNs and raw band strings are omitted; the list is bounded to 1,000 rows. Live support is unknown.
 
 The synthetic 20-row LTE settings payload measured 4,328→458 serialized JSON tokens (89.42% fewer) using `js-tiktoken` 1.0.21 / `o200k_base`; this is not a live measurement or billed agent usage.
+
+The NAT exception summary (#85) reads `getDisableNatGrid_1` from the Hardware
+Controller and CBC exports. It counts documented enabled/disabled states, LAN
+list coverage and entries, and WAN-interface coverage while omitting names,
+IDs, descriptions and raw LAN/WAN values. This represents stored configuration;
+effective enforcement and traffic behavior remain unknown. ER7212PC does not
+document the operation, and live support is unknown.

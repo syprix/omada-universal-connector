@@ -174,6 +174,14 @@ class OperationRegistryTests(unittest.TestCase):
         self.assertEqual(route.operation_id, "site_static_route_summary")
         self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
 
+    def test_nat_exception_summary_is_a_site_bound_read(self):
+        operation = REGISTRY.get("site_nat_exception_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/nat-exceptions/summary")
+        self.assertEqual(route.operation_id, "site_nat_exception_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
+
     def test_static_route_interface_options_are_a_site_bound_read(self):
         operation = REGISTRY.get("site_static_route_interface_options_summary")
         self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
@@ -828,6 +836,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_wan_max_speed_summary",
             "gateway_info_summary",
             "site_static_route_summary",
+            "site_nat_exception_summary",
             "site_static_route_interface_options_summary",
             "site_policy_route_summary",
             "site_ipsec_sa_summary",

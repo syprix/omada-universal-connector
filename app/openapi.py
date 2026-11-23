@@ -1441,6 +1441,8 @@ class OmadaOpenApiClient:
         "/openapi/v3/{controller_id}/sites/{site_id}/topology/{network_id}/vlan/{vlan}/devices")
     _SITE_STATIC_ROUTE_INTERFACE_OPTIONS_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/routing/static-routings/interfaces")
+    _SITE_NAT_EXCEPTION_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/wired-networks/disable-nats")
     _SITE_ES_NETWORK_OVERVIEW_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/switches/es/{switch_mac}/network-overview")
     _SITE_SWITCH_PORT_DETAIL_PATH = (
@@ -1832,6 +1834,10 @@ class OmadaOpenApiClient:
     _SITE_STATIC_ROUTE_INTERFACE_OPTIONS_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
         r"/routing/static-routings/interfaces"
+    )
+    _SITE_NAT_EXCEPTION_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/wired-networks/disable-nats"
     )
     _SITE_ES_NETWORK_OVERVIEW_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
@@ -2845,6 +2851,7 @@ class OmadaOpenApiClient:
         ("gateway_wan_status", "GET /v1/sites/{site_ref}/gateways/{device_ref}/wan-status"),
         ("gateway_info_summary", "GET /v1/sites/{site_ref}/gateways/{device_ref}/info-summary"),
         ("site_static_route_summary", "GET /v1/sites/{site_ref}/static-route-summary"),
+        ("site_nat_exception_summary", "GET /v1/sites/{site_ref}/nat-exceptions/summary"),
         ("site_static_route_interface_options_summary", "GET /v1/sites/{site_ref}/static-routing/interfaces/summary"),
         ("site_policy_route_summary", "GET /v1/sites/{site_ref}/policy-route-summary"),
         ("site_ipsec_sa_summary", "GET /v1/sites/{site_ref}/ipsec-sa-summary"),
@@ -8548,6 +8555,44 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {**projected, "site_ref": site_ref,
                 "source_total_rows": payload.get("totalRows")}
+
+    @_track_capability("site_nat_exception_summary")
+    def read_site_nat_exception_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize configured NAT exception rows without identities or destinations."""
+        site_id = self._resolve_site_ref(site_ref)
+        page_size = 100
+        pages: list[object] = []
+        token = self._access_token()
+        for page_number in range(1, min(self.config.max_pages, 10) + 1):
+            path = self._SITE_NAT_EXCEPTION_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id)
+            path += f"?page={page_number}&pageSize={page_size}"
+            result = self._request_json("GET", path, token=token).get("result")
+            if not isinstance(result, Mapping):
+                raise OpenApiError("openapi_response_invalid")
+            pages.append(result)
+            total, rows = result.get("totalRows"), result.get("data")
+            if type(total) is int and total == 0:
+                break
+            if type(total) is int and total >= 0 and page_number * page_size >= total:
+                break
+            if not isinstance(rows, list) or len(rows) < page_size:
+                break
+        try:
+            from .site_nat_exception_summary import (
+                SiteNatExceptionSummaryError, summarize_site_nat_exceptions,
+            )
+        except ImportError:  # direct execution in the image
+            from site_nat_exception_summary import (
+                SiteNatExceptionSummaryError, summarize_site_nat_exceptions,
+            )
+        try:
+            projected = summarize_site_nat_exceptions(pages, max_items=1000)
+        except SiteNatExceptionSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "site_ref": site_ref,
+                "enforcement_scope": "configuration_only_effective_enforcement_unknown",
+                **projected}
 
     @_track_capability("site_static_route_interface_options_summary")
     def read_site_static_route_interface_options_summary(
@@ -15749,6 +15794,7 @@ class OmadaOpenApiClient:
                                   self._site_isolated_preconfig_request_valid(path) or
                                   self._site_vlan_topology_request_valid(path) or
                                   self._site_static_route_interface_options_request_valid(path) or
+                                  self._site_nat_exception_request_valid(path) or
                                   self._site_switch_port_detail_request_valid(path) or
                                   self._site_es_network_overview_request_valid(path) or
                                   self._site_port_schedule_ports_request_valid(path) or
@@ -17096,6 +17142,10 @@ class OmadaOpenApiClient:
 
     def _site_static_route_interface_options_request_valid(self, path: str) -> bool:
         match = self._SITE_STATIC_ROUTE_INTERFACE_OPTIONS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_nat_exception_request_valid(self, path: str) -> bool:
+        match = self._SITE_NAT_EXCEPTION_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
 
     def _site_es_network_overview_request_valid(self, path: str) -> bool:

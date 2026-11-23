@@ -787,6 +787,49 @@ class OpenApiClientTests(unittest.TestCase):
                         "port-private", "private carrier", "private.apn"):
             self.assertNotIn(private, rendered)
 
+    def test_nat_exception_reader_paginates_fixed_route_and_redacts_rule_data(self) -> None:
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        row = {"id": "private-rule-id", "name": "private rule name", "status": True,
+               "lanList": ["private-lan-id"], "interface": "private-wan-id",
+               "description": "private rule description"}
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={"result": {
+                    "totalRows": 1, "currentPage": 1, "currentSize": 1,
+                    "data": [row]}}) as request:
+            result = self.client.read_site_nat_exception_summary(site_ref)
+        self.assertEqual(result["rule_status_counts"]["enabled"], 1)
+        self.assertEqual(result["lan_entry_count"], 1)
+        self.assertIn("page=1&pageSize=100", request.call_args.args[1])
+        self.assertIn("wired-networks/disable-nats", request.call_args.args[1])
+        for private in ("private-rule-id", "private rule name", "private-lan-id",
+                        "private-wan-id", "private rule description"):
+            self.assertNotIn(private, repr(result))
+
+    def test_nat_exception_reader_fetches_each_bounded_page(self) -> None:
+        site_ref = "b" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-2"
+        first_rows = [{"name": f"rule-{index}", "status": True,
+                       "lanList": [], "interface": "wan"} for index in range(100)]
+        second_rows = [{"name": "rule-last", "status": False,
+                        "lanList": ["private-lan"], "interface": "wan"}]
+        results = [
+            {"totalRows": 101, "currentPage": 1, "currentSize": 100,
+             "data": first_rows},
+            {"totalRows": 101, "currentPage": 2, "currentSize": 1,
+             "data": second_rows},
+        ]
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json",
+                             side_effect=[{"result": item} for item in results]) as request:
+            result = self.client.read_site_nat_exception_summary(site_ref)
+        self.assertEqual(request.call_count, 2)
+        self.assertIn("page=1&pageSize=100", request.call_args_list[0].args[1])
+        self.assertIn("page=2&pageSize=100", request.call_args_list[1].args[1])
+        self.assertEqual(result["reported_rule_count"], 101)
+        self.assertEqual(result["returned_rule_count"], 101)
+        self.assertEqual(result["rule_status_counts"]["disabled"], 1)
+
     def test_device_mac_integer_status_and_output_redaction(self) -> None:
         self.client._site_ids_by_ref["a" * 24] = "site-1"
         private = {"mac": "00:11:22:33:44:55", "status": 1,

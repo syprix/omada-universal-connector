@@ -145,6 +145,7 @@ OPERATIONS = {
     'site_vlan_topology_summary': ('GET', '/openapi/v3/{omadacId}/sites/{siteId}/topology/{networkId}/vlan/{vlan}/devices'),
     'site_es_network_overview_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/switches/es/{switchMac}/network-overview'),
     'site_static_route_interface_options_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/routing/static-routings/interfaces'),
+    'site_nat_exception_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/wired-networks/disable-nats'),
     'site_port_schedule_ports_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/port-status-ports'),
     'site_s2s_vpn_inventory_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/vpn/site-to-site-vpns'),
     'site_s2s_peer_status_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/setting/vpn/stats/s2s/{vpnId}/peer'),

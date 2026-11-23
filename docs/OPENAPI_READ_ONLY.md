@@ -1472,3 +1472,11 @@ The three exports document `getPortForwardStatus`, but describe the required str
 | `GET /v1/sites/{site_ref}/ssids/{ssid_ref}/clients/summary` | `GET /openapi/v1/{omadacId}/sites/{siteId}/clientList/{ssidId}` | Hardware Controller 6.3.0 and CBC 6.3.0 only; one site-bound SSID, flat `page=1&pageSize=100`, total count and page coverage only; no client details or online-state claim; absent from the ER7212PC 6.2.14 export |
 | `GET /v1/sites/{site_ref}/remote-logging/summary` | `GET /openapi/v1/{omadacId}/sites/{siteId}/remote-logging` | Enabled state, documented client-log flag and resource category, destination presence only; host/port values are omitted; no delivery-success claim; documented in all three exports |
 | `GET /v1/controller/firmware-upgrades/summary` | `GET /openapi/v1/{omadacId}/upgrade/overview/logs` | One page capped at 100; rollback, failure-count presence and upgrade-time presence aggregates only; no raw identities, versions, model details or timestamps; read-only |
+
+`GET /v1/sites/{site_ref}/nat-exceptions/summary` reads the documented
+`getDisableNatGrid_1` pages. It returns counts for configured rule status,
+LAN-list coverage and entries, and WAN-interface coverage. Names, IDs,
+descriptions and raw network/interface values are omitted. The output describes
+configuration only; effective enforcement and traffic behavior remain unknown.
+Hardware Controller and CBC document this operation; ER7212PC does not. Live
+support is unknown.

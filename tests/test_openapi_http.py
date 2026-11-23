@@ -2343,6 +2343,14 @@ class FakeOpenApiClient:
                 "status_scope": "documented_controller_modem_codes_internet_reachability_unknown",
                 "reported_lte_port_config_count": 1, "partial": False}
 
+    def read_site_nat_exception_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_nat_exception_summary", site_ref))
+        return {"status": "ok", "resource": "site_nat_exception_summary",
+                "site_ref": site_ref, "scope": "configured_nat_exception_rules",
+                "reported_rule_count": 2, "returned_rule_count": 2,
+                "enforcement_scope": "configuration_only_effective_enforcement_unknown",
+                "partial": False}
+
     def read_site_vpn_session_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_vpn_session_summary", site_ref))
         return {"status": "ok", "resource": "site_vpn_session_summary",
@@ -8043,6 +8051,23 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(rpc["result"]["structuredContent"], response)
         self.assertEqual(self.fake.calls,
                          [("site_lte_wan_config_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_site_nat_exception_summary(self) -> None:
+        site_ref = "8" * 24
+        route = f"/v1/sites/{site_ref}/nat-exceptions/summary"
+        status, response = self.request(route, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_nat_exception_summary")
+        self.assertEqual(response["enforcement_scope"],
+                         "configuration_only_effective_enforcement_unknown")
+        request = {"jsonrpc": "2.0", "id": 305, "method": "tools/call",
+                   "params": {"name": "omada_site_nat_exception_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"], response)
+        self.assertEqual(self.fake.calls,
+                         [("site_nat_exception_summary", site_ref)] * 2)
 
     def test_http_and_mcp_expose_site_vpn_session_summary(self) -> None:
         site_ref = "8" * 24

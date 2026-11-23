@@ -12,6 +12,7 @@ class SiteLteWanConfigSummaryTests(unittest.TestCase):
             "status": 3, "cardStatus": 4, "simCardUsed": 1, "simPriority": 2,
             "mobileData": True, "dataRoaming": False, "networkMode": 4, "bandMode": 1,
             "bands": ["n78"], "bands5g": ["n78"],
+            "bands2": [], "bands5g2": [],
             "dialupSetting": {"networkSearch": 1, "isp": "private carrier",
                               "ispNum": 310, "apnMode": 1, "apn": "private.apn"},
             "failoverTimeout": 500, "dataRoaming2": True, "networkMode2": 6,

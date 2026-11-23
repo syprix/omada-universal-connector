@@ -2117,6 +2117,18 @@ class FullApiMatrixTests(unittest.TestCase):
             self.assertEqual(row["contract_review"]["operation_id"], "getLteWanPortsConfig")
             self.assertIn("ports-config", row["contract_review"]["path"])
 
+    def test_nat_exception_operation_is_hardware_and_cbc_only(self) -> None:
+        matrix = json.loads((Path(__file__).resolve().parents[1] /
+                             "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
+        expected = {"Hardware Controller 6.3.0": True,
+                    "CBC Standard 6.3.0": True,
+                    "ER7212PC 6.2.14": False}
+        for source in matrix["sources"]:
+            row = source["operations"]["site_nat_exception_summary"]
+            self.assertEqual(row["documented"], expected[source["label"]])
+            self.assertEqual(row["live_support"], "unknown")
+            self.assertEqual(row["contract_review"]["operation_id"], "getDisableNatGrid_1")
+
     def test_switch_dhcp_arp_capability_gap_has_no_safe_row_contract(self) -> None:
         matrix = json.loads((Path(__file__).resolve().parents[1] /
                              "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
