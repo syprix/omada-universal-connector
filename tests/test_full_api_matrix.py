@@ -33,6 +33,27 @@ class FullApiMatrixTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.tmp.cleanup()
 
+    def test_lan_switch_assignment_and_v2_ssid_topology_contracts_are_distinct(self):
+        path = Path(__file__).resolve().parents[1] / "docs/CONTRACT_MATRIX.json"
+        matrix = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(len(matrix["sources"]), 3)
+        for source in matrix["sources"]:
+            lan = source["operations"]["site_lan_switch_profile_assignments_summary"]
+            self.assertTrue(lan["documented"])
+            self.assertEqual(lan["live_support"], "unknown")
+            self.assertIn("Direct GridVO", lan["contract_review"]["response"])
+            wlan = source["operations"]["site_ssid_topology_reference_count"]
+            self.assertEqual(wlan["documented"], source["label"] != "ER7212PC 6.2.14")
+            self.assertEqual(wlan["live_support"], "unknown")
+
+    def test_vlan_v2_opaque_topology_count_is_hardware_and_cbc_only(self):
+        path = Path(__file__).resolve().parents[1] / "docs/CONTRACT_MATRIX.json"
+        matrix = json.loads(path.read_text(encoding="utf-8"))
+        for source in matrix["sources"]:
+            row = source["operations"]["site_vlan_topology_reference_count"]
+            self.assertEqual(row["documented"], source["label"] != "ER7212PC 6.2.14")
+            self.assertEqual(row["live_support"], "unknown")
+
     def write_zip(self, name: str, value: dict[str, object]) -> Path:
         path = self.root / name
         with zipfile.ZipFile(path, "w") as archive:

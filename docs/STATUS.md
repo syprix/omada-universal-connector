@@ -920,3 +920,43 @@ The full client and HTTP/MCP modules passed 478 tests; the registry, full API
 matrix and operation-evidence gate passed 314 tests. Three-export contract
 checks, compileall and diff checks passed. Hosted CI is pending. Live support is
 unknown.
+
+## 2026-11-23 — Switch LAN assignments and SSID topology references (local verification complete)
+
+#123 uses the documented direct `GridVOOswProfileOpenApiVO` response, with a
+fixed page size and a 1,000-row cap. The summary counts device rows and
+string-valued profile map entries while omitting profile values and device or
+network identifiers. Rows without a profile map are separately reported as
+unknown. A non-dividing page-size regression test verifies that the same page
+size is retained and only the first 1,000 rows are counted. ER7212PC exports do
+not define the map-entry schema, and live support has not been checked.
+
+#124 is a separate v2 operation documented in Hardware Controller and CBC,
+not ER7212PC. It refreshes the selected site's SSID inventory, requires one
+unique matching reference, then counts the bounded `OperationResponseListString`
+result as opaque values. The response does not report reference values, MACs,
+device classes, active connections or radio coverage. Live support has not
+been checked.
+
+Offline verification passed for the three original exports and the full
+operation matrix. The complete OpenAPI, HTTP/MCP, registry, matrix, evidence
+and function-specific test modules passed 805 tests, including the #123 paging
+regression. Evidence counts were regenerated from the repository registry. `compileall` and
+`git diff --check` passed. Synthetic JSON token counts using `js-tiktoken`
+1.0.21 / `o200k_base`: 20 switch rows with 480 assignments, 4,302→84 tokens
+(98.05% fewer); 20 opaque topology references, 191→55 (71.20% fewer). Tool
+schemas, transport framing, prompts and billed agent usage are excluded. No
+controller or network was contacted; hosted CI has not run because the GitHub
+push is blocked by missing Git credentials.
+
+## 2026-11-23 — VLAN topology reference count (local verification complete)
+
+#125 reuses the bounded string-list projector from #124 for the separate
+`getDevicesOfVlan` v2 contract. It refreshes the selected site's LAN network
+inventory, requires the caller's VLAN value to match exactly one selected LAN
+network, and returns only an opaque-reference count. The already implemented
+v3 `getFilterDevicesOfVlan` remains a separate device-class breakdown.
+Hardware/CBC document the v2 operation; ER7212PC does not. A synthetic
+20-reference response measured 231 source JSON tokens and 60 summary JSON
+tokens (74.03% fewer) using `js-tiktoken` 1.0.21 / `o200k_base`; this excludes
+schemas, transport, prompts and billed usage. Live support has not been checked.
