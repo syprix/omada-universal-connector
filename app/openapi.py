@@ -1266,6 +1266,7 @@ class OmadaOpenApiClient:
     _GATEWAY_SPEED_TEST_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/gateways/{gateway_mac}/speedTestResult"
     _SITE_SPEED_TEST_SETTINGS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/speedTest"
     _GATEWAY_INTERNET_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/gateways/{gateway_mac}/internet"
+    _GATEWAY_SIM_SMS_SUPPORT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/gateways/{gateway_mac}/sim/sms/support"
     _GATEWAY_HEALTH_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/gateways/{gateway_mac}/health/detail"
     _MSP_GATEWAY_HEALTH_PATH = (
         "/openapi/v1/msp/{msp_id}/customers/{customer_id}/sites/{site_id}/gateways/{gateway_mac}/health/detail")
@@ -3095,6 +3096,8 @@ class OmadaOpenApiClient:
         ("gateway_speed_test_results", "GET /v1/sites/{site_ref}/gateways/{device_ref}/speed-test-results"),
         ("gateway_dhcp_leases", "GET /v1/sites/{site_ref}/gateways/{gateway_ref}/dhcp/leases"),
         ("gateway_internet_info", "GET /v1/sites/{site_ref}/gateways/{device_ref}/internet-info"),
+        ("site_gateway_sim_sms_support_summary", "GET /v1/sites/{site_ref}/gateways/{gateway_ref}/sim-capabilities-summary"),
+        ("site_ipsec_failover_summary", "GET /v1/sites/{site_ref}/ipsec-failovers/summary"),
         ("gateway_ipv6_ip_passthrough", "GET /v1/sites/{site_ref}/gateways/{gateway_ref}/ipv6-ip-passthrough"),
         ("gateway_ipv6_ip_passthrough_preview", "POST /v1/sites/{site_ref}/gateways/{gateway_ref}/ipv6-ip-passthrough-preview"),
         ("switch_ports", "GET /v1/sites/{site_ref}/switches/{switch_ref}/ports"),
@@ -12361,6 +12364,104 @@ class OmadaOpenApiClient:
         rows = self._read_pages(base, self._access_token())
         return {**self._project_dhcp_lease_rows(site_id, rows, "gateway_dhcp_leases"),
                 "site_ref": site_ref, "device_ref": gateway_ref}
+
+    @_track_capability("site_ipsec_failover_summary")
+    def read_site_ipsec_failover_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize deprecated IPsec failover settings without IDs or tunnel state."""
+        site_id = self._resolve_site_ref(site_ref)
+        page_size = min(max(1, self.config.page_size), 200)
+        page_limit = min(max(1, self.config.max_pages), 10)
+        max_rows = 1_000
+        path = f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/vpn/ipsec_failovers"
+        totals: int | None = None
+        rows = pages = 0
+        counts = {
+            "primary_reference_count": 0,
+            "primary_reference_unknown_count": 0,
+            "candidate_reference_count": 0,
+            "candidate_list_unknown_count": 0,
+            "failback_enabled_count": 0,
+            "failback_disabled_count": 0,
+            "failback_unknown_count": 0,
+            "failback_time_field_present_count": 0,
+            "failback_time_field_missing_count": 0,
+        }
+        try:
+            from .site_ipsec_failover_summary import (
+                IpsecFailoverSummaryError, project_ipsec_failover_page)
+        except ImportError:  # direct execution in the image
+            from site_ipsec_failover_summary import (
+                IpsecFailoverSummaryError, project_ipsec_failover_page)
+        token = self._access_token()
+        for page in range(1, page_limit + 1):
+            query = urlencode({"page": page, "pageSize": page_size})
+            payload = self._request_json("GET", path + "?" + query, token=token)
+            try:
+                summary = project_ipsec_failover_page(
+                    payload, page, page_size, max_rows - rows)
+            except IpsecFailoverSummaryError:
+                raise OpenApiError("openapi_response_invalid") from None
+            if totals is None:
+                totals = summary["total_rows"]
+            elif summary["total_rows"] != totals:
+                raise OpenApiError("openapi_response_invalid")
+            rows += summary["rows"]
+            pages = page
+            for key in counts:
+                counts[key] += summary[key]
+            if rows > totals:
+                raise OpenApiError("openapi_response_invalid")
+            if rows >= max_rows or rows >= totals:
+                break
+        counts["failback_time_field_missing_count"] = rows - counts["failback_time_field_present_count"]
+        partial = rows < (totals or 0) or any(
+            counts[key] for key in ("primary_reference_unknown_count",
+                                    "candidate_list_unknown_count", "failback_unknown_count"))
+        return {"status": "ok", "resource": "site_ipsec_failover_summary",
+                "site_ref": site_ref, "rule_count": rows,
+                "reported_rule_count": totals or 0, "pages_fetched": pages,
+                "page_size": page_size, **counts, "partial": bool(partial),
+                "identifier_values_returned": False,
+                "tunnel_status_returned": False,
+                "failback_time_values_returned": False,
+                "deprecated_source_endpoint": True}
+
+    @_track_capability("site_gateway_sim_sms_support_summary")
+    def read_site_gateway_sim_sms_support_summary(
+            self, site_ref: str, gateway_ref: str) -> dict[str, object]:
+        """Report documented SMS/LTE support fields for one freshly inventoried gateway."""
+        if not isinstance(gateway_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", gateway_ref):
+            raise OpenApiError("gateway_ref_invalid")
+        inventory = self.list_devices(site_ref)
+        items = inventory.get("items")
+        if not isinstance(items, list):
+            raise OpenApiError("openapi_response_invalid")
+        matches = [item for item in items
+                   if isinstance(item, Mapping) and item.get("device_ref") == gateway_ref]
+        if len(matches) != 1:
+            raise OpenApiError("gateway_ref_unknown")
+        device_type = matches[0].get("device_type")
+        if not isinstance(device_type, str) or device_type.strip().casefold() not in {
+                "gateway", "router", "gw"}:
+            raise OpenApiError("gateway_ref_unknown")
+        site_id = self._site_ids_by_ref.get(site_ref, "")
+        gateway_mac = self._gateway_macs_by_site_ref.get(site_ref, {}).get(gateway_ref)
+        if not site_id or not gateway_mac:
+            raise OpenApiError("gateway_ref_unknown")
+        path = self._GATEWAY_SIM_SMS_SUPPORT_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, gateway_mac=gateway_mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            from .gateway_sim_sms_support import (
+                GatewaySimSupportError, project_gateway_sim_support)
+        except ImportError:  # direct execution in the image
+            from gateway_sim_sms_support import GatewaySimSupportError, project_gateway_sim_support
+        try:
+            projected = project_gateway_sim_support(payload)
+        except GatewaySimSupportError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_gateway_sim_sms_support_summary",
+                "site_ref": site_ref, "gateway_ref": gateway_ref, **projected}
 
     @_track_capability("gateway_internet_info")
     def read_gateway_internet_info(self, site_ref: str, gateway_ref: str) -> dict[str, object]:

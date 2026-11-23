@@ -509,6 +509,8 @@ IMPLEMENTED: dict[tuple[str, str], str] = {
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/aps/{ap_mac}/uplink-config"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/gateways/{gateway_mac}/dhcp/user-list"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/gateways/{gateway_mac}/internet"): "implemented_read",
+    ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/gateways/{gateway_mac}/sim/sms/support"): "implemented_read",
+    ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/vpn/ipsec_failovers"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/internet/load-balance"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/internet/basic-info"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/wireless-network/wlans"): "implemented_read",

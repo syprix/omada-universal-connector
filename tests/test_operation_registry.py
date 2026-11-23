@@ -57,6 +57,24 @@ class OperationRegistryTests(unittest.TestCase):
         self.assertEqual(schema["required"], ["site_ref", "vpn_type"])
         self.assertEqual(schema["properties"]["vpn_type"]["enum"], [0, 1, 3, 4])
 
+    def test_site_ipsec_failover_summary_is_a_site_bound_read(self):
+        operation = REGISTRY.get("site_ipsec_failover_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/ipsec-failovers/summary")
+        self.assertEqual(route.operation_id, "site_ipsec_failover_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
+
+    def test_site_gateway_sim_sms_support_binds_site_and_gateway(self):
+        operation = REGISTRY.get("site_gateway_sim_sms_support_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"],
+                         ["site_ref", "gateway_ref"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/gateways/" + "b" * 24 +
+            "/sim-capabilities-summary")
+        self.assertEqual(route.operation_id, "site_gateway_sim_sms_support_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24, "gateway_ref": "b" * 24})
+
     def test_site_vpn_s2s_status_summary_requires_documented_protocol(self):
         operation = REGISTRY.get("site_vpn_s2s_status_summary")
         schema = _tool(operation)["inputSchema"]
@@ -1290,6 +1308,8 @@ class OperationRegistryTests(unittest.TestCase):
             "gateway_speed_test_results",
             "gateway_dhcp_leases",
             "gateway_internet_info",
+            "site_gateway_sim_sms_support_summary",
+            "site_ipsec_failover_summary",
             "gateway_wan_status",
             "gateway_wan_health",
             "gateway_health",

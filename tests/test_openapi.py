@@ -289,6 +289,83 @@ class OpenApiClientTests(unittest.TestCase):
                 self.client.read_site_ssid_topology_reference_count(site_ref, ssid_ref)
         request.assert_not_called()
 
+    def test_ipsec_failover_summary_paginates_and_redacts_reference_values(self):
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        self.client.config = replace(self.config, page_size=2, max_pages=20)
+        page1 = {"errorCode": 0, "msg": "", "result": {
+            "totalRows": 3, "currentPage": 1, "currentSize": 2,
+            "data": [
+                {"id": "secret-rule", "name": "private-name",
+                 "primary": {"id": "secret-primary", "name": "secret-ipsec", "status": 0},
+                 "candidates": [{"id": "secret-candidate", "name": "secret-candidate-name", "status": 1}],
+                 "failBack": True, "failBackTime": 17},
+                {"primary": None, "candidates": [], "failBack": False},
+            ]}}
+        page2 = {"errorCode": 0, "msg": "", "result": {
+            "totalRows": 3, "currentPage": 2, "currentSize": 1,
+            "data": [{"candidates": None, "failBackTime": -2}]}}
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", side_effect=[page1, page2]) as request:
+            result = self.client.read_site_ipsec_failover_summary(site_ref)
+        self.assertEqual(result["rule_count"], 3)
+        self.assertEqual(result["reported_rule_count"], 3)
+        self.assertEqual(result["primary_reference_count"], 1)
+        self.assertEqual(result["candidate_reference_count"], 1)
+        self.assertEqual(result["failback_enabled_count"], 1)
+        self.assertEqual(result["failback_disabled_count"], 1)
+        self.assertEqual(result["failback_unknown_count"], 1)
+        self.assertEqual(result["failback_time_field_present_count"], 2)
+        self.assertEqual(result["failback_time_field_missing_count"], 1)
+        self.assertTrue(result["partial"])
+        self.assertFalse(result["tunnel_status_returned"])
+        self.assertFalse(result["failback_time_values_returned"])
+        self.assertNotIn("secret", json.dumps(result))
+        self.assertEqual(request.call_count, 2)
+        self.assertIn("pageSize=2", request.call_args_list[0].args[1])
+        self.assertIn("pageSize=2", request.call_args_list[1].args[1])
+
+    def test_gateway_sim_support_uses_fresh_site_inventory_and_redacts_dual_sim_code(self):
+        site_ref, gateway_ref = "a" * 24, "b" * 24
+        gateway_mac = "00:11:22:33:44:55"
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        def refresh(ref):
+            self.assertEqual(ref, site_ref)
+            self.client._gateway_macs_by_site_ref[site_ref] = {gateway_ref: gateway_mac}
+            return {"items": [{"device_ref": gateway_ref, "device_type": "gateway"}]}
+        with patch.object(self.client, "list_devices", side_effect=refresh) as inventory, \
+                patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={
+                    "errorCode": 0, "msg": "", "result": {
+                        "supportSms": True, "supportLte": False,
+                        "supportDualSms": 2, "supportDualSim": 0}}) as request:
+            result = self.client.read_site_gateway_sim_sms_support_summary(site_ref, gateway_ref)
+        self.assertEqual(inventory.call_count, 1)
+        self.assertTrue(result["sim_sms_supported"])
+        self.assertFalse(result["lte_supported"])
+        self.assertEqual(result["dual_sms_supported_sim_count"], 1)
+        self.assertEqual(result["dual_sim_capability"], "unknown")
+        self.assertTrue(result["dual_sim_source_value_present"])
+        self.assertNotIn(gateway_mac, json.dumps(result))
+        self.assertIn("/gateways/00:11:22:33:44:55/sim/sms/support",
+                      request.call_args.args[1])
+
+    def test_gateway_sim_support_rejects_ambiguous_or_non_gateway_inventory(self):
+        site_ref, gateway_ref = "a" * 24, "b" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        inventories = (
+            {"items": [{"device_ref": gateway_ref, "device_type": "gateway"},
+                       {"device_ref": gateway_ref, "device_type": "gateway"}]},
+            {"items": [{"device_ref": gateway_ref, "device_type": "ap"}]},
+        )
+        for inventory in inventories:
+            with self.subTest(inventory=inventory):
+                with patch.object(self.client, "list_devices", return_value=inventory), \
+                        patch.object(self.client, "_request_json") as request:
+                    with self.assertRaises(OpenApiError):
+                        self.client.read_site_gateway_sim_sms_support_summary(site_ref, gateway_ref)
+                request.assert_not_called()
+
     def test_v2_vlan_topology_counts_opaque_values_after_fresh_network_vlan_binding(self):
         site_ref, network_ref = "a" * 24, "b" * 24
         self.client._site_ids_by_ref[site_ref] = "site-1"
