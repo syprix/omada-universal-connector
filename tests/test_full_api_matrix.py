@@ -3370,6 +3370,30 @@ class FullApiMatrixTests(unittest.TestCase):
         self.assertEqual(row["connector_source_status"], "implemented_read")
         self.assertEqual(row["live_status"], "unknown_not_checked_by_this_offline_tool")
 
+    def test_site_stack_dhcp_user_contract_is_common_and_live_unknown(self) -> None:
+        matrix = json.loads((Path(__file__).resolve().parents[1] /
+                             "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
+        for source in matrix["sources"]:
+            row = source["operations"]["site_stack_dhcp_user_summary"]
+            self.assertTrue(row["documented"])
+            self.assertEqual(row["live_support"], "unknown")
+            self.assertEqual(row["contract_review"]["operation_id"],
+                             "getGridStackDhcpUserList")
+            self.assertIn("0=Device", row["contract_review"]["response"])
+            self.assertIn("1=Static Binding", row["contract_review"]["response"])
+
+    def test_switch_oui_vlan_contract_documents_er7212_platform_limit(self) -> None:
+        matrix = json.loads((Path(__file__).resolve().parents[1] /
+                             "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
+        for source in matrix["sources"]:
+            row = source["operations"]["site_switch_oui_vlan_summary"]
+            self.assertTrue(row["documented"])
+            self.assertEqual(row["live_support"], "unknown")
+            self.assertEqual(row["contract_review"]["operation_id"],
+                             "getGridSwitchOuiBasedVlan")
+        er7212 = matrix["sources"][2]["operations"]["site_switch_oui_vlan_summary"]
+        self.assertIn("Omada Pro", er7212["contract_review"]["platform_limit"])
+
     def test_new_explicit_adapter_examples_are_mapped_without_live_claims(self) -> None:
         paths = {
             "/openapi/v1/{omadacId}/sites/{siteId}/wifi/sub/health/timeline": {

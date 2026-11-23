@@ -1285,6 +1285,10 @@ class OmadaOpenApiClient:
     _SITE_STACK_LIST_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/stacks"
     _SITE_STACK_NETWORKS_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/stacks/{stack_id}/networks")
+    _SITE_STACK_DHCP_USERS_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/stack/{stack_id}/dhcp/user-list")
+    _SITE_SWITCH_OUI_VLAN_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/switch-oui-rules")
     _CONTROLLER_SDWAN_GROUP_BRIEF_PATH = "/openapi/v1/{controller_id}/sdwan/sdwan-group/brief"
     _CONTROLLER_SDWAN_GROUP_DEVICES_PATH = (
         "/openapi/v1/{controller_id}/sdwan/sdwan-group/saved/devices/{group_id}")
@@ -2148,6 +2152,14 @@ class OmadaOpenApiClient:
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/stacks/"
         r"[A-Za-z0-9_-]{1,128}/networks\?page=([0-9]{1,3})&pageSize=([0-9]{1,4})"
     )
+    _SITE_STACK_DHCP_USERS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})/stack/"
+        r"([A-Za-z0-9_-]{1,128})/dhcp/user-list\?page=([1-9][0-9]*)&pageSize=(?:1000|[1-9][0-9]{0,2})"
+    )
+    _SITE_SWITCH_OUI_VLAN_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})/"
+        r"switch-oui-rules\?page=([1-9][0-9]*)&pageSize=(1000|[1-9][0-9]{0,2})"
+    )
     _CONTROLLER_SDWAN_GROUP_BRIEF_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sdwan/sdwan-group/brief"
         r"\?page=([0-9]{1,3})&pageSize=([0-9]{1,4})"
@@ -2976,6 +2988,8 @@ class OmadaOpenApiClient:
         ("switch_lldp_neighbors", "GET /v1/sites/{site_ref}/switches/{switch_ref}/lldp-neighbors"),
         ("site_stack_connections_summary", "GET /v1/sites/{site_ref}/stack-connections-summary"),
         ("site_stack_network_summary", "GET /v1/sites/{site_ref}/stacks/{stack_ref}/networks-summary"),
+        ("site_stack_dhcp_user_summary", "GET /v1/sites/{site_ref}/stacks/{stack_ref}/dhcp-users/summary"),
+        ("site_switch_oui_vlan_summary", "GET /v1/sites/{site_ref}/switches/oui-vlan-rules/summary"),
         ("controller_sdwan_group_summary", "GET /v1/controller/sdwan-groups/summary"),
         ("controller_sdwan_group_devices_summary", "GET /v1/controller/sdwan-groups/{group_ref}/devices/summary"),
         ("switch_health", "GET /v1/sites/{site_ref}/switches/{switch_ref}/health"),
@@ -10853,6 +10867,24 @@ class OmadaOpenApiClient:
         return {"status": "ok", "resource": "switch_lldp_neighbors", "site_ref": site_ref,
                 "switch_ref": switch_ref, "data": data}
 
+    @_track_capability("site_switch_oui_vlan_summary")
+    def read_site_switch_oui_vlan_summary(self, site_ref: str) -> dict[str, object]:
+        """Count documented state and port-scope mode for switch OUI rules."""
+        site_id = self._resolve_site_ref(site_ref)
+        rows, omitted = self._read_bounded_grid_rows(
+            self._SITE_SWITCH_OUI_VLAN_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id),
+            self._access_token(), 1000, require_success_code=True)
+        try:
+            from .site_switch_oui_vlan_summary import summarize_switch_oui_vlan_rows
+        except ImportError:  # direct execution in the image
+            from site_switch_oui_vlan_summary import summarize_switch_oui_vlan_rows
+        try:
+            projected = summarize_switch_oui_vlan_rows(rows, omitted)
+        except ValueError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"site_ref": site_ref, **projected}
+
     @_track_capability("site_stack_connections_summary")
     def read_site_stack_connections_summary(self, site_ref: str) -> dict[str, object]:
         """Summarize fresh stack membership and bounded LLDP coverage for one site."""
@@ -10985,6 +11017,49 @@ class OmadaOpenApiClient:
             projected = summarize_stack_networks(
                 stack_ref, rows, support_ipv6_values,
                 omitted_network_count=max(0, total_rows - len(rows)))
+        except ValueError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"site_ref": site_ref, **projected}
+
+    @_track_capability("site_stack_dhcp_user_summary")
+    def read_site_stack_dhcp_user_summary(
+            self, site_ref: str, stack_ref: str) -> dict[str, object]:
+        """Summarize one stack DHCP grid after fresh same-site inventory binding."""
+        site_id = self._resolve_site_ref(site_ref)
+        if not isinstance(stack_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", stack_ref):
+            raise OpenApiError("stack_ref_invalid")
+        token = self._access_token()
+        stack_rows, stack_omitted = self._read_bounded_grid_rows(
+            self._SITE_STACK_LIST_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id),
+            token, 32, require_success_code=True)
+        if stack_omitted:
+            raise OpenApiError("stack_inventory_incomplete")
+        matches: list[str] = []
+        seen: set[str] = set()
+        for row in stack_rows:
+            stack_id = row.get("id") if isinstance(row, Mapping) else None
+            if (type(stack_id) is not str or
+                    not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", stack_id)):
+                raise OpenApiError("stack_inventory_ambiguous")
+            if stack_id in seen:
+                raise OpenApiError("stack_inventory_ambiguous")
+            seen.add(stack_id)
+            candidate = self._opaque_ref("stack", site_id + ":" + stack_id)
+            if hmac.compare_digest(candidate, stack_ref):
+                matches.append(stack_id)
+        if len(matches) != 1:
+            raise OpenApiError("stack_ref_unknown")
+        rows, omitted = self._read_bounded_grid_rows(
+            self._SITE_STACK_DHCP_USERS_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id,
+                stack_id=matches[0]), token, 1000, require_success_code=True)
+        try:
+            from .site_stack_dhcp_user_summary import summarize_stack_dhcp_user_rows
+        except ImportError:  # direct execution in the image
+            from site_stack_dhcp_user_summary import summarize_stack_dhcp_user_rows
+        try:
+            projected = summarize_stack_dhcp_user_rows(rows, omitted)
         except ValueError:
             raise OpenApiError("openapi_response_invalid") from None
         return {"site_ref": site_ref, **projected}
@@ -16633,6 +16708,8 @@ class OmadaOpenApiClient:
                                    self._SWITCH_LLDP_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
                                   self._site_stack_list_request_valid(path) or
                                   self._site_stack_networks_request_valid(path) or
+                                  self._site_stack_dhcp_users_request_valid(path) or
+                                  self._site_switch_oui_vlan_request_valid(path) or
                                   self._controller_sdwan_group_brief_request_valid(path) or
                                   self._controller_sdwan_group_devices_request_valid(path) or
                                   self._site_stack_lldp_request_valid(path) or
@@ -19027,6 +19104,26 @@ class OmadaOpenApiClient:
         except (ValueError, OverflowError):
             return False
 
+    def _site_stack_dhcp_users_request_valid(self, path: str) -> bool:
+        match = self._SITE_STACK_DHCP_USERS_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return (1 <= int(match.group(4)) <= self.config.max_pages and
+                    1 <= int(match.group(5)) <= 1000)
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_switch_oui_vlan_request_valid(self, path: str) -> bool:
+        match = self._SITE_SWITCH_OUI_VLAN_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return (1 <= int(match.group(3)) <= self.config.max_pages and
+                    1 <= int(match.group(4)) <= 1000)
+        except (ValueError, OverflowError):
+            return False
+
     def _controller_sdwan_group_brief_request_valid(self, path: str) -> bool:
         match = self._CONTROLLER_SDWAN_GROUP_BRIEF_REQUEST.fullmatch(path)
         if not match or match.group(1) != self.config.controller_id:
@@ -19182,7 +19279,8 @@ class OmadaOpenApiClient:
         raise OpenApiError("openapi_page_limit_reached")
 
     def _read_bounded_grid_rows(self, base_path: str, token: str,
-                                max_items: int) -> tuple[list[object], int]:
+                                max_items: int, *,
+                                require_success_code: bool = False) -> tuple[list[object], int]:
         """Read at most max_items from a documented grid and return omitted rows."""
         if type(max_items) is not int or not 1 <= max_items <= 4096:
             raise OpenApiError("openapi_response_invalid")
@@ -19196,6 +19294,9 @@ class OmadaOpenApiClient:
             request_size = min(page_size, remaining)
             query = urlencode({"page": page, "pageSize": request_size})
             payload = self._request_json("GET", base_path + "?" + query, token=token)
+            if (require_success_code and
+                    (type(payload.get("errorCode")) is not int or payload["errorCode"] != 0)):
+                raise OpenApiError("openapi_response_invalid")
             result = payload.get("result")
             data = result.get("data") if isinstance(result, dict) else None
             total = result.get("totalRows") if isinstance(result, dict) else None

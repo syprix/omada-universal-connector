@@ -168,6 +168,25 @@ class OperationRegistryTests(unittest.TestCase):
         self.assertEqual(route.operation_id, "controller_sdwan_group_devices_summary")
         self.assertEqual(dict(bindings), {"group_ref": group_ref})
 
+    def test_site_stack_dhcp_user_summary_binds_site_and_stack(self):
+        operation = REGISTRY.get("site_stack_dhcp_user_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"],
+                         ["site_ref", "stack_ref"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/stacks/" + "b" * 24 +
+            "/dhcp-users/summary")
+        self.assertEqual(route.operation_id, "site_stack_dhcp_user_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24,
+                                          "stack_ref": "b" * 24})
+
+    def test_site_switch_oui_vlan_summary_is_site_bound(self):
+        operation = REGISTRY.get("site_switch_oui_vlan_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/switches/oui-vlan-rules/summary")
+        self.assertEqual(route.operation_id, "site_switch_oui_vlan_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
+
     def test_site_vpn_server_config_summary_is_a_site_bound_read(self):
         operation = REGISTRY.get("site_vpn_server_config_summary")
         self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
@@ -998,6 +1017,8 @@ class OperationRegistryTests(unittest.TestCase):
 
 "site_stack_connections_summary",
             "site_stack_network_summary",
+            "site_stack_dhcp_user_summary",
+            "site_switch_oui_vlan_summary",
             "controller_sdwan_group_summary",
             "controller_sdwan_group_devices_summary",
             "site_client_health_timeline",

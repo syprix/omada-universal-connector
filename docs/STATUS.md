@@ -658,3 +658,24 @@ three exports document the read; live support has not been checked.
 A synthetic 20-profile response measured 722 source tokens and 103 summary
 tokens (85.73% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; framing and
 model usage are excluded.
+
+## 2026-11-23 — Switch OUI VLAN and stack DHCP summaries
+
+Added two site-bound HTTP/MCP reads. The OUI VLAN summary counts documented
+enable flags and port-scope modes only; it omits rule/device identities, OUI
+values and VLAN values, and makes no enforcement claim. The ER7212PC export
+explicitly marks the endpoint Omada Pro-only and documents `-44119` for non-Pro
+controllers; ER7212PC is not claimed as supported. The stack DHCP summary
+refreshes same-site stack inventory and requires one unique match before
+reading; it counts documented device/client types and dynamic/static binding
+states while omitting addresses, names and binding rows. It makes no current
+lease or wired-client claim.
+
+Both operations are present in all three supplied API exports. Synthetic
+20-row JSON measurements with `tiktoken` 0.9.0 / `o200k_base` were 1,793→110
+tokens for the OUI-rule response (93.87% fewer) and 2,359→92 for the stack DHCP
+user response (96.10% fewer). They exclude prompts, tool schemas, transport
+framing and billed agent usage. Projection, binding, HTTP/MCP, registry,
+matrix/evidence and full HTTP-module tests passed. Live controller support was
+not tested. These changes are prepared for review and are not represented as
+merged or released.
