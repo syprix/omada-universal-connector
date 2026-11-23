@@ -1470,6 +1470,8 @@ class OmadaOpenApiClient:
     _SITE_NETWORK_DELIVERY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/networks/{network_id}/brief-process"
     _SITE_LAN_PROFILES_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/lan-profiles"
     _CONTROLLER_UPGRADE_PLANS_PATH = "/openapi/v1/{controller_id}/upgrade/overview/plans"
+    _SITE_LAN_MULTICASTS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/lan-multicasts"
+    _SITE_BANDWIDTH_RULES_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/bandwidth-control/rules"
     _SITE_OPEN_VPN_TUNNEL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/open-vpn-tunnel-stats"
     _SITE_CLIENT_ACTIVITY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/client-activity"
     _SITE_CLIENT_ASSOCIATION_ACTIVITY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/client-association-activities"
@@ -2773,6 +2775,8 @@ class OmadaOpenApiClient:
         ("site_ap_topology_clients_summary", "GET /v1/sites/{site_ref}/aps/{device_ref}/topology-clients/summary"),
         ("site_network_delivery_summary", "GET /v1/sites/{site_ref}/networks/{network_ref}/delivery-summary"),
         ("site_lan_port_profiles_summary", "GET /v1/sites/{site_ref}/lan-port-profiles/summary"),
+        ("site_lan_multicast_summary", "GET /v1/sites/{site_ref}/lan-multicast-summary"),
+        ("site_bandwidth_rules_summary", "GET /v1/sites/{site_ref}/bandwidth-control-rules/summary"),
         ("controller_upgrade_plans_summary", "GET /v1/controller/firmware-upgrade-plans/summary"),
         ("site_remote_logging_summary", "GET /v1/sites/{site_ref}/remote-logging/summary"),
         ("controller_upgrade_log_summary", "GET /v1/controller/firmware-upgrades/summary"),
@@ -8668,6 +8672,112 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {**projected, "status": "ok", "resource": "site_network_delivery_summary",
                 "site_ref": site_ref, "network_ref": network_ref}
+
+    @_track_capability("site_lan_multicast_summary")
+    def read_site_lan_multicast_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize configured multicast snooping flags without exposing identifiers."""
+        site_id = self._resolve_site_ref(site_ref)
+        base = self._SITE_LAN_MULTICASTS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        page_size = min(max(1, self.config.page_size), 100)
+        page_limit = min(max(1, self.config.max_pages), 10)
+        rows: list[object] = []
+        total: int | None = None
+        pages_fetched = 0
+        metadata_partial = False
+        for page in range(1, page_limit + 1):
+            query = urlencode({"page": page, "pageSize": page_size})
+            payload = self._request_json("GET", base + "?" + query,
+                                         token=self._access_token())
+            result = payload.get("result")
+            data = result.get("data") if isinstance(result, Mapping) else None
+            page_total = result.get("totalRows") if isinstance(result, Mapping) else None
+            current_page = result.get("currentPage") if isinstance(result, Mapping) else None
+            current_size = result.get("currentSize") if isinstance(result, Mapping) else None
+            if (not isinstance(data, list) or len(data) > page_size or
+                    type(page_total) is not int or not 0 <= page_total < (1 << 63) or
+                    type(current_page) is not int or current_page != page or
+                    type(current_size) is not int or not 0 <= current_size <= page_size):
+                raise OpenApiError("openapi_response_invalid")
+            if total is None:
+                total = page_total
+            elif page_total != total:
+                raise OpenApiError("openapi_response_invalid")
+            metadata_partial |= current_size != len(data)
+            rows.extend(data)
+            pages_fetched = page
+            if len(rows) > page_total or len(rows) > 1_000:
+                raise OpenApiError("openapi_response_invalid")
+            if len(rows) >= page_total:
+                break
+        try:
+            from .site_lan_multicast_summary import (
+                SiteLanMulticastSummaryError, summarize_site_lan_multicasts)
+        except ImportError:  # direct execution in the image
+            from site_lan_multicast_summary import (
+                SiteLanMulticastSummaryError, summarize_site_lan_multicasts)
+        try:
+            projected = summarize_site_lan_multicasts(
+                rows, total if total is not None else len(rows), pages_fetched, page_limit)
+        except SiteLanMulticastSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        projected["partial"] = bool(projected["partial"] or metadata_partial)
+        projected["page_size"] = page_size
+        return {**projected, "status": "ok", "resource": "site_lan_multicast_summary",
+                "site_ref": site_ref}
+
+    @_track_capability("site_bandwidth_rules_summary")
+    def read_site_bandwidth_rules_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize site bandwidth policies without rules, targets, or rate values."""
+        site_id = self._resolve_site_ref(site_ref)
+        base = self._SITE_BANDWIDTH_RULES_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        page_size = min(max(1, self.config.page_size), 100)
+        page_limit = min(max(1, self.config.max_pages), 10)
+        rows: list[object] = []
+        total: int | None = None
+        pages_fetched = 0
+        metadata_partial = False
+        for page in range(1, page_limit + 1):
+            query = urlencode({"page": page, "pageSize": page_size})
+            payload = self._request_json("GET", base + "?" + query,
+                                         token=self._access_token())
+            result = payload.get("result")
+            data = result.get("data") if isinstance(result, Mapping) else None
+            page_total = result.get("totalRows") if isinstance(result, Mapping) else None
+            current_page = result.get("currentPage") if isinstance(result, Mapping) else None
+            current_size = result.get("currentSize") if isinstance(result, Mapping) else None
+            if (not isinstance(data, list) or len(data) > page_size or
+                    type(page_total) is not int or not 0 <= page_total < (1 << 63) or
+                    type(current_page) is not int or current_page != page or
+                    type(current_size) is not int or not 0 <= current_size <= page_size):
+                raise OpenApiError("openapi_response_invalid")
+            if total is None:
+                total = page_total
+            elif page_total != total:
+                raise OpenApiError("openapi_response_invalid")
+            metadata_partial |= current_size != len(data)
+            rows.extend(data)
+            pages_fetched = page
+            if len(rows) > page_total or len(rows) > 1_000:
+                raise OpenApiError("openapi_response_invalid")
+            if len(rows) >= page_total:
+                break
+        try:
+            from .site_bandwidth_rules_summary import (
+                SiteBandwidthRulesSummaryError, summarize_site_bandwidth_rules)
+        except ImportError:  # direct execution in the image
+            from site_bandwidth_rules_summary import (
+                SiteBandwidthRulesSummaryError, summarize_site_bandwidth_rules)
+        try:
+            projected = summarize_site_bandwidth_rules(
+                rows, total if total is not None else len(rows), pages_fetched, page_limit)
+        except SiteBandwidthRulesSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        projected["partial"] = bool(projected["partial"] or metadata_partial)
+        projected["page_size"] = page_size
+        return {**projected, "status": "ok", "resource": "site_bandwidth_rules_summary",
+                "site_ref": site_ref}
 
     @_track_capability("site_lan_port_profiles_summary")
     def read_site_lan_port_profiles_summary(self, site_ref: str) -> dict[str, object]:

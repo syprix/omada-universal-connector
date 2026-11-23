@@ -141,8 +141,8 @@ class OperationEvidenceTests(unittest.TestCase):
         self.assertEqual(generated, expected)
         self.assertEqual(generated["operation_count"], 2445)
         self.assertEqual(generated["connector_evidence_counts"], {
-            "not_mapped": 1998,
-            "fixed_get_registry_route": 422,
+            "not_mapped": 1996,
+            "fixed_get_registry_route": 424,
             "manual_source_map_only": 25,
         })
         registry_rows = [row for row in generated["operations"]
@@ -157,6 +157,8 @@ class OperationEvidenceTests(unittest.TestCase):
         self.assertIn("site_network_delivery_summary", indexed)
         self.assertIn("site_lan_port_profiles_summary", indexed)
         self.assertIn("controller_upgrade_plans_summary", indexed)
+        self.assertIn("site_lan_multicast_summary", indexed)
+        self.assertIn("site_bandwidth_rules_summary", indexed)
         public_templates = {
             "/v1/sites/{site_ref}/clients/recent-summary",
             "/v1/sites/{site_ref}/networks/{network_ref}/vlans/affected-ports-summary",
@@ -165,10 +167,12 @@ class OperationEvidenceTests(unittest.TestCase):
             "/v1/sites/{site_ref}/vpn/clients/status-summary",
             "/v1/sites/{site_ref}/remote-logging/summary",
             "/v1/controller/firmware-upgrades/summary",
+            "/v1/sites/{site_ref}/lan-multicast-summary",
+            "/v1/sites/{site_ref}/bandwidth-control-rules/summary",
         }
         new_rows = [row for row in registry_rows
                     if public_templates.intersection(row["public_templates"])]
-        self.assertEqual(len(new_rows), 7)
+        self.assertEqual(len(new_rows), 9)
         self.assertTrue(all(row["documented_in"] == [
             "er7212pc-6.2.14", "hardware-controller-6.3.0",
             "omada-cbc-standard-6.3.0"] for row in new_rows))
@@ -214,6 +218,16 @@ class OperationEvidenceTests(unittest.TestCase):
             upgrade_plans = source["operations"]["controller_upgrade_plans_summary"]["contract_review"]
             self.assertEqual(upgrade_plans["operation_id"], "getGridUpgradePlans")
             self.assertIn("no execution-status field", upgrade_plans["response"].lower())
+            multicast = source["operations"]["site_lan_multicast_summary"]["contract_review"]
+            self.assertEqual(multicast["operation_id"], "getGridLanMulticasts")
+            self.assertIn("not actual multicast traffic",
+                          multicast["projection"].lower())
+            bandwidth_rules = source["operations"]["site_bandwidth_rules_summary"]["contract_review"]
+            self.assertEqual(bandwidth_rules["operation_id"], "getGridBandwidthCtrlRule")
+            self.assertIn("kept separate from wan qos configuration",
+                          bandwidth_rules["projection"].lower())
+            self.assertIn("do not measure actual traffic",
+                          bandwidth_rules["projection"].lower())
             remote = source["operations"]["site_remote_logging_summary"]["contract_review"]
             self.assertEqual(remote["operation_id"], "getRemoteLoggingSetting")
             self.assertIn("host and port", remote["projection"])

@@ -2522,6 +2522,38 @@
             "projection": "At most ten pages of 100 rows. Counts documented enum and boolean fields; profile names, identifiers, VLANs, network references and nested raw configuration are omitted. No profile-to-device assignment is inferred."
           }
         },
+        "site_lan_multicast_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridLanMulticasts",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/lan-multicasts",
+            "query": {
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, source range 1–1000"
+            },
+            "response": "Paginated LanMulticastVO rows. Documented protocol int32 identifies 0 as IGMP and 1 as MLD; unknownMulticastRule int32 documents 0 forward, 1 discard and 2 router port first. The schema also documents enablement flags, network associations, exception-device and router/querier configuration. It contains no observed multicast traffic counters.",
+            "source_example": "ER7212PC example reports currentPage and totalRows as zero while including one row, conflicting with page numbering and row count; it is not accepted as valid response evidence.",
+            "projection": "At most ten pages of 100 rows. Counts documented protocol and unknown-multicast selection values, feature-flag states, network-association presence and field coverage. Names, addresses, device/network identifiers and nested raw configuration are omitted. These are configured settings, not actual multicast traffic."
+          }
+        },
+        "site_bandwidth_rules_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridBandwidthCtrlRule",
+            "permission": "Site Settings Manager View Only, Device Config Page View Only, or Site Device Manager View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/bandwidth-control/rules",
+            "query": {
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, source range 1–1000"
+            },
+            "response": "Paginated BandwidthControlRule rows. The documented properties include status boolean; sourceType int32 (0 network, 1 IP group); mode int32 (0 share, 1 individual); upstream/downstream bandwidth values with units (1 Kbps, 2 Mbps); source IDs, WAN port IDs, rule name, and optional ID/index.",
+            "source_example": "ER7212PC example has totalRows/currentPage/currentSize set to zero while including one rule row, conflicting with required page numbering and row count; it is not accepted as valid response evidence.",
+            "projection": "At most ten pages of 100 rows. Counts activation, documented source/mode choices, upstream/downstream unit choices, limit-field presence and coverage. Rule names, IDs, source/WAN targets and rate values are omitted. These bandwidth policies are kept separate from WAN QoS configuration and do not measure actual traffic."
+          }
+        },
         "controller_upgrade_plans_summary": {
           "documented": true,
           "live_support": "unknown",
@@ -5034,6 +5066,38 @@
             "projection": "At most ten pages of 100 rows. Counts documented enum and boolean fields; profile names, identifiers, VLANs, network references and nested raw configuration are omitted. No profile-to-device assignment is inferred."
           }
         },
+        "site_lan_multicast_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridLanMulticasts",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/lan-multicasts",
+            "query": {
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, source range 1–1000"
+            },
+            "response": "Paginated LanMulticastVO rows. Documented protocol int32 identifies 0 as IGMP and 1 as MLD; unknownMulticastRule int32 documents 0 forward, 1 discard and 2 router port first. The schema also documents enablement flags, network associations, exception-device and router/querier configuration. It contains no observed multicast traffic counters.",
+            "source_example": "ER7212PC example reports currentPage and totalRows as zero while including one row, conflicting with page numbering and row count; it is not accepted as valid response evidence.",
+            "projection": "At most ten pages of 100 rows. Counts documented protocol and unknown-multicast selection values, feature-flag states, network-association presence and field coverage. Names, addresses, device/network identifiers and nested raw configuration are omitted. These are configured settings, not actual multicast traffic."
+          }
+        },
+        "site_bandwidth_rules_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridBandwidthCtrlRule",
+            "permission": "Site Settings Manager View Only, Device Config Page View Only, or Site Device Manager View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/bandwidth-control/rules",
+            "query": {
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, source range 1–1000"
+            },
+            "response": "Paginated BandwidthControlRule rows. The documented properties include status boolean; sourceType int32 (0 network, 1 IP group); mode int32 (0 share, 1 individual); upstream/downstream bandwidth values with units (1 Kbps, 2 Mbps); source IDs, WAN port IDs, rule name, and optional ID/index.",
+            "source_example": "ER7212PC example has totalRows/currentPage/currentSize set to zero while including one rule row, conflicting with required page numbering and row count; it is not accepted as valid response evidence.",
+            "projection": "At most ten pages of 100 rows. Counts activation, documented source/mode choices, upstream/downstream unit choices, limit-field presence and coverage. Rule names, IDs, source/WAN targets and rate values are omitted. These bandwidth policies are kept separate from WAN QoS configuration and do not measure actual traffic."
+          }
+        },
         "controller_upgrade_plans_summary": {
           "documented": true,
           "live_support": "unknown",
@@ -7503,6 +7567,38 @@
             "response": "Paginated LanProfileInfoOpenApiVO rows. Documented type/flag/network-tags/PoE/Dot1x/bandwidth-control enums, booleans, nested controls, profile name/ID, VLAN and network references.",
             "source_example": "ER7212PC example has totalRows/currentPage/currentSize set to zero and includes one profile row; it is inconsistent with the required page numbering and totals, so this example is not accepted as a valid response.",
             "projection": "At most ten pages of 100 rows. Counts documented enum and boolean fields; profile names, identifiers, VLANs, network references and nested raw configuration are omitted. No profile-to-device assignment is inferred."
+          }
+        },
+        "site_lan_multicast_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridLanMulticasts",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/lan-multicasts",
+            "query": {
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, source range 1–1000"
+            },
+            "response": "Paginated LanMulticastVO rows. Documented protocol int32 identifies 0 as IGMP and 1 as MLD; unknownMulticastRule int32 documents 0 forward, 1 discard and 2 router port first. The schema also documents enablement flags, network associations, exception-device and router/querier configuration. It contains no observed multicast traffic counters.",
+            "source_example": "ER7212PC example reports currentPage and totalRows as zero while including one row, conflicting with page numbering and row count; it is not accepted as valid response evidence.",
+            "projection": "At most ten pages of 100 rows. Counts documented protocol and unknown-multicast selection values, feature-flag states, network-association presence and field coverage. Names, addresses, device/network identifiers and nested raw configuration are omitted. These are configured settings, not actual multicast traffic."
+          }
+        },
+        "site_bandwidth_rules_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridBandwidthCtrlRule",
+            "permission": "Site Settings Manager View Only, Device Config Page View Only, or Site Device Manager View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/bandwidth-control/rules",
+            "query": {
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, source range 1–1000"
+            },
+            "response": "Paginated BandwidthControlRule rows. The documented properties include status boolean; sourceType int32 (0 network, 1 IP group); mode int32 (0 share, 1 individual); upstream/downstream bandwidth values with units (1 Kbps, 2 Mbps); source IDs, WAN port IDs, rule name, and optional ID/index.",
+            "source_example": "ER7212PC example has totalRows/currentPage/currentSize set to zero while including one rule row, conflicting with required page numbering and row count; it is not accepted as valid response evidence.",
+            "projection": "At most ten pages of 100 rows. Counts activation, documented source/mode choices, upstream/downstream unit choices, limit-field presence and coverage. Rule names, IDs, source/WAN targets and rate values are omitted. These bandwidth policies are kept separate from WAN QoS configuration and do not measure actual traffic."
           }
         },
         "controller_upgrade_plans_summary": {

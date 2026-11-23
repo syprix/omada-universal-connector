@@ -825,6 +825,22 @@ class FakeOpenApiClient:
                 "field_presence": {"scheduled_time": {"present": 1, "missing": 0}},
                 "scheduled_time_interpreted": False}
 
+    def read_site_lan_multicast_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_lan_multicast_summary", site_ref))
+        return {"status": "ok", "resource": "site_lan_multicast_summary",
+                "site_ref": site_ref, "configuration_count": 1,
+                "protocol_counts": {"igmp": 1, "mld": 0, "unknown": 0},
+                "configuration_only_no_multicast_traffic_inferred": True}
+
+    def read_site_bandwidth_rules_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_bandwidth_rules_summary", site_ref))
+        return {"status": "ok", "resource": "site_bandwidth_rules_summary",
+                "site_ref": site_ref, "rule_count": 2,
+                "activation_counts": {"enabled": 1, "disabled": 1, "unknown": 0},
+                "bandwidth_unit_counts": {"upstream": {"kbps": 1, "mbps": 1,
+                                                            "unknown": 0}},
+                "actual_traffic_inferred": False}
+
     def read_site_remote_logging_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_remote_logging_summary", site_ref))
         return {"status": "ok", "resource": "site_remote_logging_summary",
@@ -4534,6 +4550,33 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(response["result"]["structuredContent"], direct)
         self.assertEqual(self.fake.calls, [("controller_upgrade_plans_summary",)] * 2)
+
+    def test_http_and_mcp_expose_site_lan_multicast_summary(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/lan-multicast-summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        request = {"jsonrpc": "2.0", "id": 246, "method": "tools/call",
+                   "params": {"name": "omada_site_lan_multicast_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls, [("site_lan_multicast_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_site_bandwidth_rules_summary(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/bandwidth-control-rules/summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        request = {"jsonrpc": "2.0", "id": 247, "method": "tools/call",
+                   "params": {"name": "omada_site_bandwidth_rules_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_bandwidth_rules_summary", site_ref)] * 2)
 
     def test_http_and_mcp_expose_selected_ssid_client_count(self) -> None:
         site_ref, ssid_ref = "a" * 24, "b" * 24
