@@ -141,8 +141,8 @@ class OperationEvidenceTests(unittest.TestCase):
         self.assertEqual(generated, expected)
         self.assertEqual(generated["operation_count"], 2445)
         self.assertEqual(generated["connector_evidence_counts"], {
-            "not_mapped": 1980,
-            "fixed_get_registry_route": 440,
+            "not_mapped": 1979,
+            "fixed_get_registry_route": 441,
             "manual_source_map_only": 25,
         })
         registry_rows = [row for row in generated["operations"]
@@ -152,6 +152,7 @@ class OperationEvidenceTests(unittest.TestCase):
         indexed = {operation_id for row in registry_rows
                    for operation_id in row["operation_ids"]}
         self.assertIn("site_vpn_s2s_status_summary", indexed)
+        self.assertIn("site_s2s_vpn_v2_summary", indexed)
         self.assertIn("site_ssid_topology_device_summary", indexed)
         self.assertIn("site_ap_topology_clients_summary", indexed)
         self.assertIn("site_network_delivery_summary", indexed)

@@ -2693,6 +2693,27 @@
             "response": "Paginated GridVODisableNatDetailOpenApiVO data. Each DisableNatDetailOpenApiVO requires name string, status boolean, lanList string array and interface string; id and description are optional.",
             "projection": "Counts documented status, LAN-list assignment and WAN-interface presence only. Omits rule IDs, names, descriptions and interface/LAN values. Configuration summary only; effective enforcement, traffic and reachability are unknown."
           }
+        },
+        "site_s2s_vpn_v2_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridVpnS2SV2",
+            "path": "GET /openapi/v2/{omadacId}/sites/{siteId}/vpn/site-to-site-vpns",
+            "query": {
+              "required": [
+                "page:int32",
+                "pageSize:int32 (1–1000)"
+              ],
+              "optional_not_used": [
+                "searchKey",
+                "filters.vpnType",
+                "sorts.wans"
+              ]
+            },
+            "response": "OperationResponseVpnSummaryOpenApiGridVOVpnSummaryVO. The result contains paginated totalRows/currentPage/currentSize/data plus documented S2S support flags. Rows resolve to VpnSummaryVO: optional status:boolean, vpnType:int32, siteVpnType:int32, wans:string[], failoverSetting, networkType:int32, networkList:string[], customNetwork and other identifying/operational properties.",
+            "projection": "Aggregates documented vpnType and siteVpnType code counts, the reported VPN boolean flag, network selection type and list/WAN coverage, failover-object coverage, and four documented S2S support booleans. Omits IDs, names, WAN/network IDs, custom subnet values, user/client counts, peer data and all raw values. The boolean status is not interpreted as live tunnel connectivity. This supplements the v1 VPN reference inventory; the v1 route remains the source for selectable opaque references."
+          }
         }
       }
     },
@@ -5359,6 +5380,27 @@
             "response": "Paginated GridVODisableNatDetailOpenApiVO data. Each DisableNatDetailOpenApiVO requires name string, status boolean, lanList string array and interface string; id and description are optional.",
             "projection": "Counts documented status, LAN-list assignment and WAN-interface presence only. Omits rule IDs, names, descriptions and interface/LAN values. Configuration summary only; effective enforcement, traffic and reachability are unknown."
           }
+        },
+        "site_s2s_vpn_v2_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridVpnS2SV2",
+            "path": "GET /openapi/v2/{omadacId}/sites/{siteId}/vpn/site-to-site-vpns",
+            "query": {
+              "required": [
+                "page:int32",
+                "pageSize:int32 (1–1000)"
+              ],
+              "optional_not_used": [
+                "searchKey",
+                "filters.vpnType",
+                "sorts.wans"
+              ]
+            },
+            "response": "OperationResponseVpnSummaryOpenApiGridVOVpnSummaryVO. The result contains paginated totalRows/currentPage/currentSize/data plus documented S2S support flags. Rows resolve to VpnSummaryVO: optional status:boolean, vpnType:int32, siteVpnType:int32, wans:string[], failoverSetting, networkType:int32, networkList:string[], customNetwork and other identifying/operational properties.",
+            "projection": "Aggregates documented vpnType and siteVpnType code counts, the reported VPN boolean flag, network selection type and list/WAN coverage, failover-object coverage, and four documented S2S support booleans. Omits IDs, names, WAN/network IDs, custom subnet values, user/client counts, peer data and all raw values. The boolean status is not interpreted as live tunnel connectivity. This supplements the v1 VPN reference inventory; the v1 route remains the source for selectable opaque references."
+          }
         }
       }
     },
@@ -7983,6 +8025,27 @@
             "request_body": false,
             "response": "Paginated GridVODisableNatDetailOpenApiVO data. Each DisableNatDetailOpenApiVO requires name string, status boolean, lanList string array and interface string; id and description are optional.",
             "projection": "Counts documented status, LAN-list assignment and WAN-interface presence only. Omits rule IDs, names, descriptions and interface/LAN values. Configuration summary only; effective enforcement, traffic and reachability are unknown."
+          }
+        },
+        "site_s2s_vpn_v2_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridVpnS2SV2",
+            "path": "GET /openapi/v2/{omadacId}/sites/{siteId}/vpn/site-to-site-vpns",
+            "query": {
+              "required": [
+                "page:int32",
+                "pageSize:int32 (1–1000)"
+              ],
+              "optional_not_used": [
+                "searchKey",
+                "filters.vpnType",
+                "sorts.wans"
+              ]
+            },
+            "response": "OperationResponseVpnSummaryOpenApiGridVOVpnSummaryVO. The result contains paginated totalRows/currentPage/currentSize/data plus documented S2S support flags. Rows resolve to VpnSummaryVO: optional status:boolean, vpnType:int32, siteVpnType:int32, wans:string[], failoverSetting, networkType:int32, networkList:string[], customNetwork and other identifying/operational properties.",
+            "projection": "Aggregates documented vpnType and siteVpnType code counts, the reported VPN boolean flag, network selection type and list/WAN coverage, failover-object coverage, and four documented S2S support booleans. Omits IDs, names, WAN/network IDs, custom subnet values, user/client counts, peer data and all raw values. The boolean status is not interpreted as live tunnel connectivity. This supplements the v1 VPN reference inventory; the v1 route remains the source for selectable opaque references."
           }
         }
       }

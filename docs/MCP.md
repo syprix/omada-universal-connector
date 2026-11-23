@@ -943,3 +943,9 @@ A synthetic single-record source response measured 32 tokens before projection a
 configuration for one selected site through a bounded paginated read. It omits
 rule identities and raw LAN/WAN references, and does not claim that a rule is
 effectively enforced. Live support is unknown.
+
+`omada_site_s2s_vpn_v2_summary` reports bounded counts for the selected site's
+v2 site-to-site VPN inventory, including documented type and status flags,
+network-selection coverage and S2S support flags. It omits identities, raw
+network/WAN values, peer details and user/client counts. The status boolean
+does not establish tunnel connectivity; live support is unknown.

@@ -554,3 +554,15 @@ list coverage and entries, and WAN-interface coverage while omitting names,
 IDs, descriptions and raw LAN/WAN values. This represents stored configuration;
 effective enforcement and traffic behavior remain unknown. ER7212PC does not
 document the operation, and live support is unknown.
+
+The v2 site-to-site VPN summary (#86) reads `getGridVpnS2SV2` from all three
+exports. It aggregates documented VPN/site-VPN type codes, the API's boolean
+status field, network-selection and WAN coverage, failover-object coverage,
+and four S2S support flags. The existing v1 endpoint remains the source for
+opaque VPN references. Names, IDs, addresses, raw network/WAN values,
+custom-subnet values, peers and user/client counts are omitted. The boolean
+status does not establish tunnel connectivity. Live support is unknown.
+
+The synthetic 20-row v2 VPN fixture measured 2,999→328 serialized JSON tokens
+(89.06% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; this is not a live
+measurement or billed agent usage.

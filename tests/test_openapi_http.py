@@ -783,6 +783,13 @@ class FakeOpenApiClient:
                 "site_ref": site_ref, "reported_vpn_count": 1,
                 "returned_vpn_count": 1, "items": [{"vpn_ref": "b" * 24}]}
 
+    def read_site_s2s_vpn_v2_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_s2s_vpn_v2_summary", site_ref))
+        return {"status": "ok", "resource": "site_s2s_vpn_v2_summary",
+                "site_ref": site_ref, "reported_vpn_count": 2,
+                "status_scope": "documented_vpn_boolean_not_tunnel_connectivity",
+                "partial": False}
+
     def read_site_s2s_peer_status_summary(self, site_ref: str,
                                          vpn_ref: str) -> dict[str, object]:
         self.calls.append(("site_s2s_peer_status_summary", site_ref, vpn_ref))
@@ -4616,6 +4623,21 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(response["result"]["structuredContent"], direct)
         self.assertEqual(self.fake.calls,
                          [("site_s2s_vpn_inventory_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_site_s2s_vpn_v2_summary(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/vpn/site-to-site-v2-summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(direct["resource"], "site_s2s_vpn_v2_summary")
+        request = {"jsonrpc": "2.0", "id": 306, "method": "tools/call",
+                   "params": {"name": "omada_site_s2s_vpn_v2_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_s2s_vpn_v2_summary", site_ref)] * 2)
 
     def test_http_and_mcp_expose_selected_s2s_peer_status(self) -> None:
         site_ref, vpn_ref = "a" * 24, "b" * 24
