@@ -2805,6 +2805,48 @@
             "projection": "Binds the selected opaque stack reference to exactly one entry in a fresh site stack inventory. Counts reported rows, documented DHCP modes, enabled state, management-network flag and IPv6 coverage. Omits VLAN IDs, network IDs/names, member details, addresses, DHCP values and VRF identifiers. Reads at most 1,000 rows and reports omissions/unknown fields; live stack hardware was not tested."
           }
         },
+        "site_stack_static_routing_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridStackStaticRouting",
+            "permission": "Site Device Manager View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/stacks/{stackId}/staticRoutings",
+            "query": {
+              "required": [
+                "page:int32 (starts at 1)",
+                "pageSize:int32 (1–1000)"
+              ]
+            },
+            "request_body": false,
+            "response": "Paginated OperationResponseOswStaticRoutingGridVOOswStaticRoutingVO. Rows use OswStaticRoutingVO; ipVersion:int32 documents 0=IPv4 and 1=IPv6; status:boolean is the configured route status.",
+            "projection": "Binds one opaque stack reference to exactly one entry in a complete fresh site-stack inventory. Reads at most 1,000 rows, counts documented IP versions and enabled/disabled configuration and reports omitted rows. Omits destinations, next hops, names, VRF and device identifiers; configured status is not active-forwarding evidence. Live stack hardware was not tested."
+          }
+        },
+        "site_stack_ospf_neighbor_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridStackOspfNeighborTable",
+            "permission": "Site Device Manager View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/stack/{stackId}/ospf-neighbors",
+            "query": {
+              "required": [
+                "page:int32 (starts at 1)",
+                "pageSize:int32 (1–1000)"
+              ],
+              "optional": [
+                "sorts.neighborInterface",
+                "filters.neighborInterface",
+                "filters.processId",
+                "searchKey"
+              ]
+            },
+            "request_body": false,
+            "response": "Paginated OperationResponseOswOspfNeighborGridVOOswOspfNeighborVO. Rows include documented state:string; the source gives no state enumeration or semantics.",
+            "projection": "Binds one opaque stack reference to exactly one entry in a complete fresh site-stack inventory. Reads at most 1,000 rows, reports row completeness and count of records with a state field. Omits addresses, router IDs, interfaces and process IDs; does not interpret state strings. The ER7212PC empty-grid example has totalRows/currentPage/currentSize zero but contains a placeholder row, so it is not treated as a valid empty result. Live stack hardware was not tested."
+          }
+        },
         "controller_sdwan_group_summary": {
           "documented": true,
           "live_support": "unknown",
@@ -5987,6 +6029,48 @@
             "projection": "Binds the selected opaque stack reference to exactly one entry in a fresh site stack inventory. Counts reported rows, documented DHCP modes, enabled state, management-network flag and IPv6 coverage. Omits VLAN IDs, network IDs/names, member details, addresses, DHCP values and VRF identifiers. Reads at most 1,000 rows and reports omissions/unknown fields; live stack hardware was not tested."
           }
         },
+        "site_stack_static_routing_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridStackStaticRouting",
+            "permission": "Site Device Manager View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/stacks/{stackId}/staticRoutings",
+            "query": {
+              "required": [
+                "page:int32 (starts at 1)",
+                "pageSize:int32 (1–1000)"
+              ]
+            },
+            "request_body": false,
+            "response": "Paginated OperationResponseOswStaticRoutingGridVOOswStaticRoutingVO. Rows use OswStaticRoutingVO; ipVersion:int32 documents 0=IPv4 and 1=IPv6; status:boolean is the configured route status.",
+            "projection": "Binds one opaque stack reference to exactly one entry in a complete fresh site-stack inventory. Reads at most 1,000 rows, counts documented IP versions and enabled/disabled configuration and reports omitted rows. Omits destinations, next hops, names, VRF and device identifiers; configured status is not active-forwarding evidence. Live stack hardware was not tested."
+          }
+        },
+        "site_stack_ospf_neighbor_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridStackOspfNeighborTable",
+            "permission": "Site Device Manager View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/stack/{stackId}/ospf-neighbors",
+            "query": {
+              "required": [
+                "page:int32 (starts at 1)",
+                "pageSize:int32 (1–1000)"
+              ],
+              "optional": [
+                "sorts.neighborInterface",
+                "filters.neighborInterface",
+                "filters.processId",
+                "searchKey"
+              ]
+            },
+            "request_body": false,
+            "response": "Paginated OperationResponseOswOspfNeighborGridVOOswOspfNeighborVO. Rows include documented state:string; the source gives no state enumeration or semantics.",
+            "projection": "Binds one opaque stack reference to exactly one entry in a complete fresh site-stack inventory. Reads at most 1,000 rows, reports row completeness and count of records with a state field. Omits addresses, router IDs, interfaces and process IDs; does not interpret state strings. The ER7212PC empty-grid example has totalRows/currentPage/currentSize zero but contains a placeholder row, so it is not treated as a valid empty result. Live stack hardware was not tested."
+          }
+        },
         "controller_sdwan_group_summary": {
           "documented": true,
           "live_support": "unknown",
@@ -9097,6 +9181,48 @@
             "request_body": false,
             "response": "Paginated OperationResponseOswNetworkGridOswNetworkOpenApi. Rows use OswNetworkOpenApi; all three exports require id:string, mode:int32, mvlan:boolean and vlan:int32. mode documents 0=None, 1=DHCP Server, 2=DHCP Relay. status:boolean, ipv6Enable:boolean and grid supportIpv6:boolean are documented fields.",
             "projection": "Binds the selected opaque stack reference to exactly one entry in a fresh site stack inventory. Counts reported rows, documented DHCP modes, enabled state, management-network flag and IPv6 coverage. Omits VLAN IDs, network IDs/names, member details, addresses, DHCP values and VRF identifiers. Reads at most 1,000 rows and reports omissions/unknown fields; live stack hardware was not tested."
+          }
+        },
+        "site_stack_static_routing_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridStackStaticRouting",
+            "permission": "Site Device Manager View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/stacks/{stackId}/staticRoutings",
+            "query": {
+              "required": [
+                "page:int32 (starts at 1)",
+                "pageSize:int32 (1–1000)"
+              ]
+            },
+            "request_body": false,
+            "response": "Paginated OperationResponseOswStaticRoutingGridVOOswStaticRoutingVO. Rows use OswStaticRoutingVO; ipVersion:int32 documents 0=IPv4 and 1=IPv6; status:boolean is the configured route status.",
+            "projection": "Binds one opaque stack reference to exactly one entry in a complete fresh site-stack inventory. Reads at most 1,000 rows, counts documented IP versions and enabled/disabled configuration and reports omitted rows. Omits destinations, next hops, names, VRF and device identifiers; configured status is not active-forwarding evidence. Live stack hardware was not tested."
+          }
+        },
+        "site_stack_ospf_neighbor_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridStackOspfNeighborTable",
+            "permission": "Site Device Manager View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/stack/{stackId}/ospf-neighbors",
+            "query": {
+              "required": [
+                "page:int32 (starts at 1)",
+                "pageSize:int32 (1–1000)"
+              ],
+              "optional": [
+                "sorts.neighborInterface",
+                "filters.neighborInterface",
+                "filters.processId",
+                "searchKey"
+              ]
+            },
+            "request_body": false,
+            "response": "Paginated OperationResponseOswOspfNeighborGridVOOswOspfNeighborVO. Rows include documented state:string; the source gives no state enumeration or semantics.",
+            "projection": "Binds one opaque stack reference to exactly one entry in a complete fresh site-stack inventory. Reads at most 1,000 rows, reports row completeness and count of records with a state field. Omits addresses, router IDs, interfaces and process IDs; does not interpret state strings. The ER7212PC empty-grid example has totalRows/currentPage/currentSize zero but contains a placeholder row, so it is not treated as a valid empty result. Live stack hardware was not tested."
           }
         },
         "controller_sdwan_group_summary": {

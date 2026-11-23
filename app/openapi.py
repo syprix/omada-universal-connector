@@ -1287,6 +1287,10 @@ class OmadaOpenApiClient:
     _SITE_STACK_LIST_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/stacks"
     _SITE_STACK_NETWORKS_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/stacks/{stack_id}/networks")
+    _SITE_STACK_STATIC_ROUTINGS_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/stacks/{stack_id}/staticRoutings")
+    _SITE_STACK_OSPF_NEIGHBORS_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/stack/{stack_id}/ospf-neighbors")
     _SITE_STACK_DHCP_USERS_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/stack/{stack_id}/dhcp/user-list")
     _SITE_STACK_VLAN_INTERFACES_PATH = (
@@ -2209,6 +2213,14 @@ class OmadaOpenApiClient:
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/stacks/"
         r"[A-Za-z0-9_-]{1,128}/networks\?page=([0-9]{1,3})&pageSize=([0-9]{1,4})"
     )
+    _SITE_STACK_STATIC_ROUTINGS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/stacks/"
+        r"[A-Za-z0-9_-]{1,128}/staticRoutings\?page=([1-9][0-9]{0,2})&pageSize=(1000|[1-9][0-9]{0,2})"
+    )
+    _SITE_STACK_OSPF_NEIGHBORS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/stack/"
+        r"[A-Za-z0-9_-]{1,128}/ospf-neighbors\?page=([1-9][0-9]{0,2})&pageSize=(1000|[1-9][0-9]{0,2})"
+    )
     _SITE_STACK_DHCP_USERS_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})/stack/"
         r"([A-Za-z0-9_-]{1,128})/dhcp/user-list\?page=([1-9][0-9]*)&pageSize=(?:1000|[1-9][0-9]{0,2})"
@@ -3079,6 +3091,8 @@ class OmadaOpenApiClient:
         ("switch_lldp_neighbors", "GET /v1/sites/{site_ref}/switches/{switch_ref}/lldp-neighbors"),
         ("site_stack_connections_summary", "GET /v1/sites/{site_ref}/stack-connections-summary"),
         ("site_stack_network_summary", "GET /v1/sites/{site_ref}/stacks/{stack_ref}/networks-summary"),
+        ("site_stack_static_routing_summary", "GET /v1/sites/{site_ref}/stacks/{stack_ref}/static-routings/summary"),
+        ("site_stack_ospf_neighbor_summary", "GET /v1/sites/{site_ref}/stacks/{stack_ref}/ospf-neighbors/summary"),
         ("site_stack_dhcp_user_summary", "GET /v1/sites/{site_ref}/stacks/{stack_ref}/dhcp-users/summary"),
         ("site_stack_vlan_interface_summary", "GET /v1/sites/{site_ref}/stacks/{stack_ref}/vlan-interfaces/summary"),
         ("site_snmp_incompatible_summary", "GET /v1/sites/{site_ref}/snmp/incompatible-devices/summary"),
@@ -11570,6 +11584,129 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {"site_ref": site_ref, **projected}
 
+    def _resolve_site_stack(self, site_ref: str, stack_ref: str,
+                            token: str) -> tuple[str, str]:
+        """Resolve a stack ref against a complete, fresh inventory for this site."""
+        site_id = self._resolve_site_ref(site_ref)
+        if type(stack_ref) is not str or not re.fullmatch(r"[0-9a-f]{24}", stack_ref):
+            raise OpenApiError("stack_ref_invalid")
+        rows, omitted = self._read_bounded_grid_rows(
+            self._SITE_STACK_LIST_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id),
+            token, 32, require_success_code=True)
+        if omitted:
+            raise OpenApiError("stack_inventory_incomplete")
+        seen: set[str] = set()
+        matches: list[str] = []
+        for row in rows:
+            stack_id = row.get("id") if isinstance(row, Mapping) else None
+            if (type(stack_id) is not str or
+                    not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", stack_id) or
+                    stack_id in seen):
+                raise OpenApiError("stack_inventory_ambiguous")
+            seen.add(stack_id)
+            candidate = self._opaque_ref("stack", site_id + ":" + stack_id)
+            if hmac.compare_digest(candidate, stack_ref):
+                matches.append(stack_id)
+        if len(matches) != 1:
+            raise OpenApiError("stack_ref_unknown")
+        return site_id, matches[0]
+
+    def _read_stack_summary_grid(self, base_path: str,
+                                 token: str) -> tuple[list[object], int, int]:
+        """Read at most 1,000 stack-grid rows and retain the source total."""
+        page_size = min(max(1, self.config.page_size), 1_000)
+        page_limit = min(max(1, self.config.max_pages), 10)
+        rows: list[object] = []
+        total_rows: int | None = None
+        for page in range(1, page_limit + 1):
+            remaining_rows = (total_rows - len(rows)
+                              if total_rows is not None else page_size)
+            if min(1_000 - len(rows), remaining_rows) <= 0:
+                break
+            # Keep pageSize fixed: shrinking the last request changes the page
+            # offset on controllers that use (page - 1) * pageSize.
+            query = urlencode({"page": page, "pageSize": page_size})
+            payload = self._request_json("GET", base_path + "?" + query, token=token)
+            if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+                raise OpenApiError("openapi_response_invalid")
+            result = payload.get("result")
+            data = result.get("data") if isinstance(result, Mapping) else None
+            reported_total = result.get("totalRows") if isinstance(result, Mapping) else None
+            current_page = result.get("currentPage") if isinstance(result, Mapping) else None
+            current_size = result.get("currentSize") if isinstance(result, Mapping) else None
+            empty_zero_page = (page == 1 and reported_total == 0 and current_page == 0 and
+                               current_size == 0 and data == [])
+            if (not isinstance(data, list) or len(data) > page_size or
+                    type(reported_total) is not int or not 0 <= reported_total < (1 << 63) or
+                    ((type(current_page) is not int or current_page != page) and
+                     not empty_zero_page) or
+                    type(current_size) is not int or
+                    current_size not in (len(data), page_size) and not empty_zero_page):
+                raise OpenApiError("openapi_response_invalid")
+            if total_rows is None:
+                total_rows = reported_total
+            elif reported_total != total_rows:
+                raise OpenApiError("openapi_response_invalid")
+            if len(rows) + len(data) > reported_total:
+                raise OpenApiError("openapi_response_invalid")
+            rows.extend(data[:min(1_000 - len(rows), reported_total - len(rows))])
+            if len(rows) > reported_total or len(rows) > 1_000:
+                raise OpenApiError("openapi_response_invalid")
+            if not data and len(rows) < reported_total:
+                raise OpenApiError("openapi_response_invalid")
+            if len(rows) >= reported_total:
+                break
+        if total_rows is None:
+            raise OpenApiError("openapi_response_invalid")
+        return rows, total_rows, max(0, total_rows - len(rows))
+
+    @_track_capability("site_stack_static_routing_summary")
+    def read_site_stack_static_routing_summary(
+            self, site_ref: str, stack_ref: str) -> dict[str, object]:
+        """Count documented route families for one freshly inventoried stack."""
+        token = self._access_token()
+        site_id, stack_id = self._resolve_site_stack(site_ref, stack_ref, token)
+        rows, total, omitted = self._read_stack_summary_grid(
+            self._SITE_STACK_STATIC_ROUTINGS_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id,
+                stack_id=stack_id), token)
+        try:
+            from .site_stack_static_routing_summary import (
+                StackStaticRoutingSummaryError, summarize_stack_static_routes)
+        except ImportError:  # direct execution in the image
+            from site_stack_static_routing_summary import (
+                StackStaticRoutingSummaryError, summarize_stack_static_routes)
+        try:
+            projected = summarize_stack_static_routes(rows, total, omitted)
+        except StackStaticRoutingSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_stack_static_routing_summary",
+                "site_ref": site_ref, "stack_ref": stack_ref, **projected}
+
+    @_track_capability("site_stack_ospf_neighbor_summary")
+    def read_site_stack_ospf_neighbor_summary(
+            self, site_ref: str, stack_ref: str) -> dict[str, object]:
+        """Report bounded OSPF row coverage without disclosing neighbor details."""
+        token = self._access_token()
+        site_id, stack_id = self._resolve_site_stack(site_ref, stack_ref, token)
+        rows, total, omitted = self._read_stack_summary_grid(
+            self._SITE_STACK_OSPF_NEIGHBORS_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id,
+                stack_id=stack_id), token)
+        try:
+            from .site_stack_ospf_neighbor_summary import (
+                StackOspfNeighborSummaryError, summarize_stack_ospf_neighbors)
+        except ImportError:  # direct execution in the image
+            from site_stack_ospf_neighbor_summary import (
+                StackOspfNeighborSummaryError, summarize_stack_ospf_neighbors)
+        try:
+            projected = summarize_stack_ospf_neighbors(rows, total, omitted)
+        except StackOspfNeighborSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_stack_ospf_neighbor_summary",
+                "site_ref": site_ref, "stack_ref": stack_ref, **projected}
+
     @_track_capability("site_stack_dhcp_user_summary")
     def read_site_stack_dhcp_user_summary(
             self, site_ref: str, stack_ref: str) -> dict[str, object]:
@@ -17513,6 +17650,8 @@ class OmadaOpenApiClient:
                                    self._SWITCH_LLDP_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
                                   self._site_stack_list_request_valid(path) or
                                   self._site_stack_networks_request_valid(path) or
+                                  self._site_stack_static_routings_request_valid(path) or
+                                  self._site_stack_ospf_neighbors_request_valid(path) or
                                   self._site_stack_vlan_interfaces_request_valid(path) or
                                   self._site_stack_dhcp_users_request_valid(path) or
                                   self._site_snmp_incompatible_request_valid(path) or
@@ -19984,6 +20123,26 @@ class OmadaOpenApiClient:
         except (ValueError, OverflowError):
             return False
 
+    def _site_stack_static_routings_request_valid(self, path: str) -> bool:
+        match = self._SITE_STACK_STATIC_ROUTINGS_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return (1 <= int(match.group(2)) <= min(self.config.max_pages, 10) and
+                    1 <= int(match.group(3)) <= 1000)
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_stack_ospf_neighbors_request_valid(self, path: str) -> bool:
+        match = self._SITE_STACK_OSPF_NEIGHBORS_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return (1 <= int(match.group(2)) <= min(self.config.max_pages, 10) and
+                    1 <= int(match.group(3)) <= 1000)
+        except (ValueError, OverflowError):
+            return False
+
     def _site_stack_vlan_interfaces_request_valid(self, path: str) -> bool:
         match = self._SITE_STACK_VLAN_INTERFACES_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
@@ -20193,8 +20352,8 @@ class OmadaOpenApiClient:
             remaining = max_items - len(rows)
             if remaining <= 0:
                 break
-            request_size = min(page_size, remaining)
-            query = urlencode({"page": page, "pageSize": request_size})
+            # Keep pageSize stable across pages; only trim locally at max_items.
+            query = urlencode({"page": page, "pageSize": page_size})
             payload = self._request_json("GET", base_path + "?" + query, token=token)
             if (require_success_code and
                     (type(payload.get("errorCode")) is not int or payload["errorCode"] != 0)):
@@ -20204,17 +20363,19 @@ class OmadaOpenApiClient:
             total = result.get("totalRows") if isinstance(result, dict) else None
             current_page = result.get("currentPage") if isinstance(result, dict) else None
             current_size = result.get("currentSize") if isinstance(result, dict) else None
-            if (not isinstance(data, list) or len(data) > request_size or
+            if (not isinstance(data, list) or len(data) > page_size or
                     type(total) is not int or total < 0 or
                     type(current_page) is not int or current_page != page or
                     type(current_size) is not int or
-                    current_size not in (len(data), request_size)):
+                    current_size not in (len(data), page_size)):
                 raise OpenApiError("openapi_response_invalid")
             if total_rows is None:
                 total_rows = total
             elif total != total_rows:
                 raise OpenApiError("openapi_response_invalid")
-            rows.extend(data)
+            if len(rows) + len(data) > total:
+                raise OpenApiError("openapi_response_invalid")
+            rows.extend(data[:remaining])
             if len(rows) > max_items or len(rows) > total:
                 raise OpenApiError("openapi_response_invalid")
             if not data and len(rows) < total:

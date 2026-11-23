@@ -872,3 +872,30 @@ source JSON with the actual response projection. Twenty firmware entries were
 tokens (33 more, including the connector's status and resource envelope).
 These measurements exclude tool schemas, transport framing, prompts and billed
 agent usage.
+
+## 2026-11-23 — Stack static routes and OSPF neighbor coverage (in progress)
+
+#119 and #120 use fresh, complete same-site stack inventory binding and a
+bounded 1,000-row paginated read. Static routes are summarized by documented
+IP-version and configured status counts; destinations and identifiers are
+omitted, and active forwarding is not inferred. OSPF output is limited to row
+coverage and state-field presence; state strings are not interpreted and peer
+details are omitted. All three supplied exports contain both operations. The
+ER7212PC OSPF empty-grid example is internally inconsistent (zero total and
+page metadata with a placeholder row); the implementation accepts a genuinely
+empty zero-page result and rejects that example shape. No controller has been
+contacted.
+
+Review found that reducing `pageSize` on a final partial page could shift the
+offset and repeat or skip stack rows. The bounded grid readers now keep the
+same page size for every request and trim only after receiving a page. An
+offline case with 32 stack entries and a page size of 7 confirms that the last
+stack remains uniquely resolvable.
+
+Synthetic token measurements with `js-tiktoken` 1.0.21 / `o200k_base` compared
+20 source rows with the actual summary responses: static routes 2,216→122 tokens
+(94.49% fewer); OSPF neighbors 1,229→102 tokens (91.70% fewer). These exclude
+tool schemas, transport framing, prompts and billed agent usage. The full client
+and HTTP/MCP modules passed 477 tests after the pagination fix. The registry,
+matrix and evidence gate is being rerun on that fix. Three-export contract
+checks and the full API matrix passed. Live controller support is unknown.

@@ -3024,6 +3024,19 @@ class FakeOpenApiClient:
         return {"status": "ok", "resource": "site_stack_network_summary",
                 "site_ref": site_ref, "stack_ref": stack_ref,
                 "reported_network_count": 3}
+
+    def read_site_stack_static_routing_summary(self, site_ref: str,
+                                                stack_ref: str) -> dict[str, object]:
+        self.calls.append(("site_stack_static_routing_summary", site_ref, stack_ref))
+        return {"status": "ok", "resource": "site_stack_static_routing_summary",
+                "site_ref": site_ref, "stack_ref": stack_ref}
+
+    def read_site_stack_ospf_neighbor_summary(self, site_ref: str,
+                                               stack_ref: str) -> dict[str, object]:
+        self.calls.append(("site_stack_ospf_neighbor_summary", site_ref, stack_ref))
+        return {"status": "ok", "resource": "site_stack_ospf_neighbor_summary",
+                "site_ref": site_ref, "stack_ref": stack_ref}
+
     def read_site_stack_dhcp_user_summary(self, site_ref: str,
                                           stack_ref: str) -> dict[str, object]:
         self.calls.append(("site_stack_dhcp_user_summary", site_ref, stack_ref))
@@ -10168,6 +10181,38 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(response["result"]["structuredContent"], direct)
         self.assertEqual(self.fake.calls,
                          [("site_stack_network_summary", site_ref, stack_ref)] * 2)
+
+    def test_http_and_mcp_expose_stack_static_routing_summary(self) -> None:
+        site_ref, stack_ref = "a" * 24, "b" * 24
+        path = f"/v1/sites/{site_ref}/stacks/{stack_ref}/static-routings/summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(direct["resource"], "site_stack_static_routing_summary")
+        request = {"jsonrpc": "2.0", "id": 461, "method": "tools/call",
+                   "params": {"name": "omada_site_stack_static_routing_summary",
+                              "arguments": {"site_ref": site_ref,
+                                            "stack_ref": stack_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_stack_static_routing_summary", site_ref, stack_ref)] * 2)
+
+    def test_http_and_mcp_expose_stack_ospf_neighbor_summary(self) -> None:
+        site_ref, stack_ref = "a" * 24, "b" * 24
+        path = f"/v1/sites/{site_ref}/stacks/{stack_ref}/ospf-neighbors/summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(direct["resource"], "site_stack_ospf_neighbor_summary")
+        request = {"jsonrpc": "2.0", "id": 462, "method": "tools/call",
+                   "params": {"name": "omada_site_stack_ospf_neighbor_summary",
+                              "arguments": {"site_ref": site_ref,
+                                            "stack_ref": stack_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_stack_ospf_neighbor_summary", site_ref, stack_ref)] * 2)
 
     def test_http_and_mcp_expose_redacted_stack_dhcp_user_summary(self) -> None:
         site_ref, stack_ref = "a" * 24, "b" * 24

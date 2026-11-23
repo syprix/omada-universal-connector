@@ -982,6 +982,19 @@ does not establish tunnel connectivity; live support is unknown.
 
 `omada_site_stack_network_summary` takes a site and an opaque `stack_ref` returned by the stack connection summary. It refreshes stack inventory before reading that stack's VLAN-network configuration, returning counts for documented DHCP modes and status/management/IPv6 coverage. VLAN/network IDs, names, stack members, addresses and DHCP values are omitted. The read is capped at 1,000 rows; live stack support remains untested.
 
+`omada_site_stack_static_routing_summary` refreshes the selected site's stack
+inventory and binds the opaque `stack_ref` to one unique current stack. It reads
+at most 1,000 documented route rows and counts IPv4/IPv6 and enabled/disabled
+configuration. Destinations, next hops, names, VRF values and device identifiers
+are omitted; configured status does not establish active forwarding. Live stack
+support is unknown.
+
+`omada_site_stack_ospf_neighbor_summary` uses the same fresh site-stack binding
+and a bounded read of the documented OSPF neighbor grid. It reports row and
+coverage counts plus how many rows include a state field. State strings are not
+interpreted; addresses, router IDs, interfaces and process IDs are omitted.
+Live stack support is unknown.
+
 `omada_site_switch_oui_vlan_summary` takes a `site_ref` and returns bounded
 counts of documented rule enable flags and port-scope modes. It omits rule and
 device identities, ports, OUI values and VLAN values, and does not infer VLAN
