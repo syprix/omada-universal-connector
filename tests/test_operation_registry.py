@@ -183,6 +183,16 @@ class OperationRegistryTests(unittest.TestCase):
         self.assertEqual(route.operation_id, "site_ids_ips_config_summary")
         self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
 
+    def test_site_wan_unsupported_function_summary_is_site_bound_and_fixed(self):
+        operation = REGISTRY.get("site_wan_unsupported_function_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/wan/unsupported-functions/summary")
+        self.assertEqual(route.operation_id, "site_wan_unsupported_function_summary")
+        self.assertEqual(route.upstream_template,
+                         "/openapi/v1/{controller_id}/sites/{site_id}/wan/networks/unsupportedFunction")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
+
     def test_site_ipsec_sa_summary_is_a_site_bound_read(self):
         operation = REGISTRY.get("site_ipsec_sa_summary")
         self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
@@ -879,6 +889,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_bandwidth_control",
             "site_wan_ports_summary",
             "site_wan_port_availability_summary",
+            "site_wan_unsupported_function_summary",
             "site_virtual_wan_summary",
             "site_wan_max_speed_summary",
             "gateway_info_summary",
@@ -934,6 +945,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_dhcp_snooping_status",
             "site_dhcp_snoops_summary",
             "site_mdns_rule_summary",
+            "site_mdns_profile_summary",
             "site_ddns_summary",
             "site_snmp_settings_summary",
             "site_active_switch_summary",
@@ -1473,6 +1485,13 @@ class OperationRegistryTests(unittest.TestCase):
         operation, bindings = REGISTRY.match(
             "GET", f"/v1/sites/{site_ref}/mdns-rule-summary")
         self.assertEqual(operation.operation_id, "site_mdns_rule_summary")
+        self.assertEqual(bindings, (("site_ref", site_ref),))
+
+    def test_site_mdns_profile_summary_route_uses_opaque_site_reference(self):
+        site_ref = "0123456789abcdef01234567"
+        operation, bindings = REGISTRY.match(
+            "GET", f"/v1/sites/{site_ref}/bonjour/profiles/summary")
+        self.assertEqual(operation.operation_id, "site_mdns_profile_summary")
         self.assertEqual(bindings, (("site_ref", site_ref),))
 
     def test_site_ddns_summary_route_uses_opaque_site_reference(self):

@@ -1559,6 +1559,19 @@
             "projection": "Site-bound HTTP/MCP GET returns bounded rule counts, enabled/disabled counts and raw integer type-code counts only. It does not infer type-code meaning across variants and omits rule/profile IDs, names, VLANs and network identifiers. Missing, malformed, unknown and truncated values are reported."
           }
         },
+        "site_mdns_profile_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "listMdnsProfile",
+            "permission": "not specified by the source operation",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/profiles/bonjour-service",
+            "query": {},
+            "request_body": false,
+            "response": "OperationResponseResponseDataVOBonjourServiceDetailOpenApiVO.result.data[] contains optional id:string, name:string, serviceIds:string[] and defaultProfile:boolean. serviceIds entries are service identifiers in documented _A._B.local form, with at most three entries per profile. ER7212PC provides a data-row example.",
+            "projection": "Reads one site-bound list and considers at most 1,000 profiles. Counts defaultProfile true/false/unknown flags and profiles with zero, one, two or three service identifiers. IDs, names and service identifier text are omitted; unknown or invalid fields and truncation mark partial. This describes configured profiles, not Bonjour reachability."
+          }
+        },
         "site_mesh_summary": {
           "documented": true,
           "live_support": "unknown"
@@ -2453,6 +2466,21 @@
             "query": "Required int32 function parameter. The description documents codes 0–15: ACL, QOS, IP_MAC_BLINDING, IGMP_PROXY, VIRTUAL_WAN, PORT_FROWARDING, OTONAT, BANDWIDTH_CONTROL, STATIC_ROUTING, POLICY_ROUTING, VPN, SSL_VPN, DDNS, UPNP, MLD, LAN.",
             "response": "AvailableWanResultOpenApiVO has optional enable boolean and wanPorts array. Each optional row field is documented: portName, portUuid, type int32, configured boolean (QOS configured), supportIptv boolean, virtualWanNum int32, proto string, ipv6 boolean, ipv6Proto string, recommendedWan boolean and ip string.",
             "projection": "Site-bound HTTP/MCP GET with one validated function code. Counts listed rows and known true values for configured/IPv6/IPTV/recommended flags; omits names, UUIDs, addresses, protocol strings and raw types. Missing fields/unknown additions mark partial; no physical link status is inferred. Hardware/CBC only."
+          }
+        },
+        "site_wan_unsupported_function_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "obtainWanUnsupportedFunction",
+            "permission": "not specified by the source operation",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/wan/networks/unsupportedFunction",
+            "query": {
+              "filter": "Optional int32. The only described value is 1, for listing limitations when configuring DS-Lite and MAP-E IPv4 WAN dial-up. The connector fixes this value and accepts no caller query."
+            },
+            "request_body": false,
+            "response": "OperationResponseWanUnsupportedFunctionOpenApiVO.result is WanUnsupportedFunctionOpenApiVO. functions is an optional string array described as functions not supported by DS-Lite and MAP-E dial-up when filter=1. ER7212PC includes an example with functions: []. No enum or per-string schema is documented.",
+            "projection": "Sends filter=1, validates a bounded list of string entries, and returns only the entry count and result quality. Label text is discarded and is not interpreted as a device capability or current WAN status. Empty, missing, invalid and truncated outcomes are distinct."
           }
         },
         "site_vpn_s2s_status_summary": {
@@ -4367,6 +4395,19 @@
             "projection": "Site-bound HTTP/MCP GET returns bounded rule counts, enabled/disabled counts and raw integer type-code counts only. It does not infer type-code meaning across variants and omits rule/profile IDs, names, VLANs and network identifiers. Missing, malformed, unknown and truncated values are reported."
           }
         },
+        "site_mdns_profile_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "listMdnsProfile",
+            "permission": "not specified by the source operation",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/profiles/bonjour-service",
+            "query": {},
+            "request_body": false,
+            "response": "OperationResponseResponseDataVOBonjourServiceDetailOpenApiVO.result.data[] contains optional id:string, name:string, serviceIds:string[] and defaultProfile:boolean. serviceIds entries are service identifiers in documented _A._B.local form, with at most three entries per profile. ER7212PC provides a data-row example.",
+            "projection": "Reads one site-bound list and considers at most 1,000 profiles. Counts defaultProfile true/false/unknown flags and profiles with zero, one, two or three service identifiers. IDs, names and service identifier text are omitted; unknown or invalid fields and truncation mark partial. This describes configured profiles, not Bonjour reachability."
+          }
+        },
         "site_mesh_summary": {
           "documented": true,
           "live_support": "unknown"
@@ -5261,6 +5302,21 @@
             "query": "Required int32 function parameter. The description documents codes 0–15: ACL, QOS, IP_MAC_BLINDING, IGMP_PROXY, VIRTUAL_WAN, PORT_FROWARDING, OTONAT, BANDWIDTH_CONTROL, STATIC_ROUTING, POLICY_ROUTING, VPN, SSL_VPN, DDNS, UPNP, MLD, LAN.",
             "response": "AvailableWanResultOpenApiVO has optional enable boolean and wanPorts array. Each optional row field is documented: portName, portUuid, type int32, configured boolean (QOS configured), supportIptv boolean, virtualWanNum int32, proto string, ipv6 boolean, ipv6Proto string, recommendedWan boolean and ip string.",
             "projection": "Site-bound HTTP/MCP GET with one validated function code. Counts listed rows and known true values for configured/IPv6/IPTV/recommended flags; omits names, UUIDs, addresses, protocol strings and raw types. Missing fields/unknown additions mark partial; no physical link status is inferred. Hardware/CBC only."
+          }
+        },
+        "site_wan_unsupported_function_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "obtainWanUnsupportedFunction",
+            "permission": "not specified by the source operation",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/wan/networks/unsupportedFunction",
+            "query": {
+              "filter": "Optional int32. The only described value is 1, for listing limitations when configuring DS-Lite and MAP-E IPv4 WAN dial-up. The connector fixes this value and accepts no caller query."
+            },
+            "request_body": false,
+            "response": "OperationResponseWanUnsupportedFunctionOpenApiVO.result is WanUnsupportedFunctionOpenApiVO. functions is an optional string array described as functions not supported by DS-Lite and MAP-E dial-up when filter=1. ER7212PC includes an example with functions: []. No enum or per-string schema is documented.",
+            "projection": "Sends filter=1, validates a bounded list of string entries, and returns only the entry count and result quality. Label text is discarded and is not interpreted as a device capability or current WAN status. Empty, missing, invalid and truncated outcomes are distinct."
           }
         },
         "site_vpn_s2s_status_summary": {
@@ -7157,6 +7213,19 @@
             "projection": "Site-bound HTTP/MCP GET returns bounded rule counts, enabled/disabled counts and raw integer type-code counts only. It does not infer type-code meaning across variants and omits rule/profile IDs, names, VLANs and network identifiers. Missing, malformed, unknown and truncated values are reported."
           }
         },
+        "site_mdns_profile_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "listMdnsProfile",
+            "permission": "not specified by the source operation",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/profiles/bonjour-service",
+            "query": {},
+            "request_body": false,
+            "response": "OperationResponseResponseDataVOBonjourServiceDetailOpenApiVO.result.data[] contains optional id:string, name:string, serviceIds:string[] and defaultProfile:boolean. serviceIds entries are service identifiers in documented _A._B.local form, with at most three entries per profile. ER7212PC provides a data-row example.",
+            "projection": "Reads one site-bound list and considers at most 1,000 profiles. Counts defaultProfile true/false/unknown flags and profiles with zero, one, two or three service identifiers. IDs, names and service identifier text are omitted; unknown or invalid fields and truncation mark partial. This describes configured profiles, not Bonjour reachability."
+          }
+        },
         "site_mesh_summary": {
           "documented": true,
           "live_support": "unknown"
@@ -8035,6 +8104,21 @@
         "site_wan_port_availability_summary": {
           "documented": false,
           "live_support": "unknown"
+        },
+        "site_wan_unsupported_function_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "obtainWanUnsupportedFunction",
+            "permission": "not specified by the source operation",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/wan/networks/unsupportedFunction",
+            "query": {
+              "filter": "Optional int32. The only described value is 1, for listing limitations when configuring DS-Lite and MAP-E IPv4 WAN dial-up. The connector fixes this value and accepts no caller query."
+            },
+            "request_body": false,
+            "response": "OperationResponseWanUnsupportedFunctionOpenApiVO.result is WanUnsupportedFunctionOpenApiVO. functions is an optional string array described as functions not supported by DS-Lite and MAP-E dial-up when filter=1. ER7212PC includes an example with functions: []. No enum or per-string schema is documented.",
+            "projection": "Sends filter=1, validates a bounded list of string entries, and returns only the entry count and result quality. Label text is discarded and is not interpreted as a device capability or current WAN status. Empty, missing, invalid and truncated outcomes are distinct."
+          }
         },
         "site_vpn_s2s_status_summary": {
           "documented": true,

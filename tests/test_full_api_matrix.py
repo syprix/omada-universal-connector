@@ -104,6 +104,27 @@ class FullApiMatrixTests(unittest.TestCase):
         tool = __import__("app.mcp", fromlist=["_tool"])._tool(op)
         self.assertEqual(tool["inputSchema"]["properties"]["function"]["enum"], list(range(16)))
 
+    def test_wan_unsupported_function_contract_is_documented_in_all_exports(self) -> None:
+        matrix = json.loads((Path(__file__).resolve().parents[1] /
+                             "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
+        for source in matrix["sources"]:
+            row = source["operations"]["site_wan_unsupported_function_summary"]
+            self.assertTrue(row["documented"])
+            self.assertEqual(row["live_support"], "unknown")
+            self.assertEqual(row["contract_review"]["operation_id"],
+                             "obtainWanUnsupportedFunction")
+            self.assertIn("filter=1", row["contract_review"]["projection"])
+
+    def test_bonjour_profile_contract_is_documented_in_all_exports(self) -> None:
+        matrix = json.loads((Path(__file__).resolve().parents[1] /
+                             "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
+        for source in matrix["sources"]:
+            row = source["operations"]["site_mdns_profile_summary"]
+            self.assertTrue(row["documented"])
+            self.assertEqual(row["live_support"], "unknown")
+            self.assertEqual(row["contract_review"]["operation_id"], "listMdnsProfile")
+            self.assertIn("serviceIds", row["contract_review"]["response"])
+
     def test_site_ap_oui_vlan_rules_contract_is_common_and_live_unknown(self) -> None:
         matrix = json.loads((Path(__file__).resolve().parents[1] /
                              "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))

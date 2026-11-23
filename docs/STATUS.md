@@ -633,3 +633,28 @@ prompts, tool schemas, transport framing and billed agent usage.
 A synthetic 20-rule webfilter page measured 2,005→225 serialized JSON tokens
 (88.78% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; this excludes prompts,
 tool schemas, transport framing and billed agent usage.
+
+## 2026-11-23 — WAN limitation entry summary
+
+Added a site-bound HTTP/MCP read for `obtainWanUnsupportedFunction`. The
+connector sends only the documented fixed `filter=1`, counts typed string
+entries, and discards all labels. Empty, missing, invalid and truncated data
+are distinct. The output describes source-reported list entries only; it does
+not make a claim about current device capability or WAN state. All three
+exports document the operation. Live support has not been checked.
+
+A synthetic 20-entry response measured 331 source tokens and 40 summary tokens
+(87.92% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; transport framing and
+model usage are excluded.
+
+## 2026-11-23 — Bonjour profile summary
+
+Added a site-bound HTTP/MCP read for `listMdnsProfile`, separate from the
+existing mDNS rule list. It counts profile defaults and zero-to-three service
+entries, omits IDs, names and service strings, and caps the list at 1,000
+profiles. Missing/invalid fields and truncation are visible in the summary. All
+three exports document the read; live support has not been checked.
+
+A synthetic 20-profile response measured 722 source tokens and 103 summary
+tokens (85.73% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; framing and
+model usage are excluded.

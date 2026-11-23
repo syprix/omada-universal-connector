@@ -1720,3 +1720,31 @@ summary JSON tokens (89.81% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`.
 
 A synthetic 20-rule webfilter page measured 2,005→225 serialized JSON tokens
 (88.78% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`.
+
+## WAN limitation entry summary
+
+`GET /v1/sites/{site_ref}/wan/unsupported-functions/summary` and
+`omada_site_wan_unsupported_function_summary` use the documented fixed upstream
+query `filter=1` for DS-Lite/MAP-E WAN functions. The response reports only the
+number of string entries; entry text is discarded and is not treated as a
+device capability or active WAN state. Empty, missing, invalid and truncated
+lists are distinct. All three exports document the operation; live support is
+unknown.
+
+A synthetic 20-entry response measured 331 source tokens and 40 summary tokens
+(87.92% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`. This excludes prompts,
+tool schemas, transport framing and billed agent usage.
+
+## Bonjour profile summary
+
+`GET /v1/sites/{site_ref}/bonjour/profiles/summary` and
+`omada_site_mdns_profile_summary` read the site's documented Bonjour service
+profiles. The summary counts default-profile flags and the number of documented
+`serviceIds` entries per profile, capped at 1,000 profiles. Profile IDs, names
+and service strings are omitted. It complements the separate mDNS rule summary
+and does not report Bonjour reachability. All three exports document the read;
+live support is unknown.
+
+A synthetic 20-profile response measured 722 source tokens and 103 summary
+tokens (85.73% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`. This excludes
+prompts, tool schemas, transport framing and billed agent usage.
