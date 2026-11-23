@@ -519,7 +519,7 @@ The VLAN topology summary (#74) reads `getFilterDevicesOfVlan` from Hardware Con
 
 A synthetic 20-MAC source response and connector result measured 241 → 114 serialized tokens (52.70% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; this is not billed agent usage.
 
-The ES-switch network overview (#75) reads `getESNetworkOverview` from all three exports after resolving the selected switch through that site's inventory. It counts network rows and native, untagged and tagged port assignments while omitting network details, VLAN values and port numbers. The vendor exports do not supply a compatible model allowlist; exact device-model compatibility and live hardware support are still unknown.
+The ES-switch network overview (#75) reads `getESNetworkOverview` only after a same-site inventory-bound lookup in `getOswDetailInfoListForPortsView` returns exactly one matching MAC with the documented `es: true` Agile-Series flag. Missing, duplicate, and non-Agile matches are rejected before the overview call. It counts network rows and native, untagged and tagged port assignments while omitting network details, VLAN values and port numbers. Live hardware support remains unknown.
 
 A synthetic 20-network source response and connector result measured 851 → 160 serialized tokens (81.20% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; this is not billed agent usage.
 

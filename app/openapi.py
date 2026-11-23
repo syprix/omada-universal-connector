@@ -1439,6 +1439,8 @@ class OmadaOpenApiClient:
         "/openapi/v3/{controller_id}/sites/{site_id}/topology/{network_id}/vlan/{vlan}/devices")
     _SITE_ES_NETWORK_OVERVIEW_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/switches/es/{switch_mac}/network-overview")
+    _SITE_SWITCH_PORT_DETAIL_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/switches/ports/switch-detail")
     _SITE_PORT_SCHEDULE_PORTS_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/port-status-ports")
     _SITE_INTERNET_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/internet"
@@ -1824,6 +1826,10 @@ class OmadaOpenApiClient:
     _SITE_ES_NETWORK_OVERVIEW_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
         r"/switches/es/(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}/network-overview"
+    )
+    _SITE_SWITCH_PORT_DETAIL_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/switches/ports/switch-detail"
     )
     _SITE_PORT_SCHEDULE_PORTS_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
@@ -13008,6 +13014,25 @@ class OmadaOpenApiClient:
         if not switch_mac:
             raise OpenApiError("switch_ref_unknown")
         site_id = self._resolve_site_ref(site_ref)
+        detail_path = self._SITE_SWITCH_PORT_DETAIL_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        detail_rows = self._request_json(
+            "GET", detail_path, token=self._access_token()).get("result")
+        if not isinstance(detail_rows, list) or len(detail_rows) > 5000:
+            raise OpenApiError("switch_family_unknown")
+        selected_mac = switch_mac.replace(":", "").replace("-", "").casefold()
+        matching_rows = [
+            row for row in detail_rows
+            if isinstance(row, dict) and isinstance(row.get("mac"), str)
+            and self._MAC.fullmatch(row["mac"])
+            and row["mac"].replace(":", "").replace("-", "").casefold() == selected_mac
+        ]
+        if not matching_rows:
+            raise OpenApiError("switch_family_unknown")
+        if len(matching_rows) != 1:
+            raise OpenApiError("switch_family_ambiguous")
+        if matching_rows[0].get("es") is not True:
+            raise OpenApiError("switch_family_unsupported")
         path = self._SITE_ES_NETWORK_OVERVIEW_PATH.format(
             controller_id=self.config.controller_id, site_id=site_id,
             switch_mac=switch_mac)
@@ -15569,6 +15594,7 @@ class OmadaOpenApiClient:
                                   self._site_topology_root_candidates_request_valid(path) or
                                   self._site_isolated_preconfig_request_valid(path) or
                                   self._site_vlan_topology_request_valid(path) or
+                                  self._site_switch_port_detail_request_valid(path) or
                                   self._site_es_network_overview_request_valid(path) or
                                   self._site_port_schedule_ports_request_valid(path) or
                                   self._site_internet_request_valid(path) or
@@ -16914,6 +16940,10 @@ class OmadaOpenApiClient:
 
     def _site_es_network_overview_request_valid(self, path: str) -> bool:
         match = self._SITE_ES_NETWORK_OVERVIEW_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_switch_port_detail_request_valid(self, path: str) -> bool:
+        match = self._SITE_SWITCH_PORT_DETAIL_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
 
     def _site_port_schedule_ports_request_valid(self, path: str) -> bool:

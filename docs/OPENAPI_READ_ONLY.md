@@ -1194,12 +1194,14 @@ device-to-device link map. No live request was made.
 `GET /v1/sites/{site_ref}/switches/{switch_ref}/es-network-overview/summary`
 and `omada_site_es_network_overview_summary` expose `getESNetworkOverview`
 from all three exports. The connector refreshes the selected site's device
-inventory and resolves the opaque switch reference before reading the
-documented network list. It returns row and port-assignment counts, discarding
+inventory and resolves the opaque switch reference. Before reading the
+overview, it calls the documented `getOswDetailInfoListForPortsView` read and
+requires exactly one row whose `mac` matches the selected inventory device and
+whose documented `es` boolean is `true`. Missing, duplicate, or non-Agile
+matches are rejected. It returns row and port-assignment counts, discarding
 network IDs/names, VLAN values and individual port numbers, and reports missing
-assignment arrays as unknown field coverage. Although the
-endpoint is under the ES-switch path, the exports do not define a compatible
-model allowlist. No matching hardware test or live request was available.
+assignment arrays as unknown field coverage. No matching hardware test or live
+request was available.
 
 `GET /v1/sites/{site_ref}/port-schedule-capable-ports/summary` and
 `omada_site_port_schedule_ports_summary` expose `getPortSchedulePorts` from
