@@ -2554,6 +2554,33 @@
             "projection": "At most ten pages of 100 rows. Counts activation, documented source/mode choices, upstream/downstream unit choices, limit-field presence and coverage. Rule names, IDs, source/WAN targets and rate values are omitted. These bandwidth policies are kept separate from WAN QoS configuration and do not measure actual traffic."
           }
         },
+        "site_log_notification_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getLogSettingForSiteV2",
+            "permission": "Site Log & Audit Log Manager View Only",
+            "path": "GET /openapi/v2/{omadacId}/sites/{siteId}/site/log-notification",
+            "response": "LogNotificationSettingOpenApiVO contains a webhookConfig enable flag and webhook ID, logNotifications rows with key, shortMsg and alert/event/email/webhook boolean flags, plus alertEmailSetting with alertEmailEnable, delayEnable and delay seconds. No delivery result or destination address is included in this response schema.",
+            "source_example": "The export includes no response example for this operation.",
+            "projection": "Returns the number of notification categories, counts documented channel and email/webhook enablement states, and reports whether the delay value is present. Category keys, message text, webhook IDs and the numeric delay are omitted. A configured switch does not prove delivery; actual delivery is not inferred."
+          }
+        },
+        "site_lan_network_interface_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getInterfaceLanNetworkV2",
+            "permission": "Site Settings Manager View Only, Network Config Page View Only, Device Config Page View Only, Site Device Manager View Only, Site Tools Manager View Only, Site Insight Manager View Only, or Site Clients Manager View Only",
+            "path": "GET /openapi/v2/{omadacId}/sites/{siteId}/lan-networks/interface",
+            "optional_query": {
+              "type": "optional int32; 0 requests single-interface LAN networks; the export does not enumerate another numeric choice"
+            },
+            "response": "Unpaginated data array of LanNetworkQueryOpenApiV2VO. Documented purpose values: 0 VLAN, 1 interface. For interface purpose, vlanType values are 0 single and 1 multiple. application values are 0 Gateway and Switch and 1 Switch. Rows also contain interfaceIds, VLAN/subnet data, names and identifiers.",
+            "source_example": "ER7212PC includes a schema example with one network row; it is illustrative, not evidence of a live controller setting.",
+            "projection": "Reads the selected site without inventing a pagination contract; optional type accepts only documented value 0 and may be omitted. Counts purpose, interface VLAN type and application categories, plus interface-ID and subnet field coverage. Network names/IDs, interface IDs, VLAN values and subnet addresses are omitted. No router or VLAN mapping is inferred from interface IDs."
+          }
+        },
         "controller_upgrade_plans_summary": {
           "documented": true,
           "live_support": "unknown",
@@ -5098,6 +5125,33 @@
             "projection": "At most ten pages of 100 rows. Counts activation, documented source/mode choices, upstream/downstream unit choices, limit-field presence and coverage. Rule names, IDs, source/WAN targets and rate values are omitted. These bandwidth policies are kept separate from WAN QoS configuration and do not measure actual traffic."
           }
         },
+        "site_log_notification_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getLogSettingForSiteV2",
+            "permission": "Site Log & Audit Log Manager View Only",
+            "path": "GET /openapi/v2/{omadacId}/sites/{siteId}/site/log-notification",
+            "response": "LogNotificationSettingOpenApiVO contains a webhookConfig enable flag and webhook ID, logNotifications rows with key, shortMsg and alert/event/email/webhook boolean flags, plus alertEmailSetting with alertEmailEnable, delayEnable and delay seconds. No delivery result or destination address is included in this response schema.",
+            "source_example": "The export includes no response example for this operation.",
+            "projection": "Returns the number of notification categories, counts documented channel and email/webhook enablement states, and reports whether the delay value is present. Category keys, message text, webhook IDs and the numeric delay are omitted. A configured switch does not prove delivery; actual delivery is not inferred."
+          }
+        },
+        "site_lan_network_interface_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getInterfaceLanNetworkV2",
+            "permission": "Site Settings Manager View Only, Network Config Page View Only, Device Config Page View Only, Site Device Manager View Only, Site Tools Manager View Only, Site Insight Manager View Only, or Site Clients Manager View Only",
+            "path": "GET /openapi/v2/{omadacId}/sites/{siteId}/lan-networks/interface",
+            "optional_query": {
+              "type": "optional int32; 0 requests single-interface LAN networks; the export does not enumerate another numeric choice"
+            },
+            "response": "Unpaginated data array of LanNetworkQueryOpenApiV2VO. Documented purpose values: 0 VLAN, 1 interface. For interface purpose, vlanType values are 0 single and 1 multiple. application values are 0 Gateway and Switch and 1 Switch. Rows also contain interfaceIds, VLAN/subnet data, names and identifiers.",
+            "source_example": "ER7212PC includes a schema example with one network row; it is illustrative, not evidence of a live controller setting.",
+            "projection": "Reads the selected site without inventing a pagination contract; optional type accepts only documented value 0 and may be omitted. Counts purpose, interface VLAN type and application categories, plus interface-ID and subnet field coverage. Network names/IDs, interface IDs, VLAN values and subnet addresses are omitted. No router or VLAN mapping is inferred from interface IDs."
+          }
+        },
         "controller_upgrade_plans_summary": {
           "documented": true,
           "live_support": "unknown",
@@ -7599,6 +7653,33 @@
             "response": "Paginated BandwidthControlRule rows. The documented properties include status boolean; sourceType int32 (0 network, 1 IP group); mode int32 (0 share, 1 individual); upstream/downstream bandwidth values with units (1 Kbps, 2 Mbps); source IDs, WAN port IDs, rule name, and optional ID/index.",
             "source_example": "ER7212PC example has totalRows/currentPage/currentSize set to zero while including one rule row, conflicting with required page numbering and row count; it is not accepted as valid response evidence.",
             "projection": "At most ten pages of 100 rows. Counts activation, documented source/mode choices, upstream/downstream unit choices, limit-field presence and coverage. Rule names, IDs, source/WAN targets and rate values are omitted. These bandwidth policies are kept separate from WAN QoS configuration and do not measure actual traffic."
+          }
+        },
+        "site_log_notification_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getLogSettingForSiteV2",
+            "permission": "Site Log & Audit Log Manager View Only",
+            "path": "GET /openapi/v2/{omadacId}/sites/{siteId}/site/log-notification",
+            "response": "LogNotificationSettingOpenApiVO contains a webhookConfig enable flag and webhook ID, logNotifications rows with key, shortMsg and alert/event/email/webhook boolean flags, plus alertEmailSetting with alertEmailEnable, delayEnable and delay seconds. No delivery result or destination address is included in this response schema.",
+            "source_example": "ER7212PC example contains one sample category and configuration fields; it is illustrative, not evidence of a live controller setting.",
+            "projection": "Returns the number of notification categories, counts documented channel and email/webhook enablement states, and reports whether the delay value is present. Category keys, message text, webhook IDs and the numeric delay are omitted. A configured switch does not prove delivery; actual delivery is not inferred."
+          }
+        },
+        "site_lan_network_interface_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getInterfaceLanNetworkV2",
+            "permission": "Site Settings Manager View Only, Network Config Page View Only, Device Config Page View Only, Site Device Manager View Only, Site Tools Manager View Only, Site Insight Manager View Only, or Site Clients Manager View Only",
+            "path": "GET /openapi/v2/{omadacId}/sites/{siteId}/lan-networks/interface",
+            "optional_query": {
+              "type": "optional int32; 0 requests single-interface LAN networks; the export does not enumerate another numeric choice"
+            },
+            "response": "Unpaginated data array of LanNetworkQueryOpenApiV2VO. Documented purpose values: 0 VLAN, 1 interface. For interface purpose, vlanType values are 0 single and 1 multiple. application values are 0 Gateway and Switch and 1 Switch. Rows also contain interfaceIds, VLAN/subnet data, names and identifiers.",
+            "source_example": "ER7212PC includes a schema example with one network row; it is illustrative, not evidence of a live controller setting.",
+            "projection": "Reads the selected site without inventing a pagination contract; optional type accepts only documented value 0 and may be omitted. Counts purpose, interface VLAN type and application categories, plus interface-ID and subnet field coverage. Network names/IDs, interface IDs, VLAN values and subnet addresses are omitted. No router or VLAN mapping is inferred from interface IDs."
           }
         },
         "controller_upgrade_plans_summary": {

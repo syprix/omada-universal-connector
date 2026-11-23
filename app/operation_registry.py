@@ -33,6 +33,8 @@ class Operation:
     max_items: int = 500
     # Alternative connector-only query groups. Exactly one group is accepted.
     local_argument_alternatives: tuple[tuple[str, ...], ...] = ()
+    # Optional, validated upstream query inputs that may be omitted.
+    optional_arguments: tuple[str, ...] = ()
 
 
 def _vars(template: str) -> tuple[str, ...]:
@@ -148,6 +150,12 @@ class OperationRegistry:
                     len(set(item.local_argument_alternatives)) !=
                     len(item.local_argument_alternatives)):
                 raise RegistryError("invalid local argument alternatives")
+            supported_optional = {"site_lan_network_interface_summary": ("interface_type",)}
+            if (not isinstance(item.optional_arguments, tuple) or
+                    item.optional_arguments != supported_optional.get(item.operation_id, ()) or
+                    set(item.optional_arguments) & (set(public_vars) | set(item.extra_arguments) |
+                                                    set(item.local_arguments))):
+                raise RegistryError("invalid optional arguments")
             if any(source not in {"$config", "$incident_context_mac"} and
                    source not in (set(public_vars) | set(item.extra_arguments) | set(item.local_arguments))
                    for source in bindings.values()):
@@ -793,6 +801,15 @@ REGISTRY = OperationRegistry((
               "/v1/sites/{site_ref}/bandwidth-control-rules/summary", "GET",
               "/openapi/v1/{controller_id}/sites/{site_id}/bandwidth-control/rules",
               (("controller_id", "$config"), ("site_id", "site_ref")), max_items=1_000),
+    Operation("site_log_notification_summary", "GET",
+              "/v1/sites/{site_ref}/log-notification-summary", "GET",
+              "/openapi/v2/{controller_id}/sites/{site_id}/site/log-notification",
+              (("controller_id", "$config"), ("site_id", "site_ref")), max_items=1),
+    Operation("site_lan_network_interface_summary", "GET",
+              "/v1/sites/{site_ref}/lan-network-interfaces/summary", "GET",
+              "/openapi/v2/{controller_id}/sites/{site_id}/lan-networks/interface",
+              (("controller_id", "$config"), ("site_id", "site_ref")), max_items=2_000,
+              optional_arguments=("interface_type",)),
     Operation("controller_upgrade_plans_summary", "GET",
               "/v1/controller/firmware-upgrade-plans/summary", "GET",
               "/openapi/v1/{controller_id}/upgrade/overview/plans",

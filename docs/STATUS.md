@@ -494,3 +494,11 @@ A synthetic 20-entry fixture measured 5,398 → 237 serialized tokens (95.61% fe
 The bandwidth policy summary (#68) reads `getGridBandwidthCtrlRule` from all three exports over bounded pagination. It counts active state, documented source/mode categories, units by direction, and field coverage; names, identifiers, target lists, and numeric rate limits are omitted. It is separate from WAN QoS settings and actual traffic measurements. The ER7212PC example has contradictory page metadata and is not treated as valid response evidence. Live behavior is unknown.
 
 A synthetic 20-rule payload measured 1,620 → 236 serialized tokens (85.43% fewer); this is not billed agent usage.
+
+The log notification summary (#69) reads `getLogSettingForSiteV2` from all three exports for a selected site. It counts notification categories and documented alert/event/email/webhook switch states, plus top-level email and webhook enablement. Category keys, message text, webhook IDs and numeric delay values are omitted. The response contains no delivery result; configured switches do not prove delivery. Live behavior is unknown.
+
+A synthetic 20-category fixture measured 787 → 187 serialized tokens (76.24% fewer); this is not billed agent usage.
+
+The LAN network interface summary (#70) reads `getInterfaceLanNetworkV2` from all three exports for a selected site. It counts documented purpose, interface VLAN type and application scope, plus interface-reference and subnet presence. Its optional type filter accepts only `0` (single interfaces) or may be omitted. Names, IDs, VLAN values and subnet addresses are redacted; no router/VLAN mapping is inferred from interface IDs. Live behavior is unknown.
+
+A synthetic 20-network fixture measured 2,104 → 159 serialized tokens (92.44% fewer); this is not billed agent usage.

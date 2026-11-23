@@ -338,6 +338,42 @@ class OpenApiClientTests(unittest.TestCase):
             self.assertNotIn(secret, json.dumps(result))
         self.assertIn("/bandwidth-control/rules?page=1&pageSize=2", request.call_args.args[1])
 
+    def test_site_log_notification_read_redacts_categories_and_destination_ids(self):
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        result = {"webhookConfig": {"webhookEnable": True, "webhookId": "private-webhook"},
+                  "logNotifications": [{"key": "LOGIN_OK", "shortMsg": "Private text",
+                                        "alert": False, "event": True,
+                                        "email": True, "webhook": False}],
+                  "alertEmailSetting": {"alertEmailEnable": True, "delayEnable": False,
+                                        "delay": 30}}
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={"result": result}) as request:
+            projected = self.client.read_site_log_notification_summary(site_ref)
+        self.assertEqual(projected["notification_category_count"], 1)
+        self.assertEqual(projected["channel_enablement_counts"]["event"]["enabled"], 1)
+        for secret in ("private-webhook", "LOGIN_OK", "Private text", "30"):
+            self.assertNotIn(secret, json.dumps(projected))
+        self.assertIn("/site/log-notification", request.call_args.args[1])
+
+    def test_site_lan_network_interface_read_redacts_values_and_allows_type_zero(self):
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        row = {"id": "private-id", "name": "Private network", "purpose": 1,
+               "interfaceIds": ["private-port"], "vlanType": 0, "vlan": 120,
+               "application": 0, "gatewaySubnet": "192.0.2.1/24",
+               "igmpSnoopEnable": True}
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={"result": {
+                    "data": [row]}}) as request:
+            result = self.client.read_site_lan_network_interface_summary(site_ref, 0)
+        self.assertEqual(result["interface_vlan_type_counts"]["single"], 1)
+        for secret in ("private-id", "Private network", "private-port", "192.0.2.1", "120"):
+            self.assertNotIn(secret, json.dumps(result))
+        self.assertIn("/lan-networks/interface?type=0", request.call_args.args[1])
+        with self.assertRaises(OpenApiError):
+            self.client.read_site_lan_network_interface_summary(site_ref, 1)
+
     def test_ssid_client_count_binds_selected_site_and_uses_flat_query_fields(self) -> None:
         site_ref, ssid_ref = "a" * 24, "b" * 24
         self.client._site_ids_by_ref[site_ref] = "site-1"

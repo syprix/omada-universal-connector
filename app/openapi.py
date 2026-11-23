@@ -1472,6 +1472,8 @@ class OmadaOpenApiClient:
     _CONTROLLER_UPGRADE_PLANS_PATH = "/openapi/v1/{controller_id}/upgrade/overview/plans"
     _SITE_LAN_MULTICASTS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/lan-multicasts"
     _SITE_BANDWIDTH_RULES_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/bandwidth-control/rules"
+    _SITE_LOG_NOTIFICATION_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/site/log-notification"
+    _SITE_LAN_NETWORK_INTERFACES_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/lan-networks/interface"
     _SITE_OPEN_VPN_TUNNEL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/open-vpn-tunnel-stats"
     _SITE_CLIENT_ACTIVITY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/client-activity"
     _SITE_CLIENT_ASSOCIATION_ACTIVITY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/client-association-activities"
@@ -2777,6 +2779,8 @@ class OmadaOpenApiClient:
         ("site_lan_port_profiles_summary", "GET /v1/sites/{site_ref}/lan-port-profiles/summary"),
         ("site_lan_multicast_summary", "GET /v1/sites/{site_ref}/lan-multicast-summary"),
         ("site_bandwidth_rules_summary", "GET /v1/sites/{site_ref}/bandwidth-control-rules/summary"),
+        ("site_log_notification_summary", "GET /v1/sites/{site_ref}/log-notification-summary"),
+        ("site_lan_network_interface_summary", "GET /v1/sites/{site_ref}/lan-network-interfaces/summary"),
         ("controller_upgrade_plans_summary", "GET /v1/controller/firmware-upgrade-plans/summary"),
         ("site_remote_logging_summary", "GET /v1/sites/{site_ref}/remote-logging/summary"),
         ("controller_upgrade_log_summary", "GET /v1/controller/firmware-upgrades/summary"),
@@ -8777,6 +8781,53 @@ class OmadaOpenApiClient:
         projected["partial"] = bool(projected["partial"] or metadata_partial)
         projected["page_size"] = page_size
         return {**projected, "status": "ok", "resource": "site_bandwidth_rules_summary",
+                "site_ref": site_ref}
+
+    @_track_capability("site_log_notification_summary")
+    def read_site_log_notification_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize site log notification settings without destination values."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_LOG_NOTIFICATION_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            from .site_log_notification_summary import (
+                SiteLogNotificationSummaryError, summarize_site_log_notifications)
+        except ImportError:  # direct execution in the image
+            from site_log_notification_summary import (
+                SiteLogNotificationSummaryError, summarize_site_log_notifications)
+        try:
+            summary = summarize_site_log_notifications(payload.get("result"))
+        except SiteLogNotificationSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**summary, "status": "ok", "resource": "site_log_notification_summary",
+                "site_ref": site_ref}
+
+    @_track_capability("site_lan_network_interface_summary")
+    def read_site_lan_network_interface_summary(
+            self, site_ref: str, interface_type: int | None = None) -> dict[str, object]:
+        """Summarize LAN networks and interface categories without mappings or addresses."""
+        if interface_type not in (None, 0):
+            raise OpenApiError("interface_type_invalid")
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_LAN_NETWORK_INTERFACES_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        if interface_type is not None:
+            path += "?" + urlencode({"type": interface_type})
+        payload = self._request_json("GET", path, token=self._access_token())
+        result = payload.get("result")
+        data = result.get("data") if isinstance(result, Mapping) else None
+        try:
+            from .site_lan_network_interface_summary import (
+                SiteLanNetworkInterfaceSummaryError, summarize_site_lan_network_interfaces)
+        except ImportError:  # direct execution in the image
+            from site_lan_network_interface_summary import (
+                SiteLanNetworkInterfaceSummaryError, summarize_site_lan_network_interfaces)
+        try:
+            summary = summarize_site_lan_network_interfaces(data, interface_type)
+        except SiteLanNetworkInterfaceSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**summary, "status": "ok", "resource": "site_lan_network_interface_summary",
                 "site_ref": site_ref}
 
     @_track_capability("site_lan_port_profiles_summary")

@@ -3,8 +3,8 @@
   "catalog_sha256": "b5ea3aeeac5c1c990fed6a4418f68e46530faa240308c7751206e15323eaeb9d",
   "operation_count": 2445,
   "connector_evidence_counts": {
-    "not_mapped": 1996,
-    "fixed_get_registry_route": 424,
+    "not_mapped": 1994,
+    "fixed_get_registry_route": 426,
     "manual_source_map_only": 25
   },
   "function_verification_performed": false,
@@ -25787,11 +25787,21 @@
         "hardware-controller-6.3.0",
         "omada-cbc-standard-6.3.0"
       ],
-      "connector_evidence": "not_mapped",
-      "operation_ids": [],
-      "public_templates": [],
-      "source_map_label": null,
-      "static_test_references": [],
+      "connector_evidence": "fixed_get_registry_route",
+      "operation_ids": [
+        "site_lan_network_interface_summary"
+      ],
+      "public_templates": [
+        "/v1/sites/{site_ref}/lan-network-interfaces/summary"
+      ],
+      "source_map_label": "implemented_read",
+      "static_test_references": [
+        "test_openapi.py",
+        "test_openapi_http.py",
+        "test_operation_evidence.py",
+        "test_operation_registry.py",
+        "test_site_lan_network_interface_summary.py"
+      ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
       "function_verified": false,
@@ -25913,11 +25923,21 @@
         "hardware-controller-6.3.0",
         "omada-cbc-standard-6.3.0"
       ],
-      "connector_evidence": "not_mapped",
-      "operation_ids": [],
-      "public_templates": [],
-      "source_map_label": null,
-      "static_test_references": [],
+      "connector_evidence": "fixed_get_registry_route",
+      "operation_ids": [
+        "site_log_notification_summary"
+      ],
+      "public_templates": [
+        "/v1/sites/{site_ref}/log-notification-summary"
+      ],
+      "source_map_label": "implemented_read",
+      "static_test_references": [
+        "test_openapi.py",
+        "test_openapi_http.py",
+        "test_operation_evidence.py",
+        "test_operation_registry.py",
+        "test_site_log_notification_summary.py"
+      ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
       "function_verified": false,
