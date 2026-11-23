@@ -120,7 +120,7 @@ class ClientHealthDetailV2ClientTests(unittest.TestCase):
                 patch("app.openapi.datetime") as dt:
             dt.now.return_value = datetime.fromtimestamp(end_ms / 1000, timezone.utc)
             result = self.client.read_client_health_detail_v2(SITE_REF, CLIENT_REF)
-        refresh.assert_called_once_with(SITE_REF)
+        refresh.assert_not_called()
         self.assertEqual(paths, [
             "/openapi/v2/ctrl/sites/site_1/clients/00:11:22:33:44:55/health/detail"
             "?start=1799913600000&end=1800000000000"])

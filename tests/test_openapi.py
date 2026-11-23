@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import hashlib
+import importlib.util
 import os
+import sys
 import tempfile
 import unittest
 from dataclasses import replace
@@ -416,6 +418,35 @@ class OpenApiClientTests(unittest.TestCase):
         self.assertIn("/lan-switch-setting?page=1&pageSize=2", request.call_args_list[0].args[1])
         self.assertIn("/lan-switch-setting?page=2&pageSize=2", request.call_args_list[1].args[1])
 
+    def test_lan_switch_profile_assignments_unwraps_controller_grid_result(self):
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        self.client.config = replace(self.config, page_size=100)
+        response = {"errorCode": 0, "msg": "", "result": {
+            "totalRows": 0, "currentPage": 1, "currentSize": 100, "data": []}}
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value=response):
+            result = self.client.read_site_lan_switch_profile_assignments_summary(site_ref)
+        self.assertEqual(result["device_rows"], 0)
+        self.assertEqual(result["profile_assignment_count"], 0)
+        self.assertFalse(result["partial"])
+
+    def test_paged_reader_accepts_zero_based_page_only_for_reported_empty_result(self):
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        empty = {"errorCode": 0, "msg": "", "result": {
+            "totalRows": 0, "currentPage": 0, "currentSize": 2, "data": []}}
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value=empty):
+            result = self.client.read_site_static_route_summary(site_ref)
+        self.assertEqual(result["count"], 0)
+        nonempty = {"errorCode": 0, "msg": "", "result": {
+            "totalRows": 0, "currentPage": 0, "currentSize": 2, "data": [{}]}}
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value=nonempty):
+            with self.assertRaisesRegex(OpenApiError, "openapi_response_invalid"):
+                self.client.read_site_static_route_summary(site_ref)
+
     def test_lan_switch_profile_assignments_caps_non_dividing_pages_at_1000(self):
         site_ref = "a" * 24
         self.client._site_ids_by_ref[site_ref] = "site-1"
@@ -774,6 +805,78 @@ class OpenApiClientTests(unittest.TestCase):
         self.assertNotIn("upgrade-secret", json.dumps(result))
         self.assertNotIn("private-version", json.dumps(result))
         self.assertIn("page=1&pageSize=100", request.call_args.args[1])
+
+    def test_controller_upgrade_log_paths_allow_only_bound_paged_gets(self) -> None:
+        allowed_paths = [
+            "/openapi/v1/controller_1/upgrade/overview/logs?page=1&pageSize=100",
+            ("/openapi/v1/controller_1/logs/upgrade-log-1/upgrade/overview/"
+             "failed-devices?page=10&pageSize=100"),
+        ]
+        rejected_paths = [
+            "/openapi/v1/other-controller/upgrade/overview/logs?page=1&pageSize=100",
+            "/openapi/v1/controller_1/upgrade/overview/logs?page=11&pageSize=100",
+            "/openapi/v1/controller_1/upgrade/overview/logs?page=1&pageSize=101",
+            ("/openapi/v1/other-controller/logs/upgrade-log-1/upgrade/overview/"
+             "failed-devices?page=1&pageSize=100"),
+            ("/openapi/v1/controller_1/logs/upgrade-log-1/upgrade/overview/"
+             "failed-devices?page=11&pageSize=100"),
+            ("/openapi/v1/controller_1/logs/upgrade-log-1/upgrade/overview/"
+             "failed-devices?page=1&pageSize=101"),
+            ("/openapi/v1/controller_1/logs/../upgrade/overview/failed-devices"
+             "?page=1&pageSize=100"),
+        ]
+        with patch.object(self.client, "_connection",
+                          side_effect=OpenApiError("connection_reached")):
+            for path in allowed_paths:
+                with self.subTest(path_kind="allowed"), self.assertRaisesRegex(
+                        OpenApiError, "connection_reached"):
+                    self.client._request_json("GET", path, token="token")
+            for path in rejected_paths:
+                with self.subTest(path_kind="rejected"), self.assertRaisesRegex(
+                        OpenApiError, "openapi_path_rejected"):
+                    self.client._request_json("GET", path, token="token")
+
+    def test_documented_read_path_guards_bind_paths_and_queries(self) -> None:
+        allowed_paths = [
+            ("/openapi/v1/controller_1/sites/site-1/routing/static-routings"
+             "?page=1&pageSize=100"),
+            ("/openapi/v1/controller_1/sites/site-1/setting/vpn/stats/server"
+             "?page=1&pageSize=2&filters.vpnType=5"),
+            ("/openapi/v2/controller_1/sites/site-1/lan-networks/interface?type=0"),
+            ("/openapi/v1/controller_1/sites/site-1/grid/bridge-devices/pending"
+             "?page=1&pageSize=100"),
+            ("/openapi/v1/controller_1/sites/site-1/qos/gateway/bwcs"
+             "?page=10&pageSize=200"),
+            "/openapi/v1/controller_1/sites/site-1/qos/gateway/wans",
+            ("/openapi/v1/controller_1/sites/site-1/aps/00:11:22:33:44:55/"
+             "full-channel-detect/grid/interference?page=1&pageSize=100"),
+            "/openapi/v1/controller_1/upgrade/overview/try-beta/channel",
+        ]
+        rejected_paths = [
+            ("/openapi/v1/other-controller/sites/site-1/routing/static-routings"
+             "?page=1&pageSize=100"),
+            ("/openapi/v1/controller_1/sites/../routing/static-routings"
+             "?page=1&pageSize=100"),
+            ("/openapi/v1/controller_1/sites/site-1/setting/vpn/stats/server"
+             "?page=1&pageSize=100&filters.vpnType=6"),
+            ("/openapi/v1/controller_1/sites/site-1/routing/static-routings"
+             "?page=21&pageSize=100"),
+            ("/openapi/v1/controller_1/sites/site-1/routing/static-routings"
+             "?page=1&pageSize=201"),
+            ("/openapi/v1/controller_1/sites/site-1/routing/static-routings"
+             "?page=1&page=2&pageSize=100"),
+            ("/openapi/v1/controller_1/sites/site-1/beacon-control?unexpected=1"),
+        ]
+        with patch.object(self.client, "_connection",
+                          side_effect=OpenApiError("connection_reached")):
+            for path in allowed_paths:
+                with self.subTest(path_kind="allowed"), self.assertRaisesRegex(
+                        OpenApiError, "connection_reached"):
+                    self.client._request_json("GET", path, token="token")
+            for path in rejected_paths:
+                with self.subTest(path_kind="rejected"), self.assertRaisesRegex(
+                        OpenApiError, "openapi_path_rejected"):
+                    self.client._request_json("GET", path, token="token")
 
     def test_controller_upgrade_failed_devices_refreshes_selector_and_redacts_rows(self) -> None:
         ref = self.client._opaque_ref("firmware-upgrade-log", "upgrade-secret")
@@ -1845,6 +1948,54 @@ class OpenApiClientTests(unittest.TestCase):
         self.assertEqual(result["resource"], "site_backup_inventory_summary")
         self.assertEqual(result["source_scope"], "selected_site_file_list_response")
         self.assertNotIn("private-site-file", repr(result))
+
+    def test_site_backup_inventory_summary_direct_import_fallback(self) -> None:
+        app_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "app")
+        module_name = "_omada_direct_openapi_test"
+        spec = importlib.util.spec_from_file_location(
+            module_name, os.path.join(app_dir, "openapi.py"))
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        sys.path.insert(0, app_dir)
+        try:
+            spec.loader.exec_module(module)
+            client = module.OmadaOpenApiClient(self.config)
+            site_ref = "a" * 24
+            client._site_ids_by_ref[site_ref] = "site-1"
+            payloads = [
+                {"result": {"fileList": [
+                    {"fileName": "private-site-file", "backupTime": 1_800_000_000_000,
+                     "size": 250}]}},
+                {"result": {"status": 0}},
+            ]
+            with (patch.object(client, "list_sites", return_value={"items": []}),
+                  patch.object(client, "_access_token", return_value="token"),
+                  patch.object(client, "_request_json", side_effect=payloads) as request,
+                  patch.object(client, "read_controller_backup_schedule", return_value={
+                      "partial": False, "data": {"schedule_configured": True}})):
+                result = client.read_site_backup_inventory_summary(site_ref)
+            self.assertEqual(result["status"], "ok")
+            self.assertEqual(result["resource"], "site_backup_inventory_summary")
+            self.assertEqual(len(request.call_args_list), 2)
+            self.assertNotIn("private-site-file", repr(result))
+        finally:
+            sys.path.remove(app_dir)
+            sys.modules.pop(module_name, None)
+
+    def test_site_voucher_all_time_path_is_controller_bound(self) -> None:
+        allowed = (
+            "/openapi/v1/controller_1/sites/site-1/"
+            "hotspot/vouchers/statistics/summary")
+        with patch.object(self.client, "_connection",
+                          side_effect=OpenApiError("connection_reached")):
+            with self.assertRaisesRegex(OpenApiError, "connection_reached"):
+                self.client._request_json("GET", allowed, token="token")
+            with self.assertRaisesRegex(OpenApiError, "openapi_path_rejected"):
+                self.client._request_json(
+                    "GET", allowed.replace("controller_1", "other-controller"), token="token")
+
     def test_site_backup_list_paths_are_controller_bound(self) -> None:
         allowed = [
             "/openapi/v1/controller_1/sites/site-1/maintenance/backup/files",
