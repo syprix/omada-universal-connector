@@ -7563,6 +7563,7 @@
       "source_map_label": "implemented_read",
       "static_test_references": [
         "test_full_api_matrix.py",
+        "test_openapi.py",
         "test_openapi_http.py",
         "test_operation_registry.py",
         "test_site_ap_group_summary.py"
@@ -7613,6 +7614,7 @@
       ],
       "source_map_label": "implemented_read",
       "static_test_references": [
+        "test_openapi.py",
         "test_openapi_http.py",
         "test_operation_registry.py",
         "test_site_ap_group_assignment_summary.py"

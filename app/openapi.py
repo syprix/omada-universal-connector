@@ -6933,7 +6933,8 @@ class OmadaOpenApiClient:
                 missing_refs += 1
                 continue
             group_id = row.get("id")
-            if not isinstance(group_id, str) or not re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", group_id):
+            if (not isinstance(group_id, str) or group_id in {".", ".."} or
+                    not re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", group_id)):
                 missing_refs += 1
                 continue
             group_ref = self._opaque_ref("ap_group", site_id + ":" + group_id)
@@ -6997,6 +6998,9 @@ class OmadaOpenApiClient:
         group_id = self._ap_group_ids_by_site_ref.get(site_ref, {}).get(group_ref)
         if not group_id:
             raise OpenApiError("ap_group_ref_unknown")
+        if (group_id in {".", ".."} or
+                not re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", group_id)):
+            raise OpenApiError("openapi_response_invalid")
         path = self._SITE_AP_GROUP_INFO_PATH.format(
             controller_id=self.config.controller_id, site_id=site_id, group_id=group_id)
         payload = self._request_json("GET", path, token=self._access_token())
@@ -19476,10 +19480,11 @@ class OmadaOpenApiClient:
                 page_size <= 1000)
 
     def _site_ap_group_info_request_valid(self, path: str) -> bool:
-        return bool(re.fullmatch(
+        match = re.fullmatch(
             rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
-            r"[A-Za-z0-9_-]{1,128}/ap-groups/[A-Za-z0-9_.:-]{1,128}/info",
-            path))
+            r"[A-Za-z0-9_-]{1,128}/ap-groups/([A-Za-z0-9_.:-]{1,128})/info",
+            path)
+        return bool(match and match.group(1) not in {".", ".."})
 
     def _site_ap_oui_vlan_rules_request_valid(self, path: str) -> bool:
         match = re.fullmatch(

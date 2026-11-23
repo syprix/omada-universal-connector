@@ -804,8 +804,10 @@ ER7212PC does not. No controller call was made.
 Synthetic serialized JSON measured with `js-tiktoken` 1.0.21 / `o200k_base`:
 AP assignments 2,186→90 tokens; a 20-group AP inventory 1,412→728; selected
 group details 69→62. Measurements cover synthetic API payloads and connector
-responses only, not billed agent usage. On this tree, the full HTTP/MCP module
-passed 382 tests; the registry/matrix/evidence gate passed 307 tests, and the
-focused projector/binding/registry/route set passed 114 tests. The three-export
-contract and full matrix checks, compileall, and diff check also passed. No live
-controller read was made.
+responses only, not billed agent usage. The full OpenAPI client and HTTP/MCP
+modules passed 455 tests after adding a guard that rejects reserved `.` and
+`..` group IDs during inventory binding and before an outgoing detail request.
+Ordinary dotted IDs remain valid. The path regression passed; the registry,
+matrix and evidence gate had passed 307 tests on the underlying feature tree.
+The three-export contract and full matrix checks, compileall, and diff check
+also passed. No live controller read was made.
