@@ -10,6 +10,27 @@ references. It does not return route identifiers, names, destination or
 next-hop addresses, metrics or descriptions. Live controller support is
 unknown until verified against a controller.
 
+`GET /v1/sites/{site_ref}/static-routing/interfaces/summary` and MCP tool
+`omada_site_static_route_interface_options_summary` summarizes the selected
+site's documented static-route editor options by interface type and
+`needNextHop` value. It omits interface IDs and names and labels these only as
+selection choices, not configured or effective routes. Live support is unknown.
+
+`GET /v1/sites/{site_ref}/wlan-groups/{wlan_group_ref}/ssids/{ssid_ref}/config-summary`
+and MCP tool `omada_site_wlan_group_ssid_config_summary` first refresh the site
+WLAN-group and SSID inventories, prove that the selected SSID occurs exactly
+once in the selected group's SSID list, then read `getSsidDetail` through the
+group-scoped path. The result contains only documented enabled, band and EAP /
+gateway applicability flags. Names, IDs, VLAN values and credentials are
+omitted. Missing fields remain unknown; live support is unknown.
+
+Token counts for synthetic fixture payloads using `js-tiktoken` 1.0.21 and
+`o200k_base`: the 20-row static-route interface response shrank from 533 to
+128 tokens (75.98%). A selected-SSID flow fixture with inventories, group
+membership and one detail response shrank from 134 to 92 tokens (31.34%).
+These counts cover serialized source responses and final projections only, not
+HTTP/MCP framing, live payloads or billed agent usage.
+
 ## Controller-wide event and alert windows
 
 `GET /v1/controller/events/window` and `/v1/controller/alerts/window` (also

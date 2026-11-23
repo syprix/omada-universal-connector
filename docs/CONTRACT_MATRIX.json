@@ -2638,6 +2638,32 @@
         "site_s2s_peer_status_summary": {
           "documented": true,
           "live_support": "unknown"
+        },
+        "site_static_route_interface_options_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getStaticRoutingInterfaceList",
+            "permission": "Site Settings Manager View Only, Network Config Page View Only, or Site Device Manager View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/routing/static-routings/interfaces",
+            "query": {},
+            "request_body": false,
+            "response": "StaticRoutingInterfaceResult contains interfaceInfoList and hasWanEnable. Rows document interfaceType int32 (0 WAN, 1 LAN, 2 L2TP, 3 PPTP, 5 virtual WAN), name, id and needNextHop boolean.",
+            "projection": "Counts only documented interface type categories, needNextHop boolean values, row coverage and hasWanEnable. Omits interface names and IDs. Represents selection options only, not configured or effective routes."
+          }
+        },
+        "site_wlan_group_ssid_config_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getSsidDetail",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/wireless-network/wlans/{wlanId}/ssids/{ssidId}",
+            "query": {},
+            "request_body": false,
+            "response": "SsidDetailOpenApiVO documents ssidEnable boolean, band bitmask (2.4/5/6 GHz) and deviceType bitmask (EAP/Gateway). Other documented fields include SSID name, IDs, VLAN and credentials and are omitted.",
+            "projection": "Requires fresh same-site WLAN-group and SSID inventories, exactly one membership match in the selected group, then uses the group-scoped detail path. Returns only enabled, band and EAP/Gateway applicability flags. Missing fields remain unknown; identifiers, names, VLAN values and credentials are omitted."
+          }
         }
       }
     },
@@ -5249,6 +5275,32 @@
         "site_s2s_peer_status_summary": {
           "documented": true,
           "live_support": "unknown"
+        },
+        "site_static_route_interface_options_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getStaticRoutingInterfaceList",
+            "permission": "Site Settings Manager View Only, Network Config Page View Only, or Site Device Manager View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/routing/static-routings/interfaces",
+            "query": {},
+            "request_body": false,
+            "response": "StaticRoutingInterfaceResult contains interfaceInfoList and hasWanEnable. Rows document interfaceType int32 (0 WAN, 1 LAN, 2 L2TP, 3 PPTP, 5 virtual WAN), name, id and needNextHop boolean.",
+            "projection": "Counts only documented interface type categories, needNextHop boolean values, row coverage and hasWanEnable. Omits interface names and IDs. Represents selection options only, not configured or effective routes."
+          }
+        },
+        "site_wlan_group_ssid_config_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getSsidDetail",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/wireless-network/wlans/{wlanId}/ssids/{ssidId}",
+            "query": {},
+            "request_body": false,
+            "response": "SsidDetailOpenApiVO documents ssidEnable boolean, band bitmask (2.4/5/6 GHz) and deviceType bitmask (EAP/Gateway). Other documented fields include SSID name, IDs, VLAN and credentials and are omitted.",
+            "projection": "Requires fresh same-site WLAN-group and SSID inventories, exactly one membership match in the selected group, then uses the group-scoped detail path. Returns only enabled, band and EAP/Gateway applicability flags. Missing fields remain unknown; identifiers, names, VLAN values and credentials are omitted."
+          }
         }
       }
     },
@@ -7819,6 +7871,32 @@
         "site_s2s_peer_status_summary": {
           "documented": true,
           "live_support": "unknown"
+        },
+        "site_static_route_interface_options_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getStaticRoutingInterfaceList",
+            "permission": "Site Settings Manager View Only, Network Config Page View Only, or Site Device Manager View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/routing/static-routings/interfaces",
+            "query": {},
+            "request_body": false,
+            "response": "StaticRoutingInterfaceResult contains interfaceInfoList and hasWanEnable. Rows document interfaceType int32 (0 WAN, 1 LAN, 2 L2TP, 3 PPTP, 5 virtual WAN), name, id and needNextHop boolean.",
+            "projection": "Counts only documented interface type categories, needNextHop boolean values, row coverage and hasWanEnable. Omits interface names and IDs. Represents selection options only, not configured or effective routes."
+          }
+        },
+        "site_wlan_group_ssid_config_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getSsidDetail",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/wireless-network/wlans/{wlanId}/ssids/{ssidId}",
+            "query": {},
+            "request_body": false,
+            "response": "SsidDetailOpenApiVO documents ssidEnable boolean, band bitmask (2.4/5/6 GHz) and deviceType bitmask (EAP/Gateway). Other documented fields include SSID name, IDs, VLAN and credentials and are omitted.",
+            "projection": "Requires fresh same-site WLAN-group and SSID inventories, exactly one membership match in the selected group, then uses the group-scoped detail path. Returns only enabled, band and EAP/Gateway applicability flags. Missing fields remain unknown; identifiers, names, VLAN values and credentials are omitted."
+          }
         }
       }
     }

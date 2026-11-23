@@ -935,6 +935,25 @@ class FakeOpenApiClient:
                             "reference_occurrences": {"interface": 1},
                             "unknown_rows": 0}, "partial": False}
 
+    def read_site_static_route_interface_options_summary(
+            self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_static_route_interface_options_summary", site_ref))
+        return {"status": "ok", "resource": "site_static_route_interface_options_summary",
+                "site_ref": site_ref, "scope": "static_route_selection_options",
+                "available_interface_option_count": 2}
+
+    def read_site_wlan_group_ssid_config_summary(
+            self, site_ref: str, wlan_group_ref: str, ssid_ref: str) -> dict[str, object]:
+        self.calls.append(("site_wlan_group_ssid_config_summary", site_ref,
+                           wlan_group_ref, ssid_ref))
+        return {"status": "ok", "resource": "site_wlan_group_ssid_config_summary",
+                "site_ref": site_ref, "wlan_group_ref": wlan_group_ref,
+                "ssid_ref": ssid_ref,
+                "ssid_enabled": True,
+                "band_enabled": {"2.4ghz": True, "5ghz": True, "6ghz": False},
+                "device_type_enabled": {"eap": True, "gateway": True},
+                "partial": False}
+
     def read_gateway_wan_health(self, site_ref: str, device_ref: str) -> dict[str, object]:
         self.calls.append(("gateway_wan_health", site_ref + ":" + device_ref))
         return {"status": "ok", "resource": "gateway_wan_health", "device_ref": device_ref,
@@ -4849,6 +4868,39 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(response["result"]["structuredContent"], direct)
         self.assertEqual(self.fake.calls,
                          [("site_static_route_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_static_route_interface_options_summary(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/static-routing/interfaces/summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(direct["resource"], "site_static_route_interface_options_summary")
+        request = {"jsonrpc": "2.0", "id": 291, "method": "tools/call",
+                   "params": {"name": "omada_site_static_route_interface_options_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_static_route_interface_options_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_group_bound_ssid_config_summary(self) -> None:
+        site_ref, group_ref, ssid_ref = "a" * 24, "b" * 24, "c" * 24
+        path = f"/v1/sites/{site_ref}/wlan-groups/{group_ref}/ssids/{ssid_ref}/config-summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(direct["resource"], "site_wlan_group_ssid_config_summary")
+        request = {"jsonrpc": "2.0", "id": 292, "method": "tools/call",
+                   "params": {"name": "omada_site_wlan_group_ssid_config_summary",
+                              "arguments": {"site_ref": site_ref,
+                                            "wlan_group_ref": group_ref,
+                                            "ssid_ref": ssid_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_wlan_group_ssid_config_summary", site_ref,
+                           group_ref, ssid_ref)] * 2)
 
     def test_http_and_mcp_expose_fixed_gateway_lan_status_read(self) -> None:
         gateway_ref = "d" * 24

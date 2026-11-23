@@ -725,6 +725,47 @@ class OpenApiClientTests(unittest.TestCase):
                 with self.assertRaisesRegex(OpenApiError, "openapi_response_invalid"):
                     self.client.list_ssids("a" * 24)
 
+    def test_group_ssid_detail_requires_unique_current_same_site_membership(self) -> None:
+        site_ref, group_ref, ssid_ref = "a" * 24, "b" * 24, "c" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        self.client._wlan_group_ids_by_site_ref[site_ref] = {group_ref: "group-private"}
+        self.client._ssid_ids_by_site_ref[site_ref] = {ssid_ref: "ssid-private"}
+        with patch.object(self.client, "read_site_wlan_group_summary",
+                          return_value={"items": [{"group_ref": group_ref}]}), \
+                patch.object(self.client, "list_ssids",
+                             return_value={"items": [{"ssid_ref": ssid_ref}]}), \
+                patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", side_effect=[
+                    {"result": {"data": [{"id": "ssid-private"}],
+                                "totalRows": 1, "currentPage": 1, "currentSize": 1}},
+                    {"result": {"ssidEnable": True, "band": 3, "deviceType": 1,
+                                "name": "private SSID", "pskSetting": {"securityKey": "secret"}}},
+                ]) as request:
+            result = self.client.read_site_wlan_group_ssid_config_summary(
+                site_ref, group_ref, ssid_ref)
+        self.assertTrue(result["ssid_enabled"])
+        self.assertEqual(result["band_enabled"],
+                         {"2.4ghz": True, "5ghz": True, "6ghz": False})
+        rendered = json.dumps(result)
+        for private in ("ssid-private", "group-private", "private SSID", "secret"):
+            self.assertNotIn(private, rendered)
+        self.assertIn("/wlans/group-private/ssids/ssid-private", request.call_args_list[-1].args[1])
+
+        for members in ([{"id": "other-ssid"}],
+                        [{"id": "ssid-private"}, {"id": "ssid-private"}]):
+            with self.subTest(members=members), \
+                    patch.object(self.client, "read_site_wlan_group_summary",
+                                 return_value={"items": [{"group_ref": group_ref}]}), \
+                    patch.object(self.client, "list_ssids",
+                                 return_value={"items": [{"ssid_ref": ssid_ref}]}), \
+                    patch.object(self.client, "_access_token", return_value="token"), \
+                    patch.object(self.client, "_request_json", return_value={"result": {
+                        "data": members, "totalRows": len(members),
+                        "currentPage": 1, "currentSize": len(members)}}):
+                with self.assertRaisesRegex(OpenApiError, "ssid_group_binding_unavailable"):
+                    self.client.read_site_wlan_group_ssid_config_summary(
+                        site_ref, group_ref, ssid_ref)
+
     def test_device_mac_integer_status_and_output_redaction(self) -> None:
         self.client._site_ids_by_ref["a" * 24] = "site-1"
         private = {"mac": "00:11:22:33:44:55", "status": 1,
