@@ -759,4 +759,32 @@ passed across all three exports. No controller read was made.
 Synthetic serialized JSON measured with `js-tiktoken` 1.0.21 /
 `o200k_base`: stack VLAN interfaces 562→102 tokens; SNMP counts 4,448→69 for
 Hardware/CBC-shaped rows and 8,929→69 for ER7212PC-shaped rows. These figures
-measure serialized JSON payloads only.
+measure serialized JSON payloads only. Exact push and pull-request CI passed
+for `9ee72e6efc9b560d69f157bad642a5b5400f605a`; the changes were merged as
+`43e87898a9869e491a8b659c326f4ddb8d3da5cc` with tree
+`da604325900c2067a62bd44d51f19d2abbec9a22`.
+
+## 2026-11-23 — Gateway and switch general settings
+
+Added site-bound HTTP and MCP reads for documented gateway and switch general
+settings. Each refreshes the selected site's inventory and requires exactly
+one matching gateway or switch before making the GET. The gateway summary
+reports the documented LED mode and whether the optional `rememberDevice` and
+SNMP objects are present; it does not assign undocumented meaning to the
+remember-device integer. The switch summary reports LED mode, Jumbo setting
+scope/range validity, LAG hash setting scope/mode and SDM object presence.
+Hardware/CBC declare both switch site-follow fields; ER7212PC omits them, and
+the summary marks them missing. No names, tags, locations, SNMP values or raw
+Jumbo values are returned, and no packet-forwarding behavior is inferred.
+
+The two operations were found in all three local exports. Offline contract and
+full API matrix checks passed for Hardware 6.3.0, CBC 6.3.0 and ER7212PC
+6.2.14. The complete HTTP/MCP module passed (380 tests), and the registry,
+matrix and generated-evidence gate passed (307 tests). Focused projection and
+binding tests passed (10 tests); compile and whitespace checks passed. No
+controller read was made. Synthetic serialized JSON measured with
+`js-tiktoken` 1.0.21 / `o200k_base`: gateway settings 77→36 tokens, switch
+settings 78→43 and ER7212PC-shaped switch settings 63→39. These measurements
+cover serialized payloads only and do not represent billed agent usage. The
+changes are locally verified and await GitHub CI; they are not represented as
+merged or released.

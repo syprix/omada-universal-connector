@@ -190,6 +190,28 @@ class OperationRegistryTests(unittest.TestCase):
         self.assertEqual(dict(bindings), {"site_ref": "a" * 24,
                                           "stack_ref": "b" * 24})
 
+    def test_site_gateway_general_config_summary_binds_site_and_gateway(self):
+        operation = REGISTRY.get("site_gateway_general_config_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"],
+                         ["site_ref", "gateway_ref"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/gateways/" + "b" * 24 +
+            "/general-config-summary")
+        self.assertEqual(route.operation_id, "site_gateway_general_config_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24,
+                                          "gateway_ref": "b" * 24})
+
+    def test_site_switch_general_config_summary_binds_site_and_switch(self):
+        operation = REGISTRY.get("site_switch_general_config_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"],
+                         ["site_ref", "switch_ref"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/switches/" + "b" * 24 +
+            "/general-config-summary")
+        self.assertEqual(route.operation_id, "site_switch_general_config_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24,
+                                          "switch_ref": "b" * 24})
+
     def test_site_switch_oui_vlan_summary_is_site_bound(self):
         operation = REGISTRY.get("site_switch_oui_vlan_summary")
         self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
@@ -1068,6 +1090,8 @@ class OperationRegistryTests(unittest.TestCase):
             "site_stack_dhcp_user_summary",
             "site_stack_vlan_interface_summary",
             "site_snmp_incompatible_summary",
+            "site_gateway_general_config_summary",
+            "site_switch_general_config_summary",
             "site_switch_oui_vlan_summary",
             "controller_sdwan_group_summary",
             "controller_sdwan_group_devices_summary",

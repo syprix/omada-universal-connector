@@ -152,6 +152,8 @@ OPERATIONS = {
     'site_stack_dhcp_user_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/stack/{stackId}/dhcp/user-list'),
     'site_stack_vlan_interface_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/vlan-interface/stack/{stackId}'),
     'site_snmp_incompatible_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/setting/service/snmp/incompatible-devices'),
+    'site_gateway_general_config_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/gateways/{gatewayMac}/general-config'),
+    'site_switch_general_config_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/switches/{switchMac}/general-config'),
     'site_switch_oui_vlan_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/switch-oui-rules'),
     'controller_sdwan_group_summary': ('GET', '/openapi/v1/{omadacId}/sdwan/sdwan-group/brief'),
     'controller_sdwan_group_devices_summary': ('GET', '/openapi/v1/{omadacId}/sdwan/sdwan-group/saved/devices/{groupId}'),

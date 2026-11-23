@@ -979,6 +979,19 @@ SNMP incompatibility rows as counts only. Hardware/CBC use a narrow `DeviceVO`
 schema, while ER7212PC declares a broader device record. Device fields,
 identities and individual assignments are omitted; the summary does not infer
 device configuration or SNMP state. Live support is unknown.
+
+`omada_site_gateway_general_config_summary` takes a `site_ref` and gateway
+`gateway_ref` from the site inventory. It refreshes that inventory, then reports
+the documented LED mode and presence-only coverage for optional settings.
+Device names, tags, locations, SNMP values and undocumented `rememberDevice`
+code meanings are omitted.
+
+`omada_site_switch_general_config_summary` takes a `site_ref` and inventoried
+`switch_ref`. It refreshes the inventory, then reports the documented LED mode,
+Jumbo setting scope and range validity, LAG hash setting scope and documented
+mode, plus SDM object presence. It does not return raw device settings or infer
+actual forwarding behavior. Missing source-specific follow fields stay marked
+missing.
 `omada_controller_sdwan_group_summary` takes no site argument because the API
 read is controller-scoped. It reports group counts, hub metadata field coverage
 and the sum of documented device counts across groups (not a distinct-device
