@@ -254,6 +254,22 @@ class OperationRegistryTests(unittest.TestCase):
         self.assertEqual(dict(bindings), {"site_ref": "a" * 24,
                                           "stack_ref": "b" * 24})
 
+    def test_site_intelli_recover_summary_binds_site(self):
+        operation = REGISTRY.get("site_intelli_recover_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/automatic-recovery-settings/summary")
+        self.assertEqual(route.operation_id, "site_intelli_recover_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
+
+    def test_site_port_forwarding_summary_binds_site(self):
+        operation = REGISTRY.get("site_port_forwarding_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/port-forwardings/summary")
+        self.assertEqual(route.operation_id, "site_port_forwarding_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
+
     def test_site_gateway_general_config_summary_binds_site_and_gateway(self):
         operation = REGISTRY.get("site_gateway_general_config_summary")
         self.assertEqual(_tool(operation)["inputSchema"]["required"],
@@ -1166,6 +1182,8 @@ class OperationRegistryTests(unittest.TestCase):
             "site_stack_network_summary",
             "site_stack_static_routing_summary",
             "site_stack_ospf_neighbor_summary",
+            "site_intelli_recover_summary",
+            "site_port_forwarding_summary",
             "site_stack_dhcp_user_summary",
             "site_stack_vlan_interface_summary",
             "site_snmp_incompatible_summary",

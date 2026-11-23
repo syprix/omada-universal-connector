@@ -899,3 +899,24 @@ tool schemas, transport framing, prompts and billed agent usage. The full client
 and HTTP/MCP modules passed 477 tests after the pagination fix. The registry,
 matrix and evidence gate is being rerun on that fix. Three-export contract
 checks and the full API matrix passed. Live controller support is unknown.
+
+## 2026-11-23 — Automatic recovery and port-forwarding summaries (in progress)
+
+#121 reads the documented automatic-recovery settings. It reports the enable
+flag and reboot-device limit, but only reports interval-field presence because
+the exports give no time units. #122 counts configured forwarding activation,
+protocol and source codes over a bounded 1,000 rows. It preserves source code 0
+without interpreting the export's ambiguous description and names code 1 as
+limited-address source. Names, addresses, ports and WAN references are omitted.
+The ER7212PC empty-grid example has zero totals with a placeholder row and is
+rejected as inconsistent. No recovery action, controller access or network
+change was made; tests and hosted checks are pending.
+
+Synthetic token measurements with `js-tiktoken` 1.0.21 / `o200k_base` compare
+one small recovery-settings response at 37→80 tokens (43 more including the
+summary envelope) and 20 forwarding rows at 2,561→143 tokens (94.42% fewer).
+These exclude tool schemas, transport framing, prompts and billed agent usage.
+The full client and HTTP/MCP modules passed 478 tests; the registry, full API
+matrix and operation-evidence gate passed 314 tests. Three-export contract
+checks, compileall and diff checks passed. Hosted CI is pending. Live support is
+unknown.

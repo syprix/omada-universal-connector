@@ -995,6 +995,18 @@ coverage counts plus how many rows include a state field. State strings are not
 interpreted; addresses, router IDs, interfaces and process IDs are omitted.
 Live stack support is unknown.
 
+`omada_site_intelli_recover_summary` reports the documented automatic-recovery
+enable state and reboot-device limit. Interval values are omitted because the
+exports do not document their units; the result only indicates whether each
+interval field was reported. No restart or recovery action is performed.
+
+`omada_site_port_forwarding_summary` reads at most 1,000 configured forwarding
+rows and counts documented enable state, protocol codes and source codes. It
+preserves code 0 without interpreting the export's ambiguous label, and names
+code 1 as limited-address source. Rule names, addresses, ports and WAN references
+are omitted. The summary makes no traffic, reachability or runtime-statistics
+claim.
+
 `omada_site_switch_oui_vlan_summary` takes a `site_ref` and returns bounded
 counts of documented rule enable flags and port-scope modes. It omits rule and
 device identities, ports, OUI values and VLAN values, and does not infer VLAN

@@ -2847,6 +2847,39 @@
             "projection": "Binds one opaque stack reference to exactly one entry in a complete fresh site-stack inventory. Reads at most 1,000 rows, reports row completeness and count of records with a state field. Omits addresses, router IDs, interfaces and process IDs; does not interpret state strings. The ER7212PC empty-grid example has totalRows/currentPage/currentSize zero but contains a placeholder row, so it is not treated as a valid empty result. Live stack hardware was not tested."
           }
         },
+        "site_intelli_recover_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getIntelliRecoverSetting",
+            "permission": "Device Recovery View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/intelli-recover/auto-setting/config",
+            "query": {
+              "required": []
+            },
+            "request_body": false,
+            "response": "OperationResponseIntelliRecoverSetting with autoFlag:boolean, limitNum:int32, firstRebootPoeInterval:int32 and rebootPoeInterval:int32. The interval descriptions do not specify units.",
+            "projection": "Reports only automatic-recovery activation and the documented reboot-device count limit. Interval values are not converted or returned; field presence only is reported because units are undocumented. Omits setting ID. No recovery action is performed."
+          }
+        },
+        "site_port_forwarding_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getPortForwardingList",
+            "permission": "Site Settings Manager View Only; Network Config Page View Only; Site Device Manager View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/nat/port-forwardings",
+            "query": {
+              "required": [
+                "page:int32 (starts at 1)",
+                "pageSize:int32 (1–1000)"
+              ]
+            },
+            "request_body": false,
+            "response": "Paginated OperationResponsePortForwardingGridVOPortForwardingInfo; rows document status:boolean, from:int32 (0 label is ambiguous; 1 means limited address), protocol:int32 (0 ALL, 1 TCP, 2 UDP).",
+            "projection": "Reads at most 1,000 rows and reports completeness plus status, protocol and source-code counts. Preserves code 0 as a numeric category rather than interpreting its ambiguous \"where\" description; code 1 is counted as limited-address source. Omits names, addresses, ports, IDs and WAN references. Makes no traffic, reachability or runtime-statistics claim. The ER7212PC empty example has zero totals with a placeholder row and is rejected; only a genuinely empty zero-page result is accepted."
+          }
+        },
         "controller_sdwan_group_summary": {
           "documented": true,
           "live_support": "unknown",
@@ -6071,6 +6104,39 @@
             "projection": "Binds one opaque stack reference to exactly one entry in a complete fresh site-stack inventory. Reads at most 1,000 rows, reports row completeness and count of records with a state field. Omits addresses, router IDs, interfaces and process IDs; does not interpret state strings. The ER7212PC empty-grid example has totalRows/currentPage/currentSize zero but contains a placeholder row, so it is not treated as a valid empty result. Live stack hardware was not tested."
           }
         },
+        "site_intelli_recover_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getIntelliRecoverSetting",
+            "permission": "Device Recovery View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/intelli-recover/auto-setting/config",
+            "query": {
+              "required": []
+            },
+            "request_body": false,
+            "response": "OperationResponseIntelliRecoverSetting with autoFlag:boolean, limitNum:int32, firstRebootPoeInterval:int32 and rebootPoeInterval:int32. The interval descriptions do not specify units.",
+            "projection": "Reports only automatic-recovery activation and the documented reboot-device count limit. Interval values are not converted or returned; field presence only is reported because units are undocumented. Omits setting ID. No recovery action is performed."
+          }
+        },
+        "site_port_forwarding_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getPortForwardingList",
+            "permission": "Site Settings Manager View Only; Network Config Page View Only; Site Device Manager View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/nat/port-forwardings",
+            "query": {
+              "required": [
+                "page:int32 (starts at 1)",
+                "pageSize:int32 (1–1000)"
+              ]
+            },
+            "request_body": false,
+            "response": "Paginated OperationResponsePortForwardingGridVOPortForwardingInfo; rows document status:boolean, from:int32 (0 label is ambiguous; 1 means limited address), protocol:int32 (0 ALL, 1 TCP, 2 UDP).",
+            "projection": "Reads at most 1,000 rows and reports completeness plus status, protocol and source-code counts. Preserves code 0 as a numeric category rather than interpreting its ambiguous \"where\" description; code 1 is counted as limited-address source. Omits names, addresses, ports, IDs and WAN references. Makes no traffic, reachability or runtime-statistics claim. The ER7212PC empty example has zero totals with a placeholder row and is rejected; only a genuinely empty zero-page result is accepted."
+          }
+        },
         "controller_sdwan_group_summary": {
           "documented": true,
           "live_support": "unknown",
@@ -9223,6 +9289,39 @@
             "request_body": false,
             "response": "Paginated OperationResponseOswOspfNeighborGridVOOswOspfNeighborVO. Rows include documented state:string; the source gives no state enumeration or semantics.",
             "projection": "Binds one opaque stack reference to exactly one entry in a complete fresh site-stack inventory. Reads at most 1,000 rows, reports row completeness and count of records with a state field. Omits addresses, router IDs, interfaces and process IDs; does not interpret state strings. The ER7212PC empty-grid example has totalRows/currentPage/currentSize zero but contains a placeholder row, so it is not treated as a valid empty result. Live stack hardware was not tested."
+          }
+        },
+        "site_intelli_recover_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getIntelliRecoverSetting",
+            "permission": "Device Recovery View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/intelli-recover/auto-setting/config",
+            "query": {
+              "required": []
+            },
+            "request_body": false,
+            "response": "OperationResponseIntelliRecoverSetting with autoFlag:boolean, limitNum:int32, firstRebootPoeInterval:int32 and rebootPoeInterval:int32. The interval descriptions do not specify units.",
+            "projection": "Reports only automatic-recovery activation and the documented reboot-device count limit. Interval values are not converted or returned; field presence only is reported because units are undocumented. Omits setting ID. No recovery action is performed."
+          }
+        },
+        "site_port_forwarding_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getPortForwardingList",
+            "permission": "Site Settings Manager View Only; Network Config Page View Only; Site Device Manager View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/nat/port-forwardings",
+            "query": {
+              "required": [
+                "page:int32 (starts at 1)",
+                "pageSize:int32 (1–1000)"
+              ]
+            },
+            "request_body": false,
+            "response": "Paginated OperationResponsePortForwardingGridVOPortForwardingInfo; rows document status:boolean, from:int32 (0 label is ambiguous; 1 means limited address), protocol:int32 (0 ALL, 1 TCP, 2 UDP).",
+            "projection": "Reads at most 1,000 rows and reports completeness plus status, protocol and source-code counts. Preserves code 0 as a numeric category rather than interpreting its ambiguous \"where\" description; code 1 is counted as limited-address source. Omits names, addresses, ports, IDs and WAN references. Makes no traffic, reachability or runtime-statistics claim. The ER7212PC empty example has zero totals with a placeholder row and is rejected; only a genuinely empty zero-page result is accepted."
           }
         },
         "controller_sdwan_group_summary": {

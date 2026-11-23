@@ -152,6 +152,8 @@ OPERATIONS = {
     'site_stack_network_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/stacks/{stackId}/networks'),
     'site_stack_static_routing_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/stacks/{stackId}/staticRoutings'),
     'site_stack_ospf_neighbor_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/stack/{stackId}/ospf-neighbors'),
+    'site_intelli_recover_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/intelli-recover/auto-setting/config'),
+    'site_port_forwarding_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/nat/port-forwardings'),
     'site_stack_dhcp_user_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/stack/{stackId}/dhcp/user-list'),
     'site_stack_vlan_interface_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/vlan-interface/stack/{stackId}'),
     'site_snmp_incompatible_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/setting/service/snmp/incompatible-devices'),
