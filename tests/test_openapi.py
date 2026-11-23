@@ -258,6 +258,44 @@ class OpenApiClientTests(unittest.TestCase):
         with self.assertRaises(OpenApiError):
             self.client.read_site_network_delivery_summary(site_ref, "c" * 24)
 
+    def test_site_lan_port_profiles_read_paginates_and_redacts_profile_values(self):
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        row = {"id": "private-id", "name": "Private Profile", "type": 2,
+               "flag": 2, "networkTagsSetting": 1, "poe": 1, "dot1x": 2,
+               "bandWidthCtrlType": 1, "vlanConfigEnable": True,
+               "portIsolationEnable": False, "lldpMedEnable": True,
+               "loopbackDetectEnable": True, "spanningTreeEnable": False,
+               "nativeNetworkId": "private-network", "nativeBridgeVlan": 100}
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={"result": {
+                    "totalRows": 1, "currentPage": 1, "currentSize": 1,
+                    "data": [row]}}) as request:
+            result = self.client.read_site_lan_port_profiles_summary(site_ref)
+        self.assertEqual(result["profile_enum_counts"]["type"], {"2": 1})
+        for secret in ("private-id", "Private Profile", "private-network", "100"):
+            self.assertNotIn(secret, json.dumps(result))
+        self.assertIn("/lan-profiles?page=1&pageSize=2", request.call_args.args[1])
+
+    def test_controller_upgrade_plans_read_counts_and_redacts_plan(self):
+        row = {"id": "secret-id", "modelTypeInfo": {"showModel": "Secret Model",
+                                                       "compoundModel": "Private Model"},
+               "siteNames": ["Secret Site"], "siteNum": 2,
+               "currentVersion": ["1.0"], "targetVersion": "2.0",
+               "scheduledUpgradeTime": "2026-01-01T00:00:00Z", "operator": "secret-user",
+               "fromRollback": False}
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={"result": {
+                    "totalRows": 1, "currentPage": 1, "currentSize": 1,
+                    "data": [row]}}) as request:
+            result = self.client.read_controller_upgrade_plans_summary()
+        self.assertEqual(result["site_association_count"], 2)
+        for secret in ("secret-id", "Secret Model", "Private Model", "Secret Site",
+                       "1.0", "2.0", "2026-01-01", "secret-user"):
+            self.assertNotIn(secret, json.dumps(result))
+        self.assertIn("/upgrade/overview/plans?page=1&pageSize=2",
+                      request.call_args.args[1])
+
     def test_ssid_client_count_binds_selected_site_and_uses_flat_query_fields(self) -> None:
         site_ref, ssid_ref = "a" * 24, "b" * 24
         self.client._site_ids_by_ref[site_ref] = "site-1"

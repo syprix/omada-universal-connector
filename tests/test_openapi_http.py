@@ -811,6 +811,20 @@ class FakeOpenApiClient:
                 "total_device_count": 2,
                 "device_counts": {"succeeded": 1, "failed": 0, "delivering": 1}}
 
+    def read_site_lan_port_profiles_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_lan_port_profiles_summary", site_ref))
+        return {"status": "ok", "resource": "site_lan_port_profiles_summary",
+                "site_ref": site_ref, "profile_count": 2,
+                "profile_enum_counts": {"type": {"2": 2}},
+                "profile_names_and_ids_returned": False}
+
+    def read_controller_upgrade_plans_summary(self) -> dict[str, object]:
+        self.calls.append(("controller_upgrade_plans_summary",))
+        return {"status": "ok", "resource": "controller_upgrade_plans_summary",
+                "plan_count": 1, "total_count": 1,
+                "field_presence": {"scheduled_time": {"present": 1, "missing": 0}},
+                "scheduled_time_interpreted": False}
+
     def read_site_remote_logging_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_remote_logging_summary", site_ref))
         return {"status": "ok", "resource": "site_remote_logging_summary",
@@ -4494,6 +4508,32 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(response["result"]["structuredContent"], direct)
         self.assertEqual(self.fake.calls,
                          [("site_network_delivery_summary", site_ref, network_ref)] * 2)
+
+    def test_http_and_mcp_expose_site_lan_port_profiles(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/lan-port-profiles/summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        request = {"jsonrpc": "2.0", "id": 244, "method": "tools/call",
+                   "params": {"name": "omada_site_lan_port_profiles_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_lan_port_profiles_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_controller_upgrade_plans(self) -> None:
+        path = "/v1/controller/firmware-upgrade-plans/summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200, f"{direct!r} calls={self.fake.calls!r}")
+        request = {"jsonrpc": "2.0", "id": 245, "method": "tools/call",
+                   "params": {"name": "omada_controller_upgrade_plans_summary",
+                              "arguments": {}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls, [("controller_upgrade_plans_summary",)] * 2)
 
     def test_http_and_mcp_expose_selected_ssid_client_count(self) -> None:
         site_ref, ssid_ref = "a" * 24, "b" * 24

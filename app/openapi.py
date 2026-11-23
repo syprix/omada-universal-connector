@@ -1468,6 +1468,8 @@ class OmadaOpenApiClient:
     _SITE_VPN_S2S_STATUS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/vpn/stats/s2s"
     _SITE_AP_TOPOLOGY_CLIENTS_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/topology/devices/{ap_mac}/clients"
     _SITE_NETWORK_DELIVERY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/networks/{network_id}/brief-process"
+    _SITE_LAN_PROFILES_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/lan-profiles"
+    _CONTROLLER_UPGRADE_PLANS_PATH = "/openapi/v1/{controller_id}/upgrade/overview/plans"
     _SITE_OPEN_VPN_TUNNEL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/open-vpn-tunnel-stats"
     _SITE_CLIENT_ACTIVITY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/client-activity"
     _SITE_CLIENT_ASSOCIATION_ACTIVITY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/client-association-activities"
@@ -1871,6 +1873,14 @@ class OmadaOpenApiClient:
     _SITE_NETWORK_DELIVERY_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
         r"/networks/[A-Za-z0-9_-]{1,128}/brief-process"
+    )
+    _SITE_LAN_PROFILES_REQUEST = re.compile(
+        r"/openapi/v2/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/lan-profiles\?page=([1-9][0-9]*)&pageSize=([1-9][0-9]*)"
+    )
+    _CONTROLLER_UPGRADE_PLANS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/upgrade/overview/plans"
+        r"\?page=([1-9][0-9]*)&pageSize=([1-9][0-9]*)"
     )
     _SITE_OPEN_VPN_TUNNEL_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
@@ -2762,6 +2772,8 @@ class OmadaOpenApiClient:
         ("site_ssid_topology_device_summary", "GET /v1/sites/{site_ref}/ssids/{ssid_ref}/topology-device-summary"),
         ("site_ap_topology_clients_summary", "GET /v1/sites/{site_ref}/aps/{device_ref}/topology-clients/summary"),
         ("site_network_delivery_summary", "GET /v1/sites/{site_ref}/networks/{network_ref}/delivery-summary"),
+        ("site_lan_port_profiles_summary", "GET /v1/sites/{site_ref}/lan-port-profiles/summary"),
+        ("controller_upgrade_plans_summary", "GET /v1/controller/firmware-upgrade-plans/summary"),
         ("site_remote_logging_summary", "GET /v1/sites/{site_ref}/remote-logging/summary"),
         ("controller_upgrade_log_summary", "GET /v1/controller/firmware-upgrades/summary"),
         ("site_wan_qos_summary", "GET /v1/sites/{site_ref}/wan-qos-summary"),
@@ -8656,6 +8668,110 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {**projected, "status": "ok", "resource": "site_network_delivery_summary",
                 "site_ref": site_ref, "network_ref": network_ref}
+
+    @_track_capability("site_lan_port_profiles_summary")
+    def read_site_lan_port_profiles_summary(self, site_ref: str) -> dict[str, object]:
+        """Count documented site LAN port profile settings without names or IDs."""
+        site_id = self._resolve_site_ref(site_ref)
+        base = self._SITE_LAN_PROFILES_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        page_size = min(max(1, self.config.page_size), 100)
+        page_limit = min(max(1, self.config.max_pages), 10)
+        rows: list[object] = []
+        total: int | None = None
+        pages_fetched = 0
+        metadata_partial = False
+        for page in range(1, page_limit + 1):
+            query = urlencode({"page": page, "pageSize": page_size})
+            payload = self._request_json("GET", base + "?" + query,
+                                         token=self._access_token())
+            result = payload.get("result")
+            data = result.get("data") if isinstance(result, Mapping) else None
+            page_total = result.get("totalRows") if isinstance(result, Mapping) else None
+            current_page = result.get("currentPage") if isinstance(result, Mapping) else None
+            current_size = result.get("currentSize") if isinstance(result, Mapping) else None
+            if (not isinstance(data, list) or len(data) > page_size or
+                    type(page_total) is not int or not 0 <= page_total < (1 << 63) or
+                    type(current_page) is not int or current_page != page or
+                    type(current_size) is not int or not 0 <= current_size <= page_size):
+                raise OpenApiError("openapi_response_invalid")
+            if total is None:
+                total = page_total
+            elif page_total != total:
+                raise OpenApiError("openapi_response_invalid")
+            metadata_partial |= current_size != len(data)
+            rows.extend(data)
+            pages_fetched = page
+            if len(rows) > page_total or len(rows) > 1_000:
+                raise OpenApiError("openapi_response_invalid")
+            if len(rows) >= page_total:
+                break
+        try:
+            from .site_lan_port_profiles_summary import (
+                SiteLanPortProfilesError, project_site_lan_port_profiles)
+        except ImportError:  # direct execution in the image
+            from site_lan_port_profiles_summary import (
+                SiteLanPortProfilesError, project_site_lan_port_profiles)
+        try:
+            projected = project_site_lan_port_profiles(
+                rows, total if total is not None else len(rows), pages_fetched, page_limit)
+        except SiteLanPortProfilesError:
+            raise OpenApiError("openapi_response_invalid") from None
+        projected["partial"] = bool(projected["partial"] or metadata_partial)
+        projected["page_size"] = page_size
+        return {**projected, "status": "ok", "resource": "site_lan_port_profiles_summary",
+                "site_ref": site_ref}
+
+    @_track_capability("controller_upgrade_plans_summary")
+    def read_controller_upgrade_plans_summary(self) -> dict[str, object]:
+        """Summarize scheduled firmware plans without revealing versions or dates."""
+        base = self._CONTROLLER_UPGRADE_PLANS_PATH.format(
+            controller_id=self.config.controller_id)
+        page_size = min(max(1, self.config.page_size), 100)
+        page_limit = min(max(1, self.config.max_pages), 10)
+        rows: list[object] = []
+        total: int | None = None
+        pages_fetched = 0
+        metadata_partial = False
+        for page in range(1, page_limit + 1):
+            query = urlencode({"page": page, "pageSize": page_size})
+            payload = self._request_json("GET", base + "?" + query,
+                                         token=self._access_token())
+            result = payload.get("result")
+            data = result.get("data") if isinstance(result, Mapping) else None
+            page_total = result.get("totalRows") if isinstance(result, Mapping) else None
+            current_page = result.get("currentPage") if isinstance(result, Mapping) else None
+            current_size = result.get("currentSize") if isinstance(result, Mapping) else None
+            if (not isinstance(data, list) or len(data) > page_size or
+                    type(page_total) is not int or not 0 <= page_total < (1 << 63) or
+                    type(current_page) is not int or current_page != page or
+                    type(current_size) is not int or not 0 <= current_size <= page_size):
+                raise OpenApiError("openapi_response_invalid")
+            if total is None:
+                total = page_total
+            elif page_total != total:
+                raise OpenApiError("openapi_response_invalid")
+            metadata_partial |= current_size != len(data)
+            rows.extend(data)
+            pages_fetched = page
+            if len(rows) > page_total or len(rows) > 1_000:
+                raise OpenApiError("openapi_response_invalid")
+            if len(rows) >= page_total:
+                break
+        try:
+            from .controller_upgrade_plans_summary import (
+                ControllerUpgradePlansError, project_controller_upgrade_plans)
+        except ImportError:  # direct execution in the image
+            from controller_upgrade_plans_summary import (
+                ControllerUpgradePlansError, project_controller_upgrade_plans)
+        try:
+            projected = project_controller_upgrade_plans(
+                rows, total if total is not None else len(rows), pages_fetched, page_limit)
+        except ControllerUpgradePlansError:
+            raise OpenApiError("openapi_response_invalid") from None
+        projected["partial"] = bool(projected["partial"] or metadata_partial)
+        projected["page_size"] = page_size
+        return {**projected, "status": "ok", "resource": "controller_upgrade_plans_summary"}
 
     @_track_capability("site_remote_logging_summary")
     def read_site_remote_logging_summary(self, site_ref: str) -> dict[str, object]:
@@ -14884,6 +15000,8 @@ class OmadaOpenApiClient:
                                   self._site_ssid_topology_devices_request_valid(path) or
                                   self._site_ap_topology_clients_request_valid(path) or
                                   self._site_network_delivery_request_valid(path) or
+                                  self._site_lan_profiles_request_valid(path) or
+                                  self._controller_upgrade_plans_request_valid(path) or
                                   self._site_dhcp_candidates_request_valid(path) or
                                   self._site_network_reservation_request_valid(path) or
                                   self._site_dhcp_reservations_request_valid(path) or
@@ -16395,6 +16513,16 @@ class OmadaOpenApiClient:
     def _site_network_delivery_request_valid(self, path: str) -> bool:
         match = self._SITE_NETWORK_DELIVERY_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_lan_profiles_request_valid(self, path: str) -> bool:
+        match = self._SITE_LAN_PROFILES_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id and
+                    int(match.group(2)) <= 10 and int(match.group(3)) <= 100)
+
+    def _controller_upgrade_plans_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_UPGRADE_PLANS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id and
+                    int(match.group(2)) <= 10 and int(match.group(3)) <= 100)
 
     def _site_open_vpn_tunnel_request_valid(self, path: str) -> bool:
         match = self._SITE_OPEN_VPN_TUNNEL_REQUEST.fullmatch(path)

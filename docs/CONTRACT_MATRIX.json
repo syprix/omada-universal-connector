@@ -2505,6 +2505,40 @@
             "binding": "networkId is resolved from a freshly refreshed LAN network inventory for the selected site.",
             "projection": "Counts array rows, returns the documented source state code, state label and device totals. Network/device IDs are omitted. Delivery state does not imply device reachability; inconsistent/missing fields mark partial."
           }
+        },
+        "site_lan_port_profiles_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getOswLanProfileList",
+            "permission": "Site Settings Manager View Only or Device Config Page View Only",
+            "path": "GET /openapi/v2/{omadacId}/sites/{siteId}/lan-profiles",
+            "query": {
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, source range 1–1000"
+            },
+            "response": "Paginated LanProfileInfoOpenApiVO rows. Documented type/flag/network-tags/PoE/Dot1x/bandwidth-control enums, booleans, nested controls, profile name/ID, VLAN and network references.",
+            "source_example": "ER7212PC example has totalRows/currentPage/currentSize set to zero and includes one profile row; it is inconsistent with the required page numbering and totals, so this example is not accepted as a valid response.",
+            "projection": "At most ten pages of 100 rows. Counts documented enum and boolean fields; profile names, identifiers, VLANs, network references and nested raw configuration are omitted. No profile-to-device assignment is inferred."
+          }
+        },
+        "controller_upgrade_plans_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridUpgradePlans",
+            "permission": "Site Manual Firmware Upgrade View Only",
+            "path": "GET /openapi/v1/{omadacId}/upgrade/overview/plans",
+            "query": {
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, source range 1–1000",
+              "sorts.scheduledUpgradeTime": "optional sort direction asc/desc",
+              "sorts.modelTypeInfo": "optional sort direction asc/desc"
+            },
+            "response": "Paginated PlanUpgradeInfo rows with ID, modelTypeInfo, siteNames/siteNum, currentVersion array, targetVersion, scheduledUpgradeTime, operator and fromRollback boolean. No execution-status field is present.",
+            "source_example": "ER7212PC example has totalRows/currentPage/currentSize set to zero while providing one plan row. This is inconsistent with its own page metadata and is not treated as a valid response.",
+            "projection": "Requests bounded pages without optional sorts. Counts site associations, version-entry totals, field presence and rollback-origin flags. Omits model/site names, versions, operator, ID and date values. Scheduled plans are not execution results."
+          }
         }
       }
     },
@@ -4983,6 +5017,40 @@
             "binding": "networkId is resolved from a freshly refreshed LAN network inventory for the selected site.",
             "projection": "Counts array rows, returns the documented source state code, state label and device totals. Network/device IDs are omitted. Delivery state does not imply device reachability; inconsistent/missing fields mark partial."
           }
+        },
+        "site_lan_port_profiles_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getOswLanProfileList",
+            "permission": "Site Settings Manager View Only or Device Config Page View Only",
+            "path": "GET /openapi/v2/{omadacId}/sites/{siteId}/lan-profiles",
+            "query": {
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, source range 1–1000"
+            },
+            "response": "Paginated LanProfileInfoOpenApiVO rows. Documented type/flag/network-tags/PoE/Dot1x/bandwidth-control enums, booleans, nested controls, profile name/ID, VLAN and network references.",
+            "source_example": "ER7212PC example has totalRows/currentPage/currentSize set to zero and includes one profile row; it is inconsistent with the required page numbering and totals, so this example is not accepted as a valid response.",
+            "projection": "At most ten pages of 100 rows. Counts documented enum and boolean fields; profile names, identifiers, VLANs, network references and nested raw configuration are omitted. No profile-to-device assignment is inferred."
+          }
+        },
+        "controller_upgrade_plans_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridUpgradePlans",
+            "permission": "Site Manual Firmware Upgrade View Only",
+            "path": "GET /openapi/v1/{omadacId}/upgrade/overview/plans",
+            "query": {
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, source range 1–1000",
+              "sorts.scheduledUpgradeTime": "optional sort direction asc/desc",
+              "sorts.modelTypeInfo": "optional sort direction asc/desc"
+            },
+            "response": "Paginated PlanUpgradeInfo rows with ID, modelTypeInfo, siteNames/siteNum, currentVersion array, targetVersion, scheduledUpgradeTime, operator and fromRollback boolean. No execution-status field is present.",
+            "source_example": "ER7212PC example has totalRows/currentPage/currentSize set to zero while providing one plan row. This is inconsistent with its own page metadata and is not treated as a valid response.",
+            "projection": "Requests bounded pages without optional sorts. Counts site associations, version-entry totals, field presence and rollback-origin flags. Omits model/site names, versions, operator, ID and date values. Scheduled plans are not execution results."
+          }
         }
       }
     },
@@ -7419,6 +7487,40 @@
             "response": "VlanNetworkDeliverBriefDataVO has success/fail/delivering device and stack string arrays, doneDevicesNum, totalDevicesNum and state int32. Documented state values: 0 free/already delivered, 1 delivering, 2 deliver done.",
             "binding": "networkId is resolved from a freshly refreshed LAN network inventory for the selected site.",
             "projection": "Counts array rows, returns the documented source state code, state label and device totals. Network/device IDs are omitted. Delivery state does not imply device reachability; inconsistent/missing fields mark partial."
+          }
+        },
+        "site_lan_port_profiles_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getOswLanProfileList",
+            "permission": "Site Settings Manager View Only or Device Config Page View Only",
+            "path": "GET /openapi/v2/{omadacId}/sites/{siteId}/lan-profiles",
+            "query": {
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, source range 1–1000"
+            },
+            "response": "Paginated LanProfileInfoOpenApiVO rows. Documented type/flag/network-tags/PoE/Dot1x/bandwidth-control enums, booleans, nested controls, profile name/ID, VLAN and network references.",
+            "source_example": "ER7212PC example has totalRows/currentPage/currentSize set to zero and includes one profile row; it is inconsistent with the required page numbering and totals, so this example is not accepted as a valid response.",
+            "projection": "At most ten pages of 100 rows. Counts documented enum and boolean fields; profile names, identifiers, VLANs, network references and nested raw configuration are omitted. No profile-to-device assignment is inferred."
+          }
+        },
+        "controller_upgrade_plans_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridUpgradePlans",
+            "permission": "Site Manual Firmware Upgrade View Only",
+            "path": "GET /openapi/v1/{omadacId}/upgrade/overview/plans",
+            "query": {
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, source range 1–1000",
+              "sorts.scheduledUpgradeTime": "optional sort direction asc/desc",
+              "sorts.modelTypeInfo": "optional sort direction asc/desc"
+            },
+            "response": "Paginated PlanUpgradeInfo rows with ID, modelTypeInfo, siteNames/siteNum, currentVersion array, targetVersion, scheduledUpgradeTime, operator and fromRollback boolean. No execution-status field is present.",
+            "source_example": "ER7212PC example has totalRows/currentPage/currentSize set to zero while providing one plan row. This is inconsistent with its own page metadata and is not treated as a valid response.",
+            "projection": "Requests bounded pages without optional sorts. Counts site associations, version-entry totals, field presence and rollback-origin flags. Omits model/site names, versions, operator, ID and date values. Scheduled plans are not execution results."
           }
         }
       }
