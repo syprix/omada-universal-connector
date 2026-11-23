@@ -94,6 +94,22 @@ class OperationRegistryTests(unittest.TestCase):
         self.assertEqual(route.operation_id, "controller_upgrade_plans_summary")
         self.assertEqual(dict(bindings), {})
 
+    def test_site_lan_multicast_summary_is_site_bound(self):
+        operation = REGISTRY.get("site_lan_multicast_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/lan-multicast-summary")
+        self.assertEqual(route.operation_id, "site_lan_multicast_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
+
+    def test_site_bandwidth_rules_summary_is_site_bound(self):
+        operation = REGISTRY.get("site_bandwidth_rules_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/bandwidth-control-rules/summary")
+        self.assertEqual(route.operation_id, "site_bandwidth_rules_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
+
     def test_site_ssid_client_count_summary_binds_site_and_selected_ssid(self):
         operation = REGISTRY.get("site_ssid_client_count_summary")
         self.assertEqual(_tool(operation)["inputSchema"]["required"],
@@ -795,6 +811,8 @@ class OperationRegistryTests(unittest.TestCase):
             "site_ap_topology_clients_summary",
             "site_network_delivery_summary",
             "site_lan_port_profiles_summary",
+            "site_lan_multicast_summary",
+            "site_bandwidth_rules_summary",
             "controller_upgrade_plans_summary",
             "site_remote_logging_summary",
             "controller_upgrade_log_summary",

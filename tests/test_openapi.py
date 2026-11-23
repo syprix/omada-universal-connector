@@ -296,6 +296,48 @@ class OpenApiClientTests(unittest.TestCase):
         self.assertIn("/upgrade/overview/plans?page=1&pageSize=2",
                       request.call_args.args[1])
 
+    def test_site_lan_multicast_read_paginates_and_redacts_configuration(self):
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        row = {"id": "private-id", "name": "Private Multicast",
+               "networks": [{"networkId": "private-network", "networkName": "Private LAN"}],
+               "protocol": 0, "unknownMulticastRule": 2,
+               "unknownMulticastExceptDevice": {"enable": True, "deviceList": []},
+               "floodKnownEnable": True, "querierEnable": False,
+               "routerPortEnable": True,
+               "snoopConfig": {"reportSuppressionEnable": True,
+                               "reportSuppressionExceptDevice": {"enable": False,
+                                                                  "deviceList": []}}}
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={"result": {
+                    "totalRows": 1, "currentPage": 1, "currentSize": 1,
+                    "data": [row]}}) as request:
+            result = self.client.read_site_lan_multicast_summary(site_ref)
+        self.assertEqual(result["protocol_counts"]["igmp"], 1)
+        self.assertEqual(result["unknown_multicast_rule_counts"]["router_port_first"], 1)
+        for secret in ("private-id", "Private Multicast", "private-network", "Private LAN"):
+            self.assertNotIn(secret, json.dumps(result))
+        self.assertIn("/lan-multicasts?page=1&pageSize=2", request.call_args.args[1])
+
+    def test_site_bandwidth_rules_read_paginates_and_redacts_policy_details(self):
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        row = {"id": "private-id", "name": "Private rule", "index": 9,
+               "status": True, "sourceType": 0, "sourceIds": ["private-network"],
+               "wanPortIds": ["private-wan"], "upstreamBandwidth": 1000,
+               "upstreamBandwidthUnit": 1, "downstreamBandwidth": 2500,
+               "downstreamBandwidthUnit": 2, "mode": 1}
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={"result": {
+                    "totalRows": 1, "currentPage": 1, "currentSize": 1,
+                    "data": [row]}}) as request:
+            result = self.client.read_site_bandwidth_rules_summary(site_ref)
+        self.assertEqual(result["activation_counts"]["enabled"], 1)
+        self.assertEqual(result["bandwidth_unit_counts"]["downstream"]["mbps"], 1)
+        for secret in ("private-id", "Private rule", "private-network", "private-wan", "1000", "2500"):
+            self.assertNotIn(secret, json.dumps(result))
+        self.assertIn("/bandwidth-control/rules?page=1&pageSize=2", request.call_args.args[1])
+
     def test_ssid_client_count_binds_selected_site_and_uses_flat_query_fields(self) -> None:
         site_ref, ssid_ref = "a" * 24, "b" * 24
         self.client._site_ids_by_ref[site_ref] = "site-1"

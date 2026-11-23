@@ -91,6 +91,36 @@ A synthetic 20-profile source-shaped payload measured 2,543 tokens before and
 475 after projection (81.32% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`;
 this is serialized payload only.
 
+## LAN multicast settings
+
+`GET /v1/sites/{site_ref}/lan-multicast-summary` and its MCP tool read the
+site's paginated LAN multicast snooping settings. They count the documented
+IGMP/MLD protocol and unknown-multicast selection values, selected enablement
+flags, and field coverage. Names, addresses, identifiers, and nested device or
+network configuration are omitted. This is configuration only and does not
+measure multicast traffic. Pagination is capped at ten pages of 100 rows. The
+ER7212PC example has inconsistent pagination metadata and is not treated as a
+valid response. Live support is unknown.
+
+A synthetic 20-entry configuration fixture measured 5,398 source tokens and
+237 projected tokens (95.61% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`;
+this counts serialized payloads only.
+
+## Bandwidth policy overview
+
+`GET /v1/sites/{site_ref}/bandwidth-control-rules/summary` and its MCP tool
+read the site's paginated bandwidth-control policies. They count activation,
+documented source and mode categories, upstream/downstream units, and safe
+coverage indicators. Rule names, identifiers, targets, and configured rate
+values are discarded. These policies remain separate from WAN QoS settings and
+do not measure traffic. Pagination is capped at ten pages of 100 rules. The
+ER7212PC example has inconsistent page metadata and is not accepted as a valid
+response. Live support is unknown.
+
+A synthetic 20-rule fixture measured 1,620 source tokens and 236 projected
+tokens (85.43% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; serialized
+payloads only.
+
 ## Scheduled firmware plans
 
 `GET /v1/controller/firmware-upgrade-plans/summary` and its MCP tool read at

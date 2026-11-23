@@ -486,3 +486,11 @@ A synthetic 20-plan fixture measured 2,002 → 166 tokens (91.71% fewer) using `
 Site remote logging is exposed as a redacted HTTP/MCP read. Destination values and delivery claims are excluded; only documented enablement, category and target presence are summarized. Live behavior is unconfirmed.
 
 The controller-wide firmware upgrade-log read is bounded to a 100-row page and reports only documented aggregate state and coverage. It redacts identities, versions, model details and raw timestamps; no update action is exposed. Live behavior is unconfirmed.
+
+The LAN multicast settings summary (#67) reads `getGridLanMulticasts` from all three exports over bounded pagination. It reports documented protocol and unknown-multicast rule counts, selected enablement flags, and field coverage while omitting names, addresses, device/network identifiers, and nested configuration. The ER7212PC example's page metadata conflicts with its row data, so it is not treated as valid response evidence. The result describes settings, not actual multicast traffic. Live behavior is unknown.
+
+A synthetic 20-entry fixture measured 5,398 → 237 serialized tokens (95.61% fewer); this is not billed agent usage.
+
+The bandwidth policy summary (#68) reads `getGridBandwidthCtrlRule` from all three exports over bounded pagination. It counts active state, documented source/mode categories, units by direction, and field coverage; names, identifiers, target lists, and numeric rate limits are omitted. It is separate from WAN QoS settings and actual traffic measurements. The ER7212PC example has contradictory page metadata and is not treated as valid response evidence. Live behavior is unknown.
+
+A synthetic 20-rule payload measured 1,620 → 236 serialized tokens (85.43% fewer); this is not billed agent usage.
