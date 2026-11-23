@@ -198,6 +198,66 @@ class OpenApiClientTests(unittest.TestCase):
         self.assertIn("/openapi/v3/controller_1/sites/site-1/topology/ssids/ssid-1/devices",
                       request.call_args.args[1])
 
+    def test_ap_topology_clients_binds_inventory_ap_and_redacts_client_rows(self) -> None:
+        site_ref, device_ref = "a" * 24, "b" * 24
+        mac = "00:11:22:33:44:55"
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+
+        def refresh_inventory(ref: str) -> dict[str, object]:
+            self.assertEqual(ref, site_ref)
+            self.client._device_macs_by_site_ref[site_ref] = {device_ref: mac}
+            return {"items": [{"device_ref": device_ref, "device_type": "ap"}]}
+
+        with patch.object(self.client, "list_devices", side_effect=refresh_inventory), \
+                patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={"result": [
+                    {"mac": "02:00:00:00:00:01", "name": "private", "wireless": True,
+                     "guest": False, "type": "phone"},
+                    {"mac": "02:00:00:00:00:02", "wireless": False, "guest": True,
+                     "type": "computer"}]}) as request:
+            result = self.client.read_site_ap_topology_clients_summary(site_ref, device_ref)
+        self.assertEqual(result["by_connection"],
+                         {"wireless": 1, "wired": 1, "unknown": 0})
+        for secret in (mac, "02:00:00:00:00:01", "private", "phone"):
+            self.assertNotIn(secret, json.dumps(result))
+        self.assertIn("/openapi/v2/controller_1/sites/site-1/topology/devices/"
+                      "00:11:22:33:44:55/clients", request.call_args.args[1])
+        with self.assertRaises(OpenApiError):
+            self.client.read_site_ap_topology_clients_summary(site_ref, "c" * 24)
+
+    def test_ap_topology_client_path_guard_accepts_only_controller_inventory_mac(self):
+        good = ("/openapi/v2/controller_1/sites/site-1/topology/devices/"
+                "00:11:22:33:44:55/clients")
+        self.assertTrue(self.client._site_ap_topology_clients_request_valid(good))
+        self.assertFalse(self.client._site_ap_topology_clients_request_valid(
+            good.replace("controller_1", "other")))
+        self.assertFalse(self.client._site_ap_topology_clients_request_valid(
+            good.replace("00:11:22:33:44:55", "not-a-mac")))
+
+    def test_network_delivery_read_binds_selected_site_network_and_redacts_ids(self):
+        site_ref, network_ref = "a" * 24, "b" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+
+        def refresh_networks(ref: str) -> dict[str, object]:
+            self.assertEqual(ref, site_ref)
+            self.client._network_ids_by_site_ref[site_ref] = {network_ref: "network-1"}
+            return {"items": [{"network_ref": network_ref}]}
+
+        with patch.object(self.client, "list_networks", side_effect=refresh_networks), \
+                patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={"result": {
+                    "successDevices": ["private-device"], "successStacks": [],
+                    "failDevices": [], "failStacks": [],
+                    "deliveringDevices": ["working-device"], "deliveringStacks": [],
+                    "doneDevicesNum": 1, "totalDevicesNum": 2, "state": 1}}) as request:
+            result = self.client.read_site_network_delivery_summary(site_ref, network_ref)
+        self.assertEqual(result["state"], "delivering")
+        self.assertNotIn("private-device", json.dumps(result))
+        self.assertNotIn("network-1", json.dumps(result))
+        self.assertIn("/networks/network-1/brief-process", request.call_args.args[1])
+        with self.assertRaises(OpenApiError):
+            self.client.read_site_network_delivery_summary(site_ref, "c" * 24)
+
     def test_ssid_client_count_binds_selected_site_and_uses_flat_query_fields(self) -> None:
         site_ref, ssid_ref = "a" * 24, "b" * 24
         self.client._site_ids_by_ref[site_ref] = "site-1"

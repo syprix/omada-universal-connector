@@ -141,8 +141,8 @@ class OperationEvidenceTests(unittest.TestCase):
         self.assertEqual(generated, expected)
         self.assertEqual(generated["operation_count"], 2445)
         self.assertEqual(generated["connector_evidence_counts"], {
-            "not_mapped": 2002,
-            "fixed_get_registry_route": 418,
+            "not_mapped": 2000,
+            "fixed_get_registry_route": 420,
             "manual_source_map_only": 25,
         })
         registry_rows = [row for row in generated["operations"]
@@ -153,6 +153,8 @@ class OperationEvidenceTests(unittest.TestCase):
                    for operation_id in row["operation_ids"]}
         self.assertIn("site_vpn_s2s_status_summary", indexed)
         self.assertIn("site_ssid_topology_device_summary", indexed)
+        self.assertIn("site_ap_topology_clients_summary", indexed)
+        self.assertIn("site_network_delivery_summary", indexed)
         public_templates = {
             "/v1/sites/{site_ref}/clients/recent-summary",
             "/v1/sites/{site_ref}/networks/{network_ref}/vlans/affected-ports-summary",
@@ -191,6 +193,18 @@ class OperationEvidenceTests(unittest.TestCase):
             else:
                 self.assertEqual(topology["contract_review"]["operation_id"],
                                  "getFilterDevicesOfSsid")
+            ap_clients = source["operations"]["site_ap_topology_clients_summary"]
+            if source["label"].startswith("ER7212PC"):
+                self.assertFalse(ap_clients["documented"])
+            else:
+                self.assertEqual(ap_clients["contract_review"]["operation_id"],
+                                 "getTopologyClients")
+                self.assertIn("no event time", ap_clients["contract_review"]["response"].lower())
+                self.assertIn("untimestamped topology snapshot",
+                              ap_clients["contract_review"]["projection"].lower())
+            delivery = source["operations"]["site_network_delivery_summary"]["contract_review"]
+            self.assertEqual(delivery["operation_id"], "getDeliveringProcessWithoutConfig")
+            self.assertIn("does not imply device reachability", delivery["projection"].lower())
             remote = source["operations"]["site_remote_logging_summary"]["contract_review"]
             self.assertEqual(remote["operation_id"], "getRemoteLoggingSetting")
             self.assertIn("host and port", remote["projection"])

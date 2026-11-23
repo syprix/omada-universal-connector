@@ -3,8 +3,8 @@
   "catalog_sha256": "b5ea3aeeac5c1c990fed6a4418f68e46530faa240308c7751206e15323eaeb9d",
   "operation_count": 2445,
   "connector_evidence_counts": {
-    "not_mapped": 2002,
-    "fixed_get_registry_route": 418,
+    "not_mapped": 2000,
+    "fixed_get_registry_route": 420,
     "manual_source_map_only": 25
   },
   "function_verification_performed": false,
@@ -9551,6 +9551,7 @@
         "test_gateway_dhcp_read.py",
         "test_live_read_probe.py",
         "test_network_overview.py",
+        "test_openapi.py",
         "test_openapi_http.py",
         "test_operation_evidence.py",
         "test_operation_registry.py",
@@ -14759,11 +14760,21 @@
         "hardware-controller-6.3.0",
         "omada-cbc-standard-6.3.0"
       ],
-      "connector_evidence": "not_mapped",
-      "operation_ids": [],
-      "public_templates": [],
-      "source_map_label": null,
-      "static_test_references": [],
+      "connector_evidence": "fixed_get_registry_route",
+      "operation_ids": [
+        "site_network_delivery_summary"
+      ],
+      "public_templates": [
+        "/v1/sites/{site_ref}/networks/{network_ref}/delivery-summary"
+      ],
+      "source_map_label": "implemented_read",
+      "static_test_references": [
+        "test_openapi.py",
+        "test_openapi_http.py",
+        "test_operation_evidence.py",
+        "test_operation_registry.py",
+        "test_site_network_delivery_summary.py"
+      ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
       "function_verified": false,
@@ -25982,11 +25993,20 @@
         "hardware-controller-6.3.0",
         "omada-cbc-standard-6.3.0"
       ],
-      "connector_evidence": "not_mapped",
-      "operation_ids": [],
-      "public_templates": [],
-      "source_map_label": null,
-      "static_test_references": [],
+      "connector_evidence": "fixed_get_registry_route",
+      "operation_ids": [
+        "site_ap_topology_clients_summary"
+      ],
+      "public_templates": [
+        "/v1/sites/{site_ref}/aps/{device_ref}/topology-clients/summary"
+      ],
+      "source_map_label": "implemented_read",
+      "static_test_references": [
+        "test_openapi.py",
+        "test_openapi_http.py",
+        "test_operation_evidence.py",
+        "test_operation_registry.py"
+      ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
       "function_verified": false,
