@@ -33,6 +33,7 @@ def build_report(
     registry_entries: tuple[Any, ...],
     test_root: Path,
     catalog_sha256: str,
+    auxiliary_source_operations: dict[tuple[str, str], tuple[str, str]] | None = None,
 ) -> dict[str, Any]:
     if catalog.get("catalog_scope") != "documentation_presence_only_not_runtime_support":
         raise ValueError("catalog scope is not recognized")
@@ -46,6 +47,10 @@ def build_report(
         registry.setdefault(key, []).append(entry)
 
     tests: list[tuple[str, str]] = []
+    auxiliary_source_operations = {
+        _canonical(method, path): value
+        for (method, path), value in (auxiliary_source_operations or {}).items()
+    }
     if test_root.exists():
         for path in sorted(test_root.glob("test_*.py")):
             try:
@@ -69,8 +74,9 @@ def build_report(
             raise ValueError("invalid documented source list")
 
         entries = registry.get(key, [])
+        auxiliary = auxiliary_source_operations.get(key)
         mapped = source_map.get(key)
-        if entries:
+        if entries or auxiliary:
             implementation_evidence = "fixed_get_registry_route"
         elif mapped is not None:
             implementation_evidence = "manual_source_map_only"
@@ -78,7 +84,7 @@ def build_report(
             implementation_evidence = "not_mapped"
 
         references: list[str] = []
-        if entries:
+        if entries or auxiliary:
             # Operation ids are often asserted directly in adapter/registry
             # tests. Projection/client tests instead exercise the public
             # `read_<operation_id>` method without repeating that id as text.
@@ -89,6 +95,9 @@ def build_report(
                 for entry in entries
                 for name in (entry.operation_id, f"read_{entry.operation_id}")
             ]
+            if auxiliary:
+                needles.extend(re.compile(rf"\b{re.escape(name)}\b")
+                               for name in (auxiliary[0], f"read_{auxiliary[0]}"))
             references = [name for name, body in tests if any(needle.search(body) for needle in needles)]
 
         rows.append({
@@ -96,8 +105,10 @@ def build_report(
             "path_template": path,
             "documented_in": sorted(set(sources)),
             "connector_evidence": implementation_evidence,
-            "operation_ids": sorted({entry.operation_id for entry in entries}),
-            "public_templates": sorted({entry.public_template for entry in entries}),
+            "operation_ids": sorted({entry.operation_id for entry in entries} |
+                                     ({auxiliary[0]} if auxiliary else set())),
+            "public_templates": sorted({entry.public_template for entry in entries} |
+                                        ({auxiliary[1]} if auxiliary else set())),
             "source_map_label": mapped if mapped is not None else None,
             "static_test_references": references,
             "test_execution": "not_assessed_by_this_report",
@@ -122,6 +133,12 @@ def build_report(
         "operations": rows,
     }
 
+AUXILIARY_SOURCE_OPERATIONS = {
+    ("GET", "/openapi/v1/{controller_id}/upgrade/overview/try-beta/channel"):
+        ("controller_try_beta_settings_summary",
+         "/v1/controller/firmware-preview-settings/summary"),
+}
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -145,6 +162,7 @@ def main() -> int:
         registry_entries=REGISTRY.entries,
         test_root=args.tests,
         catalog_sha256=hashlib.sha256(catalog_bytes).hexdigest(),
+        auxiliary_source_operations=AUXILIARY_SOURCE_OPERATIONS,
     )
     args.output.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(json.dumps({

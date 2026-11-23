@@ -832,3 +832,23 @@ rebased tree on main `3af67f4` passed 772 tests across the HTTP/MCP client,
 registry, matrix, evidence and both projector modules. Three-export contract
 and full matrix checks, compileall and diff check passed. Checks for the updated
 GitHub head are pending. No live controller read was made.
+
+## 2026-11-23 — Firmware preview settings and automatic checks
+
+Added two controller-scoped read summaries. The preview-setting read combines
+the documented enable Boolean and channel from two fixed GET operations,
+preserving missing values and unknown channel codes as incomplete. The
+automatic-check summary reads at most ten pages of 100 plans and aggregates
+documented channel and selected-site counts. It omits identifiers, names,
+models and schedule values and does not start firmware updates. All three
+source exports document the operations. No controller was contacted.
+
+Synthetic JSON token measurements with `js-tiktoken` 1.0.21 / `o200k_base`:
+the two small preview-setting responses were 16 tokens versus 40 for the
+combined connector result (24 more tokens, including status/resource fields).
+Three automatic-check rows were 274 tokens versus 121 for the actual summary
+(55.84% fewer). These comparisons exclude tool schemas, transport framing,
+prompts and billed agent usage. The full offline regression run passed 778
+tests; the three focused summary tests passed again after the final response
+size cleanup. Three-export contract/matrix, compileall and diff checks passed.
+Hosted CI is pending. Live support remains unknown.

@@ -959,6 +959,30 @@ class FakeOpenApiClient:
                 "field_presence": {"scheduled_time": {"present": 1, "missing": 0}},
                 "scheduled_time_interpreted": False}
 
+    def read_controller_try_beta_settings_summary(self) -> dict[str, object]:
+        self.calls.append(("controller_try_beta_settings_summary",))
+        return {"status": "ok", "resource": "controller_try_beta_settings_summary",
+                "preview_firmware_enabled": None, "preview_firmware_channel": "unknown",
+                "partial": True}
+
+    def read_controller_auto_check_upgrade_summary(self) -> dict[str, object]:
+        self.calls.append(("controller_auto_check_upgrade_summary",))
+        return {"status": "ok", "resource": "controller_auto_check_upgrade_summary",
+                "plan_count": 0, "channel_counts": {}, "site_association_count": 0,
+                "partial": False}
+
+    def read_controller_try_beta_settings_summary(self) -> dict[str, object]:
+        self.calls.append(("controller_try_beta_settings_summary",))
+        return {"status": "ok", "resource": "controller_try_beta_settings_summary",
+                "preview_firmware_enabled": None, "preview_firmware_channel": "unknown",
+                "partial": True}
+
+    def read_controller_auto_check_upgrade_summary(self) -> dict[str, object]:
+        self.calls.append(("controller_auto_check_upgrade_summary",))
+        return {"status": "ok", "resource": "controller_auto_check_upgrade_summary",
+                "plan_count": 0, "channel_counts": {}, "site_association_count": 0,
+                "partial": False}
+
     def read_controller_global_log_notification_summary(self) -> dict[str, object]:
         self.calls.append(("controller_global_log_notification_summary",))
         return {"status": "ok", "resource": "controller_global_log_notification_summary",
@@ -5332,6 +5356,57 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(response["result"]["structuredContent"], direct)
         self.assertEqual(self.fake.calls, [("controller_upgrade_plans_summary",)] * 2)
+
+    def test_http_and_mcp_expose_controller_try_beta_settings(self) -> None:
+        path = "/v1/controller/firmware-preview-settings/summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200, f"{direct!r} calls={self.fake.calls!r}")
+        request = {"jsonrpc": "2.0", "id": 256, "method": "tools/call",
+                   "params": {"name": "omada_controller_try_beta_settings_summary",
+                              "arguments": {}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("controller_try_beta_settings_summary",)] * 2)
+
+    def test_http_and_mcp_expose_controller_auto_check_upgrade_summary(self) -> None:
+        path = "/v1/controller/automatic-firmware-checks/summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200, f"{direct!r} calls={self.fake.calls!r}")
+        request = {"jsonrpc": "2.0", "id": 257, "method": "tools/call",
+                   "params": {"name": "omada_controller_auto_check_upgrade_summary",
+                              "arguments": {}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("controller_auto_check_upgrade_summary",)] * 2)
+
+    def test_http_and_mcp_expose_controller_try_beta_settings(self) -> None:
+        path = "/v1/controller/firmware-preview-settings/summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200, f"{direct!r} calls={self.fake.calls!r}")
+        request = {"jsonrpc": "2.0", "id": 256, "method": "tools/call",
+                   "params": {"name": "omada_controller_try_beta_settings_summary",
+                              "arguments": {}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls, [("controller_try_beta_settings_summary",)] * 2)
+
+    def test_http_and_mcp_expose_controller_auto_check_upgrade_summary(self) -> None:
+        path = "/v1/controller/automatic-firmware-checks/summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200, f"{direct!r} calls={self.fake.calls!r}")
+        request = {"jsonrpc": "2.0", "id": 257, "method": "tools/call",
+                   "params": {"name": "omada_controller_auto_check_upgrade_summary",
+                              "arguments": {}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("controller_auto_check_upgrade_summary",)] * 2)
 
     def test_http_and_mcp_expose_controller_global_log_notifications(self) -> None:
         path = "/v1/controller/log-notifications/summary"

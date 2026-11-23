@@ -357,6 +357,70 @@ class OpenApiClientTests(unittest.TestCase):
         self.assertIn("/upgrade/overview/plans?page=1&pageSize=2",
                       request.call_args.args[1])
 
+    def test_controller_try_beta_settings_reads_two_sources_and_marks_missing_fields(self):
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", side_effect=[
+                    {"result": {"enable": True}}, {"result": {"channel": 1}}]) as request:
+            result = self.client.read_controller_try_beta_settings_summary()
+        self.assertTrue(result["preview_firmware_enabled"])
+        self.assertEqual(result["preview_firmware_channel"], "release_candidate")
+        self.assertFalse(result["partial"])
+        self.assertEqual([call.args[1] for call in request.call_args_list], [
+            "/openapi/v1/controller_1/upgrade/overview/try-beta",
+            "/openapi/v1/controller_1/upgrade/overview/try-beta/channel",
+        ])
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", side_effect=[
+                    {"result": {}}, {"result": {"channel": 9}}]):
+            incomplete = self.client.read_controller_try_beta_settings_summary()
+        self.assertIsNone(incomplete["preview_firmware_enabled"])
+        self.assertEqual(incomplete["preview_firmware_channel"], "unknown")
+        self.assertTrue(incomplete["partial"])
+
+    def test_controller_auto_check_upgrade_summary_bounds_pages_and_redacts_details(self):
+        rows = [
+            {"id": "private-plan", "modelTypeInfos": [{"showModel": "Private model"}],
+             "siteNames": ["Private site"], "siteNum": 2, "autoCheckTime": "private-time",
+             "channel": 2, "occurrence": {"hour": 2, "minute": 15}},
+            {"siteNum": 1, "channel": 0},
+            {"siteNum": 4, "channel": 8},
+        ]
+        pages = [
+            {"result": {"totalRows": 3, "currentPage": 1, "currentSize": 2,
+                        "data": rows[:2]}},
+            {"result": {"totalRows": 3, "currentPage": 2, "currentSize": 1,
+                        "data": rows[2:]}},
+        ]
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", side_effect=pages) as request:
+            result = self.client.read_controller_auto_check_upgrade_summary()
+        self.assertEqual(result["channel_counts"], {
+            "stable": 1, "release_candidate": 0, "beta": 1, "unknown": 1})
+        self.assertEqual(result["site_association_count"], 7)
+        self.assertEqual(result["pages_fetched"], 2)
+        self.assertTrue(result["partial"])
+        self.assertEqual([call.args[1] for call in request.call_args_list], [
+            "/openapi/v1/controller_1/upgrade/autoCheck?page=1&pageSize=2",
+            "/openapi/v1/controller_1/upgrade/autoCheck?page=2&pageSize=2",
+        ])
+        for secret in ("private-plan", "Private model", "Private site", "private-time"):
+            self.assertNotIn(secret, json.dumps(result))
+
+    def test_controller_auto_check_upgrade_marks_missing_fields_and_rejects_bad_page(self):
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={"result": {
+                    "totalRows": 1, "currentPage": 1, "currentSize": 1,
+                    "data": [{}]}}):
+            result = self.client.read_controller_auto_check_upgrade_summary()
+        self.assertTrue(result["partial"])
+        self.assertEqual(result["channel_counts"]["unknown"], 1)
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={"result": {
+                    "totalRows": 1, "currentPage": 2, "currentSize": 1,
+                    "data": [{"siteNum": 1, "channel": 0}]}}):
+            with self.assertRaisesRegex(OpenApiError, "openapi_response_invalid"):
+                self.client.read_controller_auto_check_upgrade_summary()
+
     def test_site_lan_multicast_read_paginates_and_redacts_configuration(self):
         site_ref = "a" * 24
         self.client._site_ids_by_ref[site_ref] = "site-1"

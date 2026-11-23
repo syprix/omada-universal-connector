@@ -3140,6 +3140,40 @@
           "live_support": "unknown",
           "source_operation_id": "listServiceType",
           "response_contract": "GET paginated service profiles; totalRows/currentPage/currentSize/data, with optional defaultProfile boolean and protocol int32; documented protocol values 0 TCP, 1 UDP, 2 TCP/UDP, 3 ICMP, 4 Other."
+        },
+        "controller_try_beta_settings_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_ids": [
+              "getTryBetaStatus",
+              "getTryBetaChannel"
+            ],
+            "permission": "Site Manual Firmware Upgrade View Only",
+            "paths": [
+              "GET /openapi/v1/{omadacId}/upgrade/overview/try-beta",
+              "GET /openapi/v1/{omadacId}/upgrade/overview/try-beta/channel"
+            ],
+            "response": "The first result requires enable:boolean. The second requires channel:int32 with documented values 0=Stable, 1=Release Candidate, 2=Beta.",
+            "projection": "Two fixed controller GETs are summarized separately as the enable switch and selected-channel category. Missing values and unknown channel codes are partial. A selected channel does not confirm an update, available firmware or device support."
+          }
+        },
+        "controller_auto_check_upgrade_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridAutoCheckUpgrade",
+            "permission": "Site Manual Firmware Upgrade View Only",
+            "path": "GET /openapi/v1/{omadacId}/upgrade/autoCheck",
+            "query": {
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, 1–1000; connector caps each page at 100",
+              "sorts.autoCheckTime": "optional string, not sent",
+              "searchKey": "optional string, not sent"
+            },
+            "response": "OperationResponseGridVOAutoCheckUpgradeInfo resolves to a paged grid with totalRows:int64, currentPage/currentSize:int32 and AutoCheckUpgradeInfo rows. siteNum is int32 selected-site count. channel is int32 with documented values 0=stable, 1=Release Candidate, 2=Beta. Rows also include IDs, model details, site names, autoCheckTime and occurrence schedule fields.",
+            "projection": "Reads at most 10 pages of 100 rows. Aggregates documented plan-channel counts and selected-site association totals; missing fields and unknown channel codes remain partial/unknown. Omits identifiers, names, models and schedule values; does not start an update."
+          }
         }
       }
     },
@@ -6224,6 +6258,40 @@
           "live_support": "unknown",
           "source_operation_id": "listServiceType",
           "response_contract": "GET paginated service profiles; totalRows/currentPage/currentSize/data, with optional defaultProfile boolean and protocol int32; documented protocol values 0 TCP, 1 UDP, 2 TCP/UDP, 3 ICMP, 4 Other."
+        },
+        "controller_try_beta_settings_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_ids": [
+              "getTryBetaStatus",
+              "getTryBetaChannel"
+            ],
+            "permission": "Site Manual Firmware Upgrade View Only",
+            "paths": [
+              "GET /openapi/v1/{omadacId}/upgrade/overview/try-beta",
+              "GET /openapi/v1/{omadacId}/upgrade/overview/try-beta/channel"
+            ],
+            "response": "The first result requires enable:boolean. The second requires channel:int32 with documented values 0=Stable, 1=Release Candidate, 2=Beta.",
+            "projection": "Two fixed controller GETs are summarized separately as the enable switch and selected-channel category. Missing values and unknown channel codes are partial. A selected channel does not confirm an update, available firmware or device support."
+          }
+        },
+        "controller_auto_check_upgrade_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridAutoCheckUpgrade",
+            "permission": "Site Manual Firmware Upgrade View Only",
+            "path": "GET /openapi/v1/{omadacId}/upgrade/autoCheck",
+            "query": {
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, 1–1000; connector caps each page at 100",
+              "sorts.autoCheckTime": "optional string, not sent",
+              "searchKey": "optional string, not sent"
+            },
+            "response": "OperationResponseGridVOAutoCheckUpgradeInfo resolves to a paged grid with totalRows:int64, currentPage/currentSize:int32 and AutoCheckUpgradeInfo rows. siteNum is int32 selected-site count. channel is int32 with documented values 0=stable, 1=Release Candidate, 2=Beta. Rows also include IDs, model details, site names, autoCheckTime and occurrence schedule fields.",
+            "projection": "Reads at most 10 pages of 100 rows. Aggregates documented plan-channel counts and selected-site association totals; missing fields and unknown channel codes remain partial/unknown. Omits identifiers, names, models and schedule values; does not start an update."
+          }
         }
       }
     },
@@ -9246,6 +9314,40 @@
           "live_support": "unknown",
           "source_operation_id": "listServiceType",
           "response_contract": "GET paginated service profiles; totalRows/currentPage/currentSize/data, with optional defaultProfile boolean and protocol int32; documented protocol values 0 TCP, 1 UDP, 2 TCP/UDP, 3 ICMP, 4 Other."
+        },
+        "controller_try_beta_settings_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_ids": [
+              "getTryBetaStatus",
+              "getTryBetaChannel"
+            ],
+            "permission": "Site Manual Firmware Upgrade View Only",
+            "paths": [
+              "GET /openapi/v1/{omadacId}/upgrade/overview/try-beta",
+              "GET /openapi/v1/{omadacId}/upgrade/overview/try-beta/channel"
+            ],
+            "response": "The first result requires enable:boolean. The second requires channel:int32 with documented values 0=Stable, 1=Release Candidate, 2=Beta.",
+            "projection": "Two fixed controller GETs are summarized separately as the enable switch and selected-channel category. Missing values and unknown channel codes are partial. A selected channel does not confirm an update, available firmware or device support."
+          }
+        },
+        "controller_auto_check_upgrade_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridAutoCheckUpgrade",
+            "permission": "Site Manual Firmware Upgrade View Only",
+            "path": "GET /openapi/v1/{omadacId}/upgrade/autoCheck",
+            "query": {
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, 1–1000; connector caps each page at 100",
+              "sorts.autoCheckTime": "optional string, not sent",
+              "searchKey": "optional string, not sent"
+            },
+            "response": "OperationResponseGridVOAutoCheckUpgradeInfo resolves to a paged grid with totalRows:int64, currentPage/currentSize:int32 and AutoCheckUpgradeInfo rows. siteNum is int32 selected-site count. channel is int32 with documented values 0=stable, 1=Release Candidate, 2=Beta. Rows also include IDs, model details, site names, autoCheckTime and occurrence schedule fields.",
+            "projection": "Reads at most 10 pages of 100 rows. Aggregates documented plan-channel counts and selected-site association totals; missing fields and unknown channel codes remain partial/unknown. Omits identifiers, names, models and schedule values; does not start an update."
+          }
         }
       }
     }

@@ -962,6 +962,8 @@ A synthetic single-record source response measured 32 tokens before projection a
 
 `omada_controller_upgrade_model_list_summary` is controller-scoped and reads up to 1,000 planned model rows. It returns only model metadata coverage and documented critical/upgrade status counts. Model names and firmware versions are omitted; it does not initiate updates or infer per-device compatibility. HTTP and MCP routing are fixture-tested; live support is unknown.
 
+`omada_controller_try_beta_settings_summary` reads the documented preview-firmware enable switch and channel through two fixed controller GETs. Missing fields are marked incomplete; the selected channel does not confirm an update or firmware status. `omada_controller_auto_check_upgrade_summary` reads up to 10 pages of 100 plans and counts documented channels and site associations. It omits names, model details, IDs, schedule values and recurrence, and never starts an update. Both are fixture-tested over HTTP and MCP; live support is unknown.
+
 `omada_site_s2s_vpn_inventory_summary` lists same-site opaque VPN references and documented VPN types. Use one returned `vpn_ref` with `omada_site_s2s_peer_status_summary`; that read refreshes and checks the VPN against the selected site's inventory before requesting peers. It returns only peer status counts (0 disconnected, 1 connected); other codes and missing status stay unknown. It omits peer/VPN identities, addresses, names and traffic. These are separate from the general S2S tunnel/IPsec association summaries. Live support is unknown.
 
 `omada_site_nat_exception_summary` summarizes documented NAT exception
@@ -1118,3 +1120,12 @@ no typed grid contract; unsupported response shapes are rejected.
 switch match, and counts documented data-valid, transmit-fault and signal-loss
 flags. Port values and optical measurements are omitted; no health diagnosis
 is inferred. ER7212PC lacks an effective row contract.
+
+`omada_controller_try_beta_settings_summary` combines the documented firmware
+preview enable switch and channel from two fixed controller GETs. Missing
+values or unknown channel codes are marked incomplete. The selected channel
+does not confirm an update or device support. `omada_controller_auto_check_upgrade_summary`
+reads at most ten pages of 100 configured automatic-check plans and counts
+documented channels and selected-site associations. It omits IDs, names, models,
+schedule values and recurrence, and does not start an update. Both are
+fixture-tested over HTTP and MCP; live support is unknown.
