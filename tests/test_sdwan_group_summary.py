@@ -52,6 +52,19 @@ class SdWanGroupSummaryTests(unittest.TestCase):
         self.assertEqual(result["omitted_group_count"], 2)
         self.assertTrue(result["partial"])
 
+    def test_inventory_returns_only_opaque_refs_for_unique_group_ids(self) -> None:
+        client = OmadaOpenApiClient(OpenApiConfig(
+            "https://controller.example", "ctrl", "id", "secret",
+            cert_sha256="a" * 64, page_size=100, max_pages=10))
+        with patch.object(client, "_access_token", return_value="token"), \
+                patch.object(client, "_read_bounded_grid_rows", return_value=(
+                    [{"id": "private-group", "name": "private-name", "deviceNum": 1}], 0)):
+            result = client.read_controller_sdwan_group_summary()
+        self.assertEqual(result["group_ref_count"], 1)
+        self.assertRegex(result["group_refs"][0], r"^[0-9a-f]{24}$")
+        self.assertNotIn("private-group", repr(result))
+        self.assertNotIn("private-name", repr(result))
+
     def test_request_guard_binds_controller_and_limits_pagination(self) -> None:
         client = OmadaOpenApiClient(OpenApiConfig(
             "https://controller.example", "ctrl", "id", "secret",

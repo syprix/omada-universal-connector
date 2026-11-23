@@ -164,7 +164,7 @@ class OperationRegistry:
             if ("$incident_context_mac" in bindings.values() and
                     "incident_ref" not in public_vars):
                 raise RegistryError("incident context requires an opaque incident reference")
-            if any(name not in {"site_ref", "history_ref", "incident_ref", "device_ref", "gateway_ref", "switch_ref", "stack_ref", "client_ref", "ssid_ref", "wlan_group_ref", "network_ref", "wan_port_ref", "site_template_ref", "msp_ref", "customer_ref", "vpn_ref", "family_id", "application_id", "port"}
+            if any(name not in {"site_ref", "history_ref", "incident_ref", "device_ref", "gateway_ref", "switch_ref", "stack_ref", "client_ref", "ssid_ref", "wlan_group_ref", "network_ref", "wan_port_ref", "site_template_ref", "msp_ref", "customer_ref", "vpn_ref", "group_ref", "family_id", "application_id", "port"}
                    for name in public_vars):
                 raise RegistryError("unsupported public reference binding")
             if item.evidence != "unknown":
@@ -783,6 +783,10 @@ REGISTRY = OperationRegistry((
               "/v1/sites/{site_ref}/vpn/servers/config-summary", "GET",
               "/openapi/v2/{controller_id}/sites/{site_id}/vpn/client-to-site-vpn-servers",
               (("controller_id", "$config"), ("site_id", "site_ref")), max_items=1000),
+    Operation("site_vpn_client_config_summary", "GET",
+              "/v1/sites/{site_ref}/vpn/clients/config-summary", "GET",
+              "/openapi/v2/{controller_id}/sites/{site_id}/vpn/client-to-site-vpn-clients",
+              (("controller_id", "$config"), ("site_id", "site_ref")), max_items=1000),
     Operation("site_remote_access_tunnel_status_summary", "GET",
               "/v1/sites/{site_ref}/remote-access/tunnels/status-summary", "GET",
               "/openapi/v1/{controller_id}/sites/{site_id}/remoteAccess/tunnel/status",
@@ -1122,6 +1126,10 @@ Operation("site_stack_connections_summary", "GET",
               "/v1/controller/sdwan-groups/summary", "GET",
               "/openapi/v1/{controller_id}/sdwan/sdwan-group/brief",
               (("controller_id", "$config"),), max_items=1000),
+    Operation("controller_sdwan_group_devices_summary", "GET",
+              "/v1/controller/sdwan-groups/{group_ref}/devices/summary", "GET",
+              "/openapi/v1/{controller_id}/sdwan/sdwan-group/saved/devices/{group_id}",
+              (("controller_id", "$config"), ("group_id", "group_ref")), max_items=1000),
     Operation("site_client_health_timeline", "GET",
               "/v1/sites/{site_ref}/health/client/timeline", "GET",
               "/openapi/v1/{controller_id}/sites/{site_id}/health/client/timeline",

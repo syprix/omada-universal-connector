@@ -2863,6 +2863,44 @@
             "response": "Paginated GridVOClassRuleDetailOpenApiVO with data[] ClassRuleDetailOpenApiVO rows. All three exports document required enable:boolean, ipVersion:int32 (0 IPv4, 1 IPv6) and classType:int32 (1, 2 or 3). Rows also contain address-group references, DSCP and service identifiers.",
             "projection": "Reads at most 1,000 rows in pages of 100. Counts documented enabled/disabled states, IP version codes and class codes. Omits local/remote address values, service IDs, names, rule IDs and DSCP values. Reports configuration only; no traffic, matching or throughput is inferred."
           }
+        },
+        "site_vpn_client_config_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridVpnClientV2",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path": "GET /openapi/v2/{omadacId}/sites/{siteId}/vpn/client-to-site-vpn-clients",
+            "query": {
+              "required": [
+                "page:int32 (minimum 1)",
+                "pageSize:int32 (1–1000)"
+              ],
+              "optional_not_used": [
+                "searchKey",
+                "filters.vpnType",
+                "sorts.wans"
+              ]
+            },
+            "request_body": false,
+            "response": "Paginated VpnSummaryOpenApiGridVOVpnSummaryVO with data[] VpnSummaryVO rows. vpnType is int32 with documented codes 0 L2TP, 1 PPTP, 3 OpenVPN, 4 WireGuard. status is an optional boolean described as VPN status; identity, WAN/network, peer, user and client values are outside this projection.",
+            "projection": "Counts rows by documented vpnType and boolean VPN status true/false/unreported. Omits identities, addresses, peers, credentials, WAN/network settings and other row values. The status flag is not interpreted as a live tunnel connection."
+          }
+        },
+        "controller_sdwan_group_devices_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getSdWanGroupDevices",
+            "permission": "SD WAN View Only",
+            "path": "GET /openapi/v1/{omadacId}/sdwan/sdwan-group/saved/devices/{groupId}",
+            "query": {
+              "required": []
+            },
+            "request_body": false,
+            "response": "OperationResponseSdWanCurrentSelectedDeviceInfo returns result.port as an array of SdWanCandidateDevice. The candidate schema documents device identity, site, WAN, model, status and network/port fields plus supportSdWanNat:boolean.",
+            "projection": "Accepts only an opaque ref from a fresh, uniquely matching getGridSdWanGroupBrief inventory. Counts returned member entries and the boolean supportSdWanNat field. Omits all identifiers, names, WAN IPs, status and member fields. No routing or traffic outcome is inferred."
+          }
         }
       }
     },
@@ -5699,6 +5737,44 @@
             "response": "Paginated GridVOClassRuleDetailOpenApiVO with data[] ClassRuleDetailOpenApiVO rows. All three exports document required enable:boolean, ipVersion:int32 (0 IPv4, 1 IPv6) and classType:int32 (1, 2 or 3). Rows also contain address-group references, DSCP and service identifiers.",
             "projection": "Reads at most 1,000 rows in pages of 100. Counts documented enabled/disabled states, IP version codes and class codes. Omits local/remote address values, service IDs, names, rule IDs and DSCP values. Reports configuration only; no traffic, matching or throughput is inferred."
           }
+        },
+        "site_vpn_client_config_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridVpnClientV2",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path": "GET /openapi/v2/{omadacId}/sites/{siteId}/vpn/client-to-site-vpn-clients",
+            "query": {
+              "required": [
+                "page:int32 (minimum 1)",
+                "pageSize:int32 (1–1000)"
+              ],
+              "optional_not_used": [
+                "searchKey",
+                "filters.vpnType",
+                "sorts.wans"
+              ]
+            },
+            "request_body": false,
+            "response": "Paginated VpnSummaryOpenApiGridVOVpnSummaryVO with data[] VpnSummaryVO rows. vpnType is int32 with documented codes 0 L2TP, 1 PPTP, 3 OpenVPN, 4 WireGuard. status is an optional boolean described as VPN status; identity, WAN/network, peer, user and client values are outside this projection.",
+            "projection": "Counts rows by documented vpnType and boolean VPN status true/false/unreported. Omits identities, addresses, peers, credentials, WAN/network settings and other row values. The status flag is not interpreted as a live tunnel connection."
+          }
+        },
+        "controller_sdwan_group_devices_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getSdWanGroupDevices",
+            "permission": "SD WAN View Only",
+            "path": "GET /openapi/v1/{omadacId}/sdwan/sdwan-group/saved/devices/{groupId}",
+            "query": {
+              "required": []
+            },
+            "request_body": false,
+            "response": "OperationResponseSdWanCurrentSelectedDeviceInfo returns result.port as an array of SdWanCandidateDevice. The candidate schema documents device identity, site, WAN, model, status and network/port fields plus supportSdWanNat:boolean.",
+            "projection": "Accepts only an opaque ref from a fresh, uniquely matching getGridSdWanGroupBrief inventory. Counts returned member entries and the boolean supportSdWanNat field. Omits all identifiers, names, WAN IPs, status and member fields. No routing or traffic outcome is inferred."
+          }
         }
       }
     },
@@ -8494,6 +8570,33 @@
             "response": "Paginated GridVOClassRuleDetailOpenApiVO with data[] ClassRuleDetailOpenApiVO rows. All three exports document required enable:boolean, ipVersion:int32 (0 IPv4, 1 IPv6) and classType:int32 (1, 2 or 3). Rows also contain address-group references, DSCP and service identifiers.",
             "projection": "Reads at most 1,000 rows in pages of 100. Counts documented enabled/disabled states, IP version codes and class codes. Omits local/remote address values, service IDs, names, rule IDs and DSCP values. Reports configuration only; no traffic, matching or throughput is inferred."
           }
+        },
+        "site_vpn_client_config_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridVpnClientV2",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path": "GET /openapi/v2/{omadacId}/sites/{siteId}/vpn/client-to-site-vpn-clients",
+            "query": {
+              "required": [
+                "page:int32 (minimum 1)",
+                "pageSize:int32 (1–1000)"
+              ],
+              "optional_not_used": [
+                "searchKey",
+                "filters.vpnType",
+                "sorts.wans"
+              ]
+            },
+            "request_body": false,
+            "response": "Paginated VpnSummaryOpenApiGridVOVpnSummaryVO with data[] VpnSummaryVO rows. vpnType is int32 with documented codes 0 L2TP, 1 PPTP, 3 OpenVPN, 4 WireGuard. status is an optional boolean described as VPN status; identity, WAN/network, peer, user and client values are outside this projection.",
+            "projection": "Counts rows by documented vpnType and boolean VPN status true/false/unreported. Omits identities, addresses, peers, credentials, WAN/network settings and other row values. The status flag is not interpreted as a live tunnel connection."
+          }
+        },
+        "controller_sdwan_group_devices_summary": {
+          "documented": false,
+          "live_support": "unknown"
         }
       }
     }

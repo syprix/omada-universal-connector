@@ -159,12 +159,29 @@ class OperationRegistryTests(unittest.TestCase):
         self.assertEqual(route.operation_id, "controller_sdwan_group_summary")
         self.assertEqual(dict(bindings), {})
 
+    def test_controller_sdwan_group_devices_summary_takes_opaque_group_ref(self):
+        operation = REGISTRY.get("controller_sdwan_group_devices_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"], ["group_ref"])
+        group_ref = "a" * 24
+        route, bindings = REGISTRY.match(
+            "GET", f"/v1/controller/sdwan-groups/{group_ref}/devices/summary")
+        self.assertEqual(route.operation_id, "controller_sdwan_group_devices_summary")
+        self.assertEqual(dict(bindings), {"group_ref": group_ref})
+
     def test_site_vpn_server_config_summary_is_a_site_bound_read(self):
         operation = REGISTRY.get("site_vpn_server_config_summary")
         self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
         route, bindings = REGISTRY.match(
             "GET", "/v1/sites/" + "a" * 24 + "/vpn/servers/config-summary")
         self.assertEqual(route.operation_id, "site_vpn_server_config_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
+
+    def test_site_vpn_client_config_summary_is_a_site_bound_read(self):
+        operation = REGISTRY.get("site_vpn_client_config_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/vpn/clients/config-summary")
+        self.assertEqual(route.operation_id, "site_vpn_client_config_summary")
         self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
 
     def test_site_remote_access_tunnel_status_summary_is_site_bound(self):
@@ -902,6 +919,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_gateway_webfilter_summary",
             "site_gateway_qos_class_summary",
             "site_vpn_server_config_summary",
+            "site_vpn_client_config_summary",
             "site_remote_access_tunnel_status_summary",
             "site_vpn_server_status_summary",
             "site_vpn_client_status_summary",
@@ -981,6 +999,7 @@ class OperationRegistryTests(unittest.TestCase):
 "site_stack_connections_summary",
             "site_stack_network_summary",
             "controller_sdwan_group_summary",
+            "controller_sdwan_group_devices_summary",
             "site_client_health_timeline",
             "site_wifi_summary",
             "site_6ghz_ap_presence",
