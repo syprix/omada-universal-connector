@@ -164,7 +164,7 @@ class OperationRegistry:
             if ("$incident_context_mac" in bindings.values() and
                     "incident_ref" not in public_vars):
                 raise RegistryError("incident context requires an opaque incident reference")
-            if any(name not in {"site_ref", "history_ref", "incident_ref", "device_ref", "gateway_ref", "switch_ref", "client_ref", "ssid_ref", "wlan_group_ref", "network_ref", "wan_port_ref", "site_template_ref", "msp_ref", "customer_ref", "vpn_ref", "family_id", "application_id", "port"}
+            if any(name not in {"site_ref", "history_ref", "incident_ref", "device_ref", "gateway_ref", "switch_ref", "stack_ref", "client_ref", "ssid_ref", "wlan_group_ref", "network_ref", "wan_port_ref", "site_template_ref", "msp_ref", "customer_ref", "vpn_ref", "family_id", "application_id", "port"}
                    for name in public_vars):
                 raise RegistryError("unsupported public reference binding")
             if item.evidence != "unknown":
@@ -1085,6 +1085,11 @@ Operation("site_stack_connections_summary", "GET",
               "/v1/sites/{site_ref}/stack-connections-summary", "GET",
               "/openapi/v1/{controller_id}/sites/{site_id}/stacks",
               (("controller_id", "$config"), ("site_id", "site_ref")), max_items=32),
+    Operation("site_stack_network_summary", "GET",
+              "/v1/sites/{site_ref}/stacks/{stack_ref}/networks-summary", "GET",
+              "/openapi/v1/{controller_id}/sites/{site_id}/stacks/{stack_id}/networks",
+              (("controller_id", "$config"), ("site_id", "site_ref"),
+               ("stack_id", "stack_ref")), max_items=1000),
     Operation("site_client_health_timeline", "GET",
               "/v1/sites/{site_ref}/health/client/timeline", "GET",
               "/openapi/v1/{controller_id}/sites/{site_id}/health/client/timeline",

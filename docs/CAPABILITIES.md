@@ -912,6 +912,14 @@ unknown and no live controller read was made. The existing site topology
 response includes the same stack section and marks the combined report partial
 when stack coverage is incomplete.
 
+`site_stack_network_summary` accepts one `stack_ref` from the site's stack
+connection summary, refreshes the site stack list, and binds that reference to
+exactly one current stack before reading `getStackNetworkList`. It reports
+bounded row counts, documented DHCP modes, state and IPv6 coverage. VLAN IDs,
+network IDs/names, member details, addresses, DHCP settings and VRF identifiers
+are omitted. The read caps at 1,000 rows and reports omissions. Offline tests
+cover binding and projection; no stack hardware was available for live testing.
+
 
 Gateway health timeline is a redacted read using an opaque inventoried
 `gateway_ref` and a fixed 24-hour interval. It returns millisecond timestamps

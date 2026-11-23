@@ -2828,6 +2828,13 @@ class FakeOpenApiClient:
         self.calls.append(("site_stack_connections_summary", site_ref))
         return {"status": "ok", "resource": "site_stack_connections_summary",
                 "site_ref": site_ref, "data": {"stacks": []}, "partial": False}
+
+    def read_site_stack_network_summary(self, site_ref: str,
+                                        stack_ref: str) -> dict[str, object]:
+        self.calls.append(("site_stack_network_summary", site_ref, stack_ref))
+        return {"status": "ok", "resource": "site_stack_network_summary",
+                "site_ref": site_ref, "stack_ref": stack_ref,
+                "reported_network_count": 3}
     def read_client_health_detail_v2(self, site_ref: str, client_ref: str) -> dict[str, object]:
         self.calls.append(("client_health_detail_v2", site_ref + ":" + client_ref))
         return {"status": "ok", "resource": "client_health_detail_v2",
@@ -9347,6 +9354,23 @@ class OpenApiHttpTests(unittest.TestCase):
                          "site_stack_connections_summary")
         self.assertEqual(self.fake.calls,
                          [("site_stack_connections_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_selected_stack_network_summary(self) -> None:
+        site_ref, stack_ref = "a" * 24, "b" * 24
+        path = f"/v1/sites/{site_ref}/stacks/{stack_ref}/networks-summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(direct["resource"], "site_stack_network_summary")
+        request = {"jsonrpc": "2.0", "id": 307, "method": "tools/call",
+                   "params": {"name": "omada_site_stack_network_summary",
+                              "arguments": {"site_ref": site_ref,
+                                            "stack_ref": stack_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertIn("result", response, repr(response))
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_stack_network_summary", site_ref, stack_ref)] * 2)
     def test_http_and_mcp_expose_redacted_client_health_detail_v2(self) -> None:
         site_ref, client_ref = "a" * 24, "b" * 24
         path = f"/v1/sites/{site_ref}/clients/{client_ref}/health/detail-v2"

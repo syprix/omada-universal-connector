@@ -915,6 +915,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_reboot_schedule_summary",
 
 "site_stack_connections_summary",
+            "site_stack_network_summary",
             "site_client_health_timeline",
             "site_wifi_summary",
             "site_6ghz_ap_presence",
