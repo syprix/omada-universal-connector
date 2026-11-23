@@ -179,6 +179,17 @@ class OperationRegistryTests(unittest.TestCase):
         self.assertEqual(dict(bindings), {"site_ref": "a" * 24,
                                           "stack_ref": "b" * 24})
 
+    def test_site_stack_vlan_interface_summary_binds_site_and_stack(self):
+        operation = REGISTRY.get("site_stack_vlan_interface_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"],
+                         ["site_ref", "stack_ref"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/stacks/" + "b" * 24 +
+            "/vlan-interfaces/summary")
+        self.assertEqual(route.operation_id, "site_stack_vlan_interface_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24,
+                                          "stack_ref": "b" * 24})
+
     def test_site_switch_oui_vlan_summary_is_site_bound(self):
         operation = REGISTRY.get("site_switch_oui_vlan_summary")
         self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
@@ -1055,6 +1066,8 @@ class OperationRegistryTests(unittest.TestCase):
 "site_stack_connections_summary",
             "site_stack_network_summary",
             "site_stack_dhcp_user_summary",
+            "site_stack_vlan_interface_summary",
+            "site_snmp_incompatible_summary",
             "site_switch_oui_vlan_summary",
             "controller_sdwan_group_summary",
             "controller_sdwan_group_devices_summary",

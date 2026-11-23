@@ -1287,8 +1287,12 @@ class OmadaOpenApiClient:
         "/openapi/v1/{controller_id}/sites/{site_id}/stacks/{stack_id}/networks")
     _SITE_STACK_DHCP_USERS_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/stack/{stack_id}/dhcp/user-list")
+    _SITE_STACK_VLAN_INTERFACES_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/vlan-interface/stack/{stack_id}")
     _SITE_SWITCH_OUI_VLAN_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/switch-oui-rules")
+    _SITE_SNMP_INCOMPATIBLE_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/setting/service/snmp/incompatible-devices")
     _CONTROLLER_SDWAN_GROUP_BRIEF_PATH = "/openapi/v1/{controller_id}/sdwan/sdwan-group/brief"
     _CONTROLLER_SDWAN_GROUP_DEVICES_PATH = (
         "/openapi/v1/{controller_id}/sdwan/sdwan-group/saved/devices/{group_id}")
@@ -2191,9 +2195,17 @@ class OmadaOpenApiClient:
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})/stack/"
         r"([A-Za-z0-9_-]{1,128})/dhcp/user-list\?page=([1-9][0-9]*)&pageSize=(?:1000|[1-9][0-9]{0,2})"
     )
+    _SITE_STACK_VLAN_INTERFACES_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})/"
+        r"vlan-interface/stack/([A-Za-z0-9_-]{1,128})"
+    )
     _SITE_SWITCH_OUI_VLAN_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})/"
         r"switch-oui-rules\?page=([1-9][0-9]*)&pageSize=(1000|[1-9][0-9]{0,2})"
+    )
+    _SITE_SNMP_INCOMPATIBLE_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})/"
+        r"setting/service/snmp/incompatible-devices\?page=([1-9][0-9]*)&pageSize=(1000|[1-9][0-9]{0,2})"
     )
     _CONTROLLER_SDWAN_GROUP_BRIEF_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sdwan/sdwan-group/brief"
@@ -3030,6 +3042,9 @@ class OmadaOpenApiClient:
         ("site_stack_connections_summary", "GET /v1/sites/{site_ref}/stack-connections-summary"),
         ("site_stack_network_summary", "GET /v1/sites/{site_ref}/stacks/{stack_ref}/networks-summary"),
         ("site_stack_dhcp_user_summary", "GET /v1/sites/{site_ref}/stacks/{stack_ref}/dhcp-users/summary"),
+        ("site_stack_vlan_interface_summary", "GET /v1/sites/{site_ref}/stacks/{stack_ref}/vlan-interfaces/summary"),
+        ("site_snmp_incompatible_summary", "GET /v1/sites/{site_ref}/snmp/incompatible-devices/summary"),
+        ("site_stack_vlan_interface_summary", "GET /v1/sites/{site_ref}/stacks/{stack_ref}/vlan-interfaces/summary"),
         ("site_switch_oui_vlan_summary", "GET /v1/sites/{site_ref}/switches/oui-vlan-rules/summary"),
         ("controller_sdwan_group_summary", "GET /v1/controller/sdwan-groups/summary"),
         ("controller_sdwan_group_devices_summary", "GET /v1/controller/sdwan-groups/{group_ref}/devices/summary"),
@@ -11330,6 +11345,72 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {"site_ref": site_ref, **projected}
 
+    @_track_capability("site_stack_vlan_interface_summary")
+    def read_site_stack_vlan_interface_summary(
+            self, site_ref: str, stack_ref: str) -> dict[str, object]:
+        """Summarize documented VLAN-interface coverage for one fresh stack ref."""
+        site_id = self._resolve_site_ref(site_ref)
+        if not isinstance(stack_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", stack_ref):
+            raise OpenApiError("stack_ref_invalid")
+
+        token = self._access_token()
+        stack_rows, stack_omitted = self._read_bounded_grid_rows(
+            self._SITE_STACK_LIST_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id),
+            token, 32, require_success_code=True)
+        if stack_omitted:
+            raise OpenApiError("stack_inventory_incomplete")
+
+        matches: list[str] = []
+        seen: set[str] = set()
+        for row in stack_rows:
+            stack_id = row.get("id") if isinstance(row, Mapping) else None
+            if (type(stack_id) is not str or
+                    not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", stack_id) or
+                    stack_id in seen):
+                raise OpenApiError("stack_inventory_ambiguous")
+            seen.add(stack_id)
+            if hmac.compare_digest(
+                    self._opaque_ref("stack", site_id + ":" + stack_id), stack_ref):
+                matches.append(stack_id)
+        if len(matches) != 1:
+            raise OpenApiError("stack_ref_unknown")
+
+        path = self._SITE_STACK_VLAN_INTERFACES_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id,
+            stack_id=matches[0])
+        payload = self._request_json("GET", path, token=token)
+        if (type(payload.get("errorCode")) is not int or payload["errorCode"] != 0 or
+                not isinstance(payload.get("result"), list)):
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            from .site_stack_vlan_interface_summary import summarize_stack_vlan_interfaces
+        except ImportError:  # direct execution in the image
+            from site_stack_vlan_interface_summary import summarize_stack_vlan_interfaces
+        try:
+            projected = summarize_stack_vlan_interfaces(payload["result"])
+        except ValueError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"site_ref": site_ref, **projected}
+
+    @_track_capability("site_snmp_incompatible_summary")
+    def read_site_snmp_incompatible_summary(self, site_ref: str) -> dict[str, object]:
+        """Count bounded SNMP-incompatible device rows without projecting their fields."""
+        site_id = self._resolve_site_ref(site_ref)
+        rows, omitted = self._read_bounded_grid_rows(
+            self._SITE_SNMP_INCOMPATIBLE_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id),
+            self._access_token(), 1000, require_success_code=True)
+        try:
+            from .site_snmp_incompatible_summary import summarize_snmp_incompatible_rows
+        except ImportError:  # direct execution in the image
+            from site_snmp_incompatible_summary import summarize_snmp_incompatible_rows
+        try:
+            projected = summarize_snmp_incompatible_rows(rows, len(rows) + omitted, omitted)
+        except ValueError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"site_ref": site_ref, **projected}
+
     @_track_capability("controller_sdwan_group_summary")
     def read_controller_sdwan_group_summary(self) -> dict[str, object]:
         """Summarize documented controller-wide SD-WAN group metadata coverage."""
@@ -16980,7 +17061,9 @@ class OmadaOpenApiClient:
                                    self._SWITCH_LLDP_REQUEST.fullmatch(path).group(1) == self.config.controller_id) or
                                   self._site_stack_list_request_valid(path) or
                                   self._site_stack_networks_request_valid(path) or
+                                  self._site_stack_vlan_interfaces_request_valid(path) or
                                   self._site_stack_dhcp_users_request_valid(path) or
+                                  self._site_snmp_incompatible_request_valid(path) or
                                   self._site_switch_oui_vlan_request_valid(path) or
                                   self._controller_sdwan_group_brief_request_valid(path) or
                                   self._controller_sdwan_group_devices_request_valid(path) or
@@ -19403,6 +19486,10 @@ class OmadaOpenApiClient:
         except (ValueError, OverflowError):
             return False
 
+    def _site_stack_vlan_interfaces_request_valid(self, path: str) -> bool:
+        match = self._SITE_STACK_VLAN_INTERFACES_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
     def _site_stack_dhcp_users_request_valid(self, path: str) -> bool:
         match = self._SITE_STACK_DHCP_USERS_REQUEST.fullmatch(path)
         if not match or match.group(1) != self.config.controller_id:
@@ -19419,6 +19506,16 @@ class OmadaOpenApiClient:
             return False
         try:
             return (1 <= int(match.group(3)) <= self.config.max_pages and
+                    1 <= int(match.group(4)) <= 1000)
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_snmp_incompatible_request_valid(self, path: str) -> bool:
+        match = self._SITE_SNMP_INCOMPATIBLE_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return (1 <= int(match.group(3)) <= min(self.config.max_pages, 1000) and
                     1 <= int(match.group(4)) <= 1000)
         except (ValueError, OverflowError):
             return False
