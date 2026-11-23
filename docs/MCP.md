@@ -952,3 +952,14 @@ does not establish tunnel connectivity; live support is unknown.
 
 
 `omada_site_stack_network_summary` takes a site and an opaque `stack_ref` returned by the stack connection summary. It refreshes stack inventory before reading that stack's VLAN-network configuration, returning counts for documented DHCP modes and status/management/IPv6 coverage. VLAN/network IDs, names, stack members, addresses and DHCP values are omitted. The read is capped at 1,000 rows; live stack support remains untested.
+`omada_controller_sdwan_group_summary` takes no site argument because the API
+read is controller-scoped. It reports group counts, hub metadata field coverage
+and the sum of documented device counts across groups (not a distinct-device
+count). IDs, names and hub values are omitted. Hardware/CBC document the read;
+ER7212PC does not. No operational status is inferred.
+
+`omada_site_vpn_server_config_summary` takes a selected `site_ref`. It counts
+configured VPN server rows by documented protocol and by the source boolean
+status flag. It omits IDs, names, WAN/network values, user/client counts and
+other row details. The flag is not tunnel connectivity, and this summary is
+separate from `omada_site_vpn_server_status_summary`.

@@ -783,6 +783,15 @@ class FakeOpenApiClient:
                 "site_ref": site_ref, "reported_vpn_count": 1,
                 "returned_vpn_count": 1, "items": [{"vpn_ref": "b" * 24}]}
 
+    def read_site_vpn_server_config_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_vpn_server_config_summary", site_ref))
+        return {"status": "ok", "resource": "site_vpn_server_config_summary",
+                "site_ref": site_ref, "reported_server_total": 3,
+                "by_documented_protocol": {"ipsec": 2, "wireguard": 1},
+                "by_reported_activation_flag": {
+                    "enabled": 2, "disabled": 1, "unreported": 0},
+                "activation_semantics": "documented VPN status flag; not tunnel connectivity"}
+
     def read_site_s2s_vpn_v2_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_s2s_vpn_v2_summary", site_ref))
         return {"status": "ok", "resource": "site_s2s_vpn_v2_summary",
@@ -908,6 +917,13 @@ class FakeOpenApiClient:
                 "rollbacked_counts": {"true": 0, "false": 1},
                 "logs_with_failed_devices_count": 0, "partial": False,
                 "identities_and_versions_returned": False}
+
+    def read_controller_sdwan_group_summary(self) -> dict[str, object]:
+        self.calls.append(("controller_sdwan_group_summary", None))
+        return {"status": "ok", "resource": "controller_sdwan_group_summary",
+                "returned_group_count": 2,
+                "reported_group_device_membership_sum": 8,
+                "partial": False}
 
     def read_site_ipsec_sa_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_ipsec_sa_summary", site_ref))
@@ -4631,6 +4647,21 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(self.fake.calls,
                          [("site_s2s_vpn_inventory_summary", site_ref)] * 2)
 
+    def test_http_and_mcp_expose_site_vpn_server_config_summary(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/vpn/servers/config-summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200, repr(direct))
+        self.assertEqual(direct["resource"], "site_vpn_server_config_summary")
+        request = {"jsonrpc": "2.0", "id": 307, "method": "tools/call",
+                   "params": {"name": "omada_site_vpn_server_config_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_vpn_server_config_summary", site_ref)] * 2)
+
     def test_http_and_mcp_expose_site_s2s_vpn_v2_summary(self) -> None:
         site_ref = "a" * 24
         path = f"/v1/sites/{site_ref}/vpn/site-to-site-v2-summary"
@@ -4858,6 +4889,20 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(response["result"]["structuredContent"], direct)
         self.assertEqual(self.fake.calls,
                          [("controller_upgrade_log_summary", None)] * 2)
+
+    def test_http_and_mcp_expose_controller_sdwan_group_summary(self) -> None:
+        path = "/v1/controller/sdwan-groups/summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200, repr(direct))
+        self.assertEqual(direct["resource"], "controller_sdwan_group_summary")
+        request = {"jsonrpc": "2.0", "id": 242, "method": "tools/call",
+                   "params": {"name": "omada_controller_sdwan_group_summary",
+                              "arguments": {}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("controller_sdwan_group_summary", None)] * 2)
 
     def test_http_and_mcp_expose_ipsec_sa_summary(self) -> None:
         site_ref = "a" * 24
