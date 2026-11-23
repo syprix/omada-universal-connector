@@ -137,6 +137,9 @@ device and client inventory have not been rechecked in the current image.
 | `GET /v1/sites/{site_ref}/topology/root-candidates/summary` | `GET /openapi/v2/{omadacId}/sites/{siteId}/topology/nodes` | Counts root candidates by documented type and flag codes; omits identifiers, names, models and subtype text; no topology edges; Hardware Controller and CBC only |
 | `GET /v1/sites/{site_ref}/lan-client-inventory/summary` | Fixed `GET /openapi/v1/{omadacId}/sites/{siteId}/networks/client?page={page}&pageSize=100` | Up to ten pages; reports total and coverage, omits MACs, names and raw device types; same route under different OpenAPI operation IDs in the three exports |
 | `GET /v1/sites/{site_ref}/topology/isolated-preconfig/summary` | `GET /openapi/v2/{omadacId}/sites/{siteId}/topology/isolated-and-pre-config` | Separate category counts and total reconciliation; omits identifiers and device strings; Hardware Controller and CBC only |
+| `GET /v1/sites/{site_ref}/networks/{network_ref}/vlan-topology-summary?vlan_id={id}` | `GET /openapi/v3/{omadacId}/sites/{siteId}/topology/{networkId}/vlan/{vlan}/devices` | Requires a same-site network reference and its currently assigned VLAN; matches the returned MAC list to the same site's device inventory; reports class/coverage counts only; Hardware Controller and CBC only |
+| `GET /v1/sites/{site_ref}/switches/{switch_ref}/es-network-overview/summary` | `GET /openapi/v1/{omadacId}/sites/{siteId}/switches/es/{switchMac}/network-overview` | Uses an inventoried switch reference; reports network and native/untagged/tagged port-assignment counts only; names, IDs, VLAN values and port numbers omitted; all three exports document the route, model compatibility unknown |
+| `GET /v1/sites/{site_ref}/port-schedule-capable-ports/summary` | `GET /openapi/v1/{omadacId}/sites/{siteId}/port-status-ports` | Counts devices, documented gateway/switch types, total ports and ports eligible for schedules; omits identifiers, port numbers and raw status values; distinct from the configured schedule list; all three exports |
 | `GET /v1/sites/{site_ref}/lan-network-config-summary` | Paginated `GET /openapi/v3/{omadacId}/sites/{siteId}/lan-networks` | Bounded purpose and feature-flag counts; network/device identifiers, VLANs, addresses and raw configuration are omitted; all three exports document the route |
 | `GET /v1/sites/{site_ref}/internet/load-balance-summary` | `GET /openapi/v1/{omadacId}/sites/{siteId}/internet/load-balance` | Validated feature flags, documented mode-code counts and bounded array counts; WAN IDs, names, weights and schedule references are omitted |
 | `GET /v1/sites/{site_ref}/internet/basic-port-summary` | `GET /openapi/v1/{omadacId}/sites/{siteId}/internet/basic-info` | Documented port mode/type distributions and online-detection interval; port names, IDs and raw gateway model number are omitted |
@@ -1179,6 +1182,36 @@ field presence. MACs, names, models, health values and device-type text are
 omitted. Mismatched totals, bad rows and unknown fields lower the result
 coverage; no adoption action or cause is inferred. No live request was made.
 
+`GET /v1/sites/{site_ref}/networks/{network_ref}/vlan-topology-summary?vlan_id={id}`
+and `omada_site_vlan_topology_summary` expose `getFilterDevicesOfVlan` from
+Hardware Controller and CBC 6.3.0; ER7212PC does not document it. The connector
+refreshes LAN-network inventory, requires an exact selected network/VLAN
+assignment, reads the topology MAC list, and joins only to that site's device
+inventory. It counts known device classes and coverage gaps without returning
+MACs, names or network IDs. This is a VLAN topology membership view, not a
+device-to-device link map. No live request was made.
+
+`GET /v1/sites/{site_ref}/switches/{switch_ref}/es-network-overview/summary`
+and `omada_site_es_network_overview_summary` expose `getESNetworkOverview`
+from all three exports. The connector refreshes the selected site's device
+inventory and resolves the opaque switch reference. Before reading the
+overview, it calls the documented `getOswDetailInfoListForPortsView` read and
+requires exactly one row whose `mac` matches the selected inventory device and
+whose documented `es` boolean is `true`. Missing, duplicate, or non-Agile
+matches are rejected. It returns row and port-assignment counts, discarding
+network IDs/names, VLAN values and individual port numbers, and reports missing
+assignment arrays as unknown field coverage. No matching hardware test or live
+request was available.
+
+`GET /v1/sites/{site_ref}/port-schedule-capable-ports/summary` and
+`omada_site_port_schedule_ports_summary` expose `getPortSchedulePorts` from
+all three exports. This is distinct from `getPortScheduleList` at
+`/openapi/v1/{omadacId}/sites/{siteId}/port-schedules`, which is already used
+by the configured-schedule summary. The result counts eligible ports and
+reported device totals; it does not state whether a schedule is configured or
+executing. Device identifiers, port numbers and status-code meanings are
+omitted. No live request was made.
+
 
 ## Longest client uptime dashboard read
 
@@ -1385,6 +1418,22 @@ A synthetic two-row source JSON payload measured 133 tokens versus 35 tokens for
 `GET /v1/sites/{site_ref}/networks/{network_ref}/vlan-port-support/summary?vlan_id={id}` reports returned-port support counts for the network’s assigned VLAN. The connector validates the network/VLAN pairing from LAN inventory before reading the support map. It omits device and port identifiers and reports partial coverage where the source shape or row fields are incomplete. This is a read-only, fixture-tested operation; live controller support is unknown.
 
 `GET /v1/sites/{site_ref}/ipsec-sa-summary` and MCP tool `omada_site_ipsec_sa_summary` read the paginated IPsec association list with a 10,000-row limit and return redacted counts by direction. They do not claim that a tunnel is connected.
+
+## Controller-wide log notification settings
+
+`GET /v1/controller/log-notifications/summary` reads the controller-scope `getLogSettingForGlobalV2` endpoint, separate from site-scoped notification rules. It aggregates documented alert, event, email and webhook Boolean switches and top-level enable flags/presence. It omits category keys, messages, webhook IDs and delay values. All three exports document the endpoint; live behavior is unknown.
+
+## Port forwarding status limitation
+
+The three exports document `getPortForwardStatus`, but describe the required string path parameter only as `User/UPnP` and provide neither an enum nor a request example. Accepted literal values and casing remain unverified, so the connector does not expose an experimental read. This operation remains open until the request-value contract is authoritative.
+
+## Firmware planning model summary
+
+`GET /v1/controller/firmware-upgrade-models/summary` reads `getGridPlanUpgradeModelList` from all three exports, with a fixed page size of at most 100 and a ten-page/1,000-row cap. It returns only counts for model-type presence and the documented model critical status (0 good, 1 critical) and upgrade status (0 up-to-date, 1 new version available). Model names and version strings are omitted. The operation does not search, initiate upgrades, or claim that a listed model is compatible with a particular device. Live behavior is unknown.
+
+## Selected site-to-site VPN peer status
+
+`GET /v1/sites/{site_ref}/vpn/site-to-site/summary` returns opaque references from the same-site `getSiteToSiteVpnList` inventory. A peer-status read requires one of those references; it refreshes the inventory and resolves the identifier only within that site. `getGridVpnS2SPeersStatus` is paginated with a 100-row page limit and ten-page/1,000-row cap. The filter description documents status 0 as disconnected and 1 as connected; other or missing values remain unknown. Peer and VPN identifiers, names, addresses, ports, and counters are omitted. The VPN inventory's Boolean status is not interpreted as live tunnel connectivity. All three exports document both reads; live support is unknown.
 | `GET /v1/sites/{site_ref}/ssids/{ssid_ref}/clients/summary` | `GET /openapi/v1/{omadacId}/sites/{siteId}/clientList/{ssidId}` | Hardware Controller 6.3.0 and CBC 6.3.0 only; one site-bound SSID, flat `page=1&pageSize=100`, total count and page coverage only; no client details or online-state claim; absent from the ER7212PC 6.2.14 export |
 | `GET /v1/sites/{site_ref}/remote-logging/summary` | `GET /openapi/v1/{omadacId}/sites/{siteId}/remote-logging` | Enabled state, documented client-log flag and resource category, destination presence only; host/port values are omitted; no delivery-success claim; documented in all three exports |
 | `GET /v1/controller/firmware-upgrades/summary` | `GET /openapi/v1/{omadacId}/upgrade/overview/logs` | One page capped at 100; rollback, failure-count presence and upgrade-time presence aggregates only; no raw identities, versions, model details or timestamps; read-only |

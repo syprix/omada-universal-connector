@@ -651,6 +651,8 @@ def _tool(operation: Any) -> dict[str, object]:
                             if name == "ssid_ref" else
                             "Opaque network reference returned by the selected site's network inventory."
                             if name == "network_ref" else
+                            "Opaque VPN reference returned by the selected site's site-to-site VPN inventory."
+                            if name == "vpn_ref" else
                             "Opaque site-template reference returned by the site-template inventory."
                             if name == "site_template_ref" else
                             "Opaque history reference returned by the planning history read."),
@@ -1296,7 +1298,7 @@ def _invoke_tool(registry: Any, name: object, arguments: object,
                 raise McpRequestError("arguments_invalid")
             safe_arguments[key] = value
             continue
-        if key not in {"site_ref", "history_ref", "incident_ref", "device_ref", "gateway_ref", "switch_ref", "client_ref", "ssid_ref", "wlan_group_ref", "network_ref", "wan_port_ref", "site_template_ref"} or not isinstance(value, str) or not _SAFE_REF.fullmatch(value):
+        if key not in {"site_ref", "history_ref", "incident_ref", "device_ref", "gateway_ref", "switch_ref", "client_ref", "ssid_ref", "wlan_group_ref", "network_ref", "wan_port_ref", "site_template_ref", "vpn_ref"} or not isinstance(value, str) or not _SAFE_REF.fullmatch(value):
             raise McpRequestError("arguments_invalid")
         safe_arguments[key] = value
     for key in extra:

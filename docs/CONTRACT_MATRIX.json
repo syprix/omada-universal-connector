@@ -2610,6 +2610,34 @@
         "site_isolated_preconfig_summary": {
           "documented": true,
           "live_support": "unknown"
+        },
+        "site_vlan_topology_summary": {
+          "documented": true,
+          "live_support": "unknown"
+        },
+        "site_es_network_overview_summary": {
+          "documented": true,
+          "live_support": "unknown"
+        },
+        "site_port_schedule_ports_summary": {
+          "documented": true,
+          "live_support": "unknown"
+        },
+        "controller_global_log_notification_summary": {
+          "documented": true,
+          "live_support": "unknown"
+        },
+        "controller_upgrade_model_list_summary": {
+          "documented": true,
+          "live_support": "unknown"
+        },
+        "site_s2s_vpn_inventory_summary": {
+          "documented": true,
+          "live_support": "unknown"
+        },
+        "site_s2s_peer_status_summary": {
+          "documented": true,
+          "live_support": "unknown"
         }
       }
     },
@@ -5193,6 +5221,34 @@
         "site_isolated_preconfig_summary": {
           "documented": true,
           "live_support": "unknown"
+        },
+        "site_vlan_topology_summary": {
+          "documented": true,
+          "live_support": "unknown"
+        },
+        "site_es_network_overview_summary": {
+          "documented": true,
+          "live_support": "unknown"
+        },
+        "site_port_schedule_ports_summary": {
+          "documented": true,
+          "live_support": "unknown"
+        },
+        "controller_global_log_notification_summary": {
+          "documented": true,
+          "live_support": "unknown"
+        },
+        "controller_upgrade_model_list_summary": {
+          "documented": true,
+          "live_support": "unknown"
+        },
+        "site_s2s_vpn_inventory_summary": {
+          "documented": true,
+          "live_support": "unknown"
+        },
+        "site_s2s_peer_status_summary": {
+          "documented": true,
+          "live_support": "unknown"
         }
       }
     },
@@ -7734,6 +7790,34 @@
         },
         "site_isolated_preconfig_summary": {
           "documented": false,
+          "live_support": "unknown"
+        },
+        "site_vlan_topology_summary": {
+          "documented": false,
+          "live_support": "unknown"
+        },
+        "site_es_network_overview_summary": {
+          "documented": true,
+          "live_support": "unknown"
+        },
+        "site_port_schedule_ports_summary": {
+          "documented": true,
+          "live_support": "unknown"
+        },
+        "controller_global_log_notification_summary": {
+          "documented": true,
+          "live_support": "unknown"
+        },
+        "controller_upgrade_model_list_summary": {
+          "documented": true,
+          "live_support": "unknown"
+        },
+        "site_s2s_vpn_inventory_summary": {
+          "documented": true,
+          "live_support": "unknown"
+        },
+        "site_s2s_peer_status_summary": {
+          "documented": true,
           "live_support": "unknown"
         }
       }

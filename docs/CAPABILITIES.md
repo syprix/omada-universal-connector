@@ -61,6 +61,19 @@ topology edges. The vendor notes that a gateway can result in an empty list,
 so emptiness is not presented as a missing-topology finding. Live support is
 unknown.
 
+## Devices present in a selected VLAN topology
+
+`GET /v1/sites/{site_ref}/networks/{network_ref}/vlan-topology-summary` and
+its MCP tool first refresh the selected site's LAN-network inventory and
+require the selected network to be a VLAN network assigned to the requested
+VLAN. The connector then reads `getFilterDevicesOfVlan` and matches its
+documented device MAC list only against that site's device inventory. It
+returns recognized device-class counts and unmatched, unknown or ambiguous
+inventory coverage; MACs and network identifiers are omitted. The API is
+documented for Hardware Controller and CBC 6.3.0, not ER7212PC. This reports
+topology membership for that VLAN and does not infer links between devices.
+Live support is unknown.
+
 ## Isolated and preconfigured device counts
 
 `GET /v1/sites/{site_ref}/topology/isolated-preconfig/summary` and its MCP
@@ -71,6 +84,28 @@ Unexpected fields, invalid rows and a total mismatch are visible as partial
 data. The source is documented for Hardware Controller and CBC, not ER7212PC.
 The result does not infer adoption actions or causes for isolation. Live support
 is unknown.
+
+## Network and port assignments on a selected ES switch
+
+`GET /v1/sites/{site_ref}/switches/{switch_ref}/es-network-overview/summary`
+and its MCP tool refresh the selected site's device inventory and bind the
+requested opaque switch reference to an inventoried switch MAC before calling
+`getESNetworkOverview`. The result counts network rows and native, untagged
+and tagged port assignments, with field presence for each array; network
+names/IDs, VLAN values and port numbers are omitted. All three supplied exports document this route, but they do not
+define a model allowlist for the ES-family endpoint. Compatibility with a
+particular switch model and live hardware support remain unconfirmed.
+
+## Ports eligible for schedules
+
+`GET /v1/sites/{site_ref}/port-schedule-capable-ports/summary` and its MCP
+tool expose `getPortSchedulePorts`. They count returned devices by the
+documented gateway/switch type and count total ports and port IDs listed as
+supporting schedules. Device identifiers, names, serials, port numbers and
+raw status values are omitted; status is reported as field presence only.
+This is separate from `getPortScheduleList` and the existing configured
+schedule summary. All three exports document the source; live support is
+unknown.
 
 ## Client counts at a selected access point
 
@@ -1545,3 +1580,15 @@ A synthetic 10-schedule/four-device response measured 1,729 source JSON tokens a
 ## Controller upgrade-log summary
 
 `GET /v1/controller/firmware-upgrades/summary` reads only the first 100 rows from the authenticated controller's documented upgrade log. It reports source total and sample coverage plus counts of rollbacked entries, rows with reported failed devices, and rows with an upgrade time. It returns no dates, device/model details, site names, operator names, versions, or identifiers. It never starts or changes an upgrade. Live support is unknown.
+
+The controller-wide log notification summary (#78) reads `getLogSettingForGlobalV2`, distinct from the site-scoped rules in #69. It counts only documented alert, event, email and webhook switches and top-level enablement presence. Category keys, message text, webhook IDs and delay values are omitted. The schema does not report delivery outcomes; live support is unknown.
+
+A synthetic 20-category source response and projection measured 695 → 150 serialized tokens (78.42% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; this fixture result is not billed agent usage.
+
+The firmware-plan model summary (#79) reads the paginated `getGridPlanUpgradeModelList` route from all three exports. It counts model-type metadata presence and the documented good/critical and up-to-date/new-version status codes. Model names and firmware versions are omitted. Pagination is capped at 1,000 rows with coverage marked when the source total is larger. It does not trigger an update or imply compatibility. Live support is unknown.
+
+A synthetic 20-model source response and projection measured 789 → 117 serialized tokens (85.17% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; this fixture result is not billed agent usage.
+
+The selected S2S VPN peer summary (#80) first refreshes the selected site's documented VPN inventory, then resolves a unique opaque VPN reference before requesting its peer-status pages. It reports counts for the documented `status` filter meanings (0 disconnected, 1 connected); other or missing codes remain unknown. VPN and peer identities, names, addresses, ports and traffic counters are omitted. The inventory's separate `status` flag is not interpreted as tunnel connectivity. Live support is unknown.
+
+A synthetic workflow with 20 VPN inventory records and 20 peer rows measured 2,608 source JSON tokens versus 597 projected tokens (77.11% fewer) using `js-tiktoken` 1.0.21 / `o200k_base`. This compares the two serialized API responses with the two connector summaries; it excludes prompts, schemas and billed agent usage.

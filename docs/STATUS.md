@@ -505,12 +505,33 @@ A synthetic 20-network fixture measured 2,104 → 159 serialized tokens (92.44% 
 
 The LAN client inventory summary (#71) reads the common `networks/client` route (`getGridAllClients_1` in Hardware/CBC and `getGridAllClients` in ER7212PC). Fixed 100-row pagination is capped at ten pages. The result reports total inventory, returned coverage and device-type field presence; MACs, names and raw device types are omitted. It does not claim current connectivity. Live behavior is unknown.
 
-A synthetic 20-client payload measured 506 → 69 serialized tokens (86.36% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; this is not billed agent usage.
+A synthetic 20-client source response and connector result measured 516 → 76 serialized tokens (85.27% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; this is not billed agent usage.
 
 The topology root-candidate summary (#72) reads `getTopologyNodes`, documented by Hardware Controller and CBC 6.3.0 but absent from ER7212PC. It counts candidate node types, documented root/stack flags, and MLAG/VRRP codes; names, addresses, model and subtype text are omitted. The endpoint returns no edges, and its documented empty response case with a gateway is not interpreted as missing topology. Live behavior is unknown.
 
-A synthetic 20-node payload measured 1,489 → 168 serialized tokens (88.72% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; this is not billed agent usage.
+A synthetic 20-node source response and connector result measured 1,498 → 175 serialized tokens (88.32% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; this is not billed agent usage.
 
 The isolated/preconfigured device summary (#73) reads the two documented topology categories separately from Hardware Controller and CBC 6.3.0; ER7212PC does not document this endpoint. It checks the returned counts against the documented total and reports only category, type/health/IPPT field coverage. It does not claim adoption state or infer isolation cause. Live support is unknown.
 
-A synthetic 20-device payload measured 935 → 201 serialized tokens (78.50% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; this is not billed agent usage.
+A synthetic 20-device source response and connector result measured 944 → 208 serialized tokens (77.97% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; this is not billed agent usage.
+
+The VLAN topology summary (#74) reads `getFilterDevicesOfVlan` from Hardware Controller and CBC 6.3.0; ER7212PC does not document it. It requires a current same-site network/VLAN match, then classifies returned topology MACs only through that site's device inventory. It returns class and coverage counts, not topology links. Live support is unknown.
+
+A synthetic 20-MAC source response and connector result measured 241 → 114 serialized tokens (52.70% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; this is not billed agent usage.
+
+The ES-switch network overview (#75) reads `getESNetworkOverview` only after a same-site inventory-bound lookup in `getOswDetailInfoListForPortsView` returns exactly one matching MAC with the documented `es: true` Agile-Series flag. Missing, duplicate, and non-Agile matches are rejected before the overview call. It counts network rows and native, untagged and tagged port assignments while omitting network details, VLAN values and port numbers. Live hardware support remains unknown.
+
+A synthetic 20-network source response and connector result measured 851 → 160 serialized tokens (81.20% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; this is not billed agent usage.
+
+The schedule-capable port summary (#76) reads `getPortSchedulePorts` from all three exports. It is distinct from `getPortScheduleList`, which backs the existing configured schedule summary. The result counts device and port totals by documented fields; it does not report configuration or execution of an actual schedule. Device and port details are redacted, and raw status values are not interpreted. Live support is unknown.
+
+A synthetic 20-device source response and connector result measured 1,798 → 128 serialized tokens (92.88% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; this is not billed agent usage.
+
+
+The controller-wide notification summary (#78) reads `getLogSettingForGlobalV2`, separate from site rules. It counts only the documented alert, event, email and webhook switches, and omits category keys, messages, webhook IDs and delay values. It does not report delivery. Live support is unknown.
+
+The port-forwarding status read (#77) remains open: all three exports describe the required `type` path value only as `User/UPnP`, without an enum or request example. Accepted literals and casing are not confirmed; no experimental call or guessed value is used.
+
+The firmware-plan model summary (#79) reads the documented paginated `getGridPlanUpgradeModelList` from all three exports. It counts model type metadata and the documented good/critical and up-to-date/new-version status codes, while omitting model names and firmware versions. The read is capped at 1,000 rows; excess source rows are reported as truncation. It does not trigger an upgrade or infer compatibility. Live support is unknown.
+
+The selected site-to-site VPN peer summary (#80) adds an opaque reference inventory from `getSiteToSiteVpnList` and uses it to bind `getGridVpnS2SPeersStatus` to one current VPN at the selected site. It counts the documented status filter meanings (0 disconnected, 1 connected) and keeps other/missing codes unknown. VPN/peer IDs, names, endpoint addresses, ports and traffic counters are omitted; the inventory Boolean is not presented as tunnel connectivity. Live support is unknown.

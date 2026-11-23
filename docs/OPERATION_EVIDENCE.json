@@ -3,8 +3,8 @@
   "catalog_sha256": "b5ea3aeeac5c1c990fed6a4418f68e46530faa240308c7751206e15323eaeb9d",
   "operation_count": 2445,
   "connector_evidence_counts": {
-    "not_mapped": 1991,
-    "fixed_get_registry_route": 429,
+    "not_mapped": 1984,
+    "fixed_get_registry_route": 436,
     "manual_source_map_only": 25
   },
   "function_verification_performed": false,
@@ -6949,6 +6949,7 @@
         "test_site_disaster_mode_status.py",
         "test_site_duplicate_ssid_summary.py",
         "test_site_eap_dot1x_candidates_summary.py",
+        "test_site_es_network_overview_summary.py",
         "test_site_firewall_defaults.py",
         "test_site_firewall_settings.py",
         "test_site_gateway_isp_summary_integration.py",
@@ -6988,8 +6989,10 @@
         "test_site_open_vpn_tunnel_summary_integration.py",
         "test_site_past_client_summary_integration.py",
         "test_site_poe_usage_summary_integration.py",
+        "test_site_port_schedule_ports_summary.py",
         "test_site_portal_logout_domain.py",
         "test_site_remember_setting_integration.py",
+        "test_site_s2s_vpn_summary.py",
         "test_site_setting_existence_integration.py",
         "test_site_snmp_summary.py",
         "test_site_specific_app_traffic_summary_integration.py",
@@ -7013,6 +7016,7 @@
         "test_site_vlan_network_summary.py",
         "test_site_vlan_port_support_summary.py",
         "test_site_vlan_ssid_usage_summary.py",
+        "test_site_vlan_topology_summary.py",
         "test_site_vpn_session_summary.py",
         "test_site_vpn_tunnel_summary_integration.py",
         "test_site_wan_lan_status_summary_integration.py",
@@ -11215,6 +11219,7 @@
         "test_site_switch_health_history.py",
         "test_site_switch_port_anomaly_summary.py",
         "test_site_vlan_device_usage_summary.py",
+        "test_site_vlan_topology_summary.py",
         "test_ssid_network_diagnose.py",
         "test_switch_health_integration.py",
         "test_wifi_compare_aps.py",
@@ -16397,11 +16402,19 @@
         "hardware-controller-6.3.0",
         "omada-cbc-standard-6.3.0"
       ],
-      "connector_evidence": "not_mapped",
-      "operation_ids": [],
-      "public_templates": [],
-      "source_map_label": null,
-      "static_test_references": [],
+      "connector_evidence": "fixed_get_registry_route",
+      "operation_ids": [
+        "site_port_schedule_ports_summary"
+      ],
+      "public_templates": [
+        "/v1/sites/{site_ref}/port-schedule-capable-ports/summary"
+      ],
+      "source_map_label": "implemented_read",
+      "static_test_references": [
+        "test_openapi_http.py",
+        "test_operation_registry.py",
+        "test_site_port_schedule_ports_summary.py"
+      ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
       "function_verified": false,
@@ -18803,11 +18816,19 @@
         "hardware-controller-6.3.0",
         "omada-cbc-standard-6.3.0"
       ],
-      "connector_evidence": "not_mapped",
-      "operation_ids": [],
-      "public_templates": [],
-      "source_map_label": null,
-      "static_test_references": [],
+      "connector_evidence": "fixed_get_registry_route",
+      "operation_ids": [
+        "site_s2s_peer_status_summary"
+      ],
+      "public_templates": [
+        "/v1/sites/{site_ref}/vpn/site-to-site/{vpn_ref}/peers/summary"
+      ],
+      "source_map_label": "implemented_read",
+      "static_test_references": [
+        "test_openapi_http.py",
+        "test_operation_registry.py",
+        "test_site_s2s_vpn_summary.py"
+      ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
       "function_verified": false,
@@ -19948,11 +19969,19 @@
         "hardware-controller-6.3.0",
         "omada-cbc-standard-6.3.0"
       ],
-      "connector_evidence": "not_mapped",
-      "operation_ids": [],
-      "public_templates": [],
-      "source_map_label": null,
-      "static_test_references": [],
+      "connector_evidence": "fixed_get_registry_route",
+      "operation_ids": [
+        "site_es_network_overview_summary"
+      ],
+      "public_templates": [
+        "/v1/sites/{site_ref}/switches/{switch_ref}/es-network-overview/summary"
+      ],
+      "source_map_label": "implemented_read",
+      "static_test_references": [
+        "test_openapi_http.py",
+        "test_operation_registry.py",
+        "test_site_es_network_overview_summary.py"
+      ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
       "function_verified": false,
@@ -21197,11 +21226,18 @@
         "hardware-controller-6.3.0",
         "omada-cbc-standard-6.3.0"
       ],
-      "connector_evidence": "not_mapped",
-      "operation_ids": [],
-      "public_templates": [],
-      "source_map_label": null,
-      "static_test_references": [],
+      "connector_evidence": "fixed_get_registry_route",
+      "operation_ids": [
+        "site_s2s_vpn_inventory_summary"
+      ],
+      "public_templates": [
+        "/v1/sites/{site_ref}/vpn/site-to-site/summary"
+      ],
+      "source_map_label": "implemented_read",
+      "static_test_references": [
+        "test_openapi_http.py",
+        "test_operation_registry.py"
+      ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
       "function_verified": false,
@@ -25420,11 +25456,19 @@
         "hardware-controller-6.3.0",
         "omada-cbc-standard-6.3.0"
       ],
-      "connector_evidence": "not_mapped",
-      "operation_ids": [],
-      "public_templates": [],
-      "source_map_label": null,
-      "static_test_references": [],
+      "connector_evidence": "fixed_get_registry_route",
+      "operation_ids": [
+        "controller_upgrade_model_list_summary"
+      ],
+      "public_templates": [
+        "/v1/controller/firmware-upgrade-models/summary"
+      ],
+      "source_map_label": "implemented_read",
+      "static_test_references": [
+        "test_controller_upgrade_model_list_summary.py",
+        "test_openapi_http.py",
+        "test_operation_registry.py"
+      ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
       "function_verified": false,
@@ -25571,11 +25615,19 @@
         "hardware-controller-6.3.0",
         "omada-cbc-standard-6.3.0"
       ],
-      "connector_evidence": "not_mapped",
-      "operation_ids": [],
-      "public_templates": [],
-      "source_map_label": null,
-      "static_test_references": [],
+      "connector_evidence": "fixed_get_registry_route",
+      "operation_ids": [
+        "controller_global_log_notification_summary"
+      ],
+      "public_templates": [
+        "/v1/controller/log-notifications/summary"
+      ],
+      "source_map_label": "implemented_read",
+      "static_test_references": [
+        "test_controller_global_log_notification_summary.py",
+        "test_openapi_http.py",
+        "test_operation_registry.py"
+      ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
       "function_verified": false,
@@ -25781,6 +25833,7 @@
         "test_site_vlan_network_summary.py",
         "test_site_vlan_port_support_summary.py",
         "test_site_vlan_ssid_usage_summary.py",
+        "test_site_vlan_topology_summary.py",
         "test_ssid_network_diagnose.py",
         "test_switch_health_integration.py",
         "test_switch_network_membership_integration.py",
@@ -26575,11 +26628,19 @@
         "hardware-controller-6.3.0",
         "omada-cbc-standard-6.3.0"
       ],
-      "connector_evidence": "not_mapped",
-      "operation_ids": [],
-      "public_templates": [],
-      "source_map_label": null,
-      "static_test_references": [],
+      "connector_evidence": "fixed_get_registry_route",
+      "operation_ids": [
+        "site_vlan_topology_summary"
+      ],
+      "public_templates": [
+        "/v1/sites/{site_ref}/networks/{network_ref}/vlan-topology-summary"
+      ],
+      "source_map_label": "implemented_read",
+      "static_test_references": [
+        "test_openapi_http.py",
+        "test_operation_registry.py",
+        "test_site_vlan_topology_summary.py"
+      ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
       "function_verified": false,

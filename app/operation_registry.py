@@ -124,7 +124,8 @@ class OperationRegistry:
                 ("type",): {"site_mac_auth_ssid_inventory"},
                 ("device_type",): {"site_routing_table_summary"},
                 ("vlan_id",): {"site_vlan_ssid_usage_summary", "site_vlan_device_usage_summary",
-                               "site_vlan_port_support_summary", "site_vlan_affected_ports_summary"},
+                               "site_vlan_port_support_summary", "site_vlan_affected_ports_summary",
+                               "site_vlan_topology_summary"},
             }
             supported_local_alternatives = {
                 ("start_local", "end_local", "time_zone"): {
@@ -163,7 +164,7 @@ class OperationRegistry:
             if ("$incident_context_mac" in bindings.values() and
                     "incident_ref" not in public_vars):
                 raise RegistryError("incident context requires an opaque incident reference")
-            if any(name not in {"site_ref", "history_ref", "incident_ref", "device_ref", "gateway_ref", "switch_ref", "client_ref", "ssid_ref", "wlan_group_ref", "network_ref", "wan_port_ref", "site_template_ref", "msp_ref", "customer_ref", "family_id", "application_id", "port"}
+            if any(name not in {"site_ref", "history_ref", "incident_ref", "device_ref", "gateway_ref", "switch_ref", "client_ref", "ssid_ref", "wlan_group_ref", "network_ref", "wan_port_ref", "site_template_ref", "msp_ref", "customer_ref", "vpn_ref", "family_id", "application_id", "port"}
                    for name in public_vars):
                 raise RegistryError("unsupported public reference binding")
             if item.evidence != "unknown":
@@ -769,6 +770,15 @@ REGISTRY = OperationRegistry((
               "/openapi/v1/{controller_id}/sites/{site_id}/setting/vpn/stats/s2s",
               (("controller_id", "$config"), ("site_id", "site_ref")),
               extra_arguments=("vpn_type",), max_items=1000),
+    Operation("site_s2s_vpn_inventory_summary", "GET",
+              "/v1/sites/{site_ref}/vpn/site-to-site/summary", "GET",
+              "/openapi/v1/{controller_id}/sites/{site_id}/vpn/site-to-site-vpns",
+              (("controller_id", "$config"), ("site_id", "site_ref")), max_items=10000),
+    Operation("site_s2s_peer_status_summary", "GET",
+              "/v1/sites/{site_ref}/vpn/site-to-site/{vpn_ref}/peers/summary", "GET",
+              "/openapi/v1/{controller_id}/sites/{site_id}/setting/vpn/stats/s2s/{vpn_id}/peer",
+              (("controller_id", "$config"), ("site_id", "site_ref"),
+               ("vpn_id", "vpn_ref")), max_items=1000),
     Operation("site_ssid_client_count_summary", "GET",
               "/v1/sites/{site_ref}/ssids/{ssid_ref}/clients/summary", "GET",
               "/openapi/v1/{controller_id}/sites/{site_id}/clientList/{ssid_id}",
@@ -855,6 +865,29 @@ REGISTRY = OperationRegistry((
               "/v1/sites/{site_ref}/topology/isolated-preconfig/summary", "GET",
               "/openapi/v2/{controller_id}/sites/{site_id}/topology/isolated-and-pre-config",
               (("controller_id", "$config"), ("site_id", "site_ref")), max_items=1000),
+    Operation("site_vlan_topology_summary", "GET",
+              "/v1/sites/{site_ref}/networks/{network_ref}/vlan-topology-summary", "GET",
+              "/openapi/v3/{controller_id}/sites/{site_id}/topology/{network_id}/vlan/{vlan}/devices",
+              (("controller_id", "$config"), ("site_id", "site_ref"),
+               ("network_id", "network_ref"), ("vlan", "vlan_id")),
+              local_arguments=("vlan_id",), max_items=4096),
+    Operation("site_es_network_overview_summary", "GET",
+              "/v1/sites/{site_ref}/switches/{switch_ref}/es-network-overview/summary", "GET",
+              "/openapi/v1/{controller_id}/sites/{site_id}/switches/es/{switch_mac}/network-overview",
+              (("controller_id", "$config"), ("site_id", "site_ref"),
+               ("switch_mac", "switch_ref")), max_items=1000),
+    Operation("site_port_schedule_ports_summary", "GET",
+              "/v1/sites/{site_ref}/port-schedule-capable-ports/summary", "GET",
+              "/openapi/v1/{controller_id}/sites/{site_id}/port-status-ports",
+              (("controller_id", "$config"), ("site_id", "site_ref")), max_items=1000),
+    Operation("controller_global_log_notification_summary", "GET",
+              "/v1/controller/log-notifications/summary", "GET",
+              "/openapi/v2/{controller_id}/log-notification",
+              (("controller_id", "$config"),), max_items=10000),
+    Operation("controller_upgrade_model_list_summary", "GET",
+              "/v1/controller/firmware-upgrade-models/summary", "GET",
+              "/openapi/v1/{controller_id}/upgrade/plan/models",
+              (("controller_id", "$config"),), max_items=1000),
     Operation("site_internet_load_balance_summary", "GET",
               "/v1/sites/{site_ref}/internet/load-balance-summary", "GET",
               "/openapi/v1/{controller_id}/sites/{site_id}/internet/load-balance",
