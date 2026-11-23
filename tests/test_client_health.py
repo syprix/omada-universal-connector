@@ -63,7 +63,8 @@ class ClientHealthTests(unittest.TestCase):
             self.client.read_client_health(self.site_ref, "c" * 24)
         now = 1_800_000_000_000
         fixed_now = RealDateTime.fromtimestamp(now / 1000, timezone.utc)
-        for result in ({"score": 101}, {"rssi": {"averageNum": [{"time": now, "pastNum": -200}]}},
+        for result in ({"score": 101}, {"score": -2},
+                       {"rssi": {"averageNum": [{"time": now, "pastNum": -200}]}},
                        {"snr": {"averageNum": [{"time": now + 1, "pastNum": 20}]}}):
             with patch.object(self.client, "_access_token", return_value="token"), \
                     patch.object(self.client, "_request_json", return_value={"result": result}), \
@@ -71,6 +72,36 @@ class ClientHealthTests(unittest.TestCase):
                 dt.now.return_value = fixed_now
                 with self.assertRaisesRegex(OpenApiError, "openapi_response_invalid"):
                     self.client.read_client_health(self.site_ref, self.client_ref)
+
+    def test_live_minus_one_score_sentinels_are_reported_as_unclassified(self) -> None:
+        now = 1_800_000_000_000
+        fixed_now = RealDateTime.fromtimestamp(now / 1000, timezone.utc)
+        payload = {"result": {
+            "score": -1,
+            "associationTime": {"summaryScore": -1, "averageNum": None},
+            "rssi": {"summaryScore": -1},
+            "rate": {"summaryScore": -1},
+            "snr": {"summaryScore": -1},
+            "connectScore": {"summaryScore": None},
+            "linkErrorScore": {"summaryScore": None},
+            "incident": {"summaryScore": -1, "incidentNum": 0},
+        }}
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value=payload), \
+                patch("app.openapi.datetime") as dt:
+            dt.now.return_value = fixed_now
+            result = self.client.read_client_health(self.site_ref, self.client_ref)
+
+        self.assertTrue(result["partial"])
+        self.assertEqual(result["data"]["score"], None)
+        self.assertEqual(result["data"]["association_time_ms"]["summary_score"], None)
+        self.assertEqual(result["data"]["rssi"]["summary_score"], None)
+        self.assertEqual(result["data"]["incident"]["summary_score"], None)
+        self.assertEqual(result["unclassified_minus_one_fields"], [
+            "score", "associationTime.summaryScore", "rssi.summaryScore",
+            "rate.summaryScore", "snr.summaryScore", "incident.summaryScore",
+        ])
+        self.assertNotIn(-1, result["data"].values())
 
     def test_fixed_read_path_only(self) -> None:
         allowed = "/openapi/v1/ctrl/sites/site_1/clients/00-11-22-33-44-55/health/detail?start=1&end=2"

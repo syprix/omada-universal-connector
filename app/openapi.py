@@ -4807,23 +4807,30 @@ class OmadaOpenApiClient:
         if not isinstance(result, dict):
             raise OpenApiError("openapi_response_invalid")
         out: dict[str, object] = {}
-        if "score" in result and result["score"] is not None:
-            score = result["score"]
-            if isinstance(score, bool) or not isinstance(score, int) or not 0 <= score <= 100:
+        unclassified_minus_one_fields: list[str] = []
+
+        def project_score(value: object, field: str) -> int | None:
+            # The live controller uses -1 for a score that is not classified.
+            if type(value) is int and value == -1:
+                unclassified_minus_one_fields.append(field)
+                return None
+            if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 100:
                 raise OpenApiError("openapi_response_invalid")
-            out["score"] = score
+            return value
+
+        if "score" in result and result["score"] is not None:
+            out["score"] = project_score(result["score"], "score")
 
         metric_limits = {"associationTime": (0, 86_400_000), "rssi": (-150, 0),
                          "rate": (0, 10_000_000_000), "snr": (-100, 100)}
-        def common_dimension(value: object, minimum: int, maximum: int) -> dict[str, object]:
+        def common_dimension(value: object, minimum: int, maximum: int,
+                             source: str) -> dict[str, object]:
             if not isinstance(value, dict):
                 raise OpenApiError("openapi_response_invalid")
             clean: dict[str, object] = {}
             if "summaryScore" in value and value["summaryScore"] is not None:
-                v = value["summaryScore"]
-                if isinstance(v, bool) or not isinstance(v, int) or not 0 <= v <= 100:
-                    raise OpenApiError("openapi_response_invalid")
-                clean["summary_score"] = v
+                clean["summary_score"] = project_score(
+                    value["summaryScore"], f"{source}.summaryScore")
             if "averageNum" in value and value["averageNum"] is not None:
                 series = value["averageNum"]
                 if not isinstance(series, list) or len(series) > 64:
@@ -4845,21 +4852,20 @@ class OmadaOpenApiClient:
             if source in result and result[source] is not None:
                 out[{"associationTime": "association_time_ms", "rssi": "rssi",
                      "rate": "rate", "snr": "snr"}[source]] = common_dimension(
-                         result[source], minimum, maximum)
+                         result[source], minimum, maximum, source)
         for source, target in (("connectScore", "connect_score"),
                                ("linkErrorScore", "link_error_score")):
             if source in result and result[source] is not None:
-                out[target] = common_dimension(result[source], -(2**31), 2**31 - 1)
+                out[target] = common_dimension(
+                    result[source], -(2**31), 2**31 - 1, source)
         if "incident" in result and result["incident"] is not None:
             incident = result["incident"]
             if not isinstance(incident, dict):
                 raise OpenApiError("openapi_response_invalid")
             safe_incident: dict[str, object] = {}
             if incident.get("summaryScore") is not None:
-                score = incident["summaryScore"]
-                if isinstance(score, bool) or not isinstance(score, int) or not 0 <= score <= 100:
-                    raise OpenApiError("openapi_response_invalid")
-                safe_incident["summary_score"] = score
+                safe_incident["summary_score"] = project_score(
+                    incident["summaryScore"], "incident.summaryScore")
             if incident.get("support") is not None:
                 if not isinstance(incident["support"], bool):
                     raise OpenApiError("openapi_response_invalid")
@@ -4870,8 +4876,12 @@ class OmadaOpenApiClient:
                     raise OpenApiError("openapi_response_invalid")
                 safe_incident["incident_count"] = number
             out["incident"] = safe_incident
+        classification = ({"partial": True,
+                           "unclassified_minus_one_fields": unclassified_minus_one_fields}
+                          if unclassified_minus_one_fields else {})
         return {"status": "ok", "resource": "client_health", "client_ref": client_ref,
-                "window_start_ms": start_ms, "window_end_ms": end_ms, "data": out}
+                "window_start_ms": start_ms, "window_end_ms": end_ms, "data": out,
+                **classification}
 
     @_track_capability("client_health_detail_v2")
     def read_client_health_detail_v2(self, site_ref: str, client_ref: str) -> dict[str, object]:

@@ -2,6 +2,20 @@
 
 This page summarizes the connector's current capabilities and the evidence behind them. Catalog entries and offline tests alone do not establish live support; operation-specific limits are recorded in the [capability evidence](CAPABILITIES.md), [roadmap](ROADMAP.md), and [operation evidence index](OPERATION_EVIDENCE.json).
 
+## 2026-11-24 — Client health sentinel and dashboard response checks
+
+On the OC200 running Controller 6.3.0.45, the existing client-health read
+returned documented score fields with the value `-1`. The connector now emits
+those fields as unknown (`null`), marks the result partial, and lists the
+unclassified fields. It does not present the sentinel as a measured score.
+The correction passed focused offline tests and fresh HTTP and MCP reads; no
+configuration change or active measurement was made.
+
+Four existing client dashboard reads return a list from this OC200 although all
+three supplied API exports describe an object with the `ClientSummaryVO` shape.
+The returned list rows do not expose those documented summary fields, so the
+connector leaves these reads rejected rather than guessing their meaning.
+
 ## Follow-on read workflows
 
 - #59 controller-wide event and alert windows: fixed, paginated HTTP/MCP reads use bounded time filters and omit row text and identifiers. Source contracts include the global log read permission in all three exports. A synthetic 20-row fixture measured 850→82 serialized tokens (90.35% fewer); live support remains unknown.
