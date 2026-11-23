@@ -18,6 +18,14 @@ framing, the agent's request and billed usage. No live network data was used.
 
 `omada_site_wlan_group_ssid_config_summary` requires both a current `wlan_group_ref` and `ssid_ref` from the same site. It checks unique membership in that group's SSID list before reading the group-scoped `getSsidDetail` operation, then returns only documented enabled, band and EAP/gateway applicability flags. Names, IDs, VLAN values and credentials are omitted. Missing fields stay unknown; live support is unknown.
 
+`omada_site_lte_wan_config_summary` counts LTE WAN settings and documented
+modem-status codes for the selected site. It separates stored configuration
+from status and does not infer Internet reachability. SIM/port identifiers,
+names, provider values, APNs and raw band strings are omitted. Live support is
+unknown. A synthetic 20-row response measured 4,328 tokens before projection
+and 458 after (89.42% fewer) with `js-tiktoken` 1.0.21 and `o200k_base`.
+These are serialized JSON response bodies only, not live or billed usage.
+
 On synthetic fixtures, `js-tiktoken` 1.0.21 with `o200k_base` counted 533
 tokens in a 20-row static-route interface response and 128 in its projection
 (75.98% fewer). A selected-SSID flow fixture (inventory, group membership and
@@ -930,3 +938,8 @@ A synthetic single-record source response measured 32 tokens before projection a
 `omada_controller_upgrade_model_list_summary` is controller-scoped and reads up to 1,000 planned model rows. It returns only model metadata coverage and documented critical/upgrade status counts. Model names and firmware versions are omitted; it does not initiate updates or infer per-device compatibility. HTTP and MCP routing are fixture-tested; live support is unknown.
 
 `omada_site_s2s_vpn_inventory_summary` lists same-site opaque VPN references and documented VPN types. Use one returned `vpn_ref` with `omada_site_s2s_peer_status_summary`; that read refreshes and checks the VPN against the selected site's inventory before requesting peers. It returns only peer status counts (0 disconnected, 1 connected); other codes and missing status stay unknown. It omits peer/VPN identities, addresses, names and traffic. These are separate from the general S2S tunnel/IPsec association summaries. Live support is unknown.
+
+`omada_site_nat_exception_summary` summarizes documented NAT exception
+configuration for one selected site through a bounded paginated read. It omits
+rule identities and raw LAN/WAN references, and does not claim that a rule is
+effectively enforced. Live support is unknown.

@@ -174,6 +174,14 @@ class OperationRegistryTests(unittest.TestCase):
         self.assertEqual(route.operation_id, "site_static_route_summary")
         self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
 
+    def test_nat_exception_summary_is_a_site_bound_read(self):
+        operation = REGISTRY.get("site_nat_exception_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/nat-exceptions/summary")
+        self.assertEqual(route.operation_id, "site_nat_exception_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
+
     def test_static_route_interface_options_are_a_site_bound_read(self):
         operation = REGISTRY.get("site_static_route_interface_options_summary")
         self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
@@ -828,6 +836,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_wan_max_speed_summary",
             "gateway_info_summary",
             "site_static_route_summary",
+            "site_nat_exception_summary",
             "site_static_route_interface_options_summary",
             "site_policy_route_summary",
             "site_ipsec_sa_summary",
@@ -864,6 +873,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_internet_load_balance_summary",
             "site_internet_basic_port_summary",
             "site_internet_summary",
+            "site_lte_wan_config_summary",
             "site_vpn_session_summary",
             "site_dhcp_candidate_summary",
             "site_network_reservation_summary",
@@ -1307,6 +1317,13 @@ class OperationRegistryTests(unittest.TestCase):
         self.assertEqual(operation.operation_id, "site_wlan_group_ssid_config_summary")
         self.assertEqual(bindings, (("site_ref", site_ref), ("wlan_group_ref", group_ref),
                                     ("ssid_ref", ssid_ref)))
+
+    def test_site_lte_wan_configuration_is_site_bound(self):
+        site_ref = "3" * 24
+        operation, bindings = REGISTRY.match(
+            "GET", f"/v1/sites/{site_ref}/internet/lte-wan-config-summary")
+        self.assertEqual(operation.operation_id, "site_lte_wan_config_summary")
+        self.assertEqual(bindings, (("site_ref", site_ref),))
 
     def test_site_wlan_group_detail_requires_opaque_group_reference(self):
         site_ref = "0123456789abcdef01234567"

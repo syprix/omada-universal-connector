@@ -24,10 +24,18 @@ group-scoped path. The result contains only documented enabled, band and EAP /
 gateway applicability flags. Names, IDs, VLAN values and credentials are
 omitted. Missing fields remain unknown; live support is unknown.
 
+`GET /v1/sites/{site_ref}/internet/lte-wan-config-summary` and MCP tool
+`omada_site_lte_wan_config_summary` count LTE WAN setting flags and documented
+mode/status codes. Settings and modem status remain separate; the status codes
+do not establish Internet reachability. Port/SIM identifiers, names, provider
+values, APNs and selected band strings are omitted. All three exports document
+the source operation; live support is unknown.
+
 Token counts for synthetic fixture payloads using `js-tiktoken` 1.0.21 and
 `o200k_base`: the 20-row static-route interface response shrank from 533 to
 128 tokens (75.98%). A selected-SSID flow fixture with inventories, group
 membership and one detail response shrank from 134 to 92 tokens (31.34%).
+The 20-row LTE settings fixture shrank from 4,328 to 458 tokens (89.42%).
 These counts cover serialized source responses and final projections only, not
 HTTP/MCP framing, live payloads or billed agent usage.
 
@@ -1613,3 +1621,17 @@ A synthetic 20-model source response and projection measured 789 → 117 seriali
 The selected S2S VPN peer summary (#80) first refreshes the selected site's documented VPN inventory, then resolves a unique opaque VPN reference before requesting its peer-status pages. It reports counts for the documented `status` filter meanings (0 disconnected, 1 connected); other or missing codes remain unknown. VPN and peer identities, names, addresses, ports and traffic counters are omitted. The inventory's separate `status` flag is not interpreted as tunnel connectivity. Live support is unknown.
 
 A synthetic workflow with 20 VPN inventory records and 20 peer rows measured 2,608 source JSON tokens versus 597 projected tokens (77.11% fewer) using `js-tiktoken` 1.0.21 / `o200k_base`. This compares the two serialized API responses with the two connector summaries; it excludes prompts, schemas and billed agent usage.
+
+`GET /v1/sites/{site_ref}/nat-exceptions/summary` and MCP tool
+`omada_site_nat_exception_summary` page through the selected site's documented
+NAT exception configuration. The result counts documented rule status, LAN
+list coverage and entry totals, plus WAN-interface coverage; it omits rule
+names, IDs, descriptions and raw network/interface values. This describes
+stored configuration only and does not establish effective enforcement or
+traffic behavior. The operation is documented by Hardware Controller and CBC,
+not ER7212PC. Live support is unknown.
+
+A synthetic 20-rule response measured 1,200 serialized JSON tokens before
+projection and 150 in the final result (87.5% fewer) using `js-tiktoken`
+1.0.21 with `o200k_base`. These fixture bodies exclude transport framing,
+live payloads and billed agent usage.

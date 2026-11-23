@@ -33,6 +33,15 @@ enable flag, band bits and EAP/gateway device-type bits. Names, IDs, VLAN values
 and credentials are omitted. Missing fields are reported as partial; live
 support is unknown.
 
+`GET /v1/sites/{site_ref}/internet/lte-wan-config-summary` reads the
+unpaginated `getLteWanPortsConfig` response. It summarizes documented mobile
+data/roaming settings, network and band modes, dial-up modes, failover-setting
+presence, modem status and SIM-card status. Stored settings are separate from
+the source modem-status codes; neither proves Internet reachability. It omits
+SIM/port identifiers, names, provider values, APNs and raw band strings, caps
+the list at 1,000 rows and marks missing, unknown or truncated data partial.
+All three exports document the operation; live support is unknown.
+
 `getGridAvailableSsids` is documented only by Hardware Controller and CBC.
 Both require integer `page` and `pageSize` query parameters and a string
 `searchKey`, but the search-field description is incomplete and neither export
@@ -1463,3 +1472,11 @@ The three exports document `getPortForwardStatus`, but describe the required str
 | `GET /v1/sites/{site_ref}/ssids/{ssid_ref}/clients/summary` | `GET /openapi/v1/{omadacId}/sites/{siteId}/clientList/{ssidId}` | Hardware Controller 6.3.0 and CBC 6.3.0 only; one site-bound SSID, flat `page=1&pageSize=100`, total count and page coverage only; no client details or online-state claim; absent from the ER7212PC 6.2.14 export |
 | `GET /v1/sites/{site_ref}/remote-logging/summary` | `GET /openapi/v1/{omadacId}/sites/{siteId}/remote-logging` | Enabled state, documented client-log flag and resource category, destination presence only; host/port values are omitted; no delivery-success claim; documented in all three exports |
 | `GET /v1/controller/firmware-upgrades/summary` | `GET /openapi/v1/{omadacId}/upgrade/overview/logs` | One page capped at 100; rollback, failure-count presence and upgrade-time presence aggregates only; no raw identities, versions, model details or timestamps; read-only |
+
+`GET /v1/sites/{site_ref}/nat-exceptions/summary` reads the documented
+`getDisableNatGrid_1` pages. It returns counts for configured rule status,
+LAN-list coverage and entries, and WAN-interface coverage. Names, IDs,
+descriptions and raw network/interface values are omitted. The output describes
+configuration only; effective enforcement and traffic behavior remain unknown.
+Hardware Controller and CBC document this operation; ER7212PC does not. Live
+support is unknown.
