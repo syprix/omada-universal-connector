@@ -134,6 +134,9 @@ device and client inventory have not been rechecked in the current image.
 | `GET /v1/sites/{site_ref}/ssids/{ssid_ref}/ap-groups` | `GET /openapi/v1/{omadacId}/sites/{siteId}/wireless-network/ssids/{ssidId}/ap-groups` | Current-inventory SSID reference; group names/IDs omitted; returns bounded group/AP and SSID-limit counts; Hardware Controller and CBC document this route |
 | `GET /v1/sites/{site_ref}/topology/network-summary` | `GET /openapi/v2/{omadacId}/sites/{siteId}/topology/available-network` | Bounded counts for wired networks and SSIDs; incomplete aggregates are `null` and partial; names, IDs and VLAN values are omitted; Hardware Controller and CBC document this route |
 | `GET /v1/sites/{site_ref}/topology/vlan-summary` | `GET /openapi/v2/{omadacId}/sites/{siteId}/topology/available-vlans` | Returns bounded counts for wired networks and distinct VLANs; incomplete aggregates are `null` and partial; omits names, IDs and VLAN values; Hardware Controller and CBC document this route |
+| `GET /v1/sites/{site_ref}/topology/root-candidates/summary` | `GET /openapi/v2/{omadacId}/sites/{siteId}/topology/nodes` | Counts root candidates by documented type and flag codes; omits identifiers, names, models and subtype text; no topology edges; Hardware Controller and CBC only |
+| `GET /v1/sites/{site_ref}/lan-client-inventory/summary` | Fixed `GET /openapi/v1/{omadacId}/sites/{siteId}/networks/client?page={page}&pageSize=100` | Up to ten pages; reports total and coverage, omits MACs, names and raw device types; same route under different OpenAPI operation IDs in the three exports |
+| `GET /v1/sites/{site_ref}/topology/isolated-preconfig/summary` | `GET /openapi/v2/{omadacId}/sites/{siteId}/topology/isolated-and-pre-config` | Separate category counts and total reconciliation; omits identifiers and device strings; Hardware Controller and CBC only |
 | `GET /v1/sites/{site_ref}/lan-network-config-summary` | Paginated `GET /openapi/v3/{omadacId}/sites/{siteId}/lan-networks` | Bounded purpose and feature-flag counts; network/device identifiers, VLANs, addresses and raw configuration are omitted; all three exports document the route |
 | `GET /v1/sites/{site_ref}/internet/load-balance-summary` | `GET /openapi/v1/{omadacId}/sites/{siteId}/internet/load-balance` | Validated feature flags, documented mode-code counts and bounded array counts; WAN IDs, names, weights and schedule references are omitted |
 | `GET /v1/sites/{site_ref}/internet/basic-port-summary` | `GET /openapi/v1/{omadacId}/sites/{siteId}/internet/basic-info` | Documented port mode/type distributions and online-detection interval; port names, IDs and raw gateway model number are omitted |
@@ -1145,6 +1148,36 @@ projected into bounded purpose, DHCP and feature counts; network identities,
 addresses and nested configuration are omitted. Processing is capped at 500
 rows, with invalid, unknown or truncated results marked partial. No live request
 was made; live support remains unknown.
+
+`GET /v1/sites/{site_ref}/lan-client-inventory/summary` and
+`omada_site_lan_client_inventory_summary` expose `getGridAllClients_1` in the
+Hardware/CBC 6.3.0 exports and the same route as `getGridAllClients` in
+ER7212PC 6.2.14. The documented response has `totalRows`, `currentPage`,
+`currentSize`, and rows containing MAC, name, and free-text type. The connector
+uses fixed 100-row pages, up to 10 pages, reports inventory and returned counts
+with coverage, and omits all row values. The route lists LAN inventory; it does
+not prove that clients are currently connected. Fixture tests cover the page
+contract and redaction; no live request was made.
+
+`GET /v1/sites/{site_ref}/topology/root-candidates/summary` and
+`omada_site_topology_root_candidates_summary` expose `getTopologyNodes` from
+Hardware Controller and CBC 6.3.0. ER7212PC does not document this operation.
+The response is a list of selectable root candidates, with documented `type`,
+`specificType`, `isRoot` and `stackGroup` fields plus free-text detail fields.
+The connector returns bounded counts and field coverage, omitting names,
+addresses, models and free text. The source contains no edge list; the result
+does not describe device connections. An empty list is not interpreted as
+missing topology because the source says a gateway may cause this endpoint to
+return an empty list. No live request was made.
+
+`GET /v1/sites/{site_ref}/topology/isolated-preconfig/summary` and
+`omada_site_isolated_preconfig_summary` expose `getIsolatedAndPreConfigDevices`
+from Hardware Controller and CBC 6.3.0; ER7212PC does not document it. The
+connector counts the `isolated` and `preconfig` arrays separately, reconciles
+their lengths with the documented total, and counts only type/health/IPPT
+field presence. MACs, names, models, health values and device-type text are
+omitted. Mismatched totals, bad rows and unknown fields lower the result
+coverage; no adoption action or cause is inferred. No live request was made.
 
 
 ## Longest client uptime dashboard read
