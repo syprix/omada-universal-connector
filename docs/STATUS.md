@@ -4,6 +4,9 @@ This page summarizes the connector's current capabilities and the evidence behin
 
 ## Follow-on read workflows
 
+- #59 controller-wide event and alert windows: fixed, paginated HTTP/MCP reads use bounded time filters and omit row text and identifiers. Source contracts include the global log read permission in all three exports. A synthetic 20-row fixture measured 850→82 serialized tokens (90.35% fewer); live support remains unknown.
+- #60 WAN-port availability by function: HTTP/MCP read validates the documented function codes 0–15 and returns redacted counts. Hardware/CBC document the source operation; ER7212PC does not. Physical link state is not inferred. A synthetic eight-port fixture measured 554→98 serialized tokens (82.31% fewer); live support remains unknown.
+
 The current local development branch also contains these read-only workflows:
 
 - Setup check: separates configuration, controller TLS, authentication, site-inventory permission and MCP checks. MCP verifies initialization, paginated discovery, the read-only advertisement, one site-inventory call and the unknown-tool error path. Fixture tests pass; no live setup check was run.

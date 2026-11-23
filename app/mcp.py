@@ -682,6 +682,10 @@ def _tool(operation: Any) -> dict[str, object]:
                 properties[name] = {"type": "integer", "enum": [0, 1],
                                     "description": "VPN type: 0 server or 1 client."}
             required.append(name)
+        elif name == "function":
+            properties[name] = {"type": "integer", "enum": list(range(16)),
+                                "description": "Documented WAN-port query function code (0–15)."}
+            required.append(name)
     base_local = tuple(getattr(operation, "local_arguments", ()))
     alternatives = tuple(getattr(operation, "local_argument_alternatives", ()))
     local_names = set(base_local).union(*(set(group) for group in alternatives))
@@ -1303,6 +1307,12 @@ def _invoke_tool(registry: Any, name: object, arguments: object,
                 else (0, 1, 3, 4) if operation.operation_id == "site_vpn_client_status_summary"
                 else (0, 1))
             if type(value) is not int or value not in allowed_values:
+                raise McpRequestError("arguments_invalid")
+            safe_arguments[key] = str(value)
+        elif key == "function":
+            value = arguments.get(key)
+            if (type(value) is not int or not 0 <= value <= 15 or
+                    operation.operation_id != "site_wan_port_availability_summary"):
                 raise McpRequestError("arguments_invalid")
             safe_arguments[key] = str(value)
     for key in set(arguments) & local_names:

@@ -2418,6 +2418,42 @@
             "projection": "Reads one controller-config-bound page of up to 100 rows, reports source total and page coverage, counts rollbacked values, logs with reported failed devices and upgradeTime presence. No timestamps, names, IDs, versions or model details are returned; this is not an upgrade action.",
             "permission": "Site Manual Firmware Upgrade View Only"
           }
+        },
+        "controller_events_window_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getEventLogsForGlobal",
+            "tag": "Log",
+            "permission": "Global Log & Audit Log Manager View Only",
+            "query": "Required page (int32, starts at 1), pageSize (int32, 1–1000), filters.timeStart and filters.timeEnd (int64). Connector limits reads to 100 rows per page and at most 10 pages. Optional filters.module are omitted.",
+            "response": "EventLogGridVOEventLogOpenApiVO: totalRows/currentPage/currentSize/data and eventLogStat; rows have id/key/module/content/time.",
+            "projection": "Controller-wide bounded UTC-ms or explicit IANA-local window; redacted module/severity counts, observed timestamp bounds and page coverage only. No log text or row identifiers. A truncated page set is marked partial; live support is unknown."
+          }
+        },
+        "controller_alerts_window_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getAlertLogsForGlobal",
+            "tag": "Log",
+            "permission": "Global Log & Audit Log Manager View Only",
+            "query": "Required page (int32, starts at 1), pageSize (int32, 1–1000), filters.timeStart and filters.timeEnd (int64). Connector limits reads to 100 rows per page and at most 10 pages. Optional filters.module are omitted. Optional filters.resolved is also omitted.",
+            "response": "AlertLogGridVOAlertLogOpenApiVO: totalRows/currentPage/currentSize/data; rows have id/key/module/content/time/level.",
+            "projection": "Controller-wide bounded UTC-ms or explicit IANA-local window; redacted module/severity counts, observed timestamp bounds and page coverage only. No log text or row identifiers. A truncated page set is marked partial; live support is unknown."
+          }
+        },
+        "site_wan_port_availability_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getAvailableWanPorts_1",
+            "tag": "Site Configuration",
+            "permission": "Site Settings Manager View Only; Device Config Page View Only; Site Device Manager View Only",
+            "query": "Required int32 function parameter. The description documents codes 0–15: ACL, QOS, IP_MAC_BLINDING, IGMP_PROXY, VIRTUAL_WAN, PORT_FROWARDING, OTONAT, BANDWIDTH_CONTROL, STATIC_ROUTING, POLICY_ROUTING, VPN, SSL_VPN, DDNS, UPNP, MLD, LAN.",
+            "response": "AvailableWanResultOpenApiVO has optional enable boolean and wanPorts array. Each optional row field is documented: portName, portUuid, type int32, configured boolean (QOS configured), supportIptv boolean, virtualWanNum int32, proto string, ipv6 boolean, ipv6Proto string, recommendedWan boolean and ip string.",
+            "projection": "Site-bound HTTP/MCP GET with one validated function code. Counts listed rows and known true values for configured/IPv6/IPTV/recommended flags; omits names, UUIDs, addresses, protocol strings and raw types. Missing fields/unknown additions mark partial; no physical link status is inferred. Hardware/CBC only."
+          }
         }
       }
     },
@@ -4809,6 +4845,42 @@
             "projection": "Reads one controller-config-bound page of up to 100 rows, reports source total and page coverage, counts rollbacked values, logs with reported failed devices and upgradeTime presence. No timestamps, names, IDs, versions or model details are returned; this is not an upgrade action.",
             "permission": "Site Manual Firmware Upgrade View Only"
           }
+        },
+        "controller_events_window_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getEventLogsForGlobal",
+            "tag": "Log",
+            "permission": "Global Log & Audit Log Manager View Only",
+            "query": "Required page (int32, starts at 1), pageSize (int32, 1–1000), filters.timeStart and filters.timeEnd (int64). Connector limits reads to 100 rows per page and at most 10 pages. Optional filters.module are omitted.",
+            "response": "EventLogGridVOEventLogOpenApiVO: totalRows/currentPage/currentSize/data and eventLogStat; rows have id/key/module/content/time.",
+            "projection": "Controller-wide bounded UTC-ms or explicit IANA-local window; redacted module/severity counts, observed timestamp bounds and page coverage only. No log text or row identifiers. A truncated page set is marked partial; live support is unknown."
+          }
+        },
+        "controller_alerts_window_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getAlertLogsForGlobal",
+            "tag": "Log",
+            "permission": "Global Log & Audit Log Manager View Only",
+            "query": "Required page (int32, starts at 1), pageSize (int32, 1–1000), filters.timeStart and filters.timeEnd (int64). Connector limits reads to 100 rows per page and at most 10 pages. Optional filters.module are omitted. Optional filters.resolved is also omitted.",
+            "response": "AlertLogGridVOAlertLogOpenApiVO: totalRows/currentPage/currentSize/data; rows have id/key/module/content/time/level.",
+            "projection": "Controller-wide bounded UTC-ms or explicit IANA-local window; redacted module/severity counts, observed timestamp bounds and page coverage only. No log text or row identifiers. A truncated page set is marked partial; live support is unknown."
+          }
+        },
+        "site_wan_port_availability_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getAvailableWanPorts_1",
+            "tag": "Site Configuration",
+            "permission": "Site Settings Manager View Only; Device Config Page View Only; Site Device Manager View Only",
+            "query": "Required int32 function parameter. The description documents codes 0–15: ACL, QOS, IP_MAC_BLINDING, IGMP_PROXY, VIRTUAL_WAN, PORT_FROWARDING, OTONAT, BANDWIDTH_CONTROL, STATIC_ROUTING, POLICY_ROUTING, VPN, SSL_VPN, DDNS, UPNP, MLD, LAN.",
+            "response": "AvailableWanResultOpenApiVO has optional enable boolean and wanPorts array. Each optional row field is documented: portName, portUuid, type int32, configured boolean (QOS configured), supportIptv boolean, virtualWanNum int32, proto string, ipv6 boolean, ipv6Proto string, recommendedWan boolean and ip string.",
+            "projection": "Site-bound HTTP/MCP GET with one validated function code. Counts listed rows and known true values for configured/IPv6/IPTV/recommended flags; omits names, UUIDs, addresses, protocol strings and raw types. Missing fields/unknown additions mark partial; no physical link status is inferred. Hardware/CBC only."
+          }
         }
       }
     },
@@ -7173,6 +7245,34 @@
             "projection": "Reads one controller-config-bound page of up to 100 rows, reports source total and page coverage, counts rollbacked values, logs with reported failed devices and upgradeTime presence. No timestamps, names, IDs, versions or model details are returned; this is not an upgrade action.",
             "permission": "Site Manual Firmware Upgrade View Only"
           }
+        },
+        "controller_events_window_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getEventLogsForGlobal",
+            "tag": "Log",
+            "permission": "Global Log & Audit Log Manager View Only",
+            "query": "Required page (int32, starts at 1), pageSize (int32, 1–1000), filters.timeStart and filters.timeEnd (int64). Connector limits reads to 100 rows per page and at most 10 pages. Optional filters.module are omitted.",
+            "response": "EventLogGridVOEventLogOpenApiVO: totalRows/currentPage/currentSize/data and eventLogStat; rows have id/key/module/content/time.",
+            "projection": "Controller-wide bounded UTC-ms or explicit IANA-local window; redacted module/severity counts, observed timestamp bounds and page coverage only. No log text or row identifiers. A truncated page set is marked partial; live support is unknown."
+          }
+        },
+        "controller_alerts_window_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getAlertLogsForGlobal",
+            "tag": "Log",
+            "permission": "Global Log & Audit Log Manager View Only",
+            "query": "Required page (int32, starts at 1), pageSize (int32, 1–1000), filters.timeStart and filters.timeEnd (int64). Connector limits reads to 100 rows per page and at most 10 pages. Optional filters.module are omitted. Optional filters.resolved is also omitted.",
+            "response": "AlertLogGridVOAlertLogOpenApiVO: totalRows/currentPage/currentSize/data; rows have id/key/module/content/time/level.",
+            "projection": "Controller-wide bounded UTC-ms or explicit IANA-local window; redacted module/severity counts, observed timestamp bounds and page coverage only. No log text or row identifiers. A truncated page set is marked partial; live support is unknown."
+          }
+        },
+        "site_wan_port_availability_summary": {
+          "documented": false,
+          "live_support": "unknown"
         }
       }
     }

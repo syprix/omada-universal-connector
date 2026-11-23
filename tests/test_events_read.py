@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import time
 import unittest
 from unittest.mock import patch
 
@@ -156,6 +157,39 @@ class SiteEventReadTests(unittest.TestCase):
                 self.client._request_json("GET", invalid)
         with self.assertRaisesRegex(OpenApiError, "openapi_path_rejected"):
             self.client._request_json("DELETE", path)
+
+    def test_controller_window_summary_uses_bounded_global_read_and_redacts_rows(self) -> None:
+        now = int(time.time() * 1000)
+        calls = []
+        payload = {"result": {"totalRows": 1, "currentPage": 1, "currentSize": 1,
+                              "data": [{"id": "private-event", "module": "System",
+                                        "content": "SSID private-name", "time": now}]}}
+        def request(method, path, **kwargs):
+            calls.append(path)
+            self.assertEqual(method, "GET")
+            self.assertRegex(path, r"^/openapi/v1/ctrl/logs/events\?page=1&pageSize=100&filters\.timeStart=[0-9]+&filters\.timeEnd=[0-9]+$")
+            return payload
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", side_effect=request), \
+                patch("app.openapi.datetime") as dt:
+            dt.now.return_value = __import__("datetime").datetime.fromtimestamp(
+                now / 1000, __import__("datetime").timezone.utc)
+            result = self.client.read_controller_log_window_summary("events", now - 60_000, now)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(result["scope"], "configured_controller")
+        self.assertEqual(result["returned_count"], 1)
+        self.assertEqual(result["resource"], "controller_events_window_summary")
+        for forbidden in ("private-event", "private-name", "site_id", "site_ref"):
+            self.assertNotIn(forbidden, str(result))
+
+    def test_controller_global_path_allowlist_is_controller_bound(self) -> None:
+        path = "/openapi/v1/ctrl/logs/alerts?page=1&pageSize=100&filters.timeStart=10&filters.timeEnd=20"
+        with patch.object(self.client, "_connection", side_effect=OpenApiError("connection_reached")):
+            with self.assertRaisesRegex(OpenApiError, "connection_reached"):
+                self.client._request_json("GET", path)
+        for invalid in (path.replace("/ctrl/", "/other/"), path + "&filters.resolved=false"):
+            with self.assertRaisesRegex(OpenApiError, "openapi_path_rejected"):
+                self.client._request_json("GET", invalid)
 
 
 if __name__ == "__main__":

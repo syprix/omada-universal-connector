@@ -129,6 +129,18 @@ class OperationRegistryTests(unittest.TestCase):
         self.assertEqual(set(schema["properties"]), {
             "site_ref", "start_ms", "end_ms", "start_local", "end_local", "time_zone"})
 
+    def test_controller_log_window_routes_and_mcp_schemas_are_controller_scoped(self):
+        for kind in ("events", "alerts"):
+            op_id = f"controller_{kind}_window_summary"
+            operation, bindings = REGISTRY.match("GET", f"/v1/controller/{kind}/window")
+            self.assertEqual(operation.operation_id, op_id)
+            self.assertEqual(bindings, ())
+            schema = _tool(operation)["inputSchema"]
+            self.assertEqual(schema["required"], [])
+            self.assertEqual(len(schema["oneOf"]), 2)
+            self.assertEqual(set(schema["properties"]), {
+                "start_ms", "end_ms", "start_local", "end_local", "time_zone"})
+
     def test_msp_client_detail_setting_route_binds_bounded_reference(self):
         op, bindings = REGISTRY.match(
             "GET", "/v1/msp/msp-id_safe/client-detail-information")
@@ -716,6 +728,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_firewall_defaults",
             "site_bandwidth_control",
             "site_wan_ports_summary",
+            "site_wan_port_availability_summary",
             "site_virtual_wan_summary",
             "site_wan_max_speed_summary",
             "gateway_info_summary",
@@ -913,6 +926,8 @@ class OperationRegistryTests(unittest.TestCase):
             "site_alerts_window_summary",
             "site_audit_log_window_summary",
             "controller_audit_log_window_summary",
+            "controller_events_window_summary",
+            "controller_alerts_window_summary",
             "site_rogue_ap_results",
             "site_wids_summary",
             "site_wids_blacklist_summary",
