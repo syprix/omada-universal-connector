@@ -1435,6 +1435,12 @@ class OmadaOpenApiClient:
         "/openapi/v2/{controller_id}/sites/{site_id}/topology/nodes")
     _SITE_ISOLATED_PRECONFIG_PATH = (
         "/openapi/v2/{controller_id}/sites/{site_id}/topology/isolated-and-pre-config")
+    _SITE_VLAN_TOPOLOGY_PATH = (
+        "/openapi/v3/{controller_id}/sites/{site_id}/topology/{network_id}/vlan/{vlan}/devices")
+    _SITE_ES_NETWORK_OVERVIEW_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/switches/es/{switch_mac}/network-overview")
+    _SITE_PORT_SCHEDULE_PORTS_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/port-status-ports")
     _SITE_INTERNET_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/internet"
     _SITE_INTERNET_LOAD_BALANCE_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/internet/load-balance")
@@ -1472,10 +1478,15 @@ class OmadaOpenApiClient:
     _SITE_ISP_LOAD_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/isp-load"
     _SITE_VPN_TUNNEL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/vpn-tunnel-stats"
     _SITE_VPN_S2S_STATUS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/vpn/stats/s2s"
+    _SITE_S2S_VPN_INVENTORY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/vpn/site-to-site-vpns"
+    _SITE_S2S_PEER_STATUS_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/setting/vpn/stats/s2s/{vpn_id}/peer")
     _SITE_AP_TOPOLOGY_CLIENTS_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/topology/devices/{ap_mac}/clients"
     _SITE_NETWORK_DELIVERY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/networks/{network_id}/brief-process"
     _SITE_LAN_PROFILES_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/lan-profiles"
     _CONTROLLER_UPGRADE_PLANS_PATH = "/openapi/v1/{controller_id}/upgrade/overview/plans"
+    _CONTROLLER_GLOBAL_LOG_NOTIFICATION_PATH = "/openapi/v2/{controller_id}/log-notification"
+    _CONTROLLER_UPGRADE_MODEL_LIST_PATH = "/openapi/v1/{controller_id}/upgrade/plan/models"
     _SITE_LAN_MULTICASTS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/lan-multicasts"
     _SITE_BANDWIDTH_RULES_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/bandwidth-control/rules"
     _SITE_LOG_NOTIFICATION_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/site/log-notification"
@@ -1806,6 +1817,18 @@ class OmadaOpenApiClient:
         r"/openapi/v2/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
         r"/topology/isolated-and-pre-config"
     )
+    _SITE_VLAN_TOPOLOGY_REQUEST = re.compile(
+        r"/openapi/v3/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/topology/([A-Za-z0-9_-]{1,128})/vlan/([1-9][0-9]{0,3})/devices"
+    )
+    _SITE_ES_NETWORK_OVERVIEW_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/switches/es/(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}/network-overview"
+    )
+    _SITE_PORT_SCHEDULE_PORTS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/port-status-ports"
+    )
     _SITE_INTERNET_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/internet"
     )
@@ -1883,6 +1906,15 @@ class OmadaOpenApiClient:
     _SITE_VPN_S2S_STATUS_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
         r"/setting/vpn/stats/s2s\?filters\.vpnType=([24])&page=([1-9][0-9]*)&pageSize=([1-9][0-9]*)"
+    )
+    _SITE_S2S_VPN_INVENTORY_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})"
+        r"/vpn/site-to-site-vpns"
+    )
+    _SITE_S2S_PEER_STATUS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})"
+        r"/setting/vpn/stats/s2s/([A-Za-z0-9_-]{1,128})/peer"
+        r"\?page=(?:[1-9]|10)&pageSize=(?:[1-9]|[1-9][0-9]|100)"
     )
     _SITE_SSID_TOPOLOGY_DEVICES_REQUEST = re.compile(
         r"/openapi/v3/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
@@ -2119,6 +2151,13 @@ class OmadaOpenApiClient:
     )
     _CONTROLLER_HEALTH_REQUEST = re.compile(
         r"/openapi/v1/[A-Za-z0-9_-]{1,128}/dashboard/overview-without-client"
+    )
+    _CONTROLLER_GLOBAL_LOG_NOTIFICATION_REQUEST = re.compile(
+        r"/openapi/v2/([A-Za-z0-9_-]{1,128})/log-notification"
+    )
+    _CONTROLLER_UPGRADE_MODEL_LIST_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/upgrade/plan/models"
+        r"\?page=(?:[1-9]|10)&pageSize=(?:[1-9]|[1-9][0-9]|100)"
     )
     _CONTROLLER_SCENARIOS_REQUEST = re.compile(
         r"/openapi/v1/[A-Za-z0-9_-]{1,128}/scenarios"
@@ -2790,6 +2829,8 @@ class OmadaOpenApiClient:
         ("site_vpn_server_status_summary", "GET /v1/sites/{site_ref}/vpn/servers/status-summary"),
         ("site_vpn_client_status_summary", "GET /v1/sites/{site_ref}/vpn/clients/status-summary"),
         ("site_vpn_s2s_status_summary", "GET /v1/sites/{site_ref}/vpn/site-to-site/status-summary"),
+        ("site_s2s_vpn_inventory_summary", "GET /v1/sites/{site_ref}/vpn/site-to-site/summary"),
+        ("site_s2s_peer_status_summary", "GET /v1/sites/{site_ref}/vpn/site-to-site/{vpn_ref}/peers/summary"),
         ("site_ssid_client_count_summary", "GET /v1/sites/{site_ref}/ssids/{ssid_ref}/clients/summary"),
         ("site_ssid_topology_device_summary", "GET /v1/sites/{site_ref}/ssids/{ssid_ref}/topology-device-summary"),
         ("site_ap_topology_clients_summary", "GET /v1/sites/{site_ref}/aps/{device_ref}/topology-clients/summary"),
@@ -2800,6 +2841,8 @@ class OmadaOpenApiClient:
         ("site_log_notification_summary", "GET /v1/sites/{site_ref}/log-notification-summary"),
         ("site_lan_network_interface_summary", "GET /v1/sites/{site_ref}/lan-network-interfaces/summary"),
         ("controller_upgrade_plans_summary", "GET /v1/controller/firmware-upgrade-plans/summary"),
+        ("controller_global_log_notification_summary", "GET /v1/controller/log-notifications/summary"),
+        ("controller_upgrade_model_list_summary", "GET /v1/controller/firmware-upgrade-models/summary"),
         ("site_remote_logging_summary", "GET /v1/sites/{site_ref}/remote-logging/summary"),
         ("controller_upgrade_log_summary", "GET /v1/controller/firmware-upgrades/summary"),
         ("site_wan_qos_summary", "GET /v1/sites/{site_ref}/wan-qos-summary"),
@@ -3031,6 +3074,9 @@ class OmadaOpenApiClient:
         ("site_lan_client_inventory_summary", "GET /v1/sites/{site_ref}/lan-client-inventory/summary"),
         ("site_topology_root_candidates_summary", "GET /v1/sites/{site_ref}/topology/root-candidates/summary"),
         ("site_isolated_preconfig_summary", "GET /v1/sites/{site_ref}/topology/isolated-preconfig/summary"),
+        ("site_vlan_topology_summary", "GET /v1/sites/{site_ref}/networks/{network_ref}/vlan-topology-summary"),
+        ("site_es_network_overview_summary", "GET /v1/sites/{site_ref}/switches/{switch_ref}/es-network-overview/summary"),
+        ("site_port_schedule_ports_summary", "GET /v1/sites/{site_ref}/port-schedule-capable-ports/summary"),
         ("site_internet_load_balance_summary", "GET /v1/sites/{site_ref}/internet/load-balance-summary"),
         ("site_internet_basic_port_summary", "GET /v1/sites/{site_ref}/internet/basic-port-summary"),
         ("controller_gateway_wan_status_summary", "GET /v1/controller/gateway-wan-status-summary"),
@@ -3209,6 +3255,7 @@ class OmadaOpenApiClient:
         self._site_ids_by_ref: dict[str, str] = {}
         self._site_template_ids_by_ref: dict[str, str] = {}
         self._network_ids_by_site_ref: dict[str, dict[str, str]] = {}
+        self._s2s_vpn_ids_by_site_ref: dict[str, dict[str, str]] = {}
         self._rf_history_ids_by_site_ref: dict[str, dict[str, str]] = {}
         self._batch_interference_history_ids_by_site_ref: dict[str, dict[str, str]] = {}
         self._batch_interference_device_macs_by_site_history_ref: dict[
@@ -8573,6 +8620,117 @@ class OmadaOpenApiClient:
         return {**projected, "status": "ok", "resource": "site_vpn_s2s_status_summary",
                 "site_ref": site_ref}
 
+    @_track_capability("site_s2s_vpn_inventory_summary")
+    def list_site_s2s_vpn_inventory_summary(self, site_ref: str) -> dict[str, object]:
+        """List same-site S2S VPNs through opaque references for later selection."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_S2S_VPN_INVENTORY_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        payload = self._request_json("GET", path, token=self._access_token())
+        rows = payload.get("result")
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0 or \
+                not isinstance(rows, list) or len(rows) > 10_000:
+            raise OpenApiError("openapi_response_invalid")
+        refs: list[str | None] = []
+        mapping: dict[str, str] = {}
+        safe_ids = [row.get("id") if isinstance(row, Mapping) and len(row) <= 32 else None
+                    for row in rows]
+        counts: dict[str, int] = {}
+        for raw_id in safe_ids:
+            if isinstance(raw_id, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,128}", raw_id):
+                counts[raw_id] = counts.get(raw_id, 0) + 1
+        duplicate_id_count = sum(count for count in counts.values() if count > 1)
+        for raw_id in safe_ids:
+            if not isinstance(raw_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", raw_id):
+                refs.append(None)
+                continue
+            if counts.get(raw_id) != 1:
+                refs.append(None)
+                continue
+            ref = self._opaque_ref("s2s_vpn", site_id + ":" + raw_id)
+            refs.append(ref)
+            mapping[ref] = raw_id
+        self._s2s_vpn_ids_by_site_ref[site_ref] = mapping
+        try:
+            from .site_s2s_vpn_summary import SiteS2SVpnError, project_s2s_vpn_inventory
+        except ImportError:
+            from site_s2s_vpn_summary import SiteS2SVpnError, project_s2s_vpn_inventory
+        try:
+            result = project_s2s_vpn_inventory(rows, refs)
+        except SiteS2SVpnError:
+            raise OpenApiError("openapi_response_invalid") from None
+        result["duplicate_id_count"] = duplicate_id_count
+        result["partial"] = bool(result["partial"] or duplicate_id_count)
+        return {**result, "site_ref": site_ref}
+
+    @_track_capability("site_s2s_peer_status_summary")
+    def read_site_s2s_peer_status_summary(self, site_ref: str,
+                                         vpn_ref: str) -> dict[str, object]:
+        """Read only peer status counts after refreshing the site's VPN inventory."""
+        if not isinstance(vpn_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", vpn_ref):
+            raise OpenApiError("vpn_ref_invalid")
+        self.list_site_s2s_vpn_inventory_summary(site_ref)
+        vpn_id = self._s2s_vpn_ids_by_site_ref.get(site_ref, {}).get(vpn_ref)
+        if not vpn_id:
+            raise OpenApiError("vpn_ref_unknown")
+        site_id = self._resolve_site_ref(site_ref)
+        base = self._SITE_S2S_PEER_STATUS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, vpn_id=vpn_id)
+        page_size = min(max(1, self.config.page_size), 100)
+        page_limit = min(max(1, self.config.max_pages), 10)
+        rows: list[object] = []
+        total: int | None = None
+        pages_fetched = 0
+        metadata_partial = False
+        support_wireguard_status: object = None
+        for page in range(1, page_limit + 1):
+            query = urlencode({"page": page, "pageSize": page_size})
+            payload = self._request_json("GET", base + "?" + query,
+                                         token=self._access_token())
+            result = payload.get("result")
+            data = result.get("data") if isinstance(result, Mapping) else None
+            page_total = result.get("totalRows") if isinstance(result, Mapping) else None
+            current_page = result.get("currentPage") if isinstance(result, Mapping) else None
+            current_size = result.get("currentSize") if isinstance(result, Mapping) else None
+            wireguard_status = (result.get("supportWireguardStatus")
+                                if isinstance(result, Mapping) else None)
+            if (type(payload.get("errorCode")) is not int or payload["errorCode"] != 0 or
+                    not isinstance(data, list) or len(data) > page_size or
+                    type(page_total) is not int or not 0 <= page_total < (1 << 63) or
+                    type(current_page) is not int or current_page != page or
+                    type(current_size) is not int or not 0 <= current_size <= page_size or
+                    (wireguard_status is not None and type(wireguard_status) is not bool)):
+                raise OpenApiError("openapi_response_invalid")
+            if support_wireguard_status is not None and wireguard_status is not None and \
+                    support_wireguard_status != wireguard_status:
+                raise OpenApiError("openapi_response_invalid")
+            if wireguard_status is not None:
+                support_wireguard_status = wireguard_status
+            if total is None:
+                total = page_total
+            elif page_total != total:
+                raise OpenApiError("openapi_response_invalid")
+            metadata_partial |= current_size != len(data)
+            rows.extend(data)
+            pages_fetched = page
+            if len(rows) > page_total or len(rows) > 1_000:
+                raise OpenApiError("openapi_response_invalid")
+            if len(rows) >= page_total:
+                break
+        try:
+            from .site_s2s_vpn_summary import SiteS2SVpnError, project_s2s_peer_status
+        except ImportError:
+            from site_s2s_vpn_summary import SiteS2SVpnError, project_s2s_peer_status
+        try:
+            projected = project_s2s_peer_status(
+                rows, total if total is not None else len(rows), pages_fetched,
+                page_limit, support_wireguard_status=support_wireguard_status)
+        except SiteS2SVpnError:
+            raise OpenApiError("openapi_response_invalid") from None
+        projected["partial"] = bool(projected["partial"] or metadata_partial)
+        projected["page_size"] = page_size
+        return {**projected, "site_ref": site_ref, "vpn_ref": vpn_ref}
+
     @_track_capability("site_ssid_client_count_summary")
     def read_site_ssid_client_count_summary(self, site_ref: str,
                                             ssid_ref: str) -> dict[str, object]:
@@ -8954,6 +9112,78 @@ class OmadaOpenApiClient:
         projected["partial"] = bool(projected["partial"] or metadata_partial)
         projected["page_size"] = page_size
         return {**projected, "status": "ok", "resource": "controller_upgrade_plans_summary"}
+
+    @_track_capability("controller_global_log_notification_summary")
+    def read_controller_global_log_notification_summary(self) -> dict[str, object]:
+        """Summarize controller-wide event notification switches only."""
+        path = self._CONTROLLER_GLOBAL_LOG_NOTIFICATION_PATH.format(
+            controller_id=self.config.controller_id)
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            from .controller_global_log_notification_summary import (
+                ControllerGlobalLogNotificationError,
+                summarize_controller_log_notifications,
+            )
+        except ImportError:  # direct execution in the image
+            from controller_global_log_notification_summary import (
+                ControllerGlobalLogNotificationError,
+                summarize_controller_log_notifications,
+            )
+        try:
+            return summarize_controller_log_notifications(payload.get("result"))
+        except ControllerGlobalLogNotificationError:
+            raise OpenApiError("openapi_response_invalid") from None
+
+    @_track_capability("controller_upgrade_model_list_summary")
+    def read_controller_upgrade_model_list_summary(self) -> dict[str, object]:
+        """Summarize model/status coverage from the controller upgrade plan page."""
+        base = self._CONTROLLER_UPGRADE_MODEL_LIST_PATH.format(
+            controller_id=self.config.controller_id)
+        page_size = min(max(1, self.config.page_size), 100)
+        page_limit = min(max(1, self.config.max_pages), 10)
+        rows: list[object] = []
+        total: int | None = None
+        pages_fetched = 0
+        metadata_partial = False
+        for page in range(1, page_limit + 1):
+            payload = self._request_json(
+                "GET", base + "?" + urlencode({"page": page, "pageSize": page_size}),
+                token=self._access_token())
+            result = payload.get("result")
+            data = result.get("data") if isinstance(result, Mapping) else None
+            page_total = result.get("totalRows") if isinstance(result, Mapping) else None
+            current_page = result.get("currentPage") if isinstance(result, Mapping) else None
+            current_size = result.get("currentSize") if isinstance(result, Mapping) else None
+            if (not isinstance(data, list) or len(data) > page_size or
+                    type(page_total) is not int or not 0 <= page_total < (1 << 63) or
+                    type(current_page) is not int or current_page != page or
+                    type(current_size) is not int or not 0 <= current_size <= page_size):
+                raise OpenApiError("openapi_response_invalid")
+            if total is None:
+                total = page_total
+            elif page_total != total:
+                raise OpenApiError("openapi_response_invalid")
+            metadata_partial |= current_size != len(data)
+            rows.extend(data)
+            pages_fetched = page
+            if len(rows) > page_total or len(rows) > 1000:
+                raise OpenApiError("openapi_response_invalid")
+            if len(rows) >= page_total:
+                break
+        try:
+            from .controller_upgrade_model_list_summary import (
+                ControllerUpgradeModelListError, summarize_upgrade_models)
+        except ImportError:
+            from controller_upgrade_model_list_summary import (
+                ControllerUpgradeModelListError, summarize_upgrade_models)
+        try:
+            projected = summarize_upgrade_models(
+                rows, total if total is not None else len(rows), pages_fetched, page_limit)
+        except ControllerUpgradeModelListError:
+            raise OpenApiError("openapi_response_invalid") from None
+        projected["partial"] = bool(projected["partial"] or metadata_partial)
+        projected["page_size"] = page_size
+        return projected
 
     @_track_capability("site_remote_logging_summary")
     def read_site_remote_logging_summary(self, site_ref: str) -> dict[str, object]:
@@ -12726,6 +12956,95 @@ class OmadaOpenApiClient:
         return {"status": "ok", "resource": "site_isolated_preconfig_summary",
                 "site_ref": site_ref, **projected}
 
+    @_track_capability("site_vlan_topology_summary")
+    def read_site_vlan_topology_summary(self, site_ref: str, network_ref: str,
+                                        vlan_id: int) -> dict[str, object]:
+        """Count topology membership for a network's currently assigned VLAN."""
+        if type(vlan_id) is not int or not 1 <= vlan_id <= 4094:
+            raise OpenApiError("vlan_id_invalid")
+        inventory = self.list_networks(site_ref)
+        selected = next((row for row in inventory["items"]
+                         if isinstance(row, dict) and row.get("network_ref") == network_ref), None)
+        if selected is None:
+            raise OpenApiError("network_ref_unknown")
+        if selected.get("purpose") != 0 or selected.get("vlan") != vlan_id:
+            raise OpenApiError("network_vlan_mismatch")
+        site_id = self._resolve_site_ref(site_ref)
+        network_id = self._network_ids_by_site_ref.get(site_ref, {}).get(network_ref, "")
+        if not network_id:
+            raise OpenApiError("network_ref_unknown")
+        devices = self.list_devices(site_ref)
+        inventory_types = {row["device_ref"]: row["device_type"]
+                           for row in devices["items"]
+                           if isinstance(row, dict) and isinstance(row.get("device_ref"), str)
+                           and isinstance(row.get("device_type"), str)}
+        inventory_macs = self._inventory_macs_by_site_ref.get(site_ref, {})
+        path = self._SITE_VLAN_TOPOLOGY_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id,
+            network_id=network_id, vlan=vlan_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_vlan_topology_summary import (
+                SiteVlanTopologyError, summarize_site_vlan_topology)
+        except ImportError:
+            from site_vlan_topology_summary import (
+                SiteVlanTopologyError, summarize_site_vlan_topology)
+        try:
+            projected = summarize_site_vlan_topology(
+                result, inventory_mac_by_ref=inventory_macs,
+                inventory_type_by_ref=inventory_types)
+        except SiteVlanTopologyError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_vlan_topology_summary",
+                "site_ref": site_ref, "network_ref": network_ref,
+                "vlan_id": vlan_id, **projected}
+
+    @_track_capability("site_es_network_overview_summary")
+    def read_site_es_network_overview_summary(self, site_ref: str,
+                                              switch_ref: str) -> dict[str, object]:
+        """Summarize ES network/port assignments for a same-site inventoried switch."""
+        self.list_devices(site_ref)
+        switch_mac = self._switch_macs_by_site_ref.get(site_ref, {}).get(switch_ref)
+        if not switch_mac:
+            raise OpenApiError("switch_ref_unknown")
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_ES_NETWORK_OVERVIEW_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id,
+            switch_mac=switch_mac)
+        raw = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_es_network_overview_summary import (
+                EsNetworkOverviewError, summarize_es_network_overview)
+        except ImportError:
+            from site_es_network_overview_summary import (
+                EsNetworkOverviewError, summarize_es_network_overview)
+        try:
+            projected = summarize_es_network_overview(raw, max_items=1000)
+        except EsNetworkOverviewError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_es_network_overview_summary",
+                "site_ref": site_ref, "switch_ref": switch_ref, **projected}
+
+    @_track_capability("site_port_schedule_ports_summary")
+    def read_site_port_schedule_ports_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize devices and ports reported as supporting port schedules."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_PORT_SCHEDULE_PORTS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        raw = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_port_schedule_ports_summary import (
+                PortSchedulePortsError, summarize_port_schedule_ports)
+        except ImportError:
+            from site_port_schedule_ports_summary import (
+                PortSchedulePortsError, summarize_port_schedule_ports)
+        try:
+            projected = summarize_port_schedule_ports(raw, max_items=1000)
+        except PortSchedulePortsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_port_schedule_ports_summary",
+                "site_ref": site_ref, **projected}
+
     @_track_capability("site_internet_summary")
     def read_site_internet_summary(self, site_ref: str) -> dict[str, object]:
         """Read site Internet settings and return only safe counts and flags."""
@@ -15249,11 +15568,16 @@ class OmadaOpenApiClient:
                                   self._site_lan_client_inventory_request_valid(path) or
                                   self._site_topology_root_candidates_request_valid(path) or
                                   self._site_isolated_preconfig_request_valid(path) or
+                                  self._site_vlan_topology_request_valid(path) or
+                                  self._site_es_network_overview_request_valid(path) or
+                                  self._site_port_schedule_ports_request_valid(path) or
                                   self._site_internet_request_valid(path) or
                                   self._site_internet_load_balance_request_valid(path) or
                                   self._site_internet_basic_info_request_valid(path) or
                                   self._site_vpn_session_request_valid(path) or
                                   self._site_vpn_s2s_status_request_valid(path) or
+                                  self._site_s2s_vpn_inventory_request_valid(path) or
+                                  self._site_s2s_peer_status_request_valid(path) or
                                   self._site_ssid_topology_devices_request_valid(path) or
                                   self._site_ap_topology_clients_request_valid(path) or
                                   self._site_network_delivery_request_valid(path) or
@@ -15509,6 +15833,8 @@ class OmadaOpenApiClient:
                                   self._DNS_PROXY_REQUEST.fullmatch(path) or
                                   self._LAN_DNS_REQUEST.fullmatch(path) or
                                   self._CONTROLLER_HEALTH_REQUEST.fullmatch(path) or
+                                  self._controller_global_log_notification_request_valid(path) or
+                                  self._controller_upgrade_model_list_request_valid(path) or
                                   self._CONTROLLER_SCENARIOS_REQUEST.fullmatch(path) or
                                   self._CONTROLLER_SCENARIO_DIFFERENCE_REQUEST.fullmatch(path) or
                                   self._controller_threat_severity_request_valid(path) or
@@ -16581,6 +16907,19 @@ class OmadaOpenApiClient:
         match = self._SITE_ISOLATED_PRECONFIG_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
 
+    def _site_vlan_topology_request_valid(self, path: str) -> bool:
+        match = self._SITE_VLAN_TOPOLOGY_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id and
+                    int(match.group(3)) <= 4094)
+
+    def _site_es_network_overview_request_valid(self, path: str) -> bool:
+        match = self._SITE_ES_NETWORK_OVERVIEW_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_port_schedule_ports_request_valid(self, path: str) -> bool:
+        match = self._SITE_PORT_SCHEDULE_PORTS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
     def _site_longest_client_uptime_request_valid(self, path: str) -> bool:
         match = self._SITE_LONGEST_CLIENT_UPTIME_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
@@ -16770,6 +17109,14 @@ class OmadaOpenApiClient:
         return bool(match and match.group(1) == self.config.controller_id and
                     int(match.group(3)) <= 10 and int(match.group(4)) <= 100)
 
+    def _site_s2s_vpn_inventory_request_valid(self, path: str) -> bool:
+        match = self._SITE_S2S_VPN_INVENTORY_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_s2s_peer_status_request_valid(self, path: str) -> bool:
+        match = self._SITE_S2S_PEER_STATUS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
     def _site_ssid_topology_devices_request_valid(self, path: str) -> bool:
         match = self._SITE_SSID_TOPOLOGY_DEVICES_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
@@ -16944,6 +17291,14 @@ class OmadaOpenApiClient:
 
     def _controller_client_recognition_request_valid(self, path: str) -> bool:
         match = self._CONTROLLER_CLIENT_RECOGNITION_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_global_log_notification_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_GLOBAL_LOG_NOTIFICATION_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_upgrade_model_list_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_UPGRADE_MODEL_LIST_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
 
     def _controller_device_statistics_request_valid(self, path: str) -> bool:
