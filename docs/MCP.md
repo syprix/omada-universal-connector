@@ -964,6 +964,8 @@ A synthetic single-record source response measured 32 tokens before projection a
 
 `omada_controller_try_beta_settings_summary` reads the documented preview-firmware enable switch and channel through two fixed controller GETs. Missing fields are marked incomplete; the selected channel does not confirm an update or firmware status. `omada_controller_auto_check_upgrade_summary` reads up to 10 pages of 100 plans and counts documented channels and site associations. It omits names, model details, IDs, schedule values and recurrence, and never starts an update. Both are fixture-tested over HTTP and MCP; live support is unknown.
 
+`omada_controller_firmware_inventory_summary` reads at most 10 pages of 100 uploaded firmware records and reports only entry totals and metadata-field coverage. It omits names, IDs, model values, descriptions and timestamps; it does not claim device compatibility or firmware suitability. `omada_site_agile_switch_general_config_summary` refreshes one site's switch inventory, requires one matching port-detail row with `es: true`, then summarizes only documented LED, jumbo-frame and power-alert settings. It omits names, locations, tags and device identifiers. Both operations are fixture-tested over HTTP and MCP; live support is unknown.
+
 `omada_site_s2s_vpn_inventory_summary` lists same-site opaque VPN references and documented VPN types. Use one returned `vpn_ref` with `omada_site_s2s_peer_status_summary`; that read refreshes and checks the VPN against the selected site's inventory before requesting peers. It returns only peer status counts (0 disconnected, 1 connected); other codes and missing status stay unknown. It omits peer/VPN identities, addresses, names and traffic. These are separate from the general S2S tunnel/IPsec association summaries. Live support is unknown.
 
 `omada_site_nat_exception_summary` summarizes documented NAT exception
@@ -1129,3 +1131,13 @@ reads at most ten pages of 100 configured automatic-check plans and counts
 documented channels and selected-site associations. It omits IDs, names, models,
 schedule values and recurrence, and does not start an update. Both are
 fixture-tested over HTTP and MCP; live support is unknown.
+
+`omada_controller_firmware_inventory_summary` reads at most ten pages of 100
+uploaded records and counts entry and metadata-field coverage only. It omits
+all firmware names, IDs, model values, descriptions and upload times, and does
+not infer compatibility. `omada_site_agile_switch_general_config_summary`
+refreshes the selected site's inventory and checks for one unique matching
+switch row with `es: true` before reading the Agile general config. It returns
+only LED, jumbo-frame and power-alert settings. Names, locations, tags and
+device identifiers are omitted. Both operations are fixture-tested; live
+support is unknown.

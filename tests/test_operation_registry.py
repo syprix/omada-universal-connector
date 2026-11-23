@@ -115,6 +115,8 @@ class OperationRegistryTests(unittest.TestCase):
              "/v1/controller/firmware-preview-settings/summary"),
             ("controller_auto_check_upgrade_summary",
              "/v1/controller/automatic-firmware-checks/summary"),
+            ("controller_firmware_inventory_summary",
+             "/v1/controller/firmware-inventory-summary"),
         )
         for operation_id, path in cases:
             with self.subTest(operation_id=operation_id):
@@ -131,6 +133,16 @@ class OperationRegistryTests(unittest.TestCase):
             "GET", "/v1/sites/" + "a" * 24 + "/lan-multicast-summary")
         self.assertEqual(route.operation_id, "site_lan_multicast_summary")
         self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
+
+    def test_agile_switch_general_config_summary_is_bound_to_site_and_switch(self):
+        operation = REGISTRY.get("site_agile_switch_general_config_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"],
+                         ["site_ref", "switch_ref"])
+        site_ref, switch_ref = "a" * 24, "b" * 24
+        route, bindings = REGISTRY.match(
+            "GET", f"/v1/sites/{site_ref}/switches/{switch_ref}/agile-general-config-summary")
+        self.assertEqual(route.operation_id, "site_agile_switch_general_config_summary")
+        self.assertEqual(dict(bindings), {"site_ref": site_ref, "switch_ref": switch_ref})
 
     def test_site_bandwidth_rules_summary_is_site_bound(self):
         operation = REGISTRY.get("site_bandwidth_rules_summary")
@@ -1079,9 +1091,11 @@ class OperationRegistryTests(unittest.TestCase):
             "site_isolated_preconfig_summary",
             "site_vlan_topology_summary",
             "site_es_network_overview_summary",
+            "site_agile_switch_general_config_summary",
             "site_port_schedule_ports_summary",
             "controller_global_log_notification_summary",
             "controller_upgrade_model_list_summary",
+            "controller_firmware_inventory_summary",
             "site_internet_load_balance_summary",
             "site_internet_basic_port_summary",
             "site_internet_summary",

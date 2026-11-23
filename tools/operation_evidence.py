@@ -137,6 +137,9 @@ AUXILIARY_SOURCE_OPERATIONS = {
     ("GET", "/openapi/v1/{controller_id}/upgrade/overview/try-beta/channel"):
         ("controller_try_beta_settings_summary",
          "/v1/controller/firmware-preview-settings/summary"),
+    ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/switches/ports/switch-detail"):
+        ("site_agile_switch_general_config_summary",
+         "/v1/sites/{site_ref}/switches/{switch_ref}/agile-general-config-summary"),
 }
 
 

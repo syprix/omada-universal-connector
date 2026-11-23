@@ -1462,6 +1462,8 @@ class OmadaOpenApiClient:
         "/openapi/v1/{controller_id}/sites/{site_id}/wired-networks/disable-nats")
     _SITE_ES_NETWORK_OVERVIEW_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/switches/es/{switch_mac}/network-overview")
+    _SITE_ES_GENERAL_CONFIG_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/switches/es/{switch_mac}/general-config")
     _SITE_SWITCH_PORT_DETAIL_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/switches/ports/switch-detail")
     _SITE_PORT_SCHEDULE_PORTS_PATH = (
@@ -1544,6 +1546,7 @@ class OmadaOpenApiClient:
     _CONTROLLER_AUTO_CHECK_UPGRADE_PATH = "/openapi/v1/{controller_id}/upgrade/autoCheck"
     _CONTROLLER_GLOBAL_LOG_NOTIFICATION_PATH = "/openapi/v2/{controller_id}/log-notification"
     _CONTROLLER_UPGRADE_MODEL_LIST_PATH = "/openapi/v1/{controller_id}/upgrade/plan/models"
+    _CONTROLLER_FIRMWARE_LIST_PATH = "/openapi/v1/{controller_id}/upgrade/firmwares"
     _SITE_LAN_MULTICASTS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/lan-multicasts"
     _SITE_BANDWIDTH_RULES_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/bandwidth-control/rules"
     _SITE_LOG_NOTIFICATION_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/site/log-notification"
@@ -1899,6 +1902,10 @@ class OmadaOpenApiClient:
     _SITE_ES_NETWORK_OVERVIEW_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
         r"/switches/es/(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}/network-overview"
+    )
+    _SITE_ES_GENERAL_CONFIG_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/switches/es/(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}/general-config"
     )
     _SITE_SWITCH_PORT_DETAIL_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
@@ -2332,6 +2339,10 @@ class OmadaOpenApiClient:
     )
     _CONTROLLER_UPGRADE_MODEL_LIST_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/upgrade/plan/models"
+        r"\?page=(?:[1-9]|10)&pageSize=(?:[1-9]|[1-9][0-9]|100)"
+    )
+    _CONTROLLER_FIRMWARE_LIST_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/upgrade/firmwares"
         r"\?page=(?:[1-9]|10)&pageSize=(?:[1-9]|[1-9][0-9]|100)"
     )
     _CONTROLLER_SCENARIOS_REQUEST = re.compile(
@@ -3041,6 +3052,7 @@ class OmadaOpenApiClient:
         ("controller_auto_check_upgrade_summary", "GET /v1/controller/automatic-firmware-checks/summary"),
         ("controller_global_log_notification_summary", "GET /v1/controller/log-notifications/summary"),
         ("controller_upgrade_model_list_summary", "GET /v1/controller/firmware-upgrade-models/summary"),
+        ("controller_firmware_inventory_summary", "GET /v1/controller/firmware-inventory-summary"),
         ("site_remote_logging_summary", "GET /v1/sites/{site_ref}/remote-logging/summary"),
         ("controller_upgrade_log_summary", "GET /v1/controller/firmware-upgrades/summary"),
         ("site_wan_qos_summary", "GET /v1/sites/{site_ref}/wan-qos-summary"),
@@ -3289,6 +3301,7 @@ class OmadaOpenApiClient:
         ("site_isolated_preconfig_summary", "GET /v1/sites/{site_ref}/topology/isolated-preconfig/summary"),
         ("site_vlan_topology_summary", "GET /v1/sites/{site_ref}/networks/{network_ref}/vlan-topology-summary"),
         ("site_es_network_overview_summary", "GET /v1/sites/{site_ref}/switches/{switch_ref}/es-network-overview/summary"),
+        ("site_agile_switch_general_config_summary", "GET /v1/sites/{site_ref}/switches/{switch_ref}/agile-general-config-summary"),
         ("site_static_route_interface_options_summary", "GET /v1/sites/{site_ref}/static-routing/interfaces/summary"),
         ("site_port_schedule_ports_summary", "GET /v1/sites/{site_ref}/port-schedule-capable-ports/summary"),
         ("site_internet_load_balance_summary", "GET /v1/sites/{site_ref}/internet/load-balance-summary"),
@@ -10168,9 +10181,12 @@ class OmadaOpenApiClient:
             page_total = result.get("totalRows") if isinstance(result, Mapping) else None
             current_page = result.get("currentPage") if isinstance(result, Mapping) else None
             current_size = result.get("currentSize") if isinstance(result, Mapping) else None
+            empty_zero_page = (page == 1 and page_total == 0 and current_page == 0 and
+                               current_size == 0 and data == [])
             if (not isinstance(data, list) or len(data) > page_size or
                     type(page_total) is not int or not 0 <= page_total < (1 << 63) or
-                    type(current_page) is not int or current_page != page or
+                    (type(current_page) is not int or current_page != page) and
+                    not empty_zero_page or
                     type(current_size) is not int or not 0 <= current_size <= page_size):
                 raise OpenApiError("openapi_response_invalid")
             if total is None:
@@ -10271,6 +10287,57 @@ class OmadaOpenApiClient:
         projected["partial"] = bool(projected["partial"] or metadata_partial)
         projected["page_size"] = page_size
         return projected
+
+    @_track_capability("controller_firmware_inventory_summary")
+    def read_controller_firmware_inventory_summary(self) -> dict[str, object]:
+        """Count uploaded firmware records and metadata coverage only."""
+        base = self._CONTROLLER_FIRMWARE_LIST_PATH.format(
+            controller_id=self.config.controller_id)
+        page_size = min(max(1, self.config.page_size), 100)
+        page_limit = min(max(1, self.config.max_pages), 10)
+        rows: list[object] = []
+        total: int | None = None
+        pages_fetched = 0
+        for page in range(1, page_limit + 1):
+            path = base + "?" + urlencode({"page": page, "pageSize": page_size})
+            result = self._request_json(
+                "GET", path, token=self._access_token()).get("result")
+            data = result.get("data") if isinstance(result, Mapping) else None
+            page_total = result.get("totalRows") if isinstance(result, Mapping) else None
+            current_page = result.get("currentPage") if isinstance(result, Mapping) else None
+            current_size = result.get("currentSize") if isinstance(result, Mapping) else None
+            empty_zero_page = (page == 1 and page_total == 0 and current_page == 0 and
+                               current_size == 0 and data == [])
+            if (not isinstance(data, list) or len(data) > page_size or
+                    type(page_total) is not int or not 0 <= page_total < (1 << 63) or
+                    (type(current_page) is not int or current_page != page) and
+                    not empty_zero_page or
+                    type(current_size) is not int or
+                    not 0 <= current_size <= page_size or current_size != len(data)):
+                raise OpenApiError("openapi_response_invalid")
+            if total is None:
+                total = page_total
+            elif page_total != total:
+                raise OpenApiError("openapi_response_invalid")
+            rows.extend(data)
+            pages_fetched = page
+            if len(rows) > page_total or len(rows) > 1_000:
+                raise OpenApiError("openapi_response_invalid")
+            if len(rows) >= page_total:
+                break
+        try:
+            from .controller_firmware_inventory_summary import (
+                ControllerFirmwareInventoryError, summarize_firmware_inventory)
+        except ImportError:  # direct execution in the image
+            from controller_firmware_inventory_summary import (
+                ControllerFirmwareInventoryError, summarize_firmware_inventory)
+        try:
+            projected = summarize_firmware_inventory(
+                rows, total if total is not None else len(rows), pages_fetched, page_limit)
+        except ControllerFirmwareInventoryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        projected["page_size"] = page_size
+        return {**projected, "status": "ok", "resource": "controller_firmware_inventory_summary"}
 
     @_track_capability("site_remote_logging_summary")
     def read_site_remote_logging_summary(self, site_ref: str) -> dict[str, object]:
@@ -14458,6 +14525,26 @@ class OmadaOpenApiClient:
     def read_site_es_network_overview_summary(self, site_ref: str,
                                               switch_ref: str) -> dict[str, object]:
         """Summarize ES network/port assignments for a same-site inventoried switch."""
+        site_id, switch_mac = self._resolve_agile_switch(site_ref, switch_ref)
+        path = self._SITE_ES_NETWORK_OVERVIEW_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id,
+            switch_mac=switch_mac)
+        raw = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_es_network_overview_summary import (
+                EsNetworkOverviewError, summarize_es_network_overview)
+        except ImportError:
+            from site_es_network_overview_summary import (
+                EsNetworkOverviewError, summarize_es_network_overview)
+        try:
+            projected = summarize_es_network_overview(raw, max_items=1000)
+        except EsNetworkOverviewError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_es_network_overview_summary",
+                "site_ref": site_ref, "switch_ref": switch_ref, **projected}
+
+    def _resolve_agile_switch(self, site_ref: str, switch_ref: str) -> tuple[str, str]:
+        """Bind a selected switch to one fresh same-site inventory row marked Agile."""
         self.list_devices(site_ref)
         switch_mac = self._switch_macs_by_site_ref.get(site_ref, {}).get(switch_ref)
         if not switch_mac:
@@ -14482,21 +14569,28 @@ class OmadaOpenApiClient:
             raise OpenApiError("switch_family_ambiguous")
         if matching_rows[0].get("es") is not True:
             raise OpenApiError("switch_family_unsupported")
-        path = self._SITE_ES_NETWORK_OVERVIEW_PATH.format(
+        return site_id, switch_mac
+
+    @_track_capability("site_agile_switch_general_config_summary")
+    def read_site_agile_switch_general_config_summary(
+            self, site_ref: str, switch_ref: str) -> dict[str, object]:
+        """Summarize documented settings for one freshly verified Agile switch."""
+        site_id, switch_mac = self._resolve_agile_switch(site_ref, switch_ref)
+        path = self._SITE_ES_GENERAL_CONFIG_PATH.format(
             controller_id=self.config.controller_id, site_id=site_id,
             switch_mac=switch_mac)
-        raw = self._request_json("GET", path, token=self._access_token()).get("result")
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
         try:
-            from .site_es_network_overview_summary import (
-                EsNetworkOverviewError, summarize_es_network_overview)
-        except ImportError:
-            from site_es_network_overview_summary import (
-                EsNetworkOverviewError, summarize_es_network_overview)
+            from .site_agile_switch_config_summary import (
+                AgileSwitchConfigError, summarize_agile_switch_config)
+        except ImportError:  # direct execution in the image
+            from site_agile_switch_config_summary import (
+                AgileSwitchConfigError, summarize_agile_switch_config)
         try:
-            projected = summarize_es_network_overview(raw, max_items=1000)
-        except EsNetworkOverviewError:
+            projected = summarize_agile_switch_config(result)
+        except AgileSwitchConfigError:
             raise OpenApiError("openapi_response_invalid") from None
-        return {"status": "ok", "resource": "site_es_network_overview_summary",
+        return {"status": "ok", "resource": "site_agile_switch_general_config_summary",
                 "site_ref": site_ref, "switch_ref": switch_ref, **projected}
 
     @_track_capability("site_port_schedule_ports_summary")
@@ -17170,6 +17264,7 @@ class OmadaOpenApiClient:
                                   self._site_nat_exception_request_valid(path) or
                                   self._site_switch_port_detail_request_valid(path) or
                                   self._site_es_network_overview_request_valid(path) or
+                                  self._site_es_general_config_request_valid(path) or
                                   self._site_port_schedule_ports_request_valid(path) or
                                   self._site_internet_request_valid(path) or
                                   self._site_lte_wan_config_request_valid(path) or
@@ -17463,6 +17558,7 @@ class OmadaOpenApiClient:
                                   self._CONTROLLER_HEALTH_REQUEST.fullmatch(path) or
                                   self._controller_global_log_notification_request_valid(path) or
                                   self._controller_upgrade_model_list_request_valid(path) or
+                                  self._controller_firmware_list_request_valid(path) or
                                   self._CONTROLLER_SCENARIOS_REQUEST.fullmatch(path) or
                                   self._CONTROLLER_SCENARIO_DIFFERENCE_REQUEST.fullmatch(path) or
                                   self._controller_threat_severity_request_valid(path) or
@@ -18556,6 +18652,10 @@ class OmadaOpenApiClient:
         match = self._SITE_ES_NETWORK_OVERVIEW_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
 
+    def _site_es_general_config_request_valid(self, path: str) -> bool:
+        match = self._SITE_ES_GENERAL_CONFIG_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
     def _site_switch_port_detail_request_valid(self, path: str) -> bool:
         match = self._SITE_SWITCH_PORT_DETAIL_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
@@ -19011,6 +19111,10 @@ class OmadaOpenApiClient:
 
     def _controller_upgrade_model_list_request_valid(self, path: str) -> bool:
         match = self._CONTROLLER_UPGRADE_MODEL_LIST_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_firmware_list_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_FIRMWARE_LIST_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
 
     def _controller_device_statistics_request_valid(self, path: str) -> bool:

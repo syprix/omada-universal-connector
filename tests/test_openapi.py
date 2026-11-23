@@ -421,6 +421,19 @@ class OpenApiClientTests(unittest.TestCase):
             with self.assertRaisesRegex(OpenApiError, "openapi_response_invalid"):
                 self.client.read_controller_auto_check_upgrade_summary()
 
+    def test_controller_auto_check_upgrade_accepts_zero_page_only_for_empty_first_page(self):
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={"result": {
+                    "totalRows": 0, "currentPage": 0, "currentSize": 0, "data": []}}):
+            result = self.client.read_controller_auto_check_upgrade_summary()
+        self.assertEqual(result["plan_count"], 0)
+        self.assertTrue(result["coverage_complete"])
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={"result": {
+                    "totalRows": 0, "currentPage": 0, "currentSize": 1, "data": [{}]}}):
+            with self.assertRaisesRegex(OpenApiError, "openapi_response_invalid"):
+                self.client.read_controller_auto_check_upgrade_summary()
+
     def test_site_lan_multicast_read_paginates_and_redacts_configuration(self):
         site_ref = "a" * 24
         self.client._site_ids_by_ref[site_ref] = "site-1"
