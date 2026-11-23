@@ -49,6 +49,29 @@ The topology endpoint is documented by Hardware Controller and CBC exports,
 not ER7212PC. It does not measure radio coverage. Live controller support is
 unknown.
 
+## Topology root candidates
+
+`GET /v1/sites/{site_ref}/topology/root-candidates/summary` and its MCP tool
+count the documented selectable root candidates and their switch/OLT/other
+types, root and stack flags, and MLAG/VRRP code fields. Identifiers, names,
+models and free-text subtype values are omitted. This endpoint is documented
+for Hardware Controller and CBC 6.3.0, not ER7212PC. It supplements the
+existing topology read with candidate-root information; it does not return
+topology edges. The vendor notes that a gateway can result in an empty list,
+so emptiness is not presented as a missing-topology finding. Live support is
+unknown.
+
+## Isolated and preconfigured device counts
+
+`GET /v1/sites/{site_ref}/topology/isolated-preconfig/summary` and its MCP
+tool report the two source categories separately and compare their documented
+row total with the response total. Device-type, health-score and IPPT-field
+presence are counted without returning values, identifiers or descriptions.
+Unexpected fields, invalid rows and a total mismatch are visible as partial
+data. The source is documented for Hardware Controller and CBC, not ER7212PC.
+The result does not infer adoption actions or causes for isolation. Live support
+is unknown.
+
 ## Client counts at a selected access point
 
 `GET /v1/sites/{site_ref}/aps/{device_ref}/topology-clients/summary` and its
@@ -259,6 +282,15 @@ The connector processes at most 500 rows and returns purpose, DHCP and
 documented feature counts. Names, identifiers, addresses, subnet values and
 nested configuration are omitted. Invalid, unknown or truncated data marks the
 result partial. Live support remains unknown.
+
+`GET /v1/sites/{site_ref}/lan-client-inventory/summary` and
+`omada_site_lan_client_inventory_summary` read the LAN client inventory route
+(`getGridAllClients_1` in the 6.3.0 exports; `getGridAllClients` in ER7212PC).
+They fetch at most ten fixed pages of 100 rows and report the documented total,
+returned coverage and whether each row has a usable device-type field. MACs,
+names and raw device-type values are omitted. Results above 1,000 rows are
+partial; this inventory does not establish live connectivity or recent activity.
+The three source schemas match, but live behavior has not been tested.
 
 ## Site LAN network detail
 

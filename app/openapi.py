@@ -1429,6 +1429,12 @@ class OmadaOpenApiClient:
         "/openapi/v3/{controller_id}/sites/{site_id}/lan-networks")
     _SITE_LAN_NETWORK_INVENTORY_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/lan-networks/all")
+    _SITE_LAN_CLIENT_INVENTORY_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/networks/client")
+    _SITE_TOPOLOGY_ROOT_CANDIDATES_PATH = (
+        "/openapi/v2/{controller_id}/sites/{site_id}/topology/nodes")
+    _SITE_ISOLATED_PRECONFIG_PATH = (
+        "/openapi/v2/{controller_id}/sites/{site_id}/topology/isolated-and-pre-config")
     _SITE_INTERNET_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/internet"
     _SITE_INTERNET_LOAD_BALANCE_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/internet/load-balance")
@@ -1787,6 +1793,18 @@ class OmadaOpenApiClient:
     _SITE_LAN_NETWORK_INVENTORY_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
         r"/lan-networks/all"
+    )
+    _SITE_LAN_CLIENT_INVENTORY_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/networks/client\?page=([1-9]|10)&pageSize=100"
+    )
+    _SITE_TOPOLOGY_ROOT_CANDIDATES_REQUEST = re.compile(
+        r"/openapi/v2/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/topology/nodes"
+    )
+    _SITE_ISOLATED_PRECONFIG_REQUEST = re.compile(
+        r"/openapi/v2/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/topology/isolated-and-pre-config"
     )
     _SITE_INTERNET_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/internet"
@@ -3010,6 +3028,9 @@ class OmadaOpenApiClient:
         ("site_snmp_settings_summary", "GET /v1/sites/{site_ref}/snmp-summary"),
         ("site_lan_network_config_summary", "GET /v1/sites/{site_ref}/lan-network-config-summary"),
         ("site_lan_network_inventory", "GET /v1/sites/{site_ref}/lan-networks/inventory"),
+        ("site_lan_client_inventory_summary", "GET /v1/sites/{site_ref}/lan-client-inventory/summary"),
+        ("site_topology_root_candidates_summary", "GET /v1/sites/{site_ref}/topology/root-candidates/summary"),
+        ("site_isolated_preconfig_summary", "GET /v1/sites/{site_ref}/topology/isolated-preconfig/summary"),
         ("site_internet_load_balance_summary", "GET /v1/sites/{site_ref}/internet/load-balance-summary"),
         ("site_internet_basic_port_summary", "GET /v1/sites/{site_ref}/internet/basic-port-summary"),
         ("controller_gateway_wan_status_summary", "GET /v1/controller/gateway-wan-status-summary"),
@@ -12633,6 +12654,78 @@ class OmadaOpenApiClient:
         return {"status": "ok", "resource": "site_lan_network_inventory",
                 "site_ref": site_ref, **projected}
 
+    @_track_capability("site_lan_client_inventory_summary")
+    def read_site_lan_client_inventory_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize the bounded LAN client inventory without returning identities."""
+        site_id = self._resolve_site_ref(site_ref)
+        try:
+            from .site_lan_client_inventory_summary import (
+                LanClientInventoryError, summarize_lan_client_pages)
+        except ImportError:
+            from site_lan_client_inventory_summary import (
+                LanClientInventoryError, summarize_lan_client_pages)
+        pages = []
+        total = None
+        for page in range(1, 11):
+            path = (self._SITE_LAN_CLIENT_INVENTORY_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id) +
+                f"?page={page}&pageSize=100")
+            payload = self._request_json("GET", path, token=self._access_token())
+            result = payload.get("result")
+            if not isinstance(result, dict):
+                raise OpenApiError("openapi_response_invalid")
+            pages.append(result)
+            if type(result.get("totalRows")) is int:
+                total = result["totalRows"]
+            if total is not None and (total == 0 or page * 100 >= total):
+                break
+        try:
+            projected = summarize_lan_client_pages(pages)
+        except LanClientInventoryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_lan_client_inventory_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_topology_root_candidates_summary")
+    def read_site_topology_root_candidates_summary(self, site_ref: str) -> dict[str, object]:
+        """Count documented topology root candidates; this endpoint has no edge data."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_TOPOLOGY_ROOT_CANDIDATES_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_topology_root_candidates_summary import (
+                TopologyRootCandidatesError, summarize_topology_root_candidates)
+        except ImportError:
+            from site_topology_root_candidates_summary import (
+                TopologyRootCandidatesError, summarize_topology_root_candidates)
+        try:
+            projected = summarize_topology_root_candidates(result, max_items=1000)
+        except TopologyRootCandidatesError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_topology_root_candidates_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_isolated_preconfig_summary")
+    def read_site_isolated_preconfig_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize isolated and preconfigured categories without device identities."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_ISOLATED_PRECONFIG_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_isolated_preconfig_summary import (
+                IsolatedPreconfigError, summarize_isolated_preconfig)
+        except ImportError:
+            from site_isolated_preconfig_summary import (
+                IsolatedPreconfigError, summarize_isolated_preconfig)
+        try:
+            projected = summarize_isolated_preconfig(result, max_items=1000)
+        except IsolatedPreconfigError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_isolated_preconfig_summary",
+                "site_ref": site_ref, **projected}
+
     @_track_capability("site_internet_summary")
     def read_site_internet_summary(self, site_ref: str) -> dict[str, object]:
         """Read site Internet settings and return only safe counts and flags."""
@@ -15153,6 +15246,9 @@ class OmadaOpenApiClient:
                                   self._site_vlan_network_request_valid(path) or
                                   self._site_lan_networks_v3_request_valid(path) or
                                   self._site_lan_network_inventory_request_valid(path) or
+                                  self._site_lan_client_inventory_request_valid(path) or
+                                  self._site_topology_root_candidates_request_valid(path) or
+                                  self._site_isolated_preconfig_request_valid(path) or
                                   self._site_internet_request_valid(path) or
                                   self._site_internet_load_balance_request_valid(path) or
                                   self._site_internet_basic_info_request_valid(path) or
@@ -16471,6 +16567,18 @@ class OmadaOpenApiClient:
 
     def _site_lan_network_inventory_request_valid(self, path: str) -> bool:
         match = self._SITE_LAN_NETWORK_INVENTORY_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_lan_client_inventory_request_valid(self, path: str) -> bool:
+        match = self._SITE_LAN_CLIENT_INVENTORY_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_topology_root_candidates_request_valid(self, path: str) -> bool:
+        match = self._SITE_TOPOLOGY_ROOT_CANDIDATES_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_isolated_preconfig_request_valid(self, path: str) -> bool:
+        match = self._SITE_ISOLATED_PRECONFIG_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
 
     def _site_longest_client_uptime_request_valid(self, path: str) -> bool:

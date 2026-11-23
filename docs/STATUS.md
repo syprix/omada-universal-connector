@@ -502,3 +502,15 @@ A synthetic 20-category fixture measured 787 → 187 serialized tokens (76.24% f
 The LAN network interface summary (#70) reads `getInterfaceLanNetworkV2` from all three exports for a selected site. It counts documented purpose, interface VLAN type and application scope, plus interface-reference and subnet presence. Its optional type filter accepts only `0` (single interfaces) or may be omitted. Names, IDs, VLAN values and subnet addresses are redacted; no router/VLAN mapping is inferred from interface IDs. Live behavior is unknown.
 
 A synthetic 20-network fixture measured 2,104 → 159 serialized tokens (92.44% fewer); this is not billed agent usage.
+
+The LAN client inventory summary (#71) reads the common `networks/client` route (`getGridAllClients_1` in Hardware/CBC and `getGridAllClients` in ER7212PC). Fixed 100-row pagination is capped at ten pages. The result reports total inventory, returned coverage and device-type field presence; MACs, names and raw device types are omitted. It does not claim current connectivity. Live behavior is unknown.
+
+A synthetic 20-client payload measured 506 → 69 serialized tokens (86.36% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; this is not billed agent usage.
+
+The topology root-candidate summary (#72) reads `getTopologyNodes`, documented by Hardware Controller and CBC 6.3.0 but absent from ER7212PC. It counts candidate node types, documented root/stack flags, and MLAG/VRRP codes; names, addresses, model and subtype text are omitted. The endpoint returns no edges, and its documented empty response case with a gateway is not interpreted as missing topology. Live behavior is unknown.
+
+A synthetic 20-node payload measured 1,489 → 168 serialized tokens (88.72% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; this is not billed agent usage.
+
+The isolated/preconfigured device summary (#73) reads the two documented topology categories separately from Hardware Controller and CBC 6.3.0; ER7212PC does not document this endpoint. It checks the returned counts against the documented total and reports only category, type/health/IPPT field coverage. It does not claim adoption state or infer isolation cause. Live support is unknown.
+
+A synthetic 20-device payload measured 935 → 201 serialized tokens (78.50% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; this is not billed agent usage.

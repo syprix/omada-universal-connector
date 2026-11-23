@@ -2187,6 +2187,26 @@ class FakeOpenApiClient:
                 "purpose_counts": {"vlan": 1, "interface": 1},
                 "partial": False}
 
+    def read_site_lan_client_inventory_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_lan_client_inventory_summary", site_ref))
+        return {"status": "ok", "resource": "site_lan_client_inventory_summary",
+                "site_ref": site_ref, "inventory_total_count": 1,
+                "returned_count": 1, "coverage_complete": True, "partial": False}
+
+    def read_site_topology_root_candidates_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_topology_root_candidates_summary", site_ref))
+        return {"status": "ok", "resource": "site_topology_root_candidates_summary",
+                "site_ref": site_ref, "root_candidate_count": 1,
+                "node_type_counts": {"switch": 1}, "partial": False}
+
+    def read_site_isolated_preconfig_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_isolated_preconfig_summary", site_ref))
+        return {"status": "ok", "resource": "site_isolated_preconfig_summary",
+                "site_ref": site_ref, "reported_total": 1,
+                "categories": {"isolated": {"reported_count": 1},
+                               "preconfigured": {"reported_count": 0}},
+                "partial": False}
+
     def read_site_longest_client_uptime_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_longest_client_uptime_summary", site_ref))
         return {"status": "ok", "resource": "site_longest_client_uptime_summary",
@@ -7641,6 +7661,54 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(rpc["result"]["structuredContent"]["network_count"], 2)
         self.assertEqual(self.fake.calls,
                          [("site_lan_network_inventory", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_lan_client_inventory_summary(self) -> None:
+        site_ref = "8" * 24
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/lan-client-inventory/summary", self.token)
+        self.assertEqual(status, 200)
+        self.assertTrue(response["coverage_complete"])
+        request = {"jsonrpc": "2.0", "id": 231, "method": "tools/call",
+                   "params": {"name": "omada_site_lan_client_inventory_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"]["resource"],
+                         "site_lan_client_inventory_summary")
+        self.assertEqual(self.fake.calls,
+                         [("site_lan_client_inventory_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_topology_root_candidates_summary(self) -> None:
+        site_ref = "8" * 24
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/topology/root-candidates/summary", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["root_candidate_count"], 1)
+        request = {"jsonrpc": "2.0", "id": 232, "method": "tools/call",
+                   "params": {"name": "omada_site_topology_root_candidates_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"]["resource"],
+                         "site_topology_root_candidates_summary")
+        self.assertEqual(self.fake.calls,
+                         [("site_topology_root_candidates_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_isolated_preconfig_summary(self) -> None:
+        site_ref = "8" * 24
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/topology/isolated-preconfig/summary", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["reported_total"], 1)
+        request = {"jsonrpc": "2.0", "id": 233, "method": "tools/call",
+                   "params": {"name": "omada_site_isolated_preconfig_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"]["resource"],
+                         "site_isolated_preconfig_summary")
+        self.assertEqual(self.fake.calls,
+                         [("site_isolated_preconfig_summary", site_ref)] * 2)
 
     def test_http_and_mcp_expose_site_longest_client_uptime_summary(self) -> None:
         site_ref = "8" * 24
