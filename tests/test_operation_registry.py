@@ -254,6 +254,17 @@ class OperationRegistryTests(unittest.TestCase):
             self.assertEqual(route.operation_id, operation_id)
             self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
 
+    def test_lan_isolation_and_ospf_summaries_are_site_bound(self):
+        for operation_id, route_path in (
+                ("site_lan_interface_isolation_summary",
+                 "/lan/interfaces/isolation-summary"),
+                ("site_ospf_interface_summary", "/ospf/interfaces/summary")):
+            operation = REGISTRY.get(operation_id)
+            self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
+            route, bindings = REGISTRY.match("GET", "/v1/sites/" + "a" * 24 + route_path)
+            self.assertEqual(route.operation_id, operation_id)
+            self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
+
     def test_site_gateway_qos_class_summary_is_site_bound(self):
         operation = REGISTRY.get("site_gateway_qos_class_summary")
         self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
@@ -948,6 +959,8 @@ class OperationRegistryTests(unittest.TestCase):
             "site_gateway_webfilter_summary",
             "site_ap_webfilter_summary",
             "site_url_filter_general_summary",
+            "site_lan_interface_isolation_summary",
+            "site_ospf_interface_summary",
             "site_gateway_qos_class_summary",
             "site_vpn_server_config_summary",
             "site_vpn_client_config_summary",
