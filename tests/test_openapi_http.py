@@ -2336,6 +2336,13 @@ class FakeOpenApiClient:
                 "missing_field_count": 0, "invalid_field_count": 0,
                 "unknown_field_count": 0, "partial": False}
 
+    def read_site_lte_wan_config_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_lte_wan_config_summary", site_ref))
+        return {"status": "ok", "resource": "site_lte_wan_config_summary",
+                "site_ref": site_ref, "configuration_scope": "stored_lte_wan_settings",
+                "status_scope": "documented_controller_modem_codes_internet_reachability_unknown",
+                "reported_lte_port_config_count": 1, "partial": False}
+
     def read_site_vpn_session_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_vpn_session_summary", site_ref))
         return {"status": "ok", "resource": "site_vpn_session_summary",
@@ -8021,6 +8028,21 @@ class OpenApiHttpTests(unittest.TestCase):
                          "site_internet_summary")
         self.assertEqual(self.fake.calls,
                          [("site_internet_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_site_lte_wan_config_summary(self) -> None:
+        site_ref = "8" * 24
+        route = f"/v1/sites/{site_ref}/internet/lte-wan-config-summary"
+        status, response = self.request(route, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_lte_wan_config_summary")
+        request = {"jsonrpc": "2.0", "id": 304, "method": "tools/call",
+                   "params": {"name": "omada_site_lte_wan_config_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"], response)
+        self.assertEqual(self.fake.calls,
+                         [("site_lte_wan_config_summary", site_ref)] * 2)
 
     def test_http_and_mcp_expose_site_vpn_session_summary(self) -> None:
         site_ref = "8" * 24

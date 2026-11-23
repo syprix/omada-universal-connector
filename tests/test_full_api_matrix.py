@@ -2107,6 +2107,16 @@ class FullApiMatrixTests(unittest.TestCase):
             self.assertEqual(row["contract_review"]["operation_id"], "getSsidDetail")
             self.assertIn("wlanId", row["contract_review"]["path"])
 
+    def test_lte_wan_config_operation_matches_all_source_exports(self) -> None:
+        matrix = json.loads((Path(__file__).resolve().parents[1] /
+                             "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
+        for source in matrix["sources"]:
+            row = source["operations"]["site_lte_wan_config_summary"]
+            self.assertTrue(row["documented"])
+            self.assertEqual(row["live_support"], "unknown")
+            self.assertEqual(row["contract_review"]["operation_id"], "getLteWanPortsConfig")
+            self.assertIn("ports-config", row["contract_review"]["path"])
+
     def test_switch_dhcp_arp_capability_gap_has_no_safe_row_contract(self) -> None:
         matrix = json.loads((Path(__file__).resolve().parents[1] /
                              "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))

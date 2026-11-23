@@ -426,6 +426,7 @@ IMPLEMENTED: dict[tuple[str, str], str] = {
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/upnp"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/networks/vlans"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/internet"): "implemented_read",
+    ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/internet/lte/ports-config"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/setting/vpn/stats/tunnel"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/networks/devices"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/networks/server-for-reservation"): "implemented_read",

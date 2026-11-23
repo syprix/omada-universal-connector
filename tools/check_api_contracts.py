@@ -125,6 +125,7 @@ OPERATIONS = {
     'site_wan_ports_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/internet/ports-config'),
     'site_vlan_network_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/networks/vlans'),
     'site_internet_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/internet'),
+    'site_lte_wan_config_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/internet/lte/ports-config'),
     'site_internet_load_balance_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/internet/load-balance'),
     'site_internet_basic_port_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/internet/basic-info'),
     'site_vpn_session_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/setting/vpn/stats/tunnel'),

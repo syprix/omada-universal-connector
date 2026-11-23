@@ -24,10 +24,18 @@ group-scoped path. The result contains only documented enabled, band and EAP /
 gateway applicability flags. Names, IDs, VLAN values and credentials are
 omitted. Missing fields remain unknown; live support is unknown.
 
+`GET /v1/sites/{site_ref}/internet/lte-wan-config-summary` and MCP tool
+`omada_site_lte_wan_config_summary` count LTE WAN setting flags and documented
+mode/status codes. Settings and modem status remain separate; the status codes
+do not establish Internet reachability. Port/SIM identifiers, names, provider
+values, APNs and selected band strings are omitted. All three exports document
+the source operation; live support is unknown.
+
 Token counts for synthetic fixture payloads using `js-tiktoken` 1.0.21 and
 `o200k_base`: the 20-row static-route interface response shrank from 533 to
 128 tokens (75.98%). A selected-SSID flow fixture with inventories, group
 membership and one detail response shrank from 134 to 92 tokens (31.34%).
+The 20-row LTE settings fixture shrank from 4,328 to 458 tokens (89.42%).
 These counts cover serialized source responses and final projections only, not
 HTTP/MCP framing, live payloads or billed agent usage.
 

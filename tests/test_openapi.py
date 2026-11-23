@@ -766,6 +766,27 @@ class OpenApiClientTests(unittest.TestCase):
                     self.client.read_site_wlan_group_ssid_config_summary(
                         site_ref, group_ref, ssid_ref)
 
+    def test_lte_wan_settings_use_fixed_site_path_and_redact_provider_values(self) -> None:
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        source = {"portUuid": "parent-private", "portName": "private port",
+                  "portDesc": "private description", "lteWanPortsConfig": [{
+                      "portUuId": "port-private", "status": 3, "cardStatus": 4,
+                      "mobileData": True, "dataRoaming": False, "networkMode": 4,
+                      "bandMode": 1, "dialupSetting": {"networkSearch": 1,
+                          "isp": "private carrier", "apnMode": 1, "apn": "private.apn"},
+                  }]}
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={"result": source}) as request:
+            result = self.client.read_site_lte_wan_config_summary(site_ref)
+        self.assertEqual(result["documented_modem_status_code_counts"]["3"], 1)
+        self.assertEqual(result["configured_flags"]["mobile_data"]["enabled"], 1)
+        self.assertIn("internet/lte/ports-config", request.call_args.args[1])
+        rendered = repr(result)
+        for private in ("parent-private", "private port", "private description",
+                        "port-private", "private carrier", "private.apn"):
+            self.assertNotIn(private, rendered)
+
     def test_device_mac_integer_status_and_output_redaction(self) -> None:
         self.client._site_ids_by_ref["a" * 24] = "site-1"
         private = {"mac": "00:11:22:33:44:55", "status": 1,

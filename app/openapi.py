@@ -1448,6 +1448,8 @@ class OmadaOpenApiClient:
     _SITE_PORT_SCHEDULE_PORTS_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/port-status-ports")
     _SITE_INTERNET_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/internet"
+    _SITE_LTE_WAN_CONFIG_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/internet/lte/ports-config")
     _SITE_INTERNET_LOAD_BALANCE_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/internet/load-balance")
     _SITE_INTERNET_BASIC_INFO_PATH = (
@@ -1845,6 +1847,10 @@ class OmadaOpenApiClient:
     )
     _SITE_INTERNET_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/internet"
+    )
+    _SITE_LTE_WAN_CONFIG_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/internet/lte/ports-config"
     )
     _SITE_INTERNET_LOAD_BALANCE_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
@@ -3075,6 +3081,7 @@ class OmadaOpenApiClient:
         ("site_wan_max_speed_summary", "GET /v1/sites/{site_ref}/wan-ports/{wan_port_ref}/max-speed-summary"),
         ("site_vlan_network_summary", "GET /v1/sites/{site_ref}/vlan-network-summary"),
         ("site_internet_summary", "GET /v1/sites/{site_ref}/internet-summary"),
+        ("site_lte_wan_config_summary", "GET /v1/sites/{site_ref}/internet/lte-wan-config-summary"),
         ("site_vpn_session_summary", "GET /v1/sites/{site_ref}/vpn-session-summary"),
         ("site_dhcp_candidate_summary", "GET /v1/sites/{site_ref}/dhcp-server-candidates"),
         ("site_network_reservation_summary", "GET /v1/sites/{site_ref}/dhcp-reservation-summary"),
@@ -13213,6 +13220,30 @@ class OmadaOpenApiClient:
         return {"status": "ok", "resource": "site_internet_summary",
                 "site_ref": site_ref, **projected}
 
+    @_track_capability("site_lte_wan_config_summary")
+    def read_site_lte_wan_config_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize LTE WAN settings without identifiers or dial-up values."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_LTE_WAN_CONFIG_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        raw = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_lte_wan_config_summary import (
+                SiteLteWanConfigError, summarize_site_lte_wan_config,
+            )
+        except ImportError:  # direct execution in the image
+            from site_lte_wan_config_summary import (
+                SiteLteWanConfigError, summarize_site_lte_wan_config,
+            )
+        try:
+            projected = summarize_site_lte_wan_config(raw, max_items=1000)
+        except SiteLteWanConfigError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "site_ref": site_ref,
+                "configuration_scope": "stored_lte_wan_settings",
+                "status_scope": "documented_controller_modem_codes_internet_reachability_unknown",
+                **projected}
+
     @_track_capability("site_internet_load_balance_summary")
     def read_site_internet_load_balance_summary(self, site_ref: str) -> dict[str, object]:
         """Summarize site Internet load-balance configuration without identifiers."""
@@ -15722,6 +15753,7 @@ class OmadaOpenApiClient:
                                   self._site_es_network_overview_request_valid(path) or
                                   self._site_port_schedule_ports_request_valid(path) or
                                   self._site_internet_request_valid(path) or
+                                  self._site_lte_wan_config_request_valid(path) or
                                   self._site_internet_load_balance_request_valid(path) or
                                   self._site_internet_basic_info_request_valid(path) or
                                   self._site_vpn_session_request_valid(path) or
@@ -17084,6 +17116,10 @@ class OmadaOpenApiClient:
 
     def _site_internet_request_valid(self, path: str) -> bool:
         match = self._SITE_INTERNET_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_lte_wan_config_request_valid(self, path: str) -> bool:
+        match = self._SITE_LTE_WAN_CONFIG_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
 
     def _site_internet_load_balance_request_valid(self, path: str) -> bool:

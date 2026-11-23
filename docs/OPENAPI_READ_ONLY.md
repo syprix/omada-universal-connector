@@ -33,6 +33,15 @@ enable flag, band bits and EAP/gateway device-type bits. Names, IDs, VLAN values
 and credentials are omitted. Missing fields are reported as partial; live
 support is unknown.
 
+`GET /v1/sites/{site_ref}/internet/lte-wan-config-summary` reads the
+unpaginated `getLteWanPortsConfig` response. It summarizes documented mobile
+data/roaming settings, network and band modes, dial-up modes, failover-setting
+presence, modem status and SIM-card status. Stored settings are separate from
+the source modem-status codes; neither proves Internet reachability. It omits
+SIM/port identifiers, names, provider values, APNs and raw band strings, caps
+the list at 1,000 rows and marks missing, unknown or truncated data partial.
+All three exports document the operation; live support is unknown.
+
 `getGridAvailableSsids` is documented only by Hardware Controller and CBC.
 Both require integer `page` and `pageSize` query parameters and a string
 `searchKey`, but the search-field description is incomplete and neither export
