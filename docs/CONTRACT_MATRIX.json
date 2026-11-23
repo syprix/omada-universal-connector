@@ -1684,6 +1684,32 @@
             "projection": "Reads up to 1,000 rows. Reports only total, returned, omitted and non-object row counts. Device fields, identities and per-device assignments are omitted; no device type or SNMP state is inferred."
           }
         },
+        "site_gateway_general_config_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGeneralConfig_1",
+            "permission": "Site Device Manager View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/gateways/{gatewayMac}/general-config",
+            "query": {},
+            "request_body": false,
+            "response": "OperationResponseGatewayGeneralConfig resolves to GatewayGeneralConfig. ledSetting:int32 is required and documents 0=off, 1=on, 2=use site settings. Optional fields include name, tagIds, location, snmp:OsgSnmpOpenApiVO and rememberDevice:int32; rememberDevice has no documented enum.",
+            "projection": "Refreshes site device inventory and binds gateway_ref to exactly one current gateway. Reports the documented LED mode and presence/missing/invalid coverage only for rememberDevice and the SNMP object. Exposes no names, tags, locations, SNMP contents or rememberDevice value/semantics."
+          }
+        },
+        "site_switch_general_config_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGeneralConfig",
+            "permission": "Site Device Manager View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/switches/{switchMac}/general-config",
+            "query": {},
+            "request_body": false,
+            "response": "OperationResponseSwitchGeneralConfig resolves to SwitchGeneralConfig with ledSetting:int32 (0=off, 1=on, 2=use site settings), jumboFollowSite:boolean, jumbo:int32 (1518–9216), lagHashAlgFollowSite:boolean, lagHashAlg:int32 (0–5 documented MAC/IP tuple modes), sdm:OswSdmTemplateVO and optional identity/location/SNMP fields.",
+            "projection": "Refreshes site device inventory and binds switch_ref to exactly one current switch. Reports documented LED mode, Jumbo range validity and LAG hash mode. Reports presence/missing/invalid site-follow and SDM-template coverage; source-absent fields remain missing. Omits names, tags, location, SNMP values and raw device settings. Does not infer forwarding behavior."
+          }
+        },
         "site_specific_app_traffic_summary": {
           "documented": true,
           "live_support": "unknown",
@@ -4730,6 +4756,32 @@
             "projection": "Reads up to 1,000 rows. Reports only total, returned, omitted and non-object row counts. Device fields, identities and per-device assignments are omitted; no device type or SNMP state is inferred."
           }
         },
+        "site_gateway_general_config_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGeneralConfig_1",
+            "permission": "Site Device Manager View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/gateways/{gatewayMac}/general-config",
+            "query": {},
+            "request_body": false,
+            "response": "OperationResponseGatewayGeneralConfig resolves to GatewayGeneralConfig. ledSetting:int32 is required and documents 0=off, 1=on, 2=use site settings. Optional fields include name, tagIds, location, snmp:OsgSnmpOpenApiVO and rememberDevice:int32; rememberDevice has no documented enum.",
+            "projection": "Refreshes site device inventory and binds gateway_ref to exactly one current gateway. Reports the documented LED mode and presence/missing/invalid coverage only for rememberDevice and the SNMP object. Exposes no names, tags, locations, SNMP contents or rememberDevice value/semantics."
+          }
+        },
+        "site_switch_general_config_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGeneralConfig",
+            "permission": "Site Device Manager View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/switches/{switchMac}/general-config",
+            "query": {},
+            "request_body": false,
+            "response": "OperationResponseSwitchGeneralConfig resolves to SwitchGeneralConfig with ledSetting:int32 (0=off, 1=on, 2=use site settings), jumboFollowSite:boolean, jumbo:int32 (1518–9216), lagHashAlgFollowSite:boolean, lagHashAlg:int32 (0–5 documented MAC/IP tuple modes), sdm:OswSdmTemplateVO and optional identity/location/SNMP fields.",
+            "projection": "Refreshes site device inventory and binds switch_ref to exactly one current switch. Reports documented LED mode, Jumbo range validity and LAG hash mode. Reports presence/missing/invalid site-follow and SDM-template coverage; source-absent fields remain missing. Omits names, tags, location, SNMP values and raw device settings. Does not infer forwarding behavior."
+          }
+        },
         "site_specific_app_traffic_summary": {
           "documented": true,
           "live_support": "unknown",
@@ -7756,6 +7808,32 @@
             "request_body": false,
             "response": "Paginated OperationResponseGridVODeviceVO resolves to GridVODeviceVO and a detailed DeviceVO with documented inventory, status, model, address, location and other device fields.",
             "projection": "Reads up to 1,000 rows. Reports only total, returned, omitted and non-object row counts. Device fields, identities and per-device assignments are omitted; no device type or SNMP state is inferred."
+          }
+        },
+        "site_gateway_general_config_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGeneralConfig_1",
+            "permission": "Site Device Manager View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/gateways/{gatewayMac}/general-config",
+            "query": {},
+            "request_body": false,
+            "response": "OperationResponseGatewayGeneralConfig resolves to GatewayGeneralConfig. ledSetting:int32 is required and documents 0=off, 1=on, 2=use site settings. Optional fields include name, tagIds, location, snmp:OsgSnmpOpenApiVO and rememberDevice:int32; rememberDevice has no documented enum.",
+            "projection": "Refreshes site device inventory and binds gateway_ref to exactly one current gateway. Reports the documented LED mode and presence/missing/invalid coverage only for rememberDevice and the SNMP object. Exposes no names, tags, locations, SNMP contents or rememberDevice value/semantics."
+          }
+        },
+        "site_switch_general_config_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGeneralConfig",
+            "permission": "Site Device Manager View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/switches/{switchMac}/general-config",
+            "query": {},
+            "request_body": false,
+            "response": "OperationResponseSwitchGeneralConfig resolves to SwitchGeneralConfig with ledSetting:int32 (0=off, 1=on, 2=use site settings), jumbo:int32 (1518–9216), lagHashAlg:int32 (0–5 documented MAC/IP tuple modes), sdm:OswSdmTemplateVO and optional identity/location/SNMP fields. This export omits jumboFollowSite and lagHashAlgFollowSite.",
+            "projection": "Refreshes site device inventory and binds switch_ref to exactly one current switch. Reports documented LED mode, Jumbo range validity and LAG hash mode. Reports presence/missing/invalid site-follow and SDM-template coverage; source-absent fields remain missing. Omits names, tags, location, SNMP values and raw device settings. Does not infer forwarding behavior."
           }
         },
         "site_specific_app_traffic_summary": {

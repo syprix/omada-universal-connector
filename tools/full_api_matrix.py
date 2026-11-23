@@ -418,6 +418,8 @@ IMPLEMENTED: dict[tuple[str, str], str] = {
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/stack/{stack_id}/dhcp/user-list"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/vlan-interface/stack/{stack_id}"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/setting/service/snmp/incompatible-devices"): "implemented_read",
+    ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/gateways/{gateway_mac}/general-config"): "implemented_read",
+    ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/switches/{switch_mac}/general-config"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/switch-oui-rules"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sdwan/sdwan-group/brief"): "implemented_read",
     ("GET", "/openapi/v2/{controller_id}/sites/{site_id}/vpn/client-to-site-vpn-clients"): "implemented_read",

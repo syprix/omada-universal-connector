@@ -953,6 +953,19 @@ configuration. Hardware/CBC describe a narrow `DeviceVO` with MAC, stack ID,
 port and IMPB fields; ER7212PC describes a broader device record. These source
 schemas are kept distinct in the contract matrix. Live support is unknown.
 
+`site_gateway_general_config_summary` refreshes the selected site's device
+inventory and binds `gateway_ref` to exactly one current gateway. It reports the
+documented LED mode and whether the optional `rememberDevice` and SNMP setting
+objects are present. It does not infer a meaning for `rememberDevice` codes or
+expose names, tags, locations or SNMP values.
+
+`site_switch_general_config_summary` refreshes the selected site's inventory
+and binds `switch_ref` to exactly one current switch. It reports the documented
+LED mode, Jumbo setting scope and range validity, LAG hash setting scope and
+documented mode, and SDM object presence. Source-specific site-follow fields
+are reported as missing when the export does not declare them. Names, tags,
+locations and SNMP values are omitted; actual forwarding is not inferred.
+
 
 Gateway health timeline is a redacted read using an opaque inventoried
 `gateway_ref` and a fixed 24-hour interval. It returns millisecond timestamps

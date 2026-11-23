@@ -1273,12 +1273,14 @@ class OmadaOpenApiClient:
     _MSP_GATEWAY_HEALTH_TIMELINE_PATH = (
         "/openapi/v1/msp/{msp_id}/customers/{customer_id}/sites/{site_id}/gateways/{gateway_mac}/health/timeline")
     _GATEWAY_IPV6_IP_PASSTHROUGH_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/gateways/{gateway_mac}/network/ipv6"
+    _GATEWAY_GENERAL_CONFIG_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/gateways/{gateway_mac}/general-config"
     _GATEWAY_WAN_HEALTH_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/health/gateways/{gateway_mac}/wans/details"
     _SWITCH_PORTS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switches/ports/overview"
     _SWITCH_PORT_COUNTERS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switches/ports/counters"
     _SWITCH_PORT_POE_INFO_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switches/ports/poe-info"
     _SWITCH_PORT_POE_MODE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switches/{switch_mac}/ports/{port}/poe-mode"
     _SWITCH_PORT_STATUS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switches/{switch_mac}/ports/{port}/status"
+    _SWITCH_GENERAL_CONFIG_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switches/{switch_mac}/general-config"
     _SWITCH_PORT_NAME_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switches/{switch_mac}/ports/{port}/name"
     _SWITCH_NETWORKS_DETAIL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switches/{switch_mac}/networks-detail"
     _SWITCH_LLDP_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switches/{switch_mac}/lldp-neighbors"
@@ -2207,6 +2209,14 @@ class OmadaOpenApiClient:
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})/"
         r"setting/service/snmp/incompatible-devices\?page=([1-9][0-9]*)&pageSize=(1000|[1-9][0-9]{0,2})"
     )
+    _GATEWAY_GENERAL_CONFIG_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})/gateways/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/general-config"
+    )
+    _SWITCH_GENERAL_CONFIG_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})/switches/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/general-config"
+    )
     _CONTROLLER_SDWAN_GROUP_BRIEF_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sdwan/sdwan-group/brief"
         r"\?page=([0-9]{1,3})&pageSize=([0-9]{1,4})"
@@ -3044,6 +3054,8 @@ class OmadaOpenApiClient:
         ("site_stack_dhcp_user_summary", "GET /v1/sites/{site_ref}/stacks/{stack_ref}/dhcp-users/summary"),
         ("site_stack_vlan_interface_summary", "GET /v1/sites/{site_ref}/stacks/{stack_ref}/vlan-interfaces/summary"),
         ("site_snmp_incompatible_summary", "GET /v1/sites/{site_ref}/snmp/incompatible-devices/summary"),
+        ("site_gateway_general_config_summary", "GET /v1/sites/{site_ref}/gateways/{gateway_ref}/general-config-summary"),
+        ("site_switch_general_config_summary", "GET /v1/sites/{site_ref}/switches/{switch_ref}/general-config-summary"),
         ("site_stack_vlan_interface_summary", "GET /v1/sites/{site_ref}/stacks/{stack_ref}/vlan-interfaces/summary"),
         ("site_switch_oui_vlan_summary", "GET /v1/sites/{site_ref}/switches/oui-vlan-rules/summary"),
         ("controller_sdwan_group_summary", "GET /v1/controller/sdwan-groups/summary"),
@@ -11411,6 +11423,78 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {"site_ref": site_ref, **projected}
 
+    @_track_capability("site_gateway_general_config_summary")
+    def read_site_gateway_general_config_summary(
+            self, site_ref: str, gateway_ref: str) -> dict[str, object]:
+        """Read redacted general settings for one freshly inventoried site gateway."""
+        site_id = self._resolve_site_ref(site_ref)
+        if not isinstance(gateway_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", gateway_ref):
+            raise OpenApiError("gateway_ref_invalid")
+        inventory = self.list_devices(site_ref)
+        items = inventory.get("items")
+        if not isinstance(items, list):
+            raise OpenApiError("openapi_response_invalid")
+        matches = [item for item in items if isinstance(item, Mapping) and
+                   item.get("device_ref") == gateway_ref]
+        if not matches:
+            raise OpenApiError("gateway_ref_unknown")
+        if len(matches) != 1:
+            raise OpenApiError("gateway_ref_ambiguous")
+        gateway_mac = self._gateway_macs_by_site_ref.get(site_ref, {}).get(gateway_ref)
+        if not gateway_mac:
+            raise OpenApiError("gateway_ref_unknown")
+        path = self._GATEWAY_GENERAL_CONFIG_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id,
+            gateway_mac=gateway_mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            from .site_gateway_general_config_summary import summarize_gateway_general_config
+        except ImportError:  # direct execution in the image
+            from site_gateway_general_config_summary import summarize_gateway_general_config
+        try:
+            projected = summarize_gateway_general_config(payload.get("result"))
+        except ValueError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"site_ref": site_ref, "gateway_ref": gateway_ref, **projected}
+
+    @_track_capability("site_switch_general_config_summary")
+    def read_site_switch_general_config_summary(
+            self, site_ref: str, switch_ref: str) -> dict[str, object]:
+        """Read redacted general settings for one freshly inventoried site switch."""
+        site_id = self._resolve_site_ref(site_ref)
+        if not isinstance(switch_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", switch_ref):
+            raise OpenApiError("switch_ref_invalid")
+        inventory = self.list_devices(site_ref)
+        items = inventory.get("items")
+        if not isinstance(items, list):
+            raise OpenApiError("openapi_response_invalid")
+        matches = [item for item in items if isinstance(item, Mapping) and
+                   item.get("device_ref") == switch_ref]
+        if not matches:
+            raise OpenApiError("switch_ref_unknown")
+        if len(matches) != 1:
+            raise OpenApiError("switch_ref_ambiguous")
+        switch_mac = self._switch_macs_by_site_ref.get(site_ref, {}).get(switch_ref)
+        if not switch_mac:
+            raise OpenApiError("switch_ref_unknown")
+        path = self._SWITCH_GENERAL_CONFIG_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id,
+            switch_mac=switch_mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            from .site_switch_general_config_summary import summarize_switch_general_config
+        except ImportError:  # direct execution in the image
+            from site_switch_general_config_summary import summarize_switch_general_config
+        try:
+            projected = summarize_switch_general_config(payload.get("result"))
+        except ValueError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"site_ref": site_ref, "switch_ref": switch_ref, **projected}
+
     @_track_capability("controller_sdwan_group_summary")
     def read_controller_sdwan_group_summary(self) -> dict[str, object]:
         """Summarize documented controller-wide SD-WAN group metadata coverage."""
@@ -17064,6 +17148,8 @@ class OmadaOpenApiClient:
                                   self._site_stack_vlan_interfaces_request_valid(path) or
                                   self._site_stack_dhcp_users_request_valid(path) or
                                   self._site_snmp_incompatible_request_valid(path) or
+                                  self._gateway_general_config_request_valid(path) or
+                                  self._switch_general_config_request_valid(path) or
                                   self._site_switch_oui_vlan_request_valid(path) or
                                   self._controller_sdwan_group_brief_request_valid(path) or
                                   self._controller_sdwan_group_devices_request_valid(path) or
@@ -19519,6 +19605,14 @@ class OmadaOpenApiClient:
                     1 <= int(match.group(4)) <= 1000)
         except (ValueError, OverflowError):
             return False
+
+    def _gateway_general_config_request_valid(self, path: str) -> bool:
+        match = self._GATEWAY_GENERAL_CONFIG_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _switch_general_config_request_valid(self, path: str) -> bool:
+        match = self._SWITCH_GENERAL_CONFIG_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
 
     def _controller_sdwan_group_brief_request_valid(self, path: str) -> bool:
         match = self._CONTROLLER_SDWAN_GROUP_BRIEF_REQUEST.fullmatch(path)

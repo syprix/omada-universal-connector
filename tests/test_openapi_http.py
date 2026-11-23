@@ -2981,6 +2981,18 @@ class FakeOpenApiClient:
         self.calls.append(("site_snmp_incompatible_summary", site_ref))
         return {"status": "ok", "resource": "site_snmp_incompatible_summary",
                 "site_ref": site_ref, "reported_incompatible_device_total": 0}
+
+    def read_site_gateway_general_config_summary(
+            self, site_ref: str, gateway_ref: str) -> dict[str, object]:
+        self.calls.append(("site_gateway_general_config_summary", site_ref, gateway_ref))
+        return {"status": "ok", "resource": "gateway_general_config_summary",
+                "site_ref": site_ref, "gateway_ref": gateway_ref}
+
+    def read_site_switch_general_config_summary(
+            self, site_ref: str, switch_ref: str) -> dict[str, object]:
+        self.calls.append(("site_switch_general_config_summary", site_ref, switch_ref))
+        return {"status": "ok", "resource": "switch_general_config_summary",
+                "site_ref": site_ref, "switch_ref": switch_ref}
     def read_site_switch_oui_vlan_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_switch_oui_vlan_summary", site_ref))
         return {"status": "ok", "resource": "site_switch_oui_vlan_summary",
@@ -9984,6 +9996,38 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(response["result"]["structuredContent"], direct)
         self.assertEqual(self.fake.calls,
                          [("site_snmp_incompatible_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_gateway_general_config_summary(self) -> None:
+        site_ref, gateway_ref = "a" * 24, "b" * 24
+        path = f"/v1/sites/{site_ref}/gateways/{gateway_ref}/general-config-summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(direct["resource"], "gateway_general_config_summary")
+        status, response = self.request_post("/mcp", {
+            "jsonrpc": "2.0", "id": 455, "method": "tools/call",
+            "params": {"name": "omada_site_gateway_general_config_summary",
+                       "arguments": {"site_ref": site_ref, "gateway_ref": gateway_ref}},
+        }, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_gateway_general_config_summary", site_ref, gateway_ref)] * 2)
+
+    def test_http_and_mcp_expose_switch_general_config_summary(self) -> None:
+        site_ref, switch_ref = "a" * 24, "c" * 24
+        path = f"/v1/sites/{site_ref}/switches/{switch_ref}/general-config-summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(direct["resource"], "switch_general_config_summary")
+        status, response = self.request_post("/mcp", {
+            "jsonrpc": "2.0", "id": 456, "method": "tools/call",
+            "params": {"name": "omada_site_switch_general_config_summary",
+                       "arguments": {"site_ref": site_ref, "switch_ref": switch_ref}},
+        }, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_switch_general_config_summary", site_ref, switch_ref)] * 2)
 
     def test_http_and_mcp_expose_redacted_switch_oui_vlan_summary(self) -> None:
         site_ref = "a" * 24

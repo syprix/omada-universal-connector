@@ -3804,6 +3804,12 @@ class Handler(BaseHTTPRequestHandler):
                 elif registry_operation == "site_snmp_incompatible_summary":
                     result = client.read_site_snmp_incompatible_summary(
                         registry_bindings["site_ref"])
+                elif registry_operation == "site_gateway_general_config_summary":
+                    result = client.read_site_gateway_general_config_summary(
+                        registry_bindings["site_ref"], registry_bindings["gateway_ref"])
+                elif registry_operation == "site_switch_general_config_summary":
+                    result = client.read_site_switch_general_config_summary(
+                        registry_bindings["site_ref"], registry_bindings["switch_ref"])
                 elif registry_operation == "site_switch_oui_vlan_summary":
                     result = client.read_site_switch_oui_vlan_summary(
                         registry_bindings["site_ref"])
