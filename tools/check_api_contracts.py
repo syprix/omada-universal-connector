@@ -149,6 +149,8 @@ OPERATIONS = {
     'site_stack_network_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/stacks/{stackId}/networks'),
     'controller_sdwan_group_summary': ('GET', '/openapi/v1/{omadacId}/sdwan/sdwan-group/brief'),
     'site_vpn_server_config_summary': ('GET', '/openapi/v2/{omadacId}/sites/{siteId}/vpn/client-to-site-vpn-servers'),
+    'site_gateway_webfilter_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/url-filters/gateway'),
+    'site_gateway_qos_class_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/qos/gateway/class-rules'),
     'site_port_schedule_ports_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/port-status-ports'),
     'site_s2s_vpn_inventory_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/vpn/site-to-site-vpns'),
     'site_s2s_vpn_v2_summary': ('GET', '/openapi/v2/{omadacId}/sites/{siteId}/vpn/site-to-site-vpns'),

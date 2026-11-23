@@ -1500,6 +1500,10 @@ class OmadaOpenApiClient:
         "/openapi/v1/{controller_id}/sites/{site_id}/remoteAccess/tunnel/status")
     _SITE_IDS_IPS_CONFIG_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/network-security/ips")
+    _SITE_GATEWAY_WEBFILTER_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/url-filters/gateway")
+    _SITE_GATEWAY_QOS_CLASS_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/qos/gateway/class-rules")
     _SITE_S2S_PEER_STATUS_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/setting/vpn/stats/s2s/{vpn_id}/peer")
     _SITE_AP_TOPOLOGY_CLIENTS_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/topology/devices/{ap_mac}/clients"
@@ -1963,6 +1967,14 @@ class OmadaOpenApiClient:
     _SITE_IDS_IPS_CONFIG_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})"
         r"/network-security/ips"
+    )
+    _SITE_GATEWAY_WEBFILTER_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})"
+        r"/url-filters/gateway\?page=([1-9][0-9]*)&pageSize=100"
+    )
+    _SITE_GATEWAY_QOS_CLASS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})"
+        r"/qos/gateway/class-rules\?page=([1-9][0-9]*)&pageSize=100"
     )
     _SITE_S2S_PEER_STATUS_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})"
@@ -2891,6 +2903,8 @@ class OmadaOpenApiClient:
         ("site_policy_route_summary", "GET /v1/sites/{site_ref}/policy-route-summary"),
         ("site_ipsec_sa_summary", "GET /v1/sites/{site_ref}/ipsec-sa-summary"),
         ("site_ids_ips_config_summary", "GET /v1/sites/{site_ref}/security/ids-ips-summary"),
+        ("site_gateway_webfilter_summary", "GET /v1/sites/{site_ref}/gateway-webfilter/summary"),
+        ("site_gateway_qos_class_summary", "GET /v1/sites/{site_ref}/gateway-qos/classes/summary"),
         ("site_vpn_server_status_summary", "GET /v1/sites/{site_ref}/vpn/servers/status-summary"),
         ("site_remote_access_tunnel_status_summary", "GET /v1/sites/{site_ref}/remote-access/tunnels/status-summary"),
         ("site_vpn_client_status_summary", "GET /v1/sites/{site_ref}/vpn/clients/status-summary"),
@@ -8708,6 +8722,118 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {**projected, "site_ref": site_ref,
                 "source_total_rows": payload.get("totalRows")}
+
+    @_track_capability("site_gateway_webfilter_summary")
+    def read_site_gateway_webfilter_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize bounded gateway URL-filter configuration without raw rules."""
+        try:
+            from .site_gateway_webfilter_summary import SUPPORT_FLAGS, summarize_gateway_webfilter_result
+        except ImportError:  # direct execution in the image
+            from site_gateway_webfilter_summary import SUPPORT_FLAGS, summarize_gateway_webfilter_result
+        site_id = self._resolve_site_ref(site_ref)
+        token = self._access_token()
+        rows: list[object] = []
+        total_rows: int | None = None
+        support_values: dict[str, object] | None = None
+        support_inconsistent = False
+        for page in range(1, min(self.config.max_pages, 10) + 1):
+            path = self._SITE_GATEWAY_WEBFILTER_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id)
+            path += f"?page={page}&pageSize=100"
+            payload = self._request_json("GET", path, token=token)
+            if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+                raise OpenApiError("openapi_response_invalid")
+            result = payload.get("result")
+            if not isinstance(result, Mapping):
+                raise OpenApiError("openapi_response_invalid")
+            data, total = result.get("data"), result.get("totalRows")
+            current_page, current_size = result.get("currentPage"), result.get("currentSize")
+            if (not isinstance(data, list) or len(data) > 100 or type(total) is not int or
+                    total < 0 or type(current_page) is not int or current_page != page or
+                    type(current_size) is not int or current_size not in (len(data), 100)):
+                raise OpenApiError("openapi_response_invalid")
+            if total_rows is None:
+                total_rows = total
+                support_values = {field: result[field] for field in SUPPORT_FLAGS if field in result}
+            elif total != total_rows:
+                raise OpenApiError("openapi_response_invalid")
+            else:
+                for field in SUPPORT_FLAGS:
+                    before = support_values is not None and field in support_values
+                    after = field in result
+                    if before != after or (before and
+                            (type(support_values[field]) is not type(result[field]) or
+                             support_values[field] != result[field])):
+                        support_inconsistent = True
+            rows.extend(data)
+            if len(rows) > 1000 or len(rows) > total:
+                raise OpenApiError("openapi_response_invalid")
+            if not data and len(rows) < total:
+                raise OpenApiError("openapi_response_invalid")
+            if len(rows) >= min(total, 1000):
+                break
+        if total_rows is None:
+            raise OpenApiError("openapi_response_invalid")
+        omitted = max(0, total_rows - len(rows))
+        summary_result: dict[str, object] = {"data": rows, "totalRows": total_rows}
+        if support_values:
+            summary_result.update(support_values)
+        if support_inconsistent:
+            for field in SUPPORT_FLAGS:
+                summary_result[field] = "inconsistent"
+        try:
+            projected = summarize_gateway_webfilter_result(summary_result, omitted_rows=omitted)
+        except ValueError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"site_ref": site_ref, **projected}
+
+    @_track_capability("site_gateway_qos_class_summary")
+    def read_site_gateway_qos_class_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize bounded gateway QoS class configuration only."""
+        try:
+            from .site_gateway_qos_class_summary import summarize_gateway_qos_class_rows
+        except ImportError:  # direct execution in the image
+            from site_gateway_qos_class_summary import summarize_gateway_qos_class_rows
+        site_id = self._resolve_site_ref(site_ref)
+        token = self._access_token()
+        rows: list[object] = []
+        total_rows: int | None = None
+        for page in range(1, min(self.config.max_pages, 10) + 1):
+            path = self._SITE_GATEWAY_QOS_CLASS_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id)
+            path += f"?page={page}&pageSize=100"
+            payload = self._request_json("GET", path, token=token)
+            if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+                raise OpenApiError("openapi_response_invalid")
+            result = payload.get("result")
+            if not isinstance(result, Mapping):
+                raise OpenApiError("openapi_response_invalid")
+            data, total = result.get("data"), result.get("totalRows")
+            current_page, current_size = result.get("currentPage"), result.get("currentSize")
+            if (not isinstance(data, list) or len(data) > 100 or type(total) is not int or
+                    total < 0 or type(current_page) is not int or current_page != page or
+                    type(current_size) is not int or current_size not in (len(data), 100)):
+                raise OpenApiError("openapi_response_invalid")
+            if total_rows is None:
+                total_rows = total
+            elif total_rows != total:
+                raise OpenApiError("openapi_response_invalid")
+            rows.extend(data)
+            if len(rows) > 1000 or len(rows) > total:
+                raise OpenApiError("openapi_response_invalid")
+            if not data and len(rows) < total:
+                raise OpenApiError("openapi_response_invalid")
+            if len(rows) >= min(total, 1000):
+                break
+        if total_rows is None:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            projected = summarize_gateway_qos_class_rows(
+                rows, source_total=total_rows,
+                omitted_rows=max(0, total_rows - len(rows)))
+        except ValueError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"site_ref": site_ref, **projected}
 
     @_track_capability("site_vpn_server_config_summary")
     def read_site_vpn_server_config_summary(self, site_ref: str) -> dict[str, object]:
@@ -16085,6 +16211,8 @@ class OmadaOpenApiClient:
                                   self._site_vpn_server_config_v2_request_valid(path) or
                                   self._site_remote_access_tunnel_status_request_valid(path) or
                                   self._site_ids_ips_config_request_valid(path) or
+                                  self._site_gateway_webfilter_request_valid(path) or
+                                  self._site_gateway_qos_class_request_valid(path) or
                                   self._site_s2s_peer_status_request_valid(path) or
                                   self._site_ssid_topology_devices_request_valid(path) or
                                   self._site_ap_topology_clients_request_valid(path) or
@@ -17643,6 +17771,16 @@ class OmadaOpenApiClient:
         match = self._SITE_S2S_VPN_V2_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id and
                     int(match.group(3)) <= 10)
+
+    def _site_gateway_webfilter_request_valid(self, path: str) -> bool:
+        match = self._SITE_GATEWAY_WEBFILTER_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id and
+                    int(match.group(3)) <= min(self.config.max_pages, 10))
+
+    def _site_gateway_qos_class_request_valid(self, path: str) -> bool:
+        match = self._SITE_GATEWAY_QOS_CLASS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id and
+                    int(match.group(3)) <= min(self.config.max_pages, 10))
 
     def _site_vpn_server_config_v2_request_valid(self, path: str) -> bool:
         match = self._SITE_VPN_SERVER_CONFIG_V2_REQUEST.fullmatch(path)

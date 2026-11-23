@@ -609,3 +609,27 @@ successful enforcement. Live support remains unknown.
 A synthetic one-site IDS/IPS fixture measured 65→46 serialized JSON tokens
 (29.23% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; this is not a live
 payload or billed agent measurement.
+The gateway webfilter summary reads `getGridGatewayRule` from all three
+exports. It is bounded to 1,000 rows and reports the documented gateway/AP rule
+types, enabled state, optional feature flags and source support flags. URLs,
+keywords, category values, names, IDs, source IDs and schedule values are
+omitted. No effective filtering behavior is inferred; live support is unknown.
+
+A synthetic 20-rule gateway webfilter page measured 2,005→225 serialized JSON
+tokens (88.78% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`. The fixture
+comparison excludes tool schemas, prompts, transport framing and billed agent
+usage.
+
+The gateway QoS class summary reads `getClassRuleGrid` from all three exports.
+It is bounded to 1,000 rules and reports enable state, documented IPv4/IPv6
+codes and class codes. Address-group values, service IDs, rule IDs and DSCP
+values are omitted; no traffic or throughput is inferred. Live support remains
+unknown.
+
+A synthetic 20-rule gateway QoS class page measured 1,109→113 serialized JSON
+tokens (89.81% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; this excludes
+prompts, tool schemas, transport framing and billed agent usage.
+
+A synthetic 20-rule webfilter page measured 2,005→225 serialized JSON tokens
+(88.78% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; this excludes prompts,
+tool schemas, transport framing and billed agent usage.
