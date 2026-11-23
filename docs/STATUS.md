@@ -872,3 +872,24 @@ source JSON with the actual response projection. Twenty firmware entries were
 tokens (33 more, including the connector's status and resource envelope).
 These measurements exclude tool schemas, transport framing, prompts and billed
 agent usage.
+
+## 2026-11-23 — Stack static routes and OSPF neighbor coverage (in progress)
+
+#119 and #120 use fresh, complete same-site stack inventory binding and a
+bounded 1,000-row paginated read. Static routes are summarized by documented
+IP-version and configured status counts; destinations and identifiers are
+omitted, and active forwarding is not inferred. OSPF output is limited to row
+coverage and state-field presence; state strings are not interpreted and peer
+details are omitted. All three supplied exports contain both operations. The
+ER7212PC OSPF empty-grid example is internally inconsistent (zero total and
+page metadata with a placeholder row); the implementation accepts a genuinely
+empty zero-page result and rejects that example shape. No controller has been
+contacted.
+
+Synthetic token measurements with `js-tiktoken` 1.0.21 / `o200k_base` compared
+20 source rows with the actual summary responses: static routes 2,216→122 tokens
+(94.49% fewer); OSPF neighbors 1,229→102 tokens (91.70% fewer). These exclude
+tool schemas, transport framing, prompts and billed agent usage. The full client
+and HTTP/MCP modules passed 476 tests; the registry, matrix and evidence gate
+passed 312 tests. Three-export contract checks, full API matrix, compileall and
+diff checks passed. Hosted CI is pending. Live controller support is unknown.

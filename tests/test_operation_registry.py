@@ -232,6 +232,28 @@ class OperationRegistryTests(unittest.TestCase):
         self.assertEqual(dict(bindings), {"site_ref": "a" * 24,
                                           "stack_ref": "b" * 24})
 
+    def test_site_stack_static_routing_summary_binds_site_and_stack(self):
+        operation = REGISTRY.get("site_stack_static_routing_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"],
+                         ["site_ref", "stack_ref"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/stacks/" + "b" * 24 +
+            "/static-routings/summary")
+        self.assertEqual(route.operation_id, "site_stack_static_routing_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24,
+                                          "stack_ref": "b" * 24})
+
+    def test_site_stack_ospf_neighbor_summary_binds_site_and_stack(self):
+        operation = REGISTRY.get("site_stack_ospf_neighbor_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"],
+                         ["site_ref", "stack_ref"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/stacks/" + "b" * 24 +
+            "/ospf-neighbors/summary")
+        self.assertEqual(route.operation_id, "site_stack_ospf_neighbor_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24,
+                                          "stack_ref": "b" * 24})
+
     def test_site_gateway_general_config_summary_binds_site_and_gateway(self):
         operation = REGISTRY.get("site_gateway_general_config_summary")
         self.assertEqual(_tool(operation)["inputSchema"]["required"],
@@ -1142,6 +1164,8 @@ class OperationRegistryTests(unittest.TestCase):
 
 "site_stack_connections_summary",
             "site_stack_network_summary",
+            "site_stack_static_routing_summary",
+            "site_stack_ospf_neighbor_summary",
             "site_stack_dhcp_user_summary",
             "site_stack_vlan_interface_summary",
             "site_snmp_incompatible_summary",
