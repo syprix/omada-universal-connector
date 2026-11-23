@@ -1400,6 +1400,9 @@ class OmadaOpenApiClient:
     _SITE_MESH_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/mesh"
     _SITE_MULTICAST_RATE_LIMIT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/multicast-rate-limit"
     _SITE_BEACON_CONTROL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/beacon-control"
+    _SITE_VOUCHER_ALL_TIME_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/hotspot/vouchers/statistics/summary"
+    )
     _SITE_IOT_TRANSMIT_POWER_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/iot/radio/transmit-power"
     _SITE_REMEMBER_SETTING_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/remember-device"
     _SITE_CLIENT_CONNECTION_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/client-ssid-distribution"
@@ -1911,6 +1914,10 @@ class OmadaOpenApiClient:
     _SITE_NAT_EXCEPTION_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
         r"/wired-networks/disable-nats"
+    )
+    _SITE_VOUCHER_ALL_TIME_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/hotspot/vouchers/statistics/summary"
     )
     _SITE_ES_NETWORK_OVERVIEW_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
@@ -10083,8 +10090,8 @@ class OmadaOpenApiClient:
     def read_site_voucher_all_time_summary(self, site_ref: str) -> dict[str, object]:
         """Read independent all-time voucher counts without money or user details."""
         site_id = self._resolve_site_ref(site_ref)
-        path = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/hotspot/"
-                "vouchers/statistics/summary")
+        path = self._SITE_VOUCHER_ALL_TIME_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
         payload = self._request_json("GET", path, token=self._access_token())
         if not isinstance(payload, Mapping) or payload.get("errorCode") != 0:
             raise OpenApiError("openapi_response_invalid")
@@ -17859,6 +17866,7 @@ class OmadaOpenApiClient:
                                   self._site_vlan_topology_request_valid(path) or
                                   self._site_static_route_interface_options_request_valid(path) or
                                   self._site_nat_exception_request_valid(path) or
+                                  self._site_voucher_all_time_request_valid(path) or
                                   self._site_switch_port_detail_request_valid(path) or
                                   self._site_es_network_overview_request_valid(path) or
                                   self._site_es_general_config_request_valid(path) or
@@ -19248,6 +19256,10 @@ class OmadaOpenApiClient:
 
     def _site_nat_exception_request_valid(self, path: str) -> bool:
         match = self._SITE_NAT_EXCEPTION_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_voucher_all_time_request_valid(self, path: str) -> bool:
+        match = self._SITE_VOUCHER_ALL_TIME_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
 
     def _site_es_network_overview_request_valid(self, path: str) -> bool:

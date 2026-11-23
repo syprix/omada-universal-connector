@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import hashlib
+import importlib.util
 import os
+import sys
 import tempfile
 import unittest
 from dataclasses import replace
@@ -1845,6 +1847,54 @@ class OpenApiClientTests(unittest.TestCase):
         self.assertEqual(result["resource"], "site_backup_inventory_summary")
         self.assertEqual(result["source_scope"], "selected_site_file_list_response")
         self.assertNotIn("private-site-file", repr(result))
+
+    def test_site_backup_inventory_summary_direct_import_fallback(self) -> None:
+        app_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "app")
+        module_name = "_omada_direct_openapi_test"
+        spec = importlib.util.spec_from_file_location(
+            module_name, os.path.join(app_dir, "openapi.py"))
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        sys.path.insert(0, app_dir)
+        try:
+            spec.loader.exec_module(module)
+            client = module.OmadaOpenApiClient(self.config)
+            site_ref = "a" * 24
+            client._site_ids_by_ref[site_ref] = "site-1"
+            payloads = [
+                {"result": {"fileList": [
+                    {"fileName": "private-site-file", "backupTime": 1_800_000_000_000,
+                     "size": 250}]}},
+                {"result": {"status": 0}},
+            ]
+            with (patch.object(client, "list_sites", return_value={"items": []}),
+                  patch.object(client, "_access_token", return_value="token"),
+                  patch.object(client, "_request_json", side_effect=payloads) as request,
+                  patch.object(client, "read_controller_backup_schedule", return_value={
+                      "partial": False, "data": {"schedule_configured": True}})):
+                result = client.read_site_backup_inventory_summary(site_ref)
+            self.assertEqual(result["status"], "ok")
+            self.assertEqual(result["resource"], "site_backup_inventory_summary")
+            self.assertEqual(len(request.call_args_list), 2)
+            self.assertNotIn("private-site-file", repr(result))
+        finally:
+            sys.path.remove(app_dir)
+            sys.modules.pop(module_name, None)
+
+    def test_site_voucher_all_time_path_is_controller_bound(self) -> None:
+        allowed = (
+            "/openapi/v1/controller_1/sites/site-1/"
+            "hotspot/vouchers/statistics/summary")
+        with patch.object(self.client, "_connection",
+                          side_effect=OpenApiError("connection_reached")):
+            with self.assertRaisesRegex(OpenApiError, "connection_reached"):
+                self.client._request_json("GET", allowed, token="token")
+            with self.assertRaisesRegex(OpenApiError, "openapi_path_rejected"):
+                self.client._request_json(
+                    "GET", allowed.replace("controller_1", "other-controller"), token="token")
+
     def test_site_backup_list_paths_are_controller_bound(self) -> None:
         allowed = [
             "/openapi/v1/controller_1/sites/site-1/maintenance/backup/files",
