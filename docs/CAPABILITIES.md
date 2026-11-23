@@ -1803,3 +1803,17 @@ VPN grid was 1,787→127 serialized tokens (92.89% fewer); a 20-member SD-WAN
 group detail was 2,798→78 tokens (97.21% fewer). The latter excludes its fresh
 inventory request. Both measures exclude transport framing and billed agent
 usage.
+
+`site_lan_interface_isolation_summary` counts only controller-reported
+isolation flags for a site's LAN interfaces. It sends no optional filters,
+omits names, IDs and VLAN values, and does not claim real network separation.
+All three exports document the endpoint; the ER7212PC operation ID is
+`getAllInterfacesForBatchIsolate` without the `_1` suffix.
+
+`site_ospf_interface_summary` reads at most 1,000 OSPF interface rows per site.
+It counts documented interface and network types, valid configured link costs,
+and optional-field coverage. It omits device/interface identities, names,
+addresses, VLAN values and authentication keys. Missing source fields are
+reported as unreported; no neighbor state is inferred. The ER7212PC export
+does not declare several loopback and passive-interface fields present in the
+Hardware/CBC schemas. Live support remains unknown.

@@ -848,6 +848,21 @@ class FakeOpenApiClient:
                 "reported_settings": {"safeSearch": "enabled", "blockPage": "disabled"},
                 "block_page_message_returned": False, "enforcement_inferred": False}
 
+    def read_site_lan_interface_isolation_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_lan_interface_isolation_summary", site_ref))
+        return {"status": "ok", "resource": "site_lan_interface_isolation_summary",
+                "site_ref": site_ref, "reported_interface_count": 2,
+                "reported_isolation": {"isolated": 1, "not_isolated": 1,
+                                        "unknown": 0, "missing": 0},
+                "network_separation_inferred": False}
+
+    def read_site_ospf_interface_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_ospf_interface_summary", site_ref))
+        return {"status": "ok", "resource": "site_ospf_interface_summary",
+                "site_ref": site_ref, "reported_interface_total": 1,
+                "by_documented_network_type": {"broadcast": 1},
+                "ospf_neighbor_state_inferred": False}
+
     def read_site_gateway_qos_class_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_gateway_qos_class_summary", site_ref))
         return {"status": "ok", "resource": "site_gateway_qos_class_summary",
@@ -3058,6 +3073,46 @@ class OpenApiHttpTests(unittest.TestCase):
             ("GET", "/openapi/v1/ctrl/sites/site_1/url-filters/eap?page=1&pageSize=100"),
             ("GET", "/openapi/v1/ctrl/sites/site_1/url-filters/globalUrlFilter")])
 
+    def test_lan_isolation_and_ospf_adapters_validate_and_redact(self) -> None:
+        site_ref = "a" * 24
+        client = OmadaOpenApiClient(OpenApiConfig(
+            "https://controller.example", "ctrl", "id", "secret", cert_sha256="a" * 64))
+        client._site_ids_by_ref[site_ref] = "site_1"
+        self.assertTrue(client._site_lan_interface_isolation_request_valid(
+            "/openapi/v2/ctrl/sites/site_1/lan-networks/isolate/interfaces"))
+        self.assertFalse(client._site_lan_interface_isolation_request_valid(
+            "/openapi/v2/ctrl/sites/site_1/lan-networks/isolate/interfaces?searchKey=x"))
+        self.assertTrue(client._site_ospf_interface_request_valid(
+            "/openapi/v1/ctrl/sites/site_1/ospf/interface?page=1&pageSize=100"))
+        self.assertFalse(client._site_ospf_interface_request_valid(
+            "/openapi/v1/ctrl/sites/site_1/ospf/interface?page=11&pageSize=100"))
+        calls = []
+
+        def upstream(method, path, **kwargs):
+            calls.append((method, path))
+            if "/lan-networks/isolate/interfaces" in path:
+                return {"errorCode": 0, "result": [
+                    {"name": "private LAN", "id": "private-id", "vlan": 10,
+                     "isolation": True}, {"isolation": False}]}
+            return {"errorCode": 0, "result": {
+                "totalRows": 1, "currentPage": 1, "currentSize": 1,
+                "data": [{"deviceName": "private-switch", "mac": "00:11:22:33:44:55",
+                          "vlanId": 10, "type": 0, "networkType": 0, "cost": 10,
+                          "authenticationType": 0, "simpleKey": "private-key"}]}}
+
+        with patch.object(client, "_access_token", return_value="token"), \
+                patch.object(client, "_request_json", side_effect=upstream):
+            isolation = client.read_site_lan_interface_isolation_summary(site_ref)
+            ospf = client.read_site_ospf_interface_summary(site_ref)
+        self.assertEqual(isolation["reported_isolation"]["isolated"], 1)
+        self.assertEqual(ospf["by_documented_network_type"]["broadcast"], 1)
+        for secret in ("private LAN", "private-id", "private-switch", "00:11:22:33:44:55",
+                       "private-key", "10"):
+            self.assertNotIn(secret, json.dumps(isolation) + json.dumps(ospf))
+        self.assertEqual(calls, [
+            ("GET", "/openapi/v2/ctrl/sites/site_1/lan-networks/isolate/interfaces"),
+            ("GET", "/openapi/v1/ctrl/sites/site_1/ospf/interface?page=1&pageSize=100")])
+
     def test_http_ap_overview_uses_site_bound_reference_and_redacted_projection(self) -> None:
         site_ref, ap_ref = "a" * 24, "b" * 24
         client = OmadaOpenApiClient(OpenApiConfig(
@@ -4874,6 +4929,36 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(response["result"]["structuredContent"], direct)
         self.assertEqual(self.fake.calls,
                          [("site_url_filter_general_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_lan_interface_isolation_summary(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/lan/interfaces/isolation-summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200, repr(direct))
+        self.assertEqual(direct["resource"], "site_lan_interface_isolation_summary")
+        request = {"jsonrpc": "2.0", "id": 337, "method": "tools/call",
+                   "params": {"name": "omada_site_lan_interface_isolation_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_lan_interface_isolation_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_ospf_interface_summary(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/ospf/interfaces/summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200, repr(direct))
+        self.assertEqual(direct["resource"], "site_ospf_interface_summary")
+        request = {"jsonrpc": "2.0", "id": 338, "method": "tools/call",
+                   "params": {"name": "omada_site_ospf_interface_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_ospf_interface_summary", site_ref)] * 2)
 
     def test_http_and_mcp_expose_site_gateway_qos_class_summary(self) -> None:
         site_ref = "a" * 24

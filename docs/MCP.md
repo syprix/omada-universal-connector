@@ -1044,3 +1044,15 @@ A synthetic 20-member SD-WAN group measured 2,798 detail-payload tokens and 78
 summary tokens (97.21% fewer) with `tiktoken` 0.9.0 and `o200k_base`. This
 excludes the separate fresh group-inventory request, transport framing and
 billed agent usage.
+
+`omada_site_lan_interface_isolation_summary` accepts a `site_ref` and counts
+reported true, false, missing and invalid isolation flags. It uses no search or
+filter query, omits interface identities and VLAN values, and does not infer
+real network separation. All three exports document the endpoint; the
+ER7212PC operation ID omits the `_1` suffix.
+
+`omada_site_ospf_interface_summary` accepts a `site_ref` and reports bounded
+counts for documented interface type, network type and valid cost values, plus
+optional field coverage. Names, IDs, addresses, VLAN values and authentication
+keys are omitted. Missing source fields are shown as unreported; neighbor
+state is not inferred.

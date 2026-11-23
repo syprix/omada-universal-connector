@@ -698,5 +698,24 @@ message measured 296 and 46 tokens (84.46% fewer). These figures cover only
 serialized JSON and exclude prompts, tool schemas, transport framing and billed
 agent usage. Focused projection and adapter tests passed, the full HTTP module
 passed (367 tests), and the registry/matrix/evidence gate passed (302 tests).
-Live support was not tested. This work is
-prepared for review and is not represented as merged or released.
+Exact push and pull-request CI passed for public head
+`b64f0b1057fb834bb28e03d41bb0ecbfd1434db2`. The two reads were merged in
+`132c67646b16b91aefef208d9455d0bfaec43a8b` and included in release `v0.18.0`.
+Live controller support was not tested.
+
+## 2026-11-23 — LAN isolation and OSPF interface summaries
+
+Added two site-bound reads. LAN isolation uses the documented unfiltered GET
+and counts only reported true, false, missing and invalid flags. All three
+exports document the path; ER7212PC uses the operation ID without `_1`. The
+OSPF summary is bounded to 1,000 rows,
+counts documented interface/network types and valid link costs, and reports
+optional field coverage. It omits names, addresses, VLAN values and
+authentication keys. Neither summary claims real network separation or OSPF
+neighbor state. Offline contract checks passed for all three exports, including
+the ER7212PC operation-ID variant. Focused projection and adapter tests and the
+full HTTP module (370 tests) passed; the registry/matrix/evidence gate passed
+(303 tests). Synthetic JSON measurements with `tiktoken`
+0.9.0 / `o200k_base`: LAN isolation 605→79 tokens (86.94% fewer); OSPF 2,806→283
+(89.91% fewer). Live support is unknown. The changes are not represented as
+merged or released.

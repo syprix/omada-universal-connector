@@ -1518,6 +1518,9 @@ class OmadaOpenApiClient:
         "/openapi/v1/{controller_id}/sites/{site_id}/url-filters/eap")
     _SITE_URL_FILTER_GENERAL_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/url-filters/globalUrlFilter")
+    _SITE_LAN_INTERFACE_ISOLATION_PATH = (
+        "/openapi/v2/{controller_id}/sites/{site_id}/lan-networks/isolate/interfaces")
+    _SITE_OSPF_INTERFACE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/ospf/interface"
     _SITE_GATEWAY_QOS_CLASS_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/qos/gateway/class-rules")
     _SITE_S2S_PEER_STATUS_PATH = (
@@ -2007,6 +2010,14 @@ class OmadaOpenApiClient:
     _SITE_URL_FILTER_GENERAL_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})"
         r"/url-filters/globalUrlFilter"
+    )
+    _SITE_LAN_INTERFACE_ISOLATION_REQUEST = re.compile(
+        r"/openapi/v2/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})"
+        r"/lan-networks/isolate/interfaces"
+    )
+    _SITE_OSPF_INTERFACE_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})"
+        r"/ospf/interface\?page=([1-9][0-9]*)&pageSize=100"
     )
     _SITE_GATEWAY_QOS_CLASS_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})"
@@ -2954,6 +2965,8 @@ class OmadaOpenApiClient:
         ("site_gateway_webfilter_summary", "GET /v1/sites/{site_ref}/gateway-webfilter/summary"),
         ("site_ap_webfilter_summary", "GET /v1/sites/{site_ref}/ap-webfilter/summary"),
         ("site_url_filter_general_summary", "GET /v1/sites/{site_ref}/url-filter-general/summary"),
+        ("site_lan_interface_isolation_summary", "GET /v1/sites/{site_ref}/lan/interfaces/isolation-summary"),
+        ("site_ospf_interface_summary", "GET /v1/sites/{site_ref}/ospf/interfaces/summary"),
         ("site_gateway_qos_class_summary", "GET /v1/sites/{site_ref}/gateway-qos/classes/summary"),
         ("site_vpn_server_status_summary", "GET /v1/sites/{site_ref}/vpn/servers/status-summary"),
         ("site_remote_access_tunnel_status_summary", "GET /v1/sites/{site_ref}/remote-access/tunnels/status-summary"),
@@ -8918,6 +8931,72 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid")
         try:
             projected = summarize_url_filter_general(payload.get("result"))
+        except ValueError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"site_ref": site_ref, **projected}
+
+    @_track_capability("site_lan_interface_isolation_summary")
+    def read_site_lan_interface_isolation_summary(self, site_ref: str) -> dict[str, object]:
+        """Count the controller-reported LAN interface isolation flags only."""
+        try:
+            from .site_lan_interface_isolation_summary import summarize_lan_interface_isolation
+        except ImportError:  # direct execution in the image
+            from site_lan_interface_isolation_summary import summarize_lan_interface_isolation
+        site_id = self._resolve_site_ref(site_ref)
+        payload = self._request_json(
+            "GET", self._SITE_LAN_INTERFACE_ISOLATION_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id),
+            token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            projected = summarize_lan_interface_isolation(payload.get("result"))
+        except ValueError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"site_ref": site_ref, **projected}
+
+    @_track_capability("site_ospf_interface_summary")
+    def read_site_ospf_interface_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize bounded OSPF interface settings without identifiers or keys."""
+        try:
+            from .site_ospf_interface_summary import summarize_ospf_interfaces
+        except ImportError:  # direct execution in the image
+            from site_ospf_interface_summary import summarize_ospf_interfaces
+        site_id = self._resolve_site_ref(site_ref)
+        token = self._access_token()
+        rows: list[object] = []
+        total_rows: int | None = None
+        for page in range(1, min(self.config.max_pages, 10) + 1):
+            path = self._SITE_OSPF_INTERFACE_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id)
+            payload = self._request_json("GET", f"{path}?page={page}&pageSize=100", token=token)
+            if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+                raise OpenApiError("openapi_response_invalid")
+            result = payload.get("result")
+            if not isinstance(result, Mapping):
+                raise OpenApiError("openapi_response_invalid")
+            data, total = result.get("data"), result.get("totalRows")
+            current_page, current_size = result.get("currentPage"), result.get("currentSize")
+            if (not isinstance(data, list) or len(data) > 100 or type(total) is not int or
+                    total < 0 or type(current_page) is not int or current_page != page or
+                    type(current_size) is not int or current_size not in (len(data), 100)):
+                raise OpenApiError("openapi_response_invalid")
+            if total_rows is None:
+                total_rows = total
+            elif total != total_rows:
+                raise OpenApiError("openapi_response_invalid")
+            rows.extend(data)
+            if len(rows) > 1000 or len(rows) > total:
+                raise OpenApiError("openapi_response_invalid")
+            if not data and len(rows) < total:
+                raise OpenApiError("openapi_response_invalid")
+            if len(rows) >= min(total, 1000):
+                break
+        if total_rows is None:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            projected = summarize_ospf_interfaces(
+                rows, total_rows, max(0, total_rows - len(rows)))
         except ValueError:
             raise OpenApiError("openapi_response_invalid") from None
         return {"site_ref": site_ref, **projected}
@@ -16579,6 +16658,8 @@ class OmadaOpenApiClient:
                                   self._site_gateway_webfilter_request_valid(path) or
                                   self._site_ap_webfilter_request_valid(path) or
                                   self._site_url_filter_general_request_valid(path) or
+                                  self._site_lan_interface_isolation_request_valid(path) or
+                                  self._site_ospf_interface_request_valid(path) or
                                   self._site_gateway_qos_class_request_valid(path) or
                                   self._site_s2s_peer_status_request_valid(path) or
                                   self._site_ssid_topology_devices_request_valid(path) or
@@ -18164,6 +18245,15 @@ class OmadaOpenApiClient:
     def _site_url_filter_general_request_valid(self, path: str) -> bool:
         match = self._SITE_URL_FILTER_GENERAL_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_lan_interface_isolation_request_valid(self, path: str) -> bool:
+        match = self._SITE_LAN_INTERFACE_ISOLATION_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_ospf_interface_request_valid(self, path: str) -> bool:
+        match = self._SITE_OSPF_INTERFACE_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id and
+                    int(match.group(3)) <= min(self.config.max_pages, 10))
 
     def _site_gateway_qos_class_request_valid(self, path: str) -> bool:
         match = self._SITE_GATEWAY_QOS_CLASS_REQUEST.fullmatch(path)

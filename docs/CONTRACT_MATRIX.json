@@ -2970,6 +2970,43 @@
             "response": "UrlFilterGlobalOpenApiVO has required safeSearch:boolean and blockPage:boolean. Optional blockPageMessage:string is documented.",
             "projection": "Returns only the reported SafeSearch and block-page flags, distinguishing unknown from false. Omits blockPageMessage. Describes controller-reported configuration only; effective enforcement is not inferred."
           }
+        },
+        "site_lan_interface_isolation_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getAllInterfacesForBatchIsolate_1",
+            "permission": "Site Settings Manager View Only; Network Config Page View Only",
+            "path": "GET /openapi/v2/{omadacId}/sites/{siteId}/lan-networks/isolate/interfaces",
+            "query": {
+              "optional": [
+                "searchKey:string",
+                "isolation_filter:int32"
+              ],
+              "sent_by_connector": false
+            },
+            "request_body": false,
+            "response": "result is an array of InterfaceForBatchIsolateOpenApiVO rows; isolation:boolean is optional. The rows also contain names, IDs and VLAN values.",
+            "projection": "Sends no optional filters. Counts true, false, missing and invalid isolation flags. Omits interface names, IDs and VLAN values. Reports controller-reported configuration only and does not infer real network separation."
+          }
+        },
+        "site_ospf_interface_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridOspfInterface",
+            "permission": "Site Settings Manager View Only; Site Device Manager View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/ospf/interface",
+            "query": {
+              "required": [
+                "page:int32",
+                "pageSize:int32 (1–1000)"
+              ]
+            },
+            "request_body": false,
+            "response": "Paginated GridVOOspfInterfaceOpenApiVO data[] resolves to OspfInterfaceOpenApiVO. Required in this export: deviceName, mac, vlanInterfaceId, vlanInterfaceName, vlanId, cost, networkType, helloInterval, authenticationType. cost is documented as 1–65535; networkType is 0 broadcast, 1 non-broadcast, 2 point-to-multipoint, 3 point-to-point. Other declared fields include id, deviceName, isStack, mac, type, stackId, vlanInterfaceId, vlanInterfaceName, vlanId, loopbackInterfaceId, loopbackId, cost, networkType, passiveEnable, helloInterval, deadInterval, authenticationType, simpleKey, md5KeyId, md5Key. Authentication key fields simpleKey and md5Key are sensitive.",
+            "projection": "Reads at most 1,000 rows using pageSize 100. Counts documented VLAN/loopback interface type, network type and valid costs. Per-field optional data availability is shown only as present/missing/invalid counts, with source-schema omissions reported as unreported. Omits names, IDs, stack and device identifiers, addresses, VLAN values, and all authentication keys. No neighbor or adjacency state is inferred."
+          }
         }
       }
     },
@@ -5913,6 +5950,43 @@
             "response": "UrlFilterGlobalOpenApiVO has required safeSearch:boolean and blockPage:boolean. Optional blockPageMessage:string is documented.",
             "projection": "Returns only the reported SafeSearch and block-page flags, distinguishing unknown from false. Omits blockPageMessage. Describes controller-reported configuration only; effective enforcement is not inferred."
           }
+        },
+        "site_lan_interface_isolation_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getAllInterfacesForBatchIsolate_1",
+            "permission": "Site Settings Manager View Only; Network Config Page View Only",
+            "path": "GET /openapi/v2/{omadacId}/sites/{siteId}/lan-networks/isolate/interfaces",
+            "query": {
+              "optional": [
+                "searchKey:string",
+                "isolation_filter:int32"
+              ],
+              "sent_by_connector": false
+            },
+            "request_body": false,
+            "response": "result is an array of InterfaceForBatchIsolateOpenApiVO rows; isolation:boolean is optional. The rows also contain names, IDs and VLAN values.",
+            "projection": "Sends no optional filters. Counts true, false, missing and invalid isolation flags. Omits interface names, IDs and VLAN values. Reports controller-reported configuration only and does not infer real network separation."
+          }
+        },
+        "site_ospf_interface_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridOspfInterface",
+            "permission": "Site Settings Manager View Only; Site Device Manager View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/ospf/interface",
+            "query": {
+              "required": [
+                "page:int32",
+                "pageSize:int32 (1–1000)"
+              ]
+            },
+            "request_body": false,
+            "response": "Paginated GridVOOspfInterfaceOpenApiVO data[] resolves to OspfInterfaceOpenApiVO. Required in this export: deviceName, mac, vlanInterfaceId, vlanInterfaceName, vlanId, cost, networkType, helloInterval, authenticationType. cost is documented as 1–65535; networkType is 0 broadcast, 1 non-broadcast, 2 point-to-multipoint, 3 point-to-point. Other declared fields include id, deviceName, isStack, mac, type, stackId, vlanInterfaceId, vlanInterfaceName, vlanId, loopbackInterfaceId, loopbackId, cost, networkType, passiveEnable, helloInterval, deadInterval, authenticationType, simpleKey, md5KeyId, md5Key. Authentication key fields simpleKey and md5Key are sensitive.",
+            "projection": "Reads at most 1,000 rows using pageSize 100. Counts documented VLAN/loopback interface type, network type and valid costs. Per-field optional data availability is shown only as present/missing/invalid counts, with source-schema omissions reported as unreported. Omits names, IDs, stack and device identifiers, addresses, VLAN values, and all authentication keys. No neighbor or adjacency state is inferred."
+          }
         }
       }
     },
@@ -8804,6 +8878,43 @@
             "request_body": false,
             "response": "UrlFilterGlobalOpenApiVO has required safeSearch:boolean and blockPage:boolean. Optional blockPageMessage:string is documented.",
             "projection": "Returns only the reported SafeSearch and block-page flags, distinguishing unknown from false. Omits blockPageMessage. Describes controller-reported configuration only; effective enforcement is not inferred."
+          }
+        },
+        "site_lan_interface_isolation_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getAllInterfacesForBatchIsolate",
+            "path": "GET /openapi/v2/{omadacId}/sites/{siteId}/lan-networks/isolate/interfaces",
+            "permission": "Site Settings Manager View Only; Network Config Page View Only",
+            "query": {
+              "optional": [
+                "searchKey:string",
+                "isolation_filter:int32"
+              ],
+              "sent_by_connector": false
+            },
+            "request_body": false,
+            "response": "result is an array of InterfaceForBatchIsolateOpenApiVO rows; isolation:boolean is optional. The rows also contain names, IDs and VLAN values.",
+            "projection": "Sends no optional filters. Counts true, false, missing and invalid isolation flags. Omits interface names, IDs and VLAN values. Reports controller-reported configuration only and does not infer real network separation."
+          }
+        },
+        "site_ospf_interface_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridOspfInterface",
+            "permission": "Site Settings Manager View Only; Site Device Manager View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/ospf/interface",
+            "query": {
+              "required": [
+                "page:int32",
+                "pageSize:int32 (1–1000)"
+              ]
+            },
+            "request_body": false,
+            "response": "Paginated GridVOOspfInterfaceOpenApiVO data[] resolves to OspfInterfaceOpenApiVO. Required in this export: deviceName, mac, vlanInterfaceId, vlanInterfaceName, vlanId, cost, networkType, helloInterval, authenticationType. cost is documented as 1–65535; networkType is 0 broadcast, 1 non-broadcast, 2 point-to-multipoint, 3 point-to-point. Other declared fields include id, deviceName, mac, stackId, vlanInterfaceId, vlanInterfaceName, vlanId, cost, networkType, helloInterval, deadInterval, authenticationType, simpleKey, md5KeyId, md5Key. Authentication key fields simpleKey and md5Key are sensitive. This export does not declare: type, isStack, loopbackInterfaceId, loopbackId, passiveEnable.",
+            "projection": "Reads at most 1,000 rows using pageSize 100. Counts documented VLAN/loopback interface type, network type and valid costs. Per-field optional data availability is shown only as present/missing/invalid counts, with source-schema omissions reported as unreported. Omits names, IDs, stack and device identifiers, addresses, VLAN values, and all authentication keys. No neighbor or adjacency state is inferred."
           }
         }
       }
