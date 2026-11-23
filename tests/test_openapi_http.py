@@ -1055,8 +1055,10 @@ class FakeOpenApiClient:
     def read_site_voucher_all_time_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_voucher_all_time_summary", site_ref))
         return {"status": "ok", "resource": "site_voucher_all_time_summary",
-                "site_ref": site_ref, "voucher_categories": {}, "partial": False,
-                "amount_values_returned": False, "currency_values_returned": False}
+                "site_ref": site_ref, "voucher_counts": {},
+                "voucher_durations_minutes": {},
+                "voucher_traffic_statistics_supported": None,
+                "missing_fields": [], "invalid_fields": [], "partial": False}
 
     def read_site_lan_network_interface_summary(self, site_ref: str,
                                                 interface_type: int | None = None) -> dict[str, object]:
