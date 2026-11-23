@@ -3284,6 +3284,63 @@
             "response": "The port-detail list provides mac:string and es:boolean for the same-site Agile check. The general-config result documents ledSetting:int32 (0=off, 1=on, 2=Use Site Settings), jumboEnable:boolean, supportPowerAlert:boolean, and powerAlertEnable:boolean.",
             "projection": "Refreshes same-site switch inventory, requires one unique MAC match in the port-detail list with es exactly true, then reads one general-config response. Reports only LED, jumbo-frame and power-alert settings; omits names, location, tags and other fields."
           }
+        },
+        "site_lan_switch_profile_assignments_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getOswPortLanNetInfo",
+            "permission": "Site Settings Manager View Only / Device Config Page View Only",
+            "path_parameters": [
+              "omadacId required",
+              "siteId required"
+            ],
+            "query": {
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, 1-1000"
+            },
+            "request_body": false,
+            "response": "Direct GridVOOswProfileOpenApiVO: totalRows int64, currentPage/currentSize int32, data array of OswProfileOpenApiVO{name:string,mac:string,profiles:object}. Hardware/CBC define profiles additionalProperties as string; ER7212PC does not define map entry shape and its zero-total example contains a placeholder row.",
+            "connector_projection": "Reads the documented direct grid with fixed page size and 1,000-row bound. Counts device rows and entries only in validated string-valued profile maps. Returns no values or identifiers; missing profile maps are separately counted and make the result partial.",
+            "live_support": "unknown"
+          }
+        },
+        "site_ssid_topology_reference_count": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getDevicesOfSsid",
+            "permission": "Site Settings Manager View Only / Site Dashboard Manager View Only / Site Device Manager View Only",
+            "path_parameters": [
+              "omadacId required",
+              "siteId required",
+              "ssidId required"
+            ],
+            "query": {},
+            "request_body": false,
+            "response": "OperationResponseListString: errorCode int32, msg string, result array of strings.",
+            "connector_projection": "Refreshes the selected site SSID inventory, requires exactly one matching opaque ssid_ref, then counts the bounded v2 string list without interpreting its values. No reference strings are returned.",
+            "live_support": "unknown"
+          }
+        },
+        "site_vlan_topology_reference_count": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getDevicesOfVlan",
+            "permission": "Site Settings Manager View Only / Site Device Manager View Only / Site Dashboard Manager View Only",
+            "path_parameters": [
+              "omadacId required",
+              "siteId required",
+              "networkId required",
+              "vlan required"
+            ],
+            "query": {},
+            "request_body": false,
+            "response": "OperationResponseListString: errorCode int32, msg string, result array of strings. The v2 operation is present in Hardware Controller and CBC 6.3.0, not ER7212PC 6.2.14.",
+            "connector_projection": "Refreshes site network inventory, requires one selected network_ref with LAN purpose and the caller-supplied VLAN matching its current documented VLAN, then counts at most 4,096 returned strings as opaque references. No reference strings are returned. This remains distinct from the existing v3 getFilterDevicesOfVlan response, which classifies a topology MAC list by same-site device inventory.",
+            "live_support": "unknown"
+          }
         }
       }
     },
@@ -6512,6 +6569,63 @@
             "response": "The port-detail list provides mac:string and es:boolean for the same-site Agile check. The general-config result documents ledSetting:int32 (0=off, 1=on, 2=Use Site Settings), jumboEnable:boolean, supportPowerAlert:boolean, and powerAlertEnable:boolean.",
             "projection": "Refreshes same-site switch inventory, requires one unique MAC match in the port-detail list with es exactly true, then reads one general-config response. Reports only LED, jumbo-frame and power-alert settings; omits names, location, tags and other fields."
           }
+        },
+        "site_lan_switch_profile_assignments_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getOswPortLanNetInfo",
+            "permission": "Site Settings Manager View Only / Device Config Page View Only",
+            "path_parameters": [
+              "omadacId required",
+              "siteId required"
+            ],
+            "query": {
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, 1-1000"
+            },
+            "request_body": false,
+            "response": "Direct GridVOOswProfileOpenApiVO: totalRows int64, currentPage/currentSize int32, data array of OswProfileOpenApiVO{name:string,mac:string,profiles:object}. Hardware/CBC define profiles additionalProperties as string; ER7212PC does not define map entry shape and its zero-total example contains a placeholder row.",
+            "connector_projection": "Reads the documented direct grid with fixed page size and 1,000-row bound. Counts device rows and entries only in validated string-valued profile maps. Returns no values or identifiers; missing profile maps are separately counted and make the result partial.",
+            "live_support": "unknown"
+          }
+        },
+        "site_ssid_topology_reference_count": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getDevicesOfSsid",
+            "permission": "Site Settings Manager View Only / Site Dashboard Manager View Only / Site Device Manager View Only",
+            "path_parameters": [
+              "omadacId required",
+              "siteId required",
+              "ssidId required"
+            ],
+            "query": {},
+            "request_body": false,
+            "response": "OperationResponseListString: errorCode int32, msg string, result array of strings.",
+            "connector_projection": "Refreshes the selected site SSID inventory, requires exactly one matching opaque ssid_ref, then counts the bounded v2 string list without interpreting its values. No reference strings are returned.",
+            "live_support": "unknown"
+          }
+        },
+        "site_vlan_topology_reference_count": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getDevicesOfVlan",
+            "permission": "Site Settings Manager View Only / Site Device Manager View Only / Site Dashboard Manager View Only",
+            "path_parameters": [
+              "omadacId required",
+              "siteId required",
+              "networkId required",
+              "vlan required"
+            ],
+            "query": {},
+            "request_body": false,
+            "response": "OperationResponseListString: errorCode int32, msg string, result array of strings. The v2 operation is present in Hardware Controller and CBC 6.3.0, not ER7212PC 6.2.14.",
+            "connector_projection": "Refreshes site network inventory, requires one selected network_ref with LAN purpose and the caller-supplied VLAN matching its current documented VLAN, then counts at most 4,096 returned strings as opaque references. No reference strings are returned. This remains distinct from the existing v3 getFilterDevicesOfVlan response, which classifies a topology MAC list by same-site device inventory.",
+            "live_support": "unknown"
+          }
         }
       }
     },
@@ -9678,6 +9792,34 @@
             "response": "The port-detail list provides mac:string and es:boolean for the same-site Agile check. The general-config result documents ledSetting:int32 (0=off, 1=on, 2=Use Site Settings), jumboEnable:boolean, supportPowerAlert:boolean, and powerAlertEnable:boolean.",
             "projection": "Refreshes same-site switch inventory, requires one unique MAC match in the port-detail list with es exactly true, then reads one general-config response. Reports only LED, jumbo-frame and power-alert settings; omits names, location, tags and other fields."
           }
+        },
+        "site_lan_switch_profile_assignments_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getOswPortLanNetInfo",
+            "permission": "Site Settings Manager View Only / Device Config Page View Only",
+            "path_parameters": [
+              "omadacId required",
+              "siteId required"
+            ],
+            "query": {
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, 1-1000"
+            },
+            "request_body": false,
+            "response": "Direct GridVOOswProfileOpenApiVO: totalRows int64, currentPage/currentSize int32, data array of OswProfileOpenApiVO{name:string,mac:string,profiles:object}. Hardware/CBC define profiles additionalProperties as string; ER7212PC does not define map entry shape and its zero-total example contains a placeholder row.",
+            "connector_projection": "Reads the documented direct grid with fixed page size and 1,000-row bound. Counts device rows and entries only in validated string-valued profile maps. Returns no values or identifiers; missing profile maps are separately counted and make the result partial.",
+            "live_support": "unknown"
+          }
+        },
+        "site_ssid_topology_reference_count": {
+          "documented": false,
+          "live_support": "unknown"
+        },
+        "site_vlan_topology_reference_count": {
+          "documented": false,
+          "live_support": "unknown"
         }
       }
     }

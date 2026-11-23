@@ -1899,6 +1899,10 @@ class OmadaOpenApiClient:
         r"/openapi/v3/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
         r"/topology/([A-Za-z0-9_-]{1,128})/vlan/([1-9][0-9]{0,3})/devices"
     )
+    _SITE_VLAN_TOPOLOGY_V2_REQUEST = re.compile(
+        r"/openapi/v2/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/topology/([A-Za-z0-9_-]{1,128})/vlan/([1-9][0-9]{0,3})/devices"
+    )
     _SITE_STATIC_ROUTE_INTERFACE_OPTIONS_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
         r"/routing/static-routings/interfaces"
@@ -3064,9 +3068,11 @@ class OmadaOpenApiClient:
         ("site_s2s_peer_status_summary", "GET /v1/sites/{site_ref}/vpn/site-to-site/{vpn_ref}/peers/summary"),
         ("site_ssid_client_count_summary", "GET /v1/sites/{site_ref}/ssids/{ssid_ref}/clients/summary"),
         ("site_ssid_topology_device_summary", "GET /v1/sites/{site_ref}/ssids/{ssid_ref}/topology-device-summary"),
+        ("site_ssid_topology_reference_count", "GET /v1/sites/{site_ref}/ssids/{ssid_ref}/topology-reference-count"),
         ("site_ap_topology_clients_summary", "GET /v1/sites/{site_ref}/aps/{device_ref}/topology-clients/summary"),
         ("site_network_delivery_summary", "GET /v1/sites/{site_ref}/networks/{network_ref}/delivery-summary"),
         ("site_lan_port_profiles_summary", "GET /v1/sites/{site_ref}/lan-port-profiles/summary"),
+        ("site_lan_switch_profile_assignments_summary", "GET /v1/sites/{site_ref}/lan-switch-profile-assignments/summary"),
         ("site_lan_multicast_summary", "GET /v1/sites/{site_ref}/lan-multicast-summary"),
         ("site_bandwidth_rules_summary", "GET /v1/sites/{site_ref}/bandwidth-control-rules/summary"),
         ("site_log_notification_summary", "GET /v1/sites/{site_ref}/log-notification-summary"),
@@ -3328,6 +3334,7 @@ class OmadaOpenApiClient:
         ("site_topology_root_candidates_summary", "GET /v1/sites/{site_ref}/topology/root-candidates/summary"),
         ("site_isolated_preconfig_summary", "GET /v1/sites/{site_ref}/topology/isolated-preconfig/summary"),
         ("site_vlan_topology_summary", "GET /v1/sites/{site_ref}/networks/{network_ref}/vlan-topology-summary"),
+        ("site_vlan_topology_reference_count", "GET /v1/sites/{site_ref}/networks/{network_ref}/vlan-topology-reference-count"),
         ("site_es_network_overview_summary", "GET /v1/sites/{site_ref}/switches/{switch_ref}/es-network-overview/summary"),
         ("site_agile_switch_general_config_summary", "GET /v1/sites/{site_ref}/switches/{switch_ref}/agile-general-config-summary"),
         ("site_static_route_interface_options_summary", "GET /v1/sites/{site_ref}/static-routing/interfaces/summary"),
@@ -9853,6 +9860,34 @@ class OmadaOpenApiClient:
         return {**projected, "status": "ok",
                 "resource": "site_ssid_topology_device_summary"}
 
+    @_track_capability("site_ssid_topology_reference_count")
+    def read_site_ssid_topology_reference_count(self, site_ref: str,
+                                                ssid_ref: str) -> dict[str, object]:
+        """Count opaque v2 topology references for one freshly resolved site SSID."""
+        site_id = self._resolve_site_ref(site_ref)
+        inventory = self.list_ssids(site_ref)
+        items = inventory.get("items")
+        matches = [item for item in items if isinstance(item, Mapping) and
+                   item.get("ssid_ref") == ssid_ref] if isinstance(items, list) else []
+        ssid_id = self._ssid_ids_by_site_ref.get(site_ref, {}).get(ssid_ref)
+        if len(matches) != 1 or not ssid_id:
+            raise OpenApiError("ssid_ref_unknown")
+        path = (f"/openapi/v2/{self.config.controller_id}/sites/{site_id}/"
+                f"topology/ssids/{ssid_id}/devices")
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            from .site_ssid_topology_reference_count import (
+                SsidTopologyReferenceError, count_ssid_topology_references)
+        except ImportError:  # direct execution in the image
+            from site_ssid_topology_reference_count import (
+                SsidTopologyReferenceError, count_ssid_topology_references)
+        try:
+            projected = count_ssid_topology_references(payload)
+        except SsidTopologyReferenceError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**projected, "status": "ok", "resource": "site_ssid_topology_reference_count",
+                "site_ref": site_ref, "ssid_ref": ssid_ref}
+
     @_track_capability("site_ap_topology_clients_summary")
     def read_site_ap_topology_clients_summary(self, site_ref: str,
                                              device_ref: str) -> dict[str, object]:
@@ -10114,6 +10149,53 @@ class OmadaOpenApiClient:
         projected["page_size"] = page_size
         return {**projected, "status": "ok", "resource": "site_lan_port_profiles_summary",
                 "site_ref": site_ref}
+
+    @_track_capability("site_lan_switch_profile_assignments_summary")
+    def read_site_lan_switch_profile_assignments_summary(self, site_ref: str) -> dict[str, object]:
+        """Count switch rows and documented profile assignments without identifiers."""
+        site_id = self._resolve_site_ref(site_ref)
+        page_size = min(max(1, self.config.page_size), 1_000)
+        page_limit = min(max(1, self.config.max_pages), 10)
+        base = f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/lan-switch-setting"
+        rows = assignments = rows_with_profiles = rows_without_profiles = 0
+        total: int | None = None
+        pages = 0
+        try:
+            from .site_lan_switch_profile_assignments import (
+                LanSwitchProfileError, project_lan_switch_profile_page)
+        except ImportError:  # direct execution in the image
+            from site_lan_switch_profile_assignments import (
+                LanSwitchProfileError, project_lan_switch_profile_page)
+        token = self._access_token()
+        for page in range(1, page_limit + 1):
+            payload = self._request_json("GET", base + "?" + urlencode(
+                {"page": page, "pageSize": page_size}), token=token)
+            try:
+                summary = project_lan_switch_profile_page(payload, page, page_size, max_rows=1_000 - rows)
+            except LanSwitchProfileError:
+                raise OpenApiError("openapi_response_invalid") from None
+            if total is None:
+                total = summary["total_rows"]
+            elif total != summary["total_rows"]:
+                raise OpenApiError("openapi_response_invalid")
+            rows += summary["rows"]
+            assignments += summary["profile_assignments"]
+            rows_with_profiles += summary["rows_with_profile_data"]
+            rows_without_profiles += summary["rows_without_profile_data"]
+            pages = page
+            if rows > total:
+                raise OpenApiError("openapi_response_invalid")
+            if rows >= total or rows >= 1_000:
+                break
+        return {"status": "ok", "resource": "site_lan_switch_profile_assignments_summary",
+                "site_ref": site_ref, "device_rows": rows, "reported_device_rows": total or 0,
+                "profile_assignment_count": assignments,
+                "rows_with_profile_data": rows_with_profiles,
+                "rows_without_profile_data": rows_without_profiles,
+                "pages_fetched": pages, "page_size": page_size,
+                "partial": rows < (total or 0) or rows_without_profiles > 0,
+                "profile_assignment_values_returned": False,
+                "identifiers_returned": False}
 
     @_track_capability("controller_upgrade_plans_summary")
     def read_controller_upgrade_plans_summary(self) -> dict[str, object]:
@@ -14715,6 +14797,41 @@ class OmadaOpenApiClient:
                 "site_ref": site_ref, "network_ref": network_ref,
                 "vlan_id": vlan_id, **projected}
 
+    @_track_capability("site_vlan_topology_reference_count")
+    def read_site_vlan_topology_reference_count(self, site_ref: str, network_ref: str,
+                                                vlan_id: int) -> dict[str, object]:
+        """Count the v2 opaque topology list for a verified network/VLAN pair."""
+        if type(vlan_id) is not int or not 1 <= vlan_id <= 4094:
+            raise OpenApiError("vlan_id_invalid")
+        inventory = self.list_networks(site_ref)
+        items = inventory.get("items")
+        matches = [row for row in items if isinstance(row, Mapping) and
+                   row.get("network_ref") == network_ref] if isinstance(items, list) else []
+        if len(matches) != 1:
+            raise OpenApiError("network_ref_unknown")
+        selected = matches[0]
+        if selected.get("purpose") != 0 or selected.get("vlan") != vlan_id:
+            raise OpenApiError("network_vlan_mismatch")
+        site_id = self._resolve_site_ref(site_ref)
+        network_id = self._network_ids_by_site_ref.get(site_ref, {}).get(network_ref, "")
+        if not network_id:
+            raise OpenApiError("network_ref_unknown")
+        path = (f"/openapi/v2/{self.config.controller_id}/sites/{site_id}/topology/"
+                f"{network_id}/vlan/{vlan_id}/devices")
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            from .site_ssid_topology_reference_count import (
+                SsidTopologyReferenceError, count_ssid_topology_references)
+        except ImportError:  # direct execution in the image
+            from site_ssid_topology_reference_count import (
+                SsidTopologyReferenceError, count_ssid_topology_references)
+        try:
+            projected = count_ssid_topology_references(payload)
+        except SsidTopologyReferenceError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**projected, "status": "ok", "resource": "site_vlan_topology_reference_count",
+                "site_ref": site_ref, "network_ref": network_ref, "vlan_id": vlan_id}
+
     @_track_capability("site_es_network_overview_summary")
     def read_site_es_network_overview_summary(self, site_ref: str,
                                               switch_ref: str) -> dict[str, object]:
@@ -18834,7 +18951,8 @@ class OmadaOpenApiClient:
         return bool(match and match.group(1) == self.config.controller_id)
 
     def _site_vlan_topology_request_valid(self, path: str) -> bool:
-        match = self._SITE_VLAN_TOPOLOGY_REQUEST.fullmatch(path)
+        match = (self._SITE_VLAN_TOPOLOGY_REQUEST.fullmatch(path) or
+                 self._SITE_VLAN_TOPOLOGY_V2_REQUEST.fullmatch(path))
         return bool(match and match.group(1) == self.config.controller_id and
                     int(match.group(3)) <= 4094)
 

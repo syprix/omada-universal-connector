@@ -94,6 +94,13 @@ The topology endpoint is documented by Hardware Controller and CBC exports,
 not ER7212PC. It does not measure radio coverage. Live controller support is
 unknown.
 
+`GET /v1/sites/{site_ref}/ssids/{ssid_ref}/topology-reference-count` uses the
+separate documented v2 response, binds the SSID from a fresh inventory of the
+selected site, and counts its bounded string list as opaque references. It does
+not infer MAC or device-ID meaning, active connections or radio coverage. The
+v2 operation appears in Hardware Controller and CBC exports, not ER7212PC.
+Live controller support is unknown.
+
 ## Topology root candidates
 
 `GET /v1/sites/{site_ref}/topology/root-candidates/summary` and its MCP tool
@@ -118,6 +125,19 @@ inventory coverage; MACs and network identifiers are omitted. The API is
 documented for Hardware Controller and CBC 6.3.0, not ER7212PC. This reports
 topology membership for that VLAN and does not infer links between devices.
 Live support is unknown.
+
+The separate `GET /v1/sites/{site_ref}/networks/{network_ref}/vlan-topology-reference-count`
+route and MCP tool expose the coarser documented v2 count. They require a
+freshly inventoried VLAN network and the caller's VLAN number to match its
+current inventory assignment, then count at most 4,096 opaque strings without
+returning values. This is a reference-count view; it does not classify devices
+or imply connectivity. The v2 operation appears only in Hardware Controller
+and CBC exports, not ER7212PC. Live support is unknown.
+
+A synthetic v2 response with 20 opaque references measured 231 source JSON
+tokens and 60 summary JSON tokens (74.03% fewer) with `js-tiktoken` 1.0.21 /
+`o200k_base`. This excludes tool schemas, transport framing, prompts and billed
+agent usage.
 
 ## Isolated and preconfigured device counts
 
@@ -189,6 +209,24 @@ type/source flag enums and safe enablement/mode fields; names, IDs, VLAN and
 network references are discarded. Profiles are not linked to a device by this
 read. Pagination is capped at ten pages of at most 100 profiles, and incomplete
 or malformed rows are reported. Live support is unknown.
+
+## Switch LAN profile assignments
+
+`GET /v1/sites/{site_ref}/lan-switch-profile-assignments/summary` and its MCP
+tool read the separate `getOswPortLanNetInfo` grid. The OpenAPI contract is a
+direct grid response with `totalRows`, `currentPage`, `currentSize` and `data`;
+pagination is capped at 1,000 rows. The summary counts device rows and entries
+in each documented profile map while omitting profile values, names, MACs,
+VLANs and ports. A missing profile map is reported as unavailable data rather
+than zero assignments. The export does not define map entries for ER7212PC, so
+that hardware's profile-assignment count remains unknown. Live support is
+unknown.
+
+A synthetic payload with 20 switch rows and 480 profile-map entries measured
+4,302 source JSON tokens and 84 summary JSON tokens (98.05% fewer). Twenty
+opaque topology strings measured 191→55 tokens (71.20% fewer). Both use
+`js-tiktoken` 1.0.21 / `o200k_base`; tool schemas, prompts, transport framing
+and billed agent usage are excluded.
 
 A synthetic 20-profile source-shaped payload measured 2,543 tokens before and
 475 after projection (81.32% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`;

@@ -5,6 +5,7 @@ import hashlib
 import os
 import tempfile
 import unittest
+from dataclasses import replace
 from unittest.mock import patch
 
 from app.openapi import OmadaOpenApiClient, OpenApiConfig, OpenApiError
@@ -258,6 +259,106 @@ class OpenApiClientTests(unittest.TestCase):
         self.assertEqual((ssids.call_count, devices.call_count), (1, 1))
         self.assertIn("/openapi/v3/controller_1/sites/site-1/topology/ssids/ssid-1/devices",
                       request.call_args.args[1])
+
+    def test_v2_ssid_topology_counts_only_freshly_bound_opaque_strings(self):
+        site_ref, ssid_ref = "a" * 24, "b" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        def inventory(ref):
+            self.assertEqual(ref, site_ref)
+            self.client._ssid_ids_by_site_ref[site_ref] = {ssid_ref: "ssid-1"}
+            return {"items": [{"ssid_ref": ssid_ref}]}
+        with patch.object(self.client, "list_ssids", side_effect=inventory), \
+                patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={
+                    "errorCode": 0, "msg": "", "result": ["raw-ref", "not-a-mac"]}) as request:
+            result = self.client.read_site_ssid_topology_reference_count(site_ref, ssid_ref)
+        self.assertEqual(result["reference_count"], 2)
+        self.assertNotIn("raw-ref", json.dumps(result))
+        self.assertIn("/openapi/v2/controller_1/sites/site-1/topology/ssids/ssid-1/devices",
+                      request.call_args.args[1])
+
+    def test_v2_ssid_topology_rejects_ambiguous_fresh_inventory_binding(self):
+        site_ref, ssid_ref = "a" * 24, "b" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        def inventory(_ref):
+            self.client._ssid_ids_by_site_ref[site_ref] = {ssid_ref: "ssid-1"}
+            return {"items": [{"ssid_ref": ssid_ref}, {"ssid_ref": ssid_ref}]}
+        with patch.object(self.client, "list_ssids", side_effect=inventory), \
+                patch.object(self.client, "_request_json") as request:
+            with self.assertRaises(OpenApiError):
+                self.client.read_site_ssid_topology_reference_count(site_ref, ssid_ref)
+        request.assert_not_called()
+
+    def test_v2_vlan_topology_counts_opaque_values_after_fresh_network_vlan_binding(self):
+        site_ref, network_ref = "a" * 24, "b" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        def networks(ref):
+            self.assertEqual(ref, site_ref)
+            self.client._network_ids_by_site_ref[site_ref] = {network_ref: "network-1"}
+            return {"items": [{"network_ref": network_ref, "purpose": 0, "vlan": 42}]}
+        with patch.object(self.client, "list_networks", side_effect=networks), \
+                patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={
+                    "errorCode": 0, "msg": "", "result": ["opaque-device-ref"]}) as request:
+            result = self.client.read_site_vlan_topology_reference_count(site_ref, network_ref, 42)
+        self.assertEqual(result["reference_count"], 1)
+        self.assertNotIn("opaque-device-ref", json.dumps(result))
+        self.assertIn("/openapi/v2/controller_1/sites/site-1/topology/network-1/vlan/42/devices",
+                      request.call_args.args[1])
+
+    def test_v2_vlan_topology_rejects_vlan_mismatch_before_upstream_call(self):
+        site_ref, network_ref = "a" * 24, "b" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        def networks(_ref):
+            self.client._network_ids_by_site_ref[site_ref] = {network_ref: "network-1"}
+            return {"items": [{"network_ref": network_ref, "purpose": 0, "vlan": 43}]}
+        with patch.object(self.client, "list_networks", side_effect=networks), \
+                patch.object(self.client, "_request_json") as request:
+            with self.assertRaises(OpenApiError):
+                self.client.read_site_vlan_topology_reference_count(site_ref, network_ref, 42)
+        request.assert_not_called()
+
+    def test_lan_switch_profile_assignments_read_direct_grid_and_marks_missing_data(self):
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", side_effect=[
+                    {"totalRows": 3, "currentPage": 1, "currentSize": 2,
+                     "data": [{"name": "secret", "mac": "private-mac",
+                               "profiles": {"port1": "secret-profile", "port2": "vlan"}},
+                              {"name": "switch-2", "mac": "private-mac-2", "profiles": {}}]},
+                    {"totalRows": 3, "currentPage": 2, "currentSize": 1,
+                     "data": [{"name": "switch-3", "mac": "private-mac-3"}]},
+                ]) as request:
+            result = self.client.read_site_lan_switch_profile_assignments_summary(site_ref)
+        self.assertEqual(result["device_rows"], 3)
+        self.assertEqual(result["profile_assignment_count"], 2)
+        self.assertEqual(result["rows_without_profile_data"], 1)
+        self.assertTrue(result["partial"])
+        self.assertNotIn("private-mac", json.dumps(result))
+        self.assertIn("/lan-switch-setting?page=1&pageSize=2", request.call_args_list[0].args[1])
+        self.assertIn("/lan-switch-setting?page=2&pageSize=2", request.call_args_list[1].args[1])
+
+    def test_lan_switch_profile_assignments_caps_non_dividing_pages_at_1000(self):
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        page_size = 128
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", side_effect=[
+                    *[{"totalRows": 1_100, "currentPage": page, "currentSize": page_size,
+                       "data": [{"profiles": {f"profile-{(page - 1) * page_size + offset}": "v"}}
+                                for offset in range(page_size - (1 if page == 8 else 0))] +
+                               ([{"profiles": {f"extra-{n}": "v" for n in range(10)}}]
+                                if page == 8 else [])} for page in range(1, 9)],
+                ]) as request:
+            self.client.config = replace(self.config, page_size=page_size, max_pages=20)
+            result = self.client.read_site_lan_switch_profile_assignments_summary(site_ref)
+        self.assertEqual(result["device_rows"], 1_000)
+        self.assertEqual(result["reported_device_rows"], 1_100)
+        self.assertEqual(result["profile_assignment_count"], 1_000)
+        self.assertTrue(result["partial"])
+        self.assertEqual(request.call_count, 8)
+        self.assertTrue(all("pageSize=128" in call.args[1] for call in request.call_args_list))
 
     def test_ap_topology_clients_binds_inventory_ap_and_redacts_client_rows(self) -> None:
         site_ref, device_ref = "a" * 24, "b" * 24

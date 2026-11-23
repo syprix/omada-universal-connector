@@ -928,6 +928,20 @@ class FakeOpenApiClient:
                 "device_class_counts": {"ap": 1, "gateway": 0, "switch": 0, "olt": 0},
                 "partial": False}
 
+    def read_site_ssid_topology_reference_count(self, site_ref: str,
+                                                ssid_ref: str) -> dict[str, object]:
+        self.calls.append(("site_ssid_topology_reference_count", site_ref, ssid_ref))
+        return {"status": "ok", "resource": "site_ssid_topology_reference_count",
+                "site_ref": site_ref, "ssid_ref": ssid_ref, "reference_count": 2,
+                "reference_semantics": "opaque_string"}
+
+    def read_site_vlan_topology_reference_count(self, site_ref: str, network_ref: str,
+                                                vlan_id: int) -> dict[str, object]:
+        self.calls.append(("site_vlan_topology_reference_count", site_ref, network_ref, vlan_id))
+        return {"status": "ok", "resource": "site_vlan_topology_reference_count",
+                "site_ref": site_ref, "network_ref": network_ref, "vlan_id": vlan_id,
+                "reference_count": 1, "reference_semantics": "opaque_string"}
+
     def read_site_ap_topology_clients_summary(self, site_ref: str,
                                               device_ref: str) -> dict[str, object]:
         self.calls.append(("site_ap_topology_clients_summary", site_ref, device_ref))
@@ -951,6 +965,12 @@ class FakeOpenApiClient:
                 "site_ref": site_ref, "profile_count": 2,
                 "profile_enum_counts": {"type": {"2": 2}},
                 "profile_names_and_ids_returned": False}
+
+    def read_site_lan_switch_profile_assignments_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_lan_switch_profile_assignments_summary", site_ref))
+        return {"status": "ok", "resource": "site_lan_switch_profile_assignments_summary",
+                "site_ref": site_ref, "device_rows": 2, "profile_assignment_count": 3,
+                "identifiers_returned": False}
 
     def read_controller_upgrade_plans_summary(self) -> dict[str, object]:
         self.calls.append(("controller_upgrade_plans_summary",))
@@ -10508,6 +10528,49 @@ class OpenApiHttpTests(unittest.TestCase):
         status, rpc = self.request_post("/mcp", invalid, self.token)
         self.assertEqual(status, 200)
         self.assertIn("arguments_invalid", json.dumps(rpc))
+
+    def test_http_and_mcp_expose_lan_switch_profile_assignment_counts(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/lan-switch-profile-assignments/summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        request = {"jsonrpc": "2.0", "id": 248, "method": "tools/call",
+                   "params": {"name": "omada_site_lan_switch_profile_assignments_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_lan_switch_profile_assignments_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_ssid_topology_opaque_reference_count(self) -> None:
+        site_ref, ssid_ref = "a" * 24, "b" * 24
+        path = f"/v1/sites/{site_ref}/ssids/{ssid_ref}/topology-reference-count"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        request = {"jsonrpc": "2.0", "id": 249, "method": "tools/call",
+                   "params": {"name": "omada_site_ssid_topology_reference_count",
+                              "arguments": {"site_ref": site_ref, "ssid_ref": ssid_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_ssid_topology_reference_count", site_ref, ssid_ref)] * 2)
+
+    def test_http_and_mcp_expose_vlan_topology_opaque_reference_count(self) -> None:
+        site_ref, network_ref, vlan_id = "a" * 24, "b" * 24, 42
+        path = f"/v1/sites/{site_ref}/networks/{network_ref}/vlan-topology-reference-count?vlan_id=42"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        request = {"jsonrpc": "2.0", "id": 250, "method": "tools/call",
+                   "params": {"name": "omada_site_vlan_topology_reference_count",
+                              "arguments": {"site_ref": site_ref, "network_ref": network_ref,
+                                            "vlan_id": vlan_id}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_vlan_topology_reference_count", site_ref, network_ref, vlan_id)] * 2)
 
 if __name__ == "__main__":
     unittest.main()
