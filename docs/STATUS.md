@@ -589,3 +589,23 @@ from the existing operational-status read. Live support is unknown.
 A synthetic 20-server fixture measured 882→128 serialized JSON tokens (85.49%
 fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; it is not a live measurement
 or billed agent usage.
+
+The remote-access tunnel status summary reads `getTunnelsStatus` from all three
+exports. It counts the documented connection codes (0 disconnected, 1
+connected, 2 opening, -1 heartbeat missed, -2 expired) separately from the
+open/closed flag. Tunnel IDs and names are omitted; the source list is capped
+at 1,024 rows. Live support is unknown.
+
+A synthetic 20-tunnel fixture measured 450→110 serialized JSON tokens (75.56%
+fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; this is not a live measurement
+or billed agent usage.
+
+The site IDS/IPS configuration summary reads `getIpsConfig` from all three
+exports. It counts the documented enable and geo flags, mode and detection
+level codes, and custom category count. Schedule identifiers and raw category
+values are omitted; configuration is not presented as attack detection or
+successful enforcement. Live support remains unknown.
+
+A synthetic one-site IDS/IPS fixture measured 65→46 serialized JSON tokens
+(29.23% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; this is not a live
+payload or billed agent measurement.

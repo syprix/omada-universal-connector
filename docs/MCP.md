@@ -963,3 +963,14 @@ configured VPN server rows by documented protocol and by the source boolean
 status flag. It omits IDs, names, WAN/network values, user/client counts and
 other row details. The flag is not tunnel connectivity, and this summary is
 separate from `omada_site_vpn_server_status_summary`.
+
+`omada_site_remote_access_tunnel_status_summary` takes a `site_ref`. It counts
+documented remote-access tunnel connection states separately from the
+open/closed flag, omits tunnel IDs and names, and reports unknown values and
+truncation. This is remote-access tunnel status, separate from client-to-site
+VPN server configuration and status.
+
+`omada_site_ids_ips_config_summary` accepts a `site_ref` and returns only
+the enable/geo flags, documented IDS/IPS mode and detection level codes, and
+custom-category count. Schedule IDs and raw category values
+are omitted. It does not report attack detection or enforcement.

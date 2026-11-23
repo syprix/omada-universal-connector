@@ -167,6 +167,22 @@ class OperationRegistryTests(unittest.TestCase):
         self.assertEqual(route.operation_id, "site_vpn_server_config_summary")
         self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
 
+    def test_site_remote_access_tunnel_status_summary_is_site_bound(self):
+        operation = REGISTRY.get("site_remote_access_tunnel_status_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/remote-access/tunnels/status-summary")
+        self.assertEqual(route.operation_id, "site_remote_access_tunnel_status_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
+
+    def test_site_ids_ips_config_summary_is_site_bound(self):
+        operation = REGISTRY.get("site_ids_ips_config_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/security/ids-ips-summary")
+        self.assertEqual(route.operation_id, "site_ids_ips_config_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
+
     def test_site_ipsec_sa_summary_is_a_site_bound_read(self):
         operation = REGISTRY.get("site_ipsec_sa_summary")
         self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
@@ -855,7 +871,9 @@ class OperationRegistryTests(unittest.TestCase):
             "site_static_route_interface_options_summary",
             "site_policy_route_summary",
             "site_ipsec_sa_summary",
+            "site_ids_ips_config_summary",
             "site_vpn_server_config_summary",
+            "site_remote_access_tunnel_status_summary",
             "site_vpn_server_status_summary",
             "site_vpn_client_status_summary",
             "site_vpn_s2s_status_summary",
