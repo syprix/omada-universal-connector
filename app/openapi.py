@@ -4837,7 +4837,9 @@ class OmadaOpenApiClient:
             raise OpenApiError("site_ref_unknown")
         if not isinstance(client_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", client_ref):
             raise OpenApiError("client_ref_invalid")
-        self.list_clients(site_ref)
+        # The caller's opaque client reference is bound by the most recent
+        # inventory read; refreshing here would rotate that reference before
+        # it can be resolved.
         mac = self._client_macs_by_site_ref.get(site_ref, {}).get(client_ref)
         if not mac:
             raise OpenApiError("client_ref_unknown")
@@ -13028,15 +13030,17 @@ class OmadaOpenApiClient:
         schedule = self.read_controller_backup_schedule()
         try:
             from .controller_system_status import project_controller_backup_result
-            projected_status = project_controller_backup_result(raw_status)
+        except ImportError:  # direct execution in the image
+            from controller_system_status import project_controller_backup_result
+        try:
             from .controller_backup_inventory import (
                 ControllerBackupInventoryError, project_controller_backup_inventory,
             )
         except ImportError:  # direct execution in the image
-            from controller_system_status import project_controller_backup_result
             from controller_backup_inventory import (
                 ControllerBackupInventoryError, project_controller_backup_inventory,
             )
+        projected_status = project_controller_backup_result(raw_status)
         status_summary = {**projected_status}
         projected = project_controller_backup_inventory(
             file_result, schedule, status_summary, source_scope="selected_site_file_list_response")
