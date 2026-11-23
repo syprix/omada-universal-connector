@@ -984,4 +984,12 @@ tokens (21.55% fewer; `js-tiktoken` 1.0.21 / `o200k_base`), excluding schemas,
 transport, prompts and billed agent usage.
 
 
-The #126/#127 package was verified on main `80a87eb5243bc0980dbd214f6a66934c4f154f96` with 826 offline tests across the registry, API matrix, operation evidence, OpenAPI, HTTP/MCP and function modules. `compileall` and `git diff --check` passed. The three source exports and full route matrix were checked; live controller behavior remains unknown. GitHub CI for the next draft has not run yet.
+The #126/#127 package was merged to main `9aa9f7fb235b781d9bacedf050c03906f9c84b25`; both GitHub checks passed. Live controller behavior remains unknown.
+
+## #128–129 — firmware failures and stack cable-test logs
+
+#128 adds a bounded opaque firmware-log inventory and a fresh, unique selector-bound read of failed-device rows. It counts only the schema-documented gateway, switch and AP types, and excludes device names, MACs, site names, versions and raw log IDs. The ER7212PC documented empty placeholders are accepted only in their exact exported form.
+
+#129 adds a fresh site/stack-bound summary of stored cable-test logs. It reports documented log type and port-list entry counts with fixed limits, and omits port identifiers and timestamps. Counts represent log entries, not unique ports or current condition. No cable test or firmware action is issued.
+
+Both functions are implemented from the three API exports. Offline checks passed: registry, full API matrix and operation evidence (325 tests); complete HTTP/MCP module (398 tests); OpenAPI, capabilities and both focused modules (109 tests). The focused new-operation subset also passed (12 tests). `compileall` and `git diff --check` passed. Token fixtures: #128 1,433 → 191 (86.67% fewer); #129 1,510 → 124 (91.79% fewer), measured with `js-tiktoken` 1.0.21 / `o200k_base`. Live behavior remains unknown. Public draft and GitHub CI are pending.

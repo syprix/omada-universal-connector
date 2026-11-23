@@ -3086,6 +3086,8 @@ class OmadaOpenApiClient:
         ("controller_firmware_inventory_summary", "GET /v1/controller/firmware-inventory-summary"),
         ("site_remote_logging_summary", "GET /v1/sites/{site_ref}/remote-logging/summary"),
         ("controller_upgrade_log_summary", "GET /v1/controller/firmware-upgrades/summary"),
+        ("controller_upgrade_log_inventory", "GET /v1/controller/firmware-upgrades/inventory"),
+        ("controller_upgrade_failed_devices_summary", "GET /v1/controller/firmware-upgrades/{upgrade_log_ref}/failed-devices-summary"),
         ("site_wan_qos_summary", "GET /v1/sites/{site_ref}/wan-qos-summary"),
         ("site_wan_unsupported_function_summary", "GET /v1/sites/{site_ref}/wan/unsupported-functions/summary"),
         ("gateway_wan_health", "GET /v1/sites/{site_ref}/gateways/{device_ref}/wan-health"),
@@ -3114,6 +3116,7 @@ class OmadaOpenApiClient:
         ("site_stack_network_summary", "GET /v1/sites/{site_ref}/stacks/{stack_ref}/networks-summary"),
         ("site_stack_static_routing_summary", "GET /v1/sites/{site_ref}/stacks/{stack_ref}/static-routings/summary"),
         ("site_stack_ospf_neighbor_summary", "GET /v1/sites/{site_ref}/stacks/{stack_ref}/ospf-neighbors/summary"),
+        ("site_stack_cable_test_log_summary", "GET /v1/sites/{site_ref}/stacks/{stack_ref}/cable-test-log-summary"),
         ("site_intelli_recover_summary", "GET /v1/sites/{site_ref}/automatic-recovery-settings/summary"),
         ("site_port_forwarding_summary", "GET /v1/sites/{site_ref}/port-forwardings/summary"),
         ("site_stack_dhcp_user_summary", "GET /v1/sites/{site_ref}/stacks/{stack_ref}/dhcp-users/summary"),
@@ -10497,6 +10500,137 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return projected
 
+    @_track_capability("controller_upgrade_log_inventory")
+    def read_controller_upgrade_log_inventory(
+            self, page_number: int, page_size: int) -> dict[str, object]:
+        """Return opaque references for one bounded page of firmware upgrade logs."""
+        if (type(page_number) is not int or not 1 <= page_number <= 10 or
+                type(page_size) is not int or not 1 <= page_size <= 100):
+            raise OpenApiError("page_arguments_invalid")
+        path = (f"/openapi/v1/{self.config.controller_id}/upgrade/overview/logs?" +
+                urlencode({"page": page_number, "pageSize": page_size}))
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            from .controller_upgrade_failed_device_summary import (
+                UpgradeFailureSummaryError, project_upgrade_log_inventory_page,
+                validate_operation_envelope)
+        except ImportError:  # direct execution in the image
+            from controller_upgrade_failed_device_summary import (
+                UpgradeFailureSummaryError, project_upgrade_log_inventory_page,
+                validate_operation_envelope)
+        try:
+            result = validate_operation_envelope(payload)
+            projected = project_upgrade_log_inventory_page(
+                result, page_number, page_size,
+                lambda raw_id: self._opaque_ref("firmware-upgrade-log", raw_id))
+        except UpgradeFailureSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        total = projected["total_rows"]
+        inventory_limit = page_size * 10
+        return {"status": "ok", "resource": "controller_upgrade_log_inventory",
+                "page_number": page_number, "page_size": page_size,
+                "reported_log_count": total,
+                "upgrade_log_refs": projected["upgrade_log_refs"],
+                "selectable_log_count": projected["selectable_log_count"],
+                "unselectable_log_count": projected["unselectable_log_count"],
+                "ambiguous_log_reference_count": projected["ambiguous_log_reference_count"],
+                "inventory_row_limit": inventory_limit,
+                "partial": total > inventory_limit or not projected["page_complete"] or
+                           projected["unselectable_log_count"] > 0 or
+                           projected["ambiguous_log_reference_count"] > 0,
+                "raw_log_ids_returned": False,
+                "log_names_and_versions_returned": False}
+
+    @_track_capability("controller_upgrade_failed_devices_summary")
+    def read_controller_upgrade_failed_devices_summary(
+            self, upgrade_log_ref: str) -> dict[str, object]:
+        """Count failed-device rows for one uniquely resolved fresh firmware log."""
+        if not isinstance(upgrade_log_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", upgrade_log_ref):
+            raise OpenApiError("upgrade_log_ref_invalid")
+        log_path = f"/openapi/v1/{self.config.controller_id}/upgrade/overview/logs"
+        inventory_page_size, inventory_page_limit = 100, 10
+        token = self._access_token()
+        upgrade_log_id: str | None = None
+        inventory_total: int | None = None
+        inventory_rows = matches = 0
+        try:
+            from .controller_upgrade_failed_device_summary import (
+                UpgradeFailureSummaryError, project_upgrade_log_inventory_page,
+                project_failed_device_page, validate_operation_envelope)
+        except ImportError:  # direct execution in the image
+            from controller_upgrade_failed_device_summary import (
+                UpgradeFailureSummaryError, project_upgrade_log_inventory_page,
+                project_failed_device_page, validate_operation_envelope)
+        for page in range(1, inventory_page_limit + 1):
+            path = log_path + "?" + urlencode({"page": page, "pageSize": inventory_page_size})
+            payload = self._request_json("GET", path, token=token)
+            try:
+                result = validate_operation_envelope(payload)
+                inventory = project_upgrade_log_inventory_page(
+                    result, page, inventory_page_size,
+                    lambda raw_id: self._opaque_ref("firmware-upgrade-log", raw_id))
+            except UpgradeFailureSummaryError:
+                raise OpenApiError("openapi_response_invalid") from None
+            if inventory_total is None:
+                inventory_total = inventory["total_rows"]
+            elif inventory["total_rows"] != inventory_total:
+                raise OpenApiError("openapi_response_invalid")
+            rows = result.get("data")
+            if not isinstance(rows, list):
+                raise OpenApiError("openapi_response_invalid")
+            for row in rows:
+                if isinstance(row, Mapping):
+                    raw_id = row.get("id")
+                    if isinstance(raw_id, str) and self._IDENTIFIER.fullmatch(raw_id) and \
+                            self._opaque_ref("firmware-upgrade-log", raw_id) == upgrade_log_ref:
+                        matches += 1
+                        upgrade_log_id = raw_id
+            inventory_rows += len(rows)
+            if (inventory_total == 0 or
+                    inventory_rows >= inventory_total):
+                break
+        if inventory_total is None or inventory_total > inventory_page_size * inventory_page_limit or \
+                inventory_rows < inventory_total:
+            raise OpenApiError("upgrade_log_inventory_incomplete")
+        if matches != 1 or upgrade_log_id is None:
+            raise OpenApiError("upgrade_log_ref_unknown")
+
+        failed_path = (f"/openapi/v1/{self.config.controller_id}/logs/{upgrade_log_id}/"
+                       "upgrade/overview/failed-devices")
+        page_size, page_limit, max_rows = 100, 10, 1_000
+        totals: int | None = None
+        failed_rows = pages = 0
+        counts = {"gateway": 0, "switch": 0, "ap": 0, "unknown": 0}
+        for page in range(1, page_limit + 1):
+            path = failed_path + "?" + urlencode({"page": page, "pageSize": page_size})
+            payload = self._request_json("GET", path, token=token)
+            try:
+                summary = project_failed_device_page(payload, page, page_size, max_rows - failed_rows)
+            except UpgradeFailureSummaryError:
+                raise OpenApiError("openapi_response_invalid") from None
+            if totals is None:
+                totals = summary["total_rows"]
+            elif summary["total_rows"] != totals:
+                raise OpenApiError("openapi_response_invalid")
+            failed_rows += summary["rows"]
+            pages = page
+            for kind, count in summary["device_type_counts"].items():
+                counts[kind] += count
+            if failed_rows > totals:
+                raise OpenApiError("openapi_response_invalid")
+            if failed_rows >= totals or failed_rows >= max_rows:
+                break
+        return {"status": "ok", "resource": "controller_upgrade_failed_devices_summary",
+                "upgrade_log_ref": upgrade_log_ref,
+                "failed_device_count": failed_rows,
+                "reported_failed_device_count": totals or 0,
+                "device_type_counts": counts,
+                "pages_fetched": pages, "page_size": page_size,
+                "partial": failed_rows < (totals or 0) or counts["unknown"] > 0,
+                "device_names_returned": False, "mac_addresses_returned": False,
+                "site_names_returned": False, "version_values_returned": False,
+                "upgrade_action_started": False}
+
     @_track_capability("site_wan_qos_summary")
     def read_site_wan_qos_summary(self, site_ref: str) -> dict[str, object]:
         """Summarize WAN QoS configuration using only exact port references."""
@@ -11804,6 +11938,30 @@ class OmadaOpenApiClient:
         except StackOspfNeighborSummaryError:
             raise OpenApiError("openapi_response_invalid") from None
         return {"status": "ok", "resource": "site_stack_ospf_neighbor_summary",
+                "site_ref": site_ref, "stack_ref": stack_ref, **projected}
+
+    @_track_capability("site_stack_cable_test_log_summary")
+    def read_site_stack_cable_test_log_summary(
+            self, site_ref: str, stack_ref: str) -> dict[str, object]:
+        """Count stored stack cable-test events without exposing ports or timestamps."""
+        token = self._access_token()
+        site_id, stack_id = self._resolve_site_stack(site_ref, stack_ref, token)
+        path = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/cable-test/"
+                f"stacks/{stack_id}/logs")
+        payload = self._request_json("GET", path, token=token)
+        if not isinstance(payload, Mapping) or payload.get("errorCode") != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            from .site_stack_cable_test_log_summary import (
+                StackCableTestLogSummaryError, summarize_stack_cable_test_logs)
+        except ImportError:  # direct execution in the image
+            from site_stack_cable_test_log_summary import (
+                StackCableTestLogSummaryError, summarize_stack_cable_test_logs)
+        try:
+            projected = summarize_stack_cable_test_logs(payload.get("result"))
+        except StackCableTestLogSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_stack_cable_test_log_summary",
                 "site_ref": site_ref, "stack_ref": stack_ref, **projected}
 
     @_track_capability("site_intelli_recover_summary")

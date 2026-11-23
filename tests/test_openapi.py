@@ -742,6 +742,73 @@ class OpenApiClientTests(unittest.TestCase):
             self.assertNotIn(secret, json.dumps(result))
         self.assertTrue(request.call_args.args[1].endswith("/upgrade/overview/logs?page=1&pageSize=100"))
 
+    def test_controller_upgrade_log_inventory_returns_only_opaque_refs(self) -> None:
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={"errorCode": 0,
+                    "msg": "", "result": {"totalRows": 1, "currentPage": 1,
+                    "currentSize": 1, "data": [{"id": "upgrade-secret",
+                    "targetVersion": "private-version"}]}}) as request:
+            result = self.client.read_controller_upgrade_log_inventory(1, 100)
+        self.assertEqual(result["selectable_log_count"], 1)
+        self.assertEqual(len(result["upgrade_log_refs"][0]), 24)
+        self.assertNotIn("upgrade-secret", json.dumps(result))
+        self.assertNotIn("private-version", json.dumps(result))
+        self.assertIn("page=1&pageSize=100", request.call_args.args[1])
+
+    def test_controller_upgrade_failed_devices_refreshes_selector_and_redacts_rows(self) -> None:
+        ref = self.client._opaque_ref("firmware-upgrade-log", "upgrade-secret")
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", side_effect=[
+                    {"errorCode": 0, "msg": "", "result": {
+                        "totalRows": 1, "currentPage": 1, "currentSize": 1,
+                        "data": [{"id": "upgrade-secret"}]}},
+                    {"errorCode": 0, "msg": "", "result": {
+                        "totalRows": 2, "currentPage": 1, "currentSize": 2,
+                        "data": [{"type": "gateway", "mac": "00:11:22:33:44:55",
+                                  "deviceName": "private-device", "siteName": "private-site",
+                                  "currentVersion": "private-version"},
+                                 {"type": "switch"}]}}]) as request:
+            result = self.client.read_controller_upgrade_failed_devices_summary(ref)
+        self.assertEqual(result["device_type_counts"],
+                         {"gateway": 1, "switch": 1, "ap": 0, "unknown": 0})
+        self.assertEqual(result["failed_device_count"], 2)
+        for secret in ("upgrade-secret", "00:11:22:33:44:55", "private-device",
+                       "private-site", "private-version"):
+            self.assertNotIn(secret, json.dumps(result))
+        self.assertEqual(request.call_count, 2)
+        self.assertIn("upgrade-secret", request.call_args_list[1].args[1])
+
+    def test_controller_upgrade_failed_devices_rejects_ambiguous_fresh_selector(self) -> None:
+        ref = self.client._opaque_ref("firmware-upgrade-log", "upgrade-secret")
+        rows = [{"id": "upgrade-secret"}, {"id": "upgrade-secret"}]
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={"errorCode": 0,
+                    "msg": "", "result": {"totalRows": 2, "currentPage": 1,
+                    "currentSize": 2, "data": rows}}) as request:
+            with self.assertRaisesRegex(OpenApiError, "upgrade_log_ref_unknown"):
+                self.client.read_controller_upgrade_failed_devices_summary(ref)
+        self.assertEqual(request.call_count, 1)
+
+    def test_stack_cable_test_logs_refresh_stack_binding_and_redact_ports_and_time(self) -> None:
+        site_ref, stack_id = "a" * 24, "stack-one"
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        stack_ref = self.client._opaque_ref("stack", "site-1:" + stack_id)
+        logs = [{"type": 1, "timeStamp": 123456789,
+                 "testPortList": [], "completePortList": [{"port": 7,
+                 "standardPort": 107}], "cancelPortList": [], "timeoutPortList": []}]
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", side_effect=[
+                    {"errorCode": 0, "result": {"totalRows": 1, "currentPage": 1,
+                     "currentSize": 1, "data": [{"id": stack_id}]}},
+                    {"errorCode": 0, "result": logs}]) as request:
+            result = self.client.read_site_stack_cable_test_log_summary(site_ref, stack_ref)
+        self.assertEqual(result["port_entry_counts"]["completed_port_entries"], 1)
+        self.assertEqual(result["log_type_counts"]["completed"], 1)
+        for secret in ("stack-one", "123456789", '"port":', "107"):
+            self.assertNotIn(secret, json.dumps(result))
+        self.assertIn("/sites/site-1/stacks", request.call_args_list[0].args[1])
+        self.assertIn("/cable-test/stacks/stack-one/logs", request.call_args_list[1].args[1])
+
     def test_site_poe_schedule_summary_reads_each_fixed_site_feed(self) -> None:
         site_ref = "a" * 24
         switch_ref = "b" * 24

@@ -1761,6 +1761,20 @@ A synthetic 10-schedule/four-device response measured 1,729 source JSON tokens a
 
 `GET /v1/sites/{site_ref}/remote-logging/summary` reports the documented enable flag, optional client-log flag, and `resource` category (0 new, 1 template, 2 override). It only indicates whether destination host and port are configured; their values are omitted. The connector does not claim that logs were delivered. All three API exports document this read; live behavior is unknown.
 
+## Controller firmware failed-device counts
+
+`GET /v1/controller/firmware-upgrades/inventory?page_number=1&page_size=100` returns opaque selectors for one page of the documented controller firmware-log inventory. Pages are one-based, limited to ten, and accept at most 100 rows each; reported coverage is therefore capped at `page_size × 10` and marked partial when the controller has more. It omits log IDs, names, sites, operators, dates, models and firmware versions.
+
+`GET /v1/controller/firmware-upgrades/{upgrade_log_ref}/failed-devices-summary` refreshes the bounded inventory, resolves one unique selector, then reads failed-device pages. It counts only documented `gateway`, `switch` and `ap` types; unknown types and truncated results are marked partial. Names, MAC addresses, sites, versions and raw IDs are omitted. It never changes firmware. The source exports document this read; live support is unknown.
+
+A synthetic workflow with 20 failed-device rows measured 1,433 source-response tokens against 191 tokens for the two connector responses (86.67% fewer) using `js-tiktoken` 1.0.21 / `o200k_base`. This includes the selector inventory read and its fresh re-read; it excludes prompts, tool schemas and billed agent usage.
+
+## Switch-stack cable-test log counts
+
+`GET /v1/sites/{site_ref}/stacks/{stack_ref}/cable-test-log-summary` refreshes the selected site's stack inventory and reads stored stack cable-test logs. It reports documented log-type and port-list entry counts across at most 64 logs, with at most 128 entries per port list. Repeated port mentions count as logged entries rather than unique ports. Port identifiers and raw timestamps are omitted; the result does not start a test or assert when the stored logs were produced. Live support is unknown.
+
+A synthetic 20-log response with 200 port-list entries measured 1,510 source-response tokens against 124 projected tokens (91.79% fewer) with the same tokenizer. It excludes prompts, tool schemas and billed agent usage.
+
 ## Controller upgrade-log summary
 
 `GET /v1/controller/firmware-upgrades/summary` reads only the first 100 rows from the authenticated controller's documented upgrade log. It reports source total and sample coverage plus counts of rollbacked entries, rows with reported failed devices, and rows with an upgrade time. It returns no dates, device/model details, site names, operator names, versions, or identifiers. It never starts or changes an upgrade. Live support is unknown.

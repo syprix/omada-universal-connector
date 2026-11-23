@@ -1078,6 +1078,19 @@ class FakeOpenApiClient:
                 "logs_with_failed_devices_count": 0, "partial": False,
                 "identities_and_versions_returned": False}
 
+    def read_controller_upgrade_log_inventory(self, page_number: int,
+                                              page_size: int) -> dict[str, object]:
+        self.calls.append(("controller_upgrade_log_inventory", page_number, page_size))
+        return {"status": "ok", "resource": "controller_upgrade_log_inventory",
+                "page_number": page_number, "page_size": page_size,
+                "upgrade_log_refs": [], "reported_log_count": 0}
+
+    def read_controller_upgrade_failed_devices_summary(self,
+                                                        upgrade_log_ref: str) -> dict[str, object]:
+        self.calls.append(("controller_upgrade_failed_devices_summary", upgrade_log_ref))
+        return {"status": "ok", "resource": "controller_upgrade_failed_devices_summary",
+                "upgrade_log_ref": upgrade_log_ref, "failed_device_count": 0}
+
     def read_controller_sdwan_group_summary(self) -> dict[str, object]:
         self.calls.append(("controller_sdwan_group_summary", None))
         return {"status": "ok", "resource": "controller_sdwan_group_summary",
@@ -3077,6 +3090,13 @@ class FakeOpenApiClient:
         self.calls.append(("site_stack_ospf_neighbor_summary", site_ref, stack_ref))
         return {"status": "ok", "resource": "site_stack_ospf_neighbor_summary",
                 "site_ref": site_ref, "stack_ref": stack_ref}
+
+    def read_site_stack_cable_test_log_summary(self, site_ref: str,
+                                               stack_ref: str) -> dict[str, object]:
+        self.calls.append(("site_stack_cable_test_log_summary", site_ref, stack_ref))
+        return {"status": "ok", "resource": "site_stack_cable_test_log_summary",
+                "site_ref": site_ref, "stack_ref": stack_ref,
+                "port_entry_counts": {"tested_port_entries": 1}}
 
     def read_site_intelli_recover_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_intelli_recover_summary", site_ref))
@@ -5637,6 +5657,38 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(response["result"]["structuredContent"], direct)
         self.assertEqual(self.fake.calls,
                          [("controller_upgrade_log_summary", None)] * 2)
+
+    def test_http_and_mcp_expose_upgrade_log_inventory_and_failed_devices(self) -> None:
+        status, direct = self.request(
+            "/v1/controller/firmware-upgrades/inventory?page_number=1&page_size=25", self.token)
+        self.assertEqual(status, 200, repr(direct))
+        self.assertEqual(direct["resource"], "controller_upgrade_log_inventory")
+        self.assertEqual(direct["page_number"], 1)
+        self.assertEqual(direct["page_size"], 25)
+        status, invalid = self.request(
+            "/v1/controller/firmware-upgrades/inventory?page_number=0&page_size=25", self.token)
+        self.assertEqual(status, 400, repr(invalid))
+        ref = "a" * 24
+        path = f"/v1/controller/firmware-upgrades/{ref}/failed-devices-summary"
+        status, summary = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(summary["resource"], "controller_upgrade_failed_devices_summary")
+        request = {"jsonrpc": "2.0", "id": 251, "method": "tools/call",
+                   "params": {"name": "omada_controller_upgrade_failed_devices_summary",
+                              "arguments": {"upgrade_log_ref": ref}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"], summary)
+        self.assertEqual(self.fake.calls[-3:], [
+            ("controller_upgrade_log_inventory", 1, 25),
+            ("controller_upgrade_failed_devices_summary", ref),
+            ("controller_upgrade_failed_devices_summary", ref)])
+        invalid_request = {"jsonrpc": "2.0", "id": 252, "method": "tools/call",
+                           "params": {"name": "omada_controller_upgrade_log_inventory",
+                                      "arguments": {"page_number": 0, "page_size": 25}}}
+        status, invalid_rpc = self.request_post("/mcp", invalid_request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(invalid_rpc["error"]["message"], "arguments_invalid")
 
     def test_http_and_mcp_expose_controller_sdwan_group_summary(self) -> None:
         path = "/v1/controller/sdwan-groups/summary"
@@ -10264,6 +10316,21 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(response["result"]["structuredContent"], direct)
         self.assertEqual(self.fake.calls,
                          [("site_stack_ospf_neighbor_summary", site_ref, stack_ref)] * 2)
+
+    def test_http_and_mcp_expose_stack_cable_test_log_summary(self) -> None:
+        site_ref, stack_ref = "a" * 24, "b" * 24
+        path = f"/v1/sites/{site_ref}/stacks/{stack_ref}/cable-test-log-summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(direct["resource"], "site_stack_cable_test_log_summary")
+        request = {"jsonrpc": "2.0", "id": 465, "method": "tools/call",
+                   "params": {"name": "omada_site_stack_cable_test_log_summary",
+                              "arguments": {"site_ref": site_ref, "stack_ref": stack_ref}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_stack_cable_test_log_summary", site_ref, stack_ref)] * 2)
 
     def test_http_and_mcp_expose_intelli_recover_summary(self) -> None:
         site_ref = "a" * 24
