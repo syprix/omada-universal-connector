@@ -301,6 +301,8 @@ OPERATIONS = {
     'ssid_ap_groups': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/wireless-network/ssids/{ssidId}/ap-groups'),
     'site_topology_network_summary': ('GET', '/openapi/v2/{omadacId}/sites/{siteId}/topology/available-network'),
     'site_topology_vlan_summary': ('GET', '/openapi/v2/{omadacId}/sites/{siteId}/topology/available-vlans'),
+    'site_topology_snapshot_summary': ('GET', '/openapi/v2/{omadacId}/sites/{siteId}/topology'),
+    'site_gateway_qos_service_profiles_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/profiles/service-type'),
     'ap_overview': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/aps/{apMac}'),
     'site_switch_support': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/switch-support'),
     'network_dhcp_server_capabilities': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/networks/{networkId}/dhcp-server/capabilities'),

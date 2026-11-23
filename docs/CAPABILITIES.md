@@ -1,5 +1,21 @@
 # Capability evidence
 
+`GET /v1/sites/{site_ref}/topology/snapshot-summary` and MCP tool
+`omada_site_topology_snapshot_summary` summarize the documented v2 site
+topology snapshot separately from the existing inventory-mapped v3 topology
+view. The response counts nodes, edges, documented blocked booleans, missing
+or unreported endpoint references and rows without node references. It omits
+MACs, names, port details and VLAN values, and makes no claim about current
+traffic forwarding. Hardware Controller and CBC document the source; live
+support is unknown.
+
+`GET /v1/sites/{site_ref}/gateway-qos/service-profiles/summary` and MCP tool
+`omada_site_gateway_qos_service_profiles_summary` read up to 10 bounded pages
+and count configured service profiles by documented default flag and protocol
+category. Profile names, IDs, port values and descriptions are omitted.
+Unrecognized codes remain unclassified. Hardware Controller, CBC and
+ER7212PC document this operation; live support is unknown.
+
 `GET /v1/sites/{site_ref}/static-route-summary` and MCP tool
 `omada_site_policy_route_summary` provides a bounded, read-only summary of documented policy-routing rows for one selected site. It counts source, destination and interface types, enabled state and opaque reference occurrences; it marks unknown values and index quality. It does not disclose IDs or names, infer precedence, or claim that a route is carrying traffic.
 

@@ -683,6 +683,17 @@ class FakeOpenApiClient:
         self.calls.append(("site_topology", site_ref))
         return {"status": "ok", "resource": "site_topology", "nodes": [], "edges": []}
 
+    def read_site_topology_snapshot_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_topology_snapshot_summary", site_ref))
+        return {"status": "ok", "resource": "site_topology_snapshot_summary",
+                "site_ref": site_ref, "partial": False, "node_count": 0,
+                "edge_count": 0}
+
+    def read_site_gateway_qos_service_profiles_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_gateway_qos_service_profiles_summary", site_ref))
+        return {"status": "ok", "resource": "site_gateway_qos_service_profiles_summary",
+                "site_ref": site_ref, "partial": False, "profile_count": 0}
+
     def read_site_reboot_schedule_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_reboot_schedule_summary", site_ref))
         return {"status": "ok", "resource": "site_reboot_schedule_summary",
@@ -3403,6 +3414,53 @@ class OpenApiHttpTests(unittest.TestCase):
                              "site_topology_network_summary")
             self.assertNotIn("Private WLAN", json.dumps(mcp))
             self.assertEqual(len(calls), 2)
+
+    def test_topology_snapshot_and_qos_service_profiles_use_fixed_redacted_reads(self) -> None:
+        site_ref = "c" * 24
+        client = OmadaOpenApiClient(OpenApiConfig(
+            "https://controller.example", "ctrl", "id", "secret", cert_sha256="a" * 64))
+        client._site_ids_by_ref[site_ref] = "site_1"
+        calls = []
+        def upstream(method, path, **kwargs):
+            calls.append((method, path))
+            if path.endswith("/topology"):
+                return {"errorCode": 0, "result": {
+                    "topologyNodes": [{"mac": "private-mac", "name": "private-name"}],
+                    "topologyEdges": [{"upLinkMac": "private-mac",
+                        "downLinkMac": "missing-mac", "blocked": True,
+                        "blockedVlans": "private-vlan", "port": {"name": "secret"}}],
+                }}
+            return {"errorCode": 0, "result": {
+                "totalRows": 1, "currentPage": 1, "currentSize": 1,
+                "data": [{"id": "private-id", "defaultProfile": True, "name": "secret",
+                          "protocol": 0, "destStartPort": 443, "description": "private"}],
+            }}
+        main._openapi_client.return_value = client
+        with patch.object(client, "_access_token", return_value="token"), \
+                patch.object(client, "_request_json", side_effect=upstream):
+            for route, resource in (
+                (f"/v1/sites/{site_ref}/topology/snapshot-summary",
+                 "site_topology_snapshot_summary"),
+                (f"/v1/sites/{site_ref}/gateway-qos/service-profiles/summary",
+                 "site_gateway_qos_service_profiles_summary"),
+            ):
+                status, response = self.request(route, self.token)
+                self.assertEqual(status, 200)
+                self.assertEqual(response["resource"], resource)
+                self.assertNotIn("private", json.dumps(response))
+                rpc = {"jsonrpc": "2.0", "id": 164, "method": "tools/call",
+                       "params": {"name": f"omada_{resource}",
+                                  "arguments": {"site_ref": site_ref}}}
+                status, mcp = self.request_post("/mcp", rpc, self.token)
+                self.assertEqual(status, 200)
+                self.assertEqual(mcp["result"]["structuredContent"]["resource"], resource)
+                self.assertNotIn("private", json.dumps(mcp))
+        self.assertEqual(calls, [
+            ("GET", "/openapi/v2/ctrl/sites/site_1/topology"),
+            ("GET", "/openapi/v2/ctrl/sites/site_1/topology"),
+            ("GET", "/openapi/v1/ctrl/sites/site_1/profiles/service-type?page=1&pageSize=1000"),
+            ("GET", "/openapi/v1/ctrl/sites/site_1/profiles/service-type?page=1&pageSize=1000"),
+        ])
 
     def test_http_and_mcp_topology_vlan_summary_omits_vlan_values(self) -> None:
         site_ref = "b" * 24

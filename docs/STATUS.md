@@ -811,3 +811,24 @@ Ordinary dotted IDs remain valid. The path regression passed; the registry,
 matrix and evidence gate had passed 307 tests on the underlying feature tree.
 The three-export contract and full matrix checks, compileall, and diff check
 also passed. No live controller read was made.
+
+## 2026-11-23 — Topology snapshot and Gateway QoS service-profile summaries
+
+#113 uses the separate documented v2 topology snapshot, adding bounded node,
+edge, blocking-flag and endpoint-reference coverage alongside the existing v3
+inventory-mapped topology view. #114 reads `listServiceType` over at most 10
+pages of 1,000 rows and counts documented default flags and protocol types.
+Source contracts were confirmed in Hardware/CBC for #113 and all three exports
+for #114. The ER7212PC empty-grid example reports `currentPage: 0`; this is
+accepted only for an empty first-page result. No controller was contacted.
+
+Synthetic 20-node/20-edge topology JSON measured 4,527→81 tokens; 20 gateway
+service-profile rows measured 1,460→98 tokens. Both use `js-tiktoken` 1.0.21 /
+`o200k_base` and compare source JSON with the actual projection. They exclude
+tool schemas, transport framing, prompts and billed agent usage.
+
+The initial PR #59 tree passed its exact-head push and pull-request checks. The
+rebased tree on main `3af67f4` passed 772 tests across the HTTP/MCP client,
+registry, matrix, evidence and both projector modules. Three-export contract
+and full matrix checks, compileall and diff check passed. Checks for the updated
+GitHub head are pending. No live controller read was made.

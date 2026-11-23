@@ -870,6 +870,21 @@ omada_site_reboot_schedule_summary reads a bounded site reboot schedule list. It
 `omada_site_stack_connections_summary` reports declared switch-stack members and redacted LLDP neighbor counts by local port. Member MACs are mapped internally to fresh switch references. LLDP `deviceId` strings are not treated as inventory identifiers, so no neighbor links are inferred. The operation is read-only; live support remains unknown.
 The existing `omada_site_topology` result includes the same report under `stack_connections`; partial stack coverage marks the combined topology response partial.
 
+`omada_site_topology_snapshot_summary` reads the documented v2 topology
+snapshot. It counts nodes and edges independently, reports documented blocked
+edge booleans, and counts absent or unresolved endpoint references. MACs, names,
+port fields, VLAN values and device identities are omitted. The result
+describes snapshot fields only and does not assert that links currently pass
+traffic. Hardware Controller and CBC document the source; live behavior is
+unknown.
+
+`omada_site_gateway_qos_service_profiles_summary` reads at most 10 pages of
+1,000 Gateway QoS service profiles. It counts documented default flags and
+protocol categories while omitting profile names, IDs, port values and
+descriptions. Unclassified codes are counted without interpretation, and a
+page-limit truncation is reported as partial. The three supplied exports
+document this operation; live behavior is unknown.
+
 omada_controller_backup_inventory_summary summarizes controller-listed backup metadata, the existing activity status, and safe schedule fields. omada_site_backup_inventory_summary applies the same report to one caller-selected site. The tools omit filenames, paths, URLs, credentials, and source IDs; the site tool does not fan out across the site inventory. Listed backup timestamps do not confirm completeness or restore success. A synthetic 12-file payload measured 459 source JSON tokens and 103 summary tokens (77.56% fewer; js-tiktoken 1.0.21/o200k_base), excluding schemas, prompts and agent framing.
 
 `omada_site_channel_reuse_summary` accepts one site reference and 1–16 selected AP references. It compares reported radio channels and bandwidth with matching values in existing channel-load results. Equal channels are grouped by band. Adjacent-channel overlap and interference cause are left unknown. The tool is read-only and starts no scan.

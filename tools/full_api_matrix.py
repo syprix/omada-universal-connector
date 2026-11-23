@@ -237,6 +237,8 @@ IMPLEMENTED: dict[tuple[str, str], str] = {
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/wireless-network/ssids/{ssid_id}/ap-groups"): "implemented_read",
     ("GET", "/openapi/v2/{controller_id}/sites/{site_id}/topology/available-network"): "implemented_read",
     ("GET", "/openapi/v2/{controller_id}/sites/{site_id}/topology/available-vlans"): "implemented_read",
+    ("GET", "/openapi/v2/{controller_id}/sites/{site_id}/topology"): "implemented_read",
+    ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/profiles/service-type"): "implemented_read",
     ("GET", "/openapi/v2/{controller_id}/sites/{site_id}/wireless-network/wlans/{wlan_id}"): "implemented_read",
     ("GET", "/openapi/v2/{controller_id}/sites/{site_id}/lockToAp/aps"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/full-channel-detect/batch/info"): "implemented_read",

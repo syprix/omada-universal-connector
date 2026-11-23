@@ -5,6 +5,21 @@ from app.mcp import _tool
 
 
 class OperationRegistryTests(unittest.TestCase):
+    def test_topology_snapshot_and_gateway_qos_profiles_are_site_bound(self):
+        site_ref = "a" * 24
+        cases = (
+            ("site_topology_snapshot_summary",
+             f"/v1/sites/{site_ref}/topology/snapshot-summary"),
+            ("site_gateway_qos_service_profiles_summary",
+             f"/v1/sites/{site_ref}/gateway-qos/service-profiles/summary"),
+        )
+        for operation_id, path in cases:
+            operation = REGISTRY.get(operation_id)
+            self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
+            route, bindings = REGISTRY.match("GET", path)
+            self.assertEqual(route.operation_id, operation_id)
+            self.assertEqual(dict(bindings), {"site_ref": site_ref})
+
     def test_site_bridge_device_summary_is_site_bound(self):
         operation = REGISTRY.get("site_bridge_device_summary")
         self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
@@ -1101,6 +1116,8 @@ class OperationRegistryTests(unittest.TestCase):
             "site_snmp_incompatible_summary",
             "site_gateway_general_config_summary",
             "site_switch_general_config_summary",
+            "site_topology_snapshot_summary",
+            "site_gateway_qos_service_profiles_summary",
             "site_switch_oui_vlan_summary",
             "controller_sdwan_group_summary",
             "controller_sdwan_group_devices_summary",

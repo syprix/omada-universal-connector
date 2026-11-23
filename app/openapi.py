@@ -1567,6 +1567,9 @@ class OmadaOpenApiClient:
     _SITE_PENDING_DEVICES_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/grid/devices/pending"
     _SITE_OVERVIEW_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/overview-diagram"
     _SITE_TOPOLOGY_PATH = "/openapi/v3/{controller_id}/sites/{site_id}/topology"
+    _SITE_TOPOLOGY_SNAPSHOT_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/topology"
+    _SITE_GATEWAY_QOS_SERVICE_TYPES_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/profiles/service-type")
     _SITE_HEALTH_TIMELINE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/health/timeline"
     _SITE_LONGEST_CLIENT_UPTIME_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/longest-uptime")
@@ -2547,6 +2550,11 @@ class OmadaOpenApiClient:
     _SITE_TOPOLOGY_REQUEST = re.compile(
         r"/openapi/v3/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/topology\?filters\.deviceStatus=0%2C1"
     )
+    _SITE_TOPOLOGY_SNAPSHOT_REQUEST = re.compile(
+        r"/openapi/v2/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/topology")
+    _SITE_GATEWAY_QOS_SERVICE_TYPES_REQUEST = re.compile(
+        r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/profiles/service-type"
+        r"\?page=([1-9][0-9]*)&pageSize=(1000|[1-9][0-9]{0,2})")
     _SITE_HEALTH_TIMELINE_REQUEST = re.compile(
         r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/health/timeline"
         r"\?start=[0-9]{1,16}&end=[0-9]{1,16}"
@@ -3059,6 +3067,8 @@ class OmadaOpenApiClient:
         ("site_snmp_incompatible_summary", "GET /v1/sites/{site_ref}/snmp/incompatible-devices/summary"),
         ("site_gateway_general_config_summary", "GET /v1/sites/{site_ref}/gateways/{gateway_ref}/general-config-summary"),
         ("site_switch_general_config_summary", "GET /v1/sites/{site_ref}/switches/{switch_ref}/general-config-summary"),
+        ("site_topology_snapshot_summary", "GET /v1/sites/{site_ref}/topology/snapshot-summary"),
+        ("site_gateway_qos_service_profiles_summary", "GET /v1/sites/{site_ref}/gateway-qos/service-profiles/summary"),
         ("site_stack_vlan_interface_summary", "GET /v1/sites/{site_ref}/stacks/{stack_ref}/vlan-interfaces/summary"),
         ("site_switch_oui_vlan_summary", "GET /v1/sites/{site_ref}/switches/oui-vlan-rules/summary"),
         ("controller_sdwan_group_summary", "GET /v1/controller/sdwan-groups/summary"),
@@ -16005,6 +16015,86 @@ class OmadaOpenApiClient:
                           for source, target in sorted(edges)],
                 "stack_connections": stack_connections}
 
+    @_track_capability("site_topology_snapshot_summary")
+    def read_site_topology_snapshot_summary(self, site_ref: str) -> dict[str, object]:
+        """Count the documented v2 topology snapshot without returning identifiers."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_TOPOLOGY_SNAPSHOT_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            from .site_topology_snapshot_summary import (
+                TopologySnapshotError, summarize_topology_snapshot)
+        except ImportError:  # direct execution in the image
+            from site_topology_snapshot_summary import (
+                TopologySnapshotError, summarize_topology_snapshot)
+        try:
+            projected = summarize_topology_snapshot(payload.get("result"))
+        except TopologySnapshotError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"site_ref": site_ref, **projected}
+
+    @_track_capability("site_gateway_qos_service_profiles_summary")
+    def read_site_gateway_qos_service_profiles_summary(
+            self, site_ref: str) -> dict[str, object]:
+        """Aggregate bounded, documented Gateway QoS service-profile fields."""
+        site_id = self._resolve_site_ref(site_ref)
+        base_path = self._SITE_GATEWAY_QOS_SERVICE_TYPES_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        rows: list[object] = []
+        total_rows: int | None = None
+        page_size = 1000
+        page_limit = 10
+        token = self._access_token()
+        for page in range(1, page_limit + 1):
+            path = base_path + "?" + urlencode({"page": page, "pageSize": page_size})
+            payload = self._request_json("GET", path, token=token)
+            if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+                raise OpenApiError("openapi_response_invalid")
+            result = payload.get("result")
+            data = result.get("data") if isinstance(result, dict) else None
+            total = result.get("totalRows") if isinstance(result, dict) else None
+            current_page = result.get("currentPage") if isinstance(result, dict) else None
+            current_size = result.get("currentSize") if isinstance(result, dict) else None
+            current_page_valid = (type(current_page) is int and current_page == page)
+            # The ER7212PC export's empty-grid example reports currentPage=0
+            # while the request still starts at page 1.
+            if page == 1 and total == 0 and data == [] and current_page == 0:
+                current_page_valid = True
+            if (not isinstance(data, list) or len(data) > page_size or
+                    type(total) is not int or total < 0 or
+                    not current_page_valid or
+                    type(current_size) is not int or
+                    current_size not in (len(data), page_size)):
+                raise OpenApiError("openapi_response_invalid")
+            if total_rows is None:
+                total_rows = total
+            elif total != total_rows:
+                raise OpenApiError("openapi_response_invalid")
+            rows.extend(data)
+            if len(rows) > 10_000 or len(rows) > total:
+                raise OpenApiError("openapi_response_invalid")
+            if not data and len(rows) < total:
+                raise OpenApiError("openapi_response_invalid")
+            if len(rows) >= total:
+                break
+        if total_rows is None:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            from .site_gateway_qos_service_profiles_summary import (
+                summarize_gateway_qos_service_profiles)
+        except ImportError:  # direct execution in the image
+            from site_gateway_qos_service_profiles_summary import (
+                summarize_gateway_qos_service_profiles)
+        try:
+            projected = summarize_gateway_qos_service_profiles(
+                rows, omitted_profile_count=max(0, total_rows - len(rows)))
+        except ValueError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"site_ref": site_ref, **projected}
+
     @_track_capability("site_longest_client_uptime_summary")
     def read_site_longest_client_uptime_summary(self, site_ref: str) -> dict[str, object]:
         """Read documented wired/wireless client counts from the site dashboard."""
@@ -17081,6 +17171,8 @@ class OmadaOpenApiClient:
                                   self._ssid_ap_groups_request_valid(path) or
                                   self._site_topology_network_summary_request_valid(path) or
                                   self._site_topology_vlan_summary_request_valid(path) or
+                                  self._site_topology_snapshot_request_valid(path) or
+                                  self._site_gateway_qos_service_types_request_valid(path) or
                                   self._site_unresolved_incident_count_request_valid(path) or
                                   self._site_incident_overview_request_valid(path) or
                                   self._site_incident_distribution_request_valid(path) or
@@ -19305,6 +19397,20 @@ class OmadaOpenApiClient:
             r"/openapi/v2/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/"
             r"topology/available-vlans", path)
         return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_topology_snapshot_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v2/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/topology",
+            path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_gateway_qos_service_types_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/"
+            r"profiles/service-type\?page=([1-9][0-9]*)&pageSize=(1000|[1-9][0-9]{0,2})",
+            path)
+        return bool(match and match.group(1) == self.config.controller_id and
+                    int(match.group(2)) <= 10 and 1 <= int(match.group(3)) <= 1000)
 
     def _site_unresolved_incident_count_request_valid(self, path: str) -> bool:
         match = re.fullmatch(

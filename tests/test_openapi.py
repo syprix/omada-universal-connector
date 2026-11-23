@@ -78,6 +78,67 @@ class OpenApiClientTests(unittest.TestCase):
         self.assertIn("bridge-devices/adopted?page=1&pageSize=2", request.call_args_list[0].args[1])
         self.assertIn("bridge-devices/pending?page=1&pageSize=2", request.call_args_list[1].args[1])
 
+    def test_topology_snapshot_summary_uses_documented_v2_site_path(self) -> None:
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={
+                    "errorCode": 0,
+                    "result": {"topologyNodes": [{"mac": "private"}],
+                               "topologyEdges": [{"upLinkMac": "private",
+                                                  "downLinkMac": "missing",
+                                                  "blocked": True}]},
+                }) as request:
+            result = self.client.read_site_topology_snapshot_summary(site_ref)
+        self.assertEqual(result["node_count"], 1)
+        self.assertEqual(result["edge_count"], 1)
+        self.assertEqual(result["blocked_edge_count"], 1)
+        self.assertEqual(result["missing_endpoint_reference_count"], 1)
+        self.assertNotIn("private", json.dumps(result))
+        self.assertEqual(request.call_args.args[1],
+                         "/openapi/v2/controller_1/sites/site-1/topology")
+
+    def test_qos_service_profile_summary_bounds_pages_and_redacts_rows(self) -> None:
+        site_ref = "b" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={
+                    "errorCode": 0,
+                    "result": {"totalRows": 1, "currentPage": 1, "currentSize": 1,
+                               "data": [{"id": "private", "defaultProfile": True,
+                                         "name": "private", "protocol": 2,
+                                         "destStartPort": 443}]},
+                }) as request:
+            result = self.client.read_site_gateway_qos_service_profiles_summary(site_ref)
+        self.assertEqual(result["profile_count"], 1)
+        self.assertEqual(result["default_profile_count"], 1)
+        self.assertEqual(result["protocol_profile_counts"]["tcp_udp"], 1)
+        self.assertNotIn("private", json.dumps(result))
+        self.assertEqual(request.call_args.args[1],
+                         "/openapi/v1/controller_1/sites/site-1/profiles/service-type"
+                         "?page=1&pageSize=1000")
+        self.assertTrue(self.client._site_gateway_qos_service_types_request_valid(
+            "/openapi/v1/controller_1/sites/site-1/profiles/service-type?page=10&pageSize=1000"))
+        for invalid in (
+            "/openapi/v1/other/sites/site-1/profiles/service-type?page=1&pageSize=1000",
+            "/openapi/v1/controller_1/sites/site-1/profiles/service-type?page=11&pageSize=1000",
+            "/openapi/v1/controller_1/sites/site-1/profiles/service-type?page=1&pageSize=1001",
+        ):
+            self.assertFalse(self.client._site_gateway_qos_service_types_request_valid(invalid))
+
+    def test_qos_service_profile_summary_accepts_documented_empty_grid_example(self) -> None:
+        site_ref = "c" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={
+                    "errorCode": 0,
+                    "result": {"totalRows": 0, "currentPage": 0, "currentSize": 0,
+                               "data": []},
+                }):
+            result = self.client.read_site_gateway_qos_service_profiles_summary(site_ref)
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["profile_count"], 0)
+
     def test_site_upnp_template_comparison_uses_selected_inventories(self) -> None:
         site_ref, template_ref = "a" * 24, "b" * 24
         self.client._site_ids_by_ref[site_ref] = "site-1"
