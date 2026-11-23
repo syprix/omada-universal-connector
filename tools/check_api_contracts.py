@@ -156,6 +156,8 @@ OPERATIONS = {
     'site_vpn_server_config_summary': ('GET', '/openapi/v2/{omadacId}/sites/{siteId}/vpn/client-to-site-vpn-servers'),
     'site_vpn_client_config_summary': ('GET', '/openapi/v2/{omadacId}/sites/{siteId}/vpn/client-to-site-vpn-clients'),
     'site_gateway_webfilter_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/url-filters/gateway'),
+    'site_ap_webfilter_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/url-filters/eap'),
+    'site_url_filter_general_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/url-filters/globalUrlFilter'),
     'site_gateway_qos_class_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/qos/gateway/class-rules'),
     'site_port_schedule_ports_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/port-status-ports'),
     'site_s2s_vpn_inventory_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/vpn/site-to-site-vpns'),
