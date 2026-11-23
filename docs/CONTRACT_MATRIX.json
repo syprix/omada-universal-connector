@@ -1666,6 +1666,24 @@
             "projection": "Site-bound HTTP/MCP GET returns the two protocol enable flags and validated raw mode codes only. Community string, username, passwords, location and contact are discarded and never returned. Missing, invalid and unknown data are counted; live support is unknown."
           }
         },
+        "site_snmp_incompatible_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getSnmpIncompatibleDevices",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/setting/service/snmp/incompatible-devices",
+            "query": {
+              "required": [
+                "page:int32",
+                "pageSize:int32 (1–1000)"
+              ]
+            },
+            "request_body": false,
+            "response": "Paginated OperationResponseGridVODeviceVO resolves to GridVODeviceVO and narrow DeviceVO rows with optional mac:string, stackId:string, ports:PortVO[] and impbs:ImpbVO[].",
+            "projection": "Reads up to 1,000 rows. Reports only total, returned, omitted and non-object row counts. Device fields, identities and per-device assignments are omitted; no device type or SNMP state is inferred."
+          }
+        },
         "site_specific_app_traffic_summary": {
           "documented": true,
           "live_support": "unknown",
@@ -2919,6 +2937,19 @@
             "request_body": false,
             "response": "Paginated DhcpUserGridVODhcpUserVO with data:DhcpUserVO, maps for server/network names, and selectedNum. DhcpUserVO documents type:int32 (0=Device, 1=Client) and status:int32 (0=Dynamic Binding, 1=Static Binding), alongside addresses, MACs, names, lease time and network/server identities.",
             "projection": "Freshly binds the selected opaque stack reference to exactly one stack in a complete inventory for the selected site, then counts documented user type and binding status for at most 1,000 rows. Omits addresses, names, binding rows, network/server identity and all mapping objects. Reports truncation and unknown codes; does not claim current leases or wired client state."
+          }
+        },
+        "site_stack_vlan_interface_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getStackVlanIf",
+            "permission": "Site Settings Manager View Only or Site Device Manager View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/vlan-interface/stack/{stackId}",
+            "query": {},
+            "request_body": false,
+            "response": "OperationResponseListVlanInterfaceOpenApiVO resolves to a list of VlanInterfaceOpenApiVO. Documented fields are optional vlanInterfaceId:string, vlanInterfaceName:string and vlanId:int32; no required row properties are declared.",
+            "projection": "Binds an opaque stack_ref to exactly one entry in a complete, fresh same-site stack list. Counts rows, unique/duplicate/missing/invalid interface IDs, plus presence/missing/invalid coverage for interface names and VLAN IDs. Omits names, IDs and VLAN numbers. The ER7212PC export does not declare this operation."
           }
         },
         "site_switch_oui_vlan_summary": {
@@ -4681,6 +4712,24 @@
             "projection": "Site-bound HTTP/MCP GET returns the two protocol enable flags and validated raw mode codes only. Community string, username, passwords, location and contact are discarded and never returned. Missing, invalid and unknown data are counted; live support is unknown."
           }
         },
+        "site_snmp_incompatible_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getSnmpIncompatibleDevices",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/setting/service/snmp/incompatible-devices",
+            "query": {
+              "required": [
+                "page:int32",
+                "pageSize:int32 (1–1000)"
+              ]
+            },
+            "request_body": false,
+            "response": "Paginated OperationResponseGridVODeviceVO resolves to GridVODeviceVO and narrow DeviceVO rows with optional mac:string, stackId:string, ports:PortVO[] and impbs:ImpbVO[].",
+            "projection": "Reads up to 1,000 rows. Reports only total, returned, omitted and non-object row counts. Device fields, identities and per-device assignments are omitted; no device type or SNMP state is inferred."
+          }
+        },
         "site_specific_app_traffic_summary": {
           "documented": true,
           "live_support": "unknown",
@@ -5934,6 +5983,19 @@
             "request_body": false,
             "response": "Paginated DhcpUserGridVODhcpUserVO with data:DhcpUserVO, maps for server/network names, and selectedNum. DhcpUserVO documents type:int32 (0=Device, 1=Client) and status:int32 (0=Dynamic Binding, 1=Static Binding), alongside addresses, MACs, names, lease time and network/server identities.",
             "projection": "Freshly binds the selected opaque stack reference to exactly one stack in a complete inventory for the selected site, then counts documented user type and binding status for at most 1,000 rows. Omits addresses, names, binding rows, network/server identity and all mapping objects. Reports truncation and unknown codes; does not claim current leases or wired client state."
+          }
+        },
+        "site_stack_vlan_interface_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getStackVlanIf",
+            "permission": "Site Settings Manager View Only or Site Device Manager View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/vlan-interface/stack/{stackId}",
+            "query": {},
+            "request_body": false,
+            "response": "OperationResponseListVlanInterfaceOpenApiVO resolves to a list of VlanInterfaceOpenApiVO. Documented fields are optional vlanInterfaceId:string, vlanInterfaceName:string and vlanId:int32; no required row properties are declared.",
+            "projection": "Binds an opaque stack_ref to exactly one entry in a complete, fresh same-site stack list. Counts rows, unique/duplicate/missing/invalid interface IDs, plus presence/missing/invalid coverage for interface names and VLAN IDs. Omits names, IDs and VLAN numbers. The ER7212PC export does not declare this operation."
           }
         },
         "site_switch_oui_vlan_summary": {
@@ -7678,6 +7740,24 @@
             "projection": "Site-bound HTTP/MCP GET returns the two protocol enable flags and validated raw mode codes only. Community string, username, passwords, location and contact are discarded and never returned. Missing, invalid and unknown data are counted; live support is unknown."
           }
         },
+        "site_snmp_incompatible_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getSnmpIncompatibleDevices",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/setting/service/snmp/incompatible-devices",
+            "query": {
+              "required": [
+                "page:int32",
+                "pageSize:int32 (1–1000)"
+              ]
+            },
+            "request_body": false,
+            "response": "Paginated OperationResponseGridVODeviceVO resolves to GridVODeviceVO and a detailed DeviceVO with documented inventory, status, model, address, location and other device fields.",
+            "projection": "Reads up to 1,000 rows. Reports only total, returned, omitted and non-object row counts. Device fields, identities and per-device assignments are omitted; no device type or SNMP state is inferred."
+          }
+        },
         "site_specific_app_traffic_summary": {
           "documented": true,
           "live_support": "unknown",
@@ -8898,6 +8978,11 @@
             "response": "Paginated DhcpUserGridVODhcpUserVO with data:DhcpUserVO, maps for server/network names, and selectedNum. DhcpUserVO documents type:int32 (0=Device, 1=Client) and status:int32 (0=Dynamic Binding, 1=Static Binding), alongside addresses, MACs, names, lease time and network/server identities.",
             "projection": "Freshly binds the selected opaque stack reference to exactly one stack in a complete inventory for the selected site, then counts documented user type and binding status for at most 1,000 rows. Omits addresses, names, binding rows, network/server identity and all mapping objects. Reports truncation and unknown codes; does not claim current leases or wired client state."
           }
+        },
+        "site_stack_vlan_interface_summary": {
+          "documented": false,
+          "live_support": "unknown",
+          "source_status": "Operation getStackVlanIf and its path are absent from this export."
         },
         "site_switch_oui_vlan_summary": {
           "documented": true,

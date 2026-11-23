@@ -2970,6 +2970,17 @@ class FakeOpenApiClient:
         self.calls.append(("site_stack_dhcp_user_summary", site_ref, stack_ref))
         return {"status": "ok", "resource": "site_stack_dhcp_user_summary",
                 "site_ref": site_ref, "returned_user_count": 2}
+
+    def read_site_stack_vlan_interface_summary(self, site_ref: str,
+                                               stack_ref: str) -> dict[str, object]:
+        self.calls.append(("site_stack_vlan_interface_summary", site_ref, stack_ref))
+        return {"status": "ok", "resource": "site_stack_vlan_interface_summary",
+                "site_ref": site_ref, "reported_interface_count": 0}
+
+    def read_site_snmp_incompatible_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_snmp_incompatible_summary", site_ref))
+        return {"status": "ok", "resource": "site_snmp_incompatible_summary",
+                "site_ref": site_ref, "reported_incompatible_device_total": 0}
     def read_site_switch_oui_vlan_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_switch_oui_vlan_summary", site_ref))
         return {"status": "ok", "resource": "site_switch_oui_vlan_summary",
@@ -9941,6 +9952,38 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(response["result"]["structuredContent"], direct)
         self.assertEqual(self.fake.calls,
                          [("site_stack_dhcp_user_summary", site_ref, stack_ref)] * 2)
+
+    def test_http_and_mcp_expose_redacted_stack_vlan_interface_summary(self) -> None:
+        site_ref, stack_ref = "a" * 24, "b" * 24
+        path = f"/v1/sites/{site_ref}/stacks/{stack_ref}/vlan-interfaces/summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(direct["resource"], "site_stack_vlan_interface_summary")
+        status, response = self.request_post("/mcp", {
+            "jsonrpc": "2.0", "id": 453, "method": "tools/call",
+            "params": {"name": "omada_site_stack_vlan_interface_summary",
+                       "arguments": {"site_ref": site_ref, "stack_ref": stack_ref}},
+        }, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_stack_vlan_interface_summary", site_ref, stack_ref)] * 2)
+
+    def test_http_and_mcp_expose_count_only_snmp_incompatible_summary(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/snmp/incompatible-devices/summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(direct["resource"], "site_snmp_incompatible_summary")
+        status, response = self.request_post("/mcp", {
+            "jsonrpc": "2.0", "id": 454, "method": "tools/call",
+            "params": {"name": "omada_site_snmp_incompatible_summary",
+                       "arguments": {"site_ref": site_ref}},
+        }, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_snmp_incompatible_summary", site_ref)] * 2)
 
     def test_http_and_mcp_expose_redacted_switch_oui_vlan_summary(self) -> None:
         site_ref = "a" * 24

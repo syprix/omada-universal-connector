@@ -966,6 +966,19 @@ stack before the read. It counts documented device/client types and
 dynamic/static binding states from at most 1,000 rows. Addresses, names,
 binding rows and network/server identities are omitted. This is not a claim
 about current leases or wired clients. Live stack support is unknown.
+
+`omada_site_stack_vlan_interface_summary` accepts a site and the opaque stack
+reference returned by the site's stack inventory. It refreshes that inventory
+and rejects missing, ambiguous or incomplete binding. The bounded projection
+counts documented VLAN-interface rows, duplicate/missing/invalid interface IDs
+and field coverage; interface names, IDs and VLAN numbers are omitted. Hardware
+and CBC document the typed response; the ER7212PC export does not.
+
+`omada_site_snmp_incompatible_summary` reports up to 1,000 controller-reported
+SNMP incompatibility rows as counts only. Hardware/CBC use a narrow `DeviceVO`
+schema, while ER7212PC declares a broader device record. Device fields,
+identities and individual assignments are omitted; the summary does not infer
+device configuration or SNMP state. Live support is unknown.
 `omada_controller_sdwan_group_summary` takes no site argument because the API
 read is controller-scoped. It reports group counts, hub metadata field coverage
 and the sum of documented device counts across groups (not a distinct-device

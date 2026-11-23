@@ -3798,6 +3798,12 @@ class Handler(BaseHTTPRequestHandler):
                 elif registry_operation == "site_stack_dhcp_user_summary":
                     result = client.read_site_stack_dhcp_user_summary(
                         registry_bindings["site_ref"], registry_bindings["stack_ref"])
+                elif registry_operation == "site_stack_vlan_interface_summary":
+                    result = client.read_site_stack_vlan_interface_summary(
+                        registry_bindings["site_ref"], registry_bindings["stack_ref"])
+                elif registry_operation == "site_snmp_incompatible_summary":
+                    result = client.read_site_snmp_incompatible_summary(
+                        registry_bindings["site_ref"])
                 elif registry_operation == "site_switch_oui_vlan_summary":
                     result = client.read_site_switch_oui_vlan_summary(
                         registry_bindings["site_ref"])

@@ -739,3 +739,24 @@ fixed GET routes, 1,960 unmapped operations and 25 manual-only entries. Syntheti
 JSON measures used `tiktoken` 0.9.0 /
 `o200k_base`: QoS 2,346→163 tokens (93.05% fewer); DDM 1,855→124 (93.32% fewer).
 Live controller behavior was not tested.
+
+## 2026-11-23 — Stack VLAN interfaces and SNMP incompatibility counts
+
+Added a selected-stack VLAN-interface summary that binds `stack_ref` through a
+complete, fresh same-site inventory. It reports interface-row counts,
+duplicate/missing/invalid IDs and documented field coverage without exposing
+names, IDs or VLAN numbers. Hardware/CBC provide the typed list contract; the
+ER7212PC export does not declare this operation.
+
+Added a bounded count-only read for controller-reported SNMP-incompatible
+device rows. Hardware/CBC define a narrow `DeviceVO` while ER7212PC defines a
+broader inventory row; the output avoids equating their fields and omits all
+device data. Both operations have individual projection, binding, route and
+HTTP/MCP tests. The full HTTP/MCP module passed (378 tests), as did the
+registry/matrix/evidence gate (305 tests). Offline contract and matrix checks
+passed across all three exports. No controller read was made.
+
+Synthetic serialized JSON measured with `js-tiktoken` 1.0.21 /
+`o200k_base`: stack VLAN interfaces 562→102 tokens; SNMP counts 4,448→69 for
+Hardware/CBC-shaped rows and 8,929→69 for ER7212PC-shaped rows. These figures
+measure serialized JSON payloads only.

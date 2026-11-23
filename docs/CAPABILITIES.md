@@ -938,6 +938,21 @@ identities and mapping objects are omitted. It does not claim current leases or
 wired-client state. All three exports document the operation; stack hardware
 and live support were not tested.
 
+`site_stack_vlan_interface_summary` binds the supplied `stack_ref` against a
+complete, fresh inventory for the selected site before reading the documented
+VLAN-interface list. It counts rows, unique/duplicate/missing/invalid interface
+IDs, and field coverage for interface names and VLAN IDs. Names, IDs and VLAN
+numbers are omitted. Hardware and CBC document the typed list response; the
+ER7212PC export does not contain this operation. No live stack read was made.
+
+`site_snmp_incompatible_summary` reads up to 1,000 controller-reported rows for
+devices that do not support the documented SNMP v3 enhanced configuration.
+It reports only total, returned, omitted and malformed row counts. It does not
+project device details, identify individual devices or infer their SNMP
+configuration. Hardware/CBC describe a narrow `DeviceVO` with MAC, stack ID,
+port and IMPB fields; ER7212PC describes a broader device record. These source
+schemas are kept distinct in the contract matrix. Live support is unknown.
+
 
 Gateway health timeline is a redacted read using an opaque inventoried
 `gateway_ref` and a fixed 24-hour interval. It returns millisecond timestamps
