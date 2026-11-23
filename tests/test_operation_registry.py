@@ -109,6 +109,21 @@ class OperationRegistryTests(unittest.TestCase):
         self.assertEqual(route.operation_id, "controller_upgrade_plans_summary")
         self.assertEqual(dict(bindings), {})
 
+    def test_controller_firmware_settings_summaries_are_controller_scoped(self):
+        cases = (
+            ("controller_try_beta_settings_summary",
+             "/v1/controller/firmware-preview-settings/summary"),
+            ("controller_auto_check_upgrade_summary",
+             "/v1/controller/automatic-firmware-checks/summary"),
+        )
+        for operation_id, path in cases:
+            with self.subTest(operation_id=operation_id):
+                operation = REGISTRY.get(operation_id)
+                self.assertEqual(_tool(operation)["inputSchema"]["required"], [])
+                route, bindings = REGISTRY.match("GET", path)
+                self.assertEqual(route.operation_id, operation_id)
+                self.assertEqual(dict(bindings), {})
+
     def test_site_lan_multicast_summary_is_site_bound(self):
         operation = REGISTRY.get("site_lan_multicast_summary")
         self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
@@ -1050,6 +1065,8 @@ class OperationRegistryTests(unittest.TestCase):
             "site_log_notification_summary",
             "site_lan_network_interface_summary",
             "controller_upgrade_plans_summary",
+            "controller_try_beta_settings_summary",
+            "controller_auto_check_upgrade_summary",
             "site_remote_logging_summary",
             "controller_upgrade_log_summary",
             "site_wan_qos_summary",

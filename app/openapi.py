@@ -1539,6 +1539,9 @@ class OmadaOpenApiClient:
     _SITE_NETWORK_DELIVERY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/networks/{network_id}/brief-process"
     _SITE_LAN_PROFILES_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/lan-profiles"
     _CONTROLLER_UPGRADE_PLANS_PATH = "/openapi/v1/{controller_id}/upgrade/overview/plans"
+    _CONTROLLER_TRY_BETA_STATUS_PATH = "/openapi/v1/{controller_id}/upgrade/overview/try-beta"
+    _CONTROLLER_TRY_BETA_CHANNEL_PATH = "/openapi/v1/{controller_id}/upgrade/overview/try-beta/channel"
+    _CONTROLLER_AUTO_CHECK_UPGRADE_PATH = "/openapi/v1/{controller_id}/upgrade/autoCheck"
     _CONTROLLER_GLOBAL_LOG_NOTIFICATION_PATH = "/openapi/v2/{controller_id}/log-notification"
     _CONTROLLER_UPGRADE_MODEL_LIST_PATH = "/openapi/v1/{controller_id}/upgrade/plan/models"
     _SITE_LAN_MULTICASTS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/lan-multicasts"
@@ -3034,6 +3037,8 @@ class OmadaOpenApiClient:
         ("site_log_notification_summary", "GET /v1/sites/{site_ref}/log-notification-summary"),
         ("site_lan_network_interface_summary", "GET /v1/sites/{site_ref}/lan-network-interfaces/summary"),
         ("controller_upgrade_plans_summary", "GET /v1/controller/firmware-upgrade-plans/summary"),
+        ("controller_try_beta_settings_summary", "GET /v1/controller/firmware-preview-settings/summary"),
+        ("controller_auto_check_upgrade_summary", "GET /v1/controller/automatic-firmware-checks/summary"),
         ("controller_global_log_notification_summary", "GET /v1/controller/log-notifications/summary"),
         ("controller_upgrade_model_list_summary", "GET /v1/controller/firmware-upgrade-models/summary"),
         ("site_remote_logging_summary", "GET /v1/sites/{site_ref}/remote-logging/summary"),
@@ -10119,6 +10124,81 @@ class OmadaOpenApiClient:
         projected["partial"] = bool(projected["partial"] or metadata_partial)
         projected["page_size"] = page_size
         return {**projected, "status": "ok", "resource": "controller_upgrade_plans_summary"}
+
+    @_track_capability("controller_try_beta_settings_summary")
+    def read_controller_try_beta_settings_summary(self) -> dict[str, object]:
+        """Summarize the documented preview-firmware switch and selected channel."""
+        controller_id = self.config.controller_id
+        enable_payload = self._request_json(
+            "GET", self._CONTROLLER_TRY_BETA_STATUS_PATH.format(controller_id=controller_id),
+            token=self._access_token())
+        channel_payload = self._request_json(
+            "GET", self._CONTROLLER_TRY_BETA_CHANNEL_PATH.format(controller_id=controller_id),
+            token=self._access_token())
+        try:
+            from .controller_try_beta_summary import (
+                ControllerTryBetaError, summarize_try_beta_settings)
+        except ImportError:  # direct execution in the image
+            from controller_try_beta_summary import (
+                ControllerTryBetaError, summarize_try_beta_settings)
+        try:
+            summary = summarize_try_beta_settings(
+                enable_payload.get("result"), channel_payload.get("result"))
+        except ControllerTryBetaError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**summary, "status": "ok", "resource": "controller_try_beta_settings_summary"}
+
+    @_track_capability("controller_auto_check_upgrade_summary")
+    def read_controller_auto_check_upgrade_summary(self) -> dict[str, object]:
+        """Summarize bounded automatic firmware-check plans without schedule details."""
+        base = self._CONTROLLER_AUTO_CHECK_UPGRADE_PATH.format(
+            controller_id=self.config.controller_id)
+        page_size = min(max(1, self.config.page_size), 100)
+        page_limit = min(max(1, self.config.max_pages), 10)
+        rows: list[object] = []
+        total: int | None = None
+        pages_fetched = 0
+        metadata_partial = False
+        for page in range(1, page_limit + 1):
+            payload = self._request_json(
+                "GET", base + "?" + urlencode({"page": page, "pageSize": page_size}),
+                token=self._access_token())
+            result = payload.get("result")
+            data = result.get("data") if isinstance(result, Mapping) else None
+            page_total = result.get("totalRows") if isinstance(result, Mapping) else None
+            current_page = result.get("currentPage") if isinstance(result, Mapping) else None
+            current_size = result.get("currentSize") if isinstance(result, Mapping) else None
+            if (not isinstance(data, list) or len(data) > page_size or
+                    type(page_total) is not int or not 0 <= page_total < (1 << 63) or
+                    type(current_page) is not int or current_page != page or
+                    type(current_size) is not int or not 0 <= current_size <= page_size):
+                raise OpenApiError("openapi_response_invalid")
+            if total is None:
+                total = page_total
+            elif page_total != total:
+                raise OpenApiError("openapi_response_invalid")
+            metadata_partial |= current_size != len(data)
+            rows.extend(data)
+            pages_fetched = page
+            if len(rows) > page_total or len(rows) > 1_000:
+                raise OpenApiError("openapi_response_invalid")
+            if len(rows) >= page_total:
+                break
+        try:
+            from .controller_auto_check_upgrade_summary import (
+                ControllerAutoCheckUpgradeError, project_auto_check_upgrades)
+        except ImportError:  # direct execution in the image
+            from controller_auto_check_upgrade_summary import (
+                ControllerAutoCheckUpgradeError, project_auto_check_upgrades)
+        try:
+            projected = project_auto_check_upgrades(
+                rows, total if total is not None else len(rows), pages_fetched, page_limit)
+        except ControllerAutoCheckUpgradeError:
+            raise OpenApiError("openapi_response_invalid") from None
+        projected["partial"] = bool(projected["partial"] or metadata_partial)
+        projected["page_size"] = page_size
+        return {**projected, "status": "ok",
+                "resource": "controller_auto_check_upgrade_summary"}
 
     @_track_capability("controller_global_log_notification_summary")
     def read_controller_global_log_notification_summary(self) -> dict[str, object]:

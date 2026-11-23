@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 from app.operation_registry import REGISTRY
 from tools.full_api_matrix import IMPLEMENTED
-from tools.operation_evidence import _canonical, build_report
+from tools.operation_evidence import AUXILIARY_SOURCE_OPERATIONS, _canonical, build_report
 
 
 class OperationEvidenceTests(unittest.TestCase):
@@ -135,14 +135,15 @@ class OperationEvidenceTests(unittest.TestCase):
             registry_entries=REGISTRY.entries,
             test_root=root / "tests",
             catalog_sha256=hashlib.sha256(catalog_bytes).hexdigest(),
+            auxiliary_source_operations=AUXILIARY_SOURCE_OPERATIONS,
         )
         generated = json.loads((root / "docs/OPERATION_EVIDENCE.json").read_text(encoding="utf-8"))
 
         self.assertEqual(generated, expected)
         self.assertEqual(generated["operation_count"], 2445)
         self.assertEqual(generated["connector_evidence_counts"], {
-            "not_mapped": 1952,
-            "fixed_get_registry_route": 468,
+            "not_mapped": 1949,
+            "fixed_get_registry_route": 471,
             "manual_source_map_only": 25,
         })
         registry_rows = [row for row in generated["operations"]
