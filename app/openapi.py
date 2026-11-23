@@ -3107,8 +3107,6 @@ class OmadaOpenApiClient:
         ("site_stack_ospf_neighbor_summary", "GET /v1/sites/{site_ref}/stacks/{stack_ref}/ospf-neighbors/summary"),
         ("site_intelli_recover_summary", "GET /v1/sites/{site_ref}/automatic-recovery-settings/summary"),
         ("site_port_forwarding_summary", "GET /v1/sites/{site_ref}/port-forwardings/summary"),
-        ("site_intelli_recover_summary", "GET /v1/sites/{site_ref}/automatic-recovery-settings/summary"),
-        ("site_port_forwarding_summary", "GET /v1/sites/{site_ref}/port-forwardings/summary"),
         ("site_stack_dhcp_user_summary", "GET /v1/sites/{site_ref}/stacks/{stack_ref}/dhcp-users/summary"),
         ("site_stack_vlan_interface_summary", "GET /v1/sites/{site_ref}/stacks/{stack_ref}/vlan-interfaces/summary"),
         ("site_snmp_incompatible_summary", "GET /v1/sites/{site_ref}/snmp/incompatible-devices/summary"),

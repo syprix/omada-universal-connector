@@ -910,7 +910,7 @@ without interpreting the export's ambiguous description and names code 1 as
 limited-address source. Names, addresses, ports and WAN references are omitted.
 The ER7212PC empty-grid example has zero totals with a placeholder row and is
 rejected as inconsistent. No recovery action, controller access or network
-change was made; tests and hosted checks are pending.
+change was made. Local tests passed; hosted checks are pending.
 
 Synthetic token measurements with `js-tiktoken` 1.0.21 / `o200k_base` compare
 one small recovery-settings response at 37→80 tokens (43 more including the
