@@ -121,6 +121,34 @@ A synthetic 20-rule fixture measured 1,620 source tokens and 236 projected
 tokens (85.43% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; serialized
 payloads only.
 
+## Log notification settings
+
+`GET /v1/sites/{site_ref}/log-notification-summary` and its MCP tool read the
+selected site's log notification settings. They count notification categories
+and documented alert, event, email, and webhook switch states, plus email and
+webhook configuration switches. Category keys, message text, webhook IDs, and
+delay values are omitted. Enabled settings do not prove an external delivery.
+The source response has no delivery result. Live support is unknown.
+
+A synthetic 20-category fixture measured 787 source tokens and 187 projected
+tokens (76.24% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; serialized
+payloads only.
+
+## LAN network interface overview
+
+`GET /v1/sites/{site_ref}/lan-network-interfaces/summary` and its MCP tool read
+the selected site's unpaginated LAN network interface list. They count the
+documented VLAN/interface purpose, single/multiple interface type, and device
+application scope, plus interface-reference and subnet presence. The optional
+`interface_type=0` filter is the only exposed value; omitting it leaves the
+source filter unset. Names, identifiers, VLAN values and addresses are
+discarded. Interface IDs are not joined to router or VLAN records. Live support
+is unknown.
+
+A synthetic 20-network fixture measured 2,104 source tokens and 159 projected
+tokens (92.44% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; serialized
+payloads only.
+
 ## Scheduled firmware plans
 
 `GET /v1/controller/firmware-upgrade-plans/summary` and its MCP tool read at

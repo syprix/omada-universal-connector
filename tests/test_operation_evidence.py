@@ -141,8 +141,8 @@ class OperationEvidenceTests(unittest.TestCase):
         self.assertEqual(generated, expected)
         self.assertEqual(generated["operation_count"], 2445)
         self.assertEqual(generated["connector_evidence_counts"], {
-            "not_mapped": 1996,
-            "fixed_get_registry_route": 424,
+            "not_mapped": 1994,
+            "fixed_get_registry_route": 426,
             "manual_source_map_only": 25,
         })
         registry_rows = [row for row in generated["operations"]
@@ -159,6 +159,8 @@ class OperationEvidenceTests(unittest.TestCase):
         self.assertIn("controller_upgrade_plans_summary", indexed)
         self.assertIn("site_lan_multicast_summary", indexed)
         self.assertIn("site_bandwidth_rules_summary", indexed)
+        self.assertIn("site_log_notification_summary", indexed)
+        self.assertIn("site_lan_network_interface_summary", indexed)
         public_templates = {
             "/v1/sites/{site_ref}/clients/recent-summary",
             "/v1/sites/{site_ref}/networks/{network_ref}/vlans/affected-ports-summary",
@@ -169,10 +171,12 @@ class OperationEvidenceTests(unittest.TestCase):
             "/v1/controller/firmware-upgrades/summary",
             "/v1/sites/{site_ref}/lan-multicast-summary",
             "/v1/sites/{site_ref}/bandwidth-control-rules/summary",
+            "/v1/sites/{site_ref}/log-notification-summary",
+            "/v1/sites/{site_ref}/lan-network-interfaces/summary",
         }
         new_rows = [row for row in registry_rows
                     if public_templates.intersection(row["public_templates"])]
-        self.assertEqual(len(new_rows), 9)
+        self.assertEqual(len(new_rows), 11)
         self.assertTrue(all(row["documented_in"] == [
             "er7212pc-6.2.14", "hardware-controller-6.3.0",
             "omada-cbc-standard-6.3.0"] for row in new_rows))
@@ -228,6 +232,14 @@ class OperationEvidenceTests(unittest.TestCase):
                           bandwidth_rules["projection"].lower())
             self.assertIn("do not measure actual traffic",
                           bandwidth_rules["projection"].lower())
+            log_notification = source["operations"]["site_log_notification_summary"]["contract_review"]
+            self.assertEqual(log_notification["operation_id"], "getLogSettingForSiteV2")
+            self.assertIn("actual delivery is not inferred",
+                          log_notification["projection"].lower())
+            interfaces = source["operations"]["site_lan_network_interface_summary"]["contract_review"]
+            self.assertEqual(interfaces["operation_id"], "getInterfaceLanNetworkV2")
+            self.assertIn("no router or vlan mapping is inferred",
+                          interfaces["projection"].lower())
             remote = source["operations"]["site_remote_logging_summary"]["contract_review"]
             self.assertEqual(remote["operation_id"], "getRemoteLoggingSetting")
             self.assertIn("host and port", remote["projection"])

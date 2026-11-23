@@ -5,6 +5,7 @@ It never accepts an upstream URL, method, or arbitrary route from a caller.
 """
 from __future__ import annotations
 
+import itertools
 import json
 import re
 from typing import Any, Callable
@@ -689,6 +690,12 @@ def _tool(operation: Any) -> dict[str, object]:
             properties[name] = {"type": "integer", "enum": list(range(16)),
                                 "description": "Documented WAN-port query function code (0–15)."}
             required.append(name)
+    for name in getattr(operation, "optional_arguments", ()):
+        if name == "interface_type":
+            properties[name] = {
+                "type": "integer", "enum": [0],
+                "description": "Optional documented LAN interface filter: 0 returns single-interface networks only; omit it to include documented single and multiple interface networks.",
+            }
     base_local = tuple(getattr(operation, "local_arguments", ()))
     alternatives = tuple(getattr(operation, "local_argument_alternatives", ()))
     local_names = set(base_local).union(*(set(group) for group in alternatives))
@@ -1250,12 +1257,17 @@ def _invoke_tool(registry: Any, name: object, arguments: object,
         raise McpRequestError("arguments_invalid")
     expected = set(re.findall(r"\{([a-z][a-z0-9_]*)\}", operation.public_template))
     extra = set(getattr(operation, "extra_arguments", ()))
+    optional = set(getattr(operation, "optional_arguments", ()))
     local = set(getattr(operation, "local_arguments", ()))
     alternatives = tuple(getattr(operation, "local_argument_alternatives", ()))
     local_sets = (local, *(set(group) for group in alternatives))
     local_names = set().union(*local_sets)
     allowed_argument_sets = {
-        frozenset(expected | extra | set(group)) for group in local_sets
+        frozenset(expected | extra | set(group) | optional_subset)
+        for group in local_sets
+        for optional_subset in (
+            set(combo) for size in range(len(optional) + 1)
+            for combo in itertools.combinations(optional, size))
     }
     if frozenset(arguments) not in allowed_argument_sets:
         raise McpRequestError("arguments_invalid")
@@ -1317,6 +1329,14 @@ def _invoke_tool(registry: Any, name: object, arguments: object,
             value = arguments.get(key)
             if (type(value) is not int or not 0 <= value <= 15 or
                     operation.operation_id != "site_wan_port_availability_summary"):
+                raise McpRequestError("arguments_invalid")
+            safe_arguments[key] = str(value)
+    for key in optional:
+        if key not in arguments:
+            continue
+        value = arguments[key]
+        if key == "interface_type":
+            if type(value) is not int or value != 0:
                 raise McpRequestError("arguments_invalid")
             safe_arguments[key] = str(value)
     for key in set(arguments) & local_names:

@@ -841,6 +841,23 @@ class FakeOpenApiClient:
                                                             "unknown": 0}},
                 "actual_traffic_inferred": False}
 
+    def read_site_log_notification_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_log_notification_summary", site_ref))
+        return {"status": "ok", "resource": "site_log_notification_summary",
+                "site_ref": site_ref, "notification_category_count": 3,
+                "channel_enablement_counts": {"alert": {"enabled": 1, "disabled": 2,
+                                                            "unknown": 0}},
+                "external_destination_or_delivery_inferred": False}
+
+    def read_site_lan_network_interface_summary(self, site_ref: str,
+                                                interface_type: int | None = None) -> dict[str, object]:
+        self.calls.append(("site_lan_network_interface_summary", site_ref, interface_type))
+        return {"status": "ok", "resource": "site_lan_network_interface_summary",
+                "site_ref": site_ref, "network_count": 2,
+                "purpose_counts": {"vlan": 1, "interface": 1, "unknown": 0},
+                "interface_vlan_type_counts": {"single": 1, "multiple": 0, "unknown": 0},
+                "router_or_vlan_mapping_inferred_from_interface_ids": False}
+
     def read_site_remote_logging_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_remote_logging_summary", site_ref))
         return {"status": "ok", "resource": "site_remote_logging_summary",
@@ -4577,6 +4594,37 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(response["result"]["structuredContent"], direct)
         self.assertEqual(self.fake.calls,
                          [("site_bandwidth_rules_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_site_log_notification_summary(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/log-notification-summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        request = {"jsonrpc": "2.0", "id": 248, "method": "tools/call",
+                   "params": {"name": "omada_site_log_notification_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_log_notification_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_lan_network_interface_summary_and_optional_filter(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/lan-network-interfaces/summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        request = {"jsonrpc": "2.0", "id": 249, "method": "tools/call",
+                   "params": {"name": "omada_site_lan_network_interface_summary",
+                              "arguments": {"site_ref": site_ref, "interface_type": 0}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_lan_network_interface_summary", site_ref, None),
+                          ("site_lan_network_interface_summary", site_ref, 0)])
+        status, _ = self.request(path + "?interface_type=1", self.token)
+        self.assertEqual(status, 400)
 
     def test_http_and_mcp_expose_selected_ssid_client_count(self) -> None:
         site_ref, ssid_ref = "a" * 24, "b" * 24
