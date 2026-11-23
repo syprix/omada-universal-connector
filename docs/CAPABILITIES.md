@@ -28,6 +28,32 @@ framing, live responses and billed agent usage.
 
 ## WAN-port availability by function
 
+## Site-to-site VPN status codes
+
+`GET /v1/sites/{site_ref}/vpn/site-to-site/status-summary` and the matching
+MCP tool require an explicit documented protocol selection (IPsec or
+WireGuard). They count raw documented status integers over bounded pages and
+omit all tunnel identities, peer details and addresses. The exports define no
+meaning for the status integers, so the result does not say connected or
+disconnected. This is distinct from IPsec security-association inventory and
+does not close its status gap. Live controller support is unknown.
+
+## Devices associated with a selected SSID in topology
+
+`GET /v1/sites/{site_ref}/ssids/{ssid_ref}/topology-device-summary` and its
+MCP tool bind the selected WLAN through that site's SSID inventory, then match
+the documented topology MAC list only against the same site's v1 device
+inventory. The result counts recognized device classes and reports unmatched,
+ambiguous or unknown inventory coverage without returning MACs, names or IDs.
+The topology endpoint is documented by Hardware Controller and CBC exports,
+not ER7212PC. It does not measure radio coverage. Live controller support is
+unknown.
+
+With `js-tiktoken` 1.0.21 (`o200k_base`), a synthetic 20-tunnel
+source-shaped payload measured 1,743 tokens before projection and 90 after
+(94.84% fewer serialized-payload tokens). This is a fixture measurement, not
+observed agent billing or controller traffic.
+
 `GET /v1/sites/{site_ref}/wan-ports/availability-summary` and its MCP tool
 `omada_site_wan_port_availability_summary` query the selected site with one
 documented function code from 0 through 15. The redacted result counts rows and
@@ -53,6 +79,10 @@ MAC addresses and event timestamps are discarded. More rows than returned,
 malformed values or unknown fields mark the result partial. The fixed read is
 included in the site WLAN diagnostic. Fixture coverage only; live support is
 unknown.
+
+A synthetic 20-MAC topology response measured 241 tokens before projection and
+87 after (63.90% fewer serialized-payload tokens) with the same tokenizer.
+This comparison does not include MCP framing or tool schemas.
 
 On the checked-in empty-event fixture, `js-tiktoken` 1.0.21 / `o200k_base`
 counted twelve separate GET path/response objects at 1,594 tokens and the

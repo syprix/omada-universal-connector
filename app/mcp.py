@@ -672,7 +672,10 @@ def _tool(operation: Any) -> dict[str, object]:
                                 "description": "Page size, capped at 100 rows."}
             required.append(name)
         elif name == "vpn_type":
-            if operation.operation_id == "site_vpn_server_status_summary":
+            if operation.operation_id == "site_vpn_s2s_status_summary":
+                properties[name] = {"type": "integer", "enum": [2, 4],
+                                    "description": "Site-to-site VPN protocol: 2 IPsec or 4 WireGuard."}
+            elif operation.operation_id == "site_vpn_server_status_summary":
                 properties[name] = {"type": "integer", "enum": list(range(6)),
                                     "description": "VPN protocol: 0 L2TP, 1 PPTP, 2 IPsec, 3 OpenVPN, 4 WireGuard, 5 SSL VPN."}
             elif operation.operation_id == "site_vpn_client_status_summary":
@@ -1303,7 +1306,8 @@ def _invoke_tool(registry: Any, name: object, arguments: object,
         elif key == "vpn_type":
             value = arguments.get(key)
             allowed_values = (
-                range(6) if operation.operation_id == "site_vpn_server_status_summary"
+                (2, 4) if operation.operation_id == "site_vpn_s2s_status_summary"
+                else range(6) if operation.operation_id == "site_vpn_server_status_summary"
                 else (0, 1, 3, 4) if operation.operation_id == "site_vpn_client_status_summary"
                 else (0, 1))
             if type(value) is not int or value not in allowed_values:

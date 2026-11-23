@@ -465,6 +465,12 @@ The VPN client status summary is implemented as an authenticated HTTP/MCP read, 
 
 The selected-SSID client count read is implemented for the two source exports that document `getGridSsidClients`. It sends only the OpenAPI 3.0.1 default flat `page` and `pageSize` query fields, binds the SSID to its selected site inventory, and reports page coverage. The endpoint is absent from the ER7212PC export; live behavior remains unconfirmed.
 
+The Site-to-Site VPN status summary (#61) filters by documented IPsec or WireGuard protocol and counts raw documented integer status codes over bounded pages. None of the three exports assigns meanings to those codes; the summary does not assert tunnel connectivity. This read is separate from #45's IPsec security-association list and does not close its missing status semantics. The ER7212PC example has inconsistent page totals and row data; it is not accepted as valid evidence. Live behavior remains unconfirmed.
+
+The selected-SSID topology device summary (#62) binds a fresh selected SSID to its site, reads the same site's device inventory and joins inventory classes against the documented topology MAC list. It omits MACs and names, reports unmatched or ambiguous coverage, and makes no RF coverage claim. The v3 endpoint appears in Hardware Controller and CBC exports but is absent from ER7212PC. Live behavior remains unconfirmed.
+
+Synthetic payload measurements with `js-tiktoken` 1.0.21 (`o200k_base`) were 1,743 → 90 tokens for twenty source-shaped VPN rows (#61; 94.84% fewer), and 241 → 87 for twenty topology MACs (#62; 63.90% fewer). These are serialized-payload fixtures, not live responses or billed-agent usage.
+
 Site remote logging is exposed as a redacted HTTP/MCP read. Destination values and delivery claims are excluded; only documented enablement, category and target presence are summarized. Live behavior is unconfirmed.
 
 The controller-wide firmware upgrade-log read is bounded to a 100-row page and reports only documented aggregate state and coverage. It redacts identities, versions, model details and raw timestamps; no update action is exposed. Live behavior is unconfirmed.
