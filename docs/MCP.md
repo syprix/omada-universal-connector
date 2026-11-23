@@ -1001,6 +1001,15 @@ counts for class-rule enable state, documented IP versions and class values.
 Address groups, service and rule identifiers, and DSCP values are omitted. It
 does not report traffic matches or effective throughput.
 
+`omada_site_ap_webfilter_summary` accepts a `site_ref` and returns bounded AP
+URL-filter counts by documented type, mode, status and feature-flag coverage.
+It omits rule text, URLs, keywords, categories, schedules, names and source
+identities, and makes no enforcement claim.
+
+`omada_site_url_filter_general_summary` accepts a `site_ref` and reports only
+the documented SafeSearch and block-page flags. The optional message text is
+omitted, and effective filtering is not inferred.
+
 `omada_site_wan_unsupported_function_summary` reads the selected site's
 DS-Lite/MAP-E limitation list with the fixed documented `filter=1` query. It
 returns an entry count and result quality only; API label text is neither

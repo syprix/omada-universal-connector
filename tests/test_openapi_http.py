@@ -833,6 +833,21 @@ class FakeOpenApiClient:
                 "enabled_status_count": 2, "disabled_status_count": 1,
                 "configuration_only": True}
 
+    def read_site_ap_webfilter_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_ap_webfilter_summary", site_ref))
+        return {"status": "ok", "resource": "site_ap_webfilter_summary",
+                "site_ref": site_ref, "reported_rule_total": 1,
+                "by_documented_endpoint_rule_type": {"ap": 1, "gateway": 0, "unknown": 0},
+                "raw_rules_urls_keywords_categories_schedules_and_sources_returned": False,
+                "enforcement_inferred": False}
+
+    def read_site_url_filter_general_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_url_filter_general_summary", site_ref))
+        return {"status": "ok", "resource": "site_url_filter_general_summary",
+                "site_ref": site_ref,
+                "reported_settings": {"safeSearch": "enabled", "blockPage": "disabled"},
+                "block_page_message_returned": False, "enforcement_inferred": False}
+
     def read_site_gateway_qos_class_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_gateway_qos_class_summary", site_ref))
         return {"status": "ok", "resource": "site_gateway_qos_class_summary",
@@ -2997,6 +3012,52 @@ class OpenApiHttpTests(unittest.TestCase):
         connection.close()
         return response.status, payload
 
+    def test_webfilter_adapters_use_documented_paths_and_redacted_projections(self) -> None:
+        site_ref = "a" * 24
+        client = OmadaOpenApiClient(OpenApiConfig(
+            "https://controller.example", "ctrl", "id", "secret", cert_sha256="a" * 64))
+        client._site_ids_by_ref[site_ref] = "site_1"
+        self.assertTrue(client._site_ap_webfilter_request_valid(
+            "/openapi/v1/ctrl/sites/site_1/url-filters/eap?page=1&pageSize=100"))
+        self.assertFalse(client._site_ap_webfilter_request_valid(
+            "/openapi/v1/other/sites/site_1/url-filters/eap?page=1&pageSize=100"))
+        self.assertFalse(client._site_ap_webfilter_request_valid(
+            "/openapi/v1/ctrl/sites/site_1/url-filters/eap?page=11&pageSize=100"))
+        self.assertTrue(client._site_url_filter_general_request_valid(
+            "/openapi/v1/ctrl/sites/site_1/url-filters/globalUrlFilter"))
+        self.assertFalse(client._site_url_filter_general_request_valid(
+            "/openapi/v1/other/sites/site_1/url-filters/globalUrlFilter"))
+        calls = []
+
+        def upstream(method, path, **kwargs):
+            calls.append((method, path))
+            if path.startswith("/openapi/v1/ctrl/sites/site_1/url-filters/eap?"):
+                return {"errorCode": 0, "result": {
+                    "totalRows": 1, "currentPage": 1, "currentSize": 1,
+                    "supportKeyword": True, "supportCategory": False,
+                    "supportTimeSchedule": True,
+                    "data": [{"type": "ap", "status": True, "filterMode": 0,
+                              "existKeyword": False, "existCategory": True,
+                              "existTimeSchedule": False, "urls": ["private.example"],
+                              "sourceIds": ["private-id"]}]}}
+            return {"errorCode": 0, "result": {
+                "safeSearch": True, "blockPage": False,
+                "blockPageMessage": "private message"}}
+
+        with patch.object(client, "_access_token", return_value="token"), \
+                patch.object(client, "_request_json", side_effect=upstream):
+            ap = client.read_site_ap_webfilter_summary(site_ref)
+            general = client.read_site_url_filter_general_summary(site_ref)
+        self.assertEqual(ap["by_documented_endpoint_rule_type"]["ap"], 1)
+        self.assertNotIn("private.example", json.dumps(ap))
+        self.assertNotIn("private-id", json.dumps(ap))
+        self.assertEqual(general["reported_settings"],
+                         {"safeSearch": "enabled", "blockPage": "disabled"})
+        self.assertNotIn("private message", json.dumps(general))
+        self.assertEqual(calls, [
+            ("GET", "/openapi/v1/ctrl/sites/site_1/url-filters/eap?page=1&pageSize=100"),
+            ("GET", "/openapi/v1/ctrl/sites/site_1/url-filters/globalUrlFilter")])
+
     def test_http_ap_overview_uses_site_bound_reference_and_redacted_projection(self) -> None:
         site_ref, ap_ref = "a" * 24, "b" * 24
         client = OmadaOpenApiClient(OpenApiConfig(
@@ -4784,6 +4845,35 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(response["result"]["structuredContent"], direct)
         self.assertEqual(self.fake.calls,
                          [("site_gateway_webfilter_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_ap_webfilter_summary(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/ap-webfilter/summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200, repr(direct))
+        self.assertEqual(direct["resource"], "site_ap_webfilter_summary")
+        request = {"jsonrpc": "2.0", "id": 335, "method": "tools/call",
+                   "params": {"name": "omada_site_ap_webfilter_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls, [("site_ap_webfilter_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_url_filter_general_summary(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/url-filter-general/summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200, repr(direct))
+        self.assertEqual(direct["resource"], "site_url_filter_general_summary")
+        request = {"jsonrpc": "2.0", "id": 336, "method": "tools/call",
+                   "params": {"name": "omada_site_url_filter_general_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_url_filter_general_summary", site_ref)] * 2)
 
     def test_http_and_mcp_expose_site_gateway_qos_class_summary(self) -> None:
         site_ref = "a" * 24

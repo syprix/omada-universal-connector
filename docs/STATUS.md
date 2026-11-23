@@ -679,3 +679,24 @@ framing and billed agent usage. Projection, binding, HTTP/MCP, registry,
 matrix/evidence and full HTTP-module tests passed. Live controller support was
 not tested. These changes are prepared for review and are not represented as
 merged or released.
+
+## 2026-11-23 — AP webfilter and global filter summaries
+
+Added site-bound HTTP and MCP reads for AP URL-filter rules and global URL
+filter settings. The AP summary counts documented AP rule type, URL/category
+mode, reported status and feature-flag coverage, while omitting rule text,
+URLs, keywords, categories, schedules, names and source identities. The global
+summary reports only SafeSearch and block-page flags; it omits the optional
+block-page message. Both report controller configuration only, not effective
+filtering. Offline contract checks found both operations in all three supplied
+API exports; live controller support is unknown.
+
+Synthetic JSON projections were tokenized with `tiktoken` 0.9.0 and
+`o200k_base`: a 20-rule AP page measured 2,076 source tokens and 276 summary
+tokens (86.71% fewer); a global settings response with a repeated block-page
+message measured 296 and 46 tokens (84.46% fewer). These figures cover only
+serialized JSON and exclude prompts, tool schemas, transport framing and billed
+agent usage. Focused projection and adapter tests passed, the full HTTP module
+passed (367 tests), and the registry/matrix/evidence gate passed (302 tests).
+Live support was not tested. This work is
+prepared for review and is not represented as merged or released.

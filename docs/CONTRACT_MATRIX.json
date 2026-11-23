@@ -2939,6 +2939,37 @@
             "response": "Paginated OuiBasedVlanSwitchQueryOpenApiVO rows document enable:boolean and mode:int32 (0=all device ports, 1=custom device ports), plus id, name, deviceList and ruleCombine.",
             "projection": "Counts reported enable flags and documented port-scope modes for at most 1,000 rows. Omits rule IDs/names, device and port identities, OUI values and VLAN values; no VLAN enforcement or actual assignment is inferred. The ER7212PC export explicitly restricts this interface to Omada Pro and documents error -44119 for non-Pro use; that platform is not represented as supported."
           }
+        },
+        "site_ap_webfilter_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridEapRule",
+            "permission": "Site Settings Manager View Only; Network Config Page View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/url-filters/eap",
+            "query": {
+              "required": [
+                "page:int32 (minimum 1)",
+                "pageSize:int32 (1–1000)"
+              ]
+            },
+            "request_body": false,
+            "response": "Paginated UrlFilteringOpenApiGridVOQueryUrlFilteringOpenApiVO. Grid rows resolve to QueryUrlFilteringOpenApiVO; type:string distinguishes gateway and ap, status:boolean, filterMode:int32 (0 URL, 1 category), and optional existKeyword, existCategory, existTimeSchedule:boolean. The grid may report supportKeyword, supportCategory and supportTimeSchedule:boolean.",
+            "projection": "Reads at most 1,000 rows in pages of 100. Counts AP rule type, documented filter mode, reported status and feature-flag coverage, plus source feature support. Gateway-tagged or unknown rule types are not included in AP detail counts and make the result partial. Omits rule IDs, names, URLs, keywords, categories, schedules, source IDs and raw values. Reports configuration only; no enforcement is inferred."
+          }
+        },
+        "site_url_filter_general_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getUrlFilterGeneral",
+            "permission": "Site Settings Manager View Only; Network Config Page View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/url-filters/globalUrlFilter",
+            "query": {},
+            "request_body": false,
+            "response": "UrlFilterGlobalOpenApiVO has required safeSearch:boolean and blockPage:boolean. Optional blockPageMessage:string is documented.",
+            "projection": "Returns only the reported SafeSearch and block-page flags, distinguishing unknown from false. Omits blockPageMessage. Describes controller-reported configuration only; effective enforcement is not inferred."
+          }
         }
       }
     },
@@ -5851,6 +5882,37 @@
             "response": "Paginated OuiBasedVlanSwitchQueryOpenApiVO rows document enable:boolean and mode:int32 (0=all device ports, 1=custom device ports), plus id, name, deviceList and ruleCombine.",
             "projection": "Counts reported enable flags and documented port-scope modes for at most 1,000 rows. Omits rule IDs/names, device and port identities, OUI values and VLAN values; no VLAN enforcement or actual assignment is inferred. The ER7212PC export explicitly restricts this interface to Omada Pro and documents error -44119 for non-Pro use; that platform is not represented as supported."
           }
+        },
+        "site_ap_webfilter_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridEapRule",
+            "permission": "Site Settings Manager View Only; Network Config Page View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/url-filters/eap",
+            "query": {
+              "required": [
+                "page:int32 (minimum 1)",
+                "pageSize:int32 (1–1000)"
+              ]
+            },
+            "request_body": false,
+            "response": "Paginated UrlFilteringOpenApiGridVOQueryUrlFilteringOpenApiVO. Grid rows resolve to QueryUrlFilteringOpenApiVO; type:string distinguishes gateway and ap, status:boolean, filterMode:int32 (0 URL, 1 category), and optional existKeyword, existCategory, existTimeSchedule:boolean. The grid may report supportKeyword, supportCategory and supportTimeSchedule:boolean.",
+            "projection": "Reads at most 1,000 rows in pages of 100. Counts AP rule type, documented filter mode, reported status and feature-flag coverage, plus source feature support. Gateway-tagged or unknown rule types are not included in AP detail counts and make the result partial. Omits rule IDs, names, URLs, keywords, categories, schedules, source IDs and raw values. Reports configuration only; no enforcement is inferred."
+          }
+        },
+        "site_url_filter_general_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getUrlFilterGeneral",
+            "permission": "Site Settings Manager View Only; Network Config Page View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/url-filters/globalUrlFilter",
+            "query": {},
+            "request_body": false,
+            "response": "UrlFilterGlobalOpenApiVO has required safeSearch:boolean and blockPage:boolean. Optional blockPageMessage:string is documented.",
+            "projection": "Returns only the reported SafeSearch and block-page flags, distinguishing unknown from false. Omits blockPageMessage. Describes controller-reported configuration only; effective enforcement is not inferred."
+          }
         }
       }
     },
@@ -8711,6 +8773,37 @@
             "response": "Paginated OuiBasedVlanSwitchQueryOpenApiVO rows document enable:boolean and mode:int32 (0=all device ports, 1=custom device ports), plus id, name, deviceList and ruleCombine.",
             "projection": "Counts reported enable flags and documented port-scope modes for at most 1,000 rows. Omits rule IDs/names, device and port identities, OUI values and VLAN values; no VLAN enforcement or actual assignment is inferred. The ER7212PC export explicitly restricts this interface to Omada Pro and documents error -44119 for non-Pro use; that platform is not represented as supported.",
             "platform_limit": "Export describes this interface as Omada Pro-only; non-Pro use may return -44119."
+          }
+        },
+        "site_ap_webfilter_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridEapRule",
+            "permission": "Site Settings Manager View Only; Network Config Page View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/url-filters/eap",
+            "query": {
+              "required": [
+                "page:int32 (minimum 1)",
+                "pageSize:int32 (1–1000)"
+              ]
+            },
+            "request_body": false,
+            "response": "Paginated UrlFilteringOpenApiGridVOQueryUrlFilteringOpenApiVO. Grid rows resolve to QueryUrlFilteringOpenApiVO; type:string distinguishes gateway and ap, status:boolean, filterMode:int32 (0 URL, 1 category), and optional existKeyword, existCategory, existTimeSchedule:boolean. The grid may report supportKeyword, supportCategory and supportTimeSchedule:boolean.",
+            "projection": "Reads at most 1,000 rows in pages of 100. Counts AP rule type, documented filter mode, reported status and feature-flag coverage, plus source feature support. Gateway-tagged or unknown rule types are not included in AP detail counts and make the result partial. Omits rule IDs, names, URLs, keywords, categories, schedules, source IDs and raw values. Reports configuration only; no enforcement is inferred."
+          }
+        },
+        "site_url_filter_general_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getUrlFilterGeneral",
+            "permission": "Site Settings Manager View Only; Network Config Page View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/url-filters/globalUrlFilter",
+            "query": {},
+            "request_body": false,
+            "response": "UrlFilterGlobalOpenApiVO has required safeSearch:boolean and blockPage:boolean. Optional blockPageMessage:string is documented.",
+            "projection": "Returns only the reported SafeSearch and block-page flags, distinguishing unknown from false. Omits blockPageMessage. Describes controller-reported configuration only; effective enforcement is not inferred."
           }
         }
       }

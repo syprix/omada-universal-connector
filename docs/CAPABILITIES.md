@@ -1741,6 +1741,18 @@ summary JSON tokens (89.81% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`.
 A synthetic 20-rule webfilter page measured 2,005→225 serialized JSON tokens
 (88.78% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`.
 
+`site_ap_webfilter_summary` reads the separate AP URL-filter grid for one site,
+up to 1,000 rules. It counts documented AP rule types, URL/category filter
+modes, reported status and feature-flag coverage, plus grid feature support.
+Rule text, URLs, keywords, categories, schedule values, names and source
+identities are omitted. Unexpected gateway or unknown rows make the result
+partial; the summary does not claim enforcement.
+
+`site_url_filter_general_summary` reports the site's documented SafeSearch and
+block-page flags. It omits the optional block-page message and describes
+controller-reported settings only. Effective filtering is not inferred. Live
+support for both reads remains unknown.
+
 ## WAN limitation entry summary
 
 `GET /v1/sites/{site_ref}/wan/unsupported-functions/summary` and

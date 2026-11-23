@@ -428,6 +428,8 @@ IMPLEMENTED: dict[tuple[str, str], str] = {
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/remoteAccess/tunnel/status"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/network-security/ips"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/url-filters/gateway"): "implemented_read",
+    ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/url-filters/eap"): "implemented_read",
+    ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/url-filters/globalUrlFilter"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/qos/gateway/class-rules"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/setting/vpn/stats/server"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/setting/vpn/stats/s2s"): "implemented_read",
