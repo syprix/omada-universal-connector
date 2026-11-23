@@ -785,6 +785,27 @@ binding tests passed (10 tests); compile and whitespace checks passed. No
 controller read was made. Synthetic serialized JSON measured with
 `js-tiktoken` 1.0.21 / `o200k_base`: gateway settings 77→36 tokens, switch
 settings 78→43 and ER7212PC-shaped switch settings 63→39. These measurements
-cover serialized payloads only and do not represent billed agent usage. The
-changes are locally verified and await GitHub CI; they are not represented as
-merged or released.
+cover serialized payloads only and do not represent billed agent usage. Exact
+push and pull-request CI passed for PR #57, which was merged as
+`a05f10f56a6a5748a5cc631ed320210040b5bd42` (tree
+`b6fdb001dede9ad9876d45c02d39f4c7389e68fc`). No live controller read was made.
+
+## 2026-11-23 — AP group assignment and selected-group summaries
+
+Added two site-bound reads. The first uses bounded pages to count AP rows with
+and without a reported AP-group assignment and aggregates documented SSID
+override counts. The second takes a `group_ref` from the freshly refreshed
+group inventory, requires exactly one match, then reports the documented
+primary flag, AP count and remaining SSID bindings by band. The AP-group
+inventory returns opaque references and primary/AP-count selection cues while
+omitting raw IDs, names and SSID labels. Hardware/CBC document both operations;
+ER7212PC does not. No controller call was made.
+
+Synthetic serialized JSON measured with `js-tiktoken` 1.0.21 / `o200k_base`:
+AP assignments 2,186→90 tokens; a 20-group AP inventory 1,412→728; selected
+group details 69→62. Measurements cover synthetic API payloads and connector
+responses only, not billed agent usage. On this tree, the full HTTP/MCP module
+passed 382 tests; the registry/matrix/evidence gate passed 307 tests, and the
+focused projector/binding/registry/route set passed 114 tests. The three-export
+contract and full matrix checks, compileall, and diff check also passed. No live
+controller read was made.

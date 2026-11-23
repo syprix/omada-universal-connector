@@ -694,10 +694,20 @@ still unknown.
 
 `omada_site_ap_group_summary` reads the documented paginated AP-group list for
 one site. It returns bounded group and AP counts, per-band remaining SSID
-binding totals and the documented SSID limits; group IDs, names and SSID labels
-are omitted. It uses fixed page parameters, supports no caller search/filter,
-and does not infer controller support from the API contract. Fixture-backed
-projection and HTTP/MCP dispatch are tested; live support is unknown.
+binding totals and the documented SSID limits. Group IDs, names and SSID labels
+are omitted. It also returns opaque `group_ref` handles with the primary flag
+and AP count so a caller can select one group for the detail read. It uses fixed
+page parameters and supports no caller search or filter.
+
+`omada_site_ap_group_assignment_summary` reads a bounded paginated AP list and
+counts rows with and without a reported AP-group assignment, plus documented
+SSID override totals. AP names, addresses, IDs and traffic are omitted.
+
+`omada_site_ap_group_info_summary` takes a `site_ref` and a current `group_ref`
+from the AP-group summary. It refreshes the group inventory and requires one
+unique match before reading the detail. It returns the documented primary
+flag, AP count and remaining SSID bindings by band. Group IDs, names and SSID
+labels are omitted. Hardware/CBC document these reads; live support is unknown.
 
 `omada_site_ap_oui_vlan_rules_summary` reads the paginated, documented AP OUI
 VLAN rule list for one site. It reports only rule-state, SSID-binding,

@@ -89,7 +89,13 @@ class SiteApGroupSummaryClientTests(unittest.TestCase):
             "GET", "/openapi/v1/ctrl/sites/site_1/ap-groups?page=1&pageSize=100", token="token")
         self.assertEqual(result["resource"], "site_ap_group_summary")
         self.assertEqual(result["ap_count_total"], 2)
+        self.assertEqual(len(result["groups"]), 1)
+        self.assertEqual(result["groups"][0]["group_ref"],
+                         self.client._opaque_ref("ap_group", "site_1:private"))
+        self.assertEqual(result["groups"][0]["primary"], True)
+        self.assertEqual(result["groups"][0]["ap_count"], 2)
         self.assertNotIn("hidden", repr(result))
+        self.assertNotIn('"private"', repr(result))
 
     def test_reads_all_bounded_pages_before_summarizing(self) -> None:
         self.client.config = OpenApiConfig(

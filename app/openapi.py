@@ -1646,6 +1646,9 @@ class OmadaOpenApiClient:
     _SITE_AP_GROUP_CAPACITY_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/count-ap-groups")
     _SITE_AP_GROUPS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/ap-groups"
+    _SITE_AP_GROUP_APS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/ap-groups/aps"
+    _SITE_AP_GROUP_INFO_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/ap-groups/{group_id}/info")
     _SITE_AP_OUI_VLAN_RULES_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/ap-oui-rules"
     _SITE_SWITCH_SUPPORT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switch-support"
     _RRM_INCOMPATIBLE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/rrm/incompatible"
@@ -3368,6 +3371,8 @@ class OmadaOpenApiClient:
         ("site_wlan_group_capacity", "GET /v1/sites/{site_ref}/wlan-group-capacity"),
         ("site_ap_group_capacity", "GET /v1/sites/{site_ref}/ap-group-capacity"),
         ("site_ap_group_summary", "GET /v1/sites/{site_ref}/ap-groups"),
+        ("site_ap_group_assignment_summary", "GET /v1/sites/{site_ref}/ap-groups/aps/summary"),
+        ("site_ap_group_info_summary", "GET /v1/sites/{site_ref}/ap-groups/{group_ref}/info-summary"),
         ("site_ap_oui_vlan_rules_summary", "GET /v1/sites/{site_ref}/ap-oui-rules/summary"),
         ("site_vlan_ssid_usage_summary", "GET /v1/sites/{site_ref}/networks/{network_ref}/vlan-ssids/summary"),
         ("site_vlan_device_usage_summary", "GET /v1/sites/{site_ref}/networks/{network_ref}/vlan-devices/summary"),
@@ -3465,6 +3470,8 @@ class OmadaOpenApiClient:
         self._switch_macs_by_site_ref: dict[str, dict[str, str]] = {}
         self._ssid_ids_by_site_ref: dict[str, dict[str, str]] = {}
         self._wlan_group_ids_by_site_ref: dict[str, dict[str, str]] = {}
+        self._ap_group_ids_by_site_ref: dict[str, dict[str, str]] = {}
+        self._ambiguous_ap_group_refs_by_site_ref: dict[str, set[str]] = {}
         self._incident_ids_by_site_ref: dict[str, dict[str, str]] = {}
         self._incident_context_by_site_ref: dict[str, dict[str, dict[str, str]]] = {}
         self._capability_evidence: dict[tuple[str, str | None], dict[str, object]] = {}
@@ -6914,8 +6921,96 @@ class OmadaOpenApiClient:
             data = project_site_ap_group_summary(result)
         except ApGroupSummaryError:
             raise OpenApiError("openapi_response_invalid") from None
+        raw_rows = result.get("data")
+        if not isinstance(raw_rows, list):
+            raise OpenApiError("openapi_response_invalid")
+        group_ids: dict[str, str] = {}
+        ambiguous: set[str] = set()
+        groups: list[dict[str, object]] = []
+        missing_refs = 0
+        for row in raw_rows:
+            if not isinstance(row, Mapping):
+                missing_refs += 1
+                continue
+            group_id = row.get("id")
+            if not isinstance(group_id, str) or not re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", group_id):
+                missing_refs += 1
+                continue
+            group_ref = self._opaque_ref("ap_group", site_id + ":" + group_id)
+            if group_ref in group_ids:
+                if group_ids[group_ref] != group_id:
+                    raise OpenApiError("openapi_response_invalid")
+                ambiguous.add(group_ref)
+                continue
+            group_ids[group_ref] = group_id
+            entry: dict[str, object] = {"group_ref": group_ref}
+            primary = row.get("primary")
+            entry["primary"] = primary if type(primary) is bool else None
+            ap_num = row.get("apNum")
+            entry["ap_count"] = ap_num if type(ap_num) is int and 0 <= ap_num <= 2**63 - 1 else None
+            groups.append(entry)
+        self._ap_group_ids_by_site_ref[site_ref] = {
+            ref: group_id for ref, group_id in group_ids.items() if ref not in ambiguous
+        }
+        self._ambiguous_ap_group_refs_by_site_ref[site_ref] = ambiguous
+        data["groups"] = [entry for entry in groups if entry["group_ref"] not in ambiguous]
+        data["group_ref_missing_rows"] = missing_refs
+        data["ambiguous_group_ref_count"] = len(ambiguous)
+        data["partial"] = bool(data.get("partial") or missing_refs or ambiguous)
         return {"status": "ok", "resource": "site_ap_group_summary",
                 "site_ref": site_ref, **data}
+
+    @_track_capability("site_ap_group_assignment_summary")
+    def read_site_ap_group_assignment_summary(self, site_ref: str) -> dict[str, object]:
+        """Count reported AP group assignments and SSID overrides for one site."""
+        site_id = self._resolve_site_ref(site_ref)
+        base = self._SITE_AP_GROUP_APS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._read_pages_result(base, self._access_token(), max_items=10_000)
+        try:
+            from .site_ap_group_assignment_summary import summarize_ap_group_assignments
+        except ImportError:  # direct execution in the image
+            from site_ap_group_assignment_summary import summarize_ap_group_assignments
+        try:
+            projected = summarize_ap_group_assignments(result.get("data"))
+        except ValueError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"site_ref": site_ref, **projected}
+
+    @_track_capability("site_ap_group_info_summary")
+    def read_site_ap_group_info_summary(self, site_ref: str,
+                                        group_ref: str) -> dict[str, object]:
+        """Read redacted details for exactly one AP group in a fresh site list."""
+        site_id = self._resolve_site_ref(site_ref)
+        if not isinstance(group_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", group_ref):
+            raise OpenApiError("ap_group_ref_invalid")
+        inventory = self.read_site_ap_group_summary(site_ref)
+        group_rows = inventory.get("groups")
+        if not isinstance(group_rows, list):
+            raise OpenApiError("openapi_response_invalid")
+        matches = [row for row in group_rows if isinstance(row, Mapping) and
+                   row.get("group_ref") == group_ref]
+        if group_ref in self._ambiguous_ap_group_refs_by_site_ref.get(site_ref, set()):
+            raise OpenApiError("ap_group_ref_ambiguous")
+        if len(matches) != 1:
+            raise OpenApiError("ap_group_ref_unknown")
+        group_id = self._ap_group_ids_by_site_ref.get(site_ref, {}).get(group_ref)
+        if not group_id:
+            raise OpenApiError("ap_group_ref_unknown")
+        path = self._SITE_AP_GROUP_INFO_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, group_id=group_id)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            from .site_ap_group_info_summary import summarize_ap_group_info
+        except ImportError:  # direct execution in the image
+            from site_ap_group_info_summary import summarize_ap_group_info
+        try:
+            projected = summarize_ap_group_info(payload.get("result"))
+        except ValueError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"group_ref": group_ref, **projected}
 
     @_track_capability("site_ap_oui_vlan_rules_summary")
     def read_site_ap_oui_vlan_rules_summary(self, site_ref: str) -> dict[str, object]:
@@ -17003,6 +17098,8 @@ class OmadaOpenApiClient:
                                   self._site_wlan_group_capacity_request_valid(path) or
                                   self._site_ap_group_capacity_request_valid(path) or
                                   self._site_ap_group_summary_request_valid(path) or
+                                  self._site_ap_group_assignment_request_valid(path) or
+                                  self._site_ap_group_info_request_valid(path) or
                                   self._site_ap_oui_vlan_rules_request_valid(path) or
                                   self._site_vlan_ssid_usage_request_valid(path) or
                                   self._site_vlan_device_usage_request_valid(path) or
@@ -19363,6 +19460,26 @@ class OmadaOpenApiClient:
             return False
         return (page <= self.config.max_pages and page_size == self.config.page_size and
                 page_size <= 1000)
+
+    def _site_ap_group_assignment_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+            r"[A-Za-z0-9_-]{1,128}/ap-groups/aps\?page=([1-9][0-9]*)&pageSize=([1-9][0-9]*)",
+            path)
+        if not match:
+            return False
+        try:
+            page, page_size = int(match.group(1)), int(match.group(2))
+        except ValueError:
+            return False
+        return (page <= self.config.max_pages and page_size == self.config.page_size and
+                page_size <= 1000)
+
+    def _site_ap_group_info_request_valid(self, path: str) -> bool:
+        return bool(re.fullmatch(
+            rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+            r"[A-Za-z0-9_-]{1,128}/ap-groups/[A-Za-z0-9_.:-]{1,128}/info",
+            path))
 
     def _site_ap_oui_vlan_rules_request_valid(self, path: str) -> bool:
         match = re.fullmatch(
