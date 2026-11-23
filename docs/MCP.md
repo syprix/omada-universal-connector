@@ -974,3 +974,13 @@ VPN server configuration and status.
 the enable/geo flags, documented IDS/IPS mode and detection level codes, and
 custom-category count. Schedule IDs and raw category values
 are omitted. It does not report attack detection or enforcement.
+`omada_site_gateway_webfilter_summary` accepts a `site_ref`. It returns bounded
+counts by documented rule type and enabled state, plus coverage of the optional
+keyword, category and time-schedule flags and the source feature-support flags.
+The output omits identifiers, names, URLs, keywords, category values, source
+IDs and schedule values; it does not describe effective filtering.
+
+`omada_site_gateway_qos_class_summary` accepts a `site_ref` and returns bounded
+counts for class-rule enable state, documented IP versions and class values.
+Address groups, service and rule identifiers, and DSCP values are omitted. It
+does not report traffic matches or effective throughput.

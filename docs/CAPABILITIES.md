@@ -1699,3 +1699,24 @@ operation; live support remains unknown.
 
 A synthetic IDS/IPS response fixture measured 65 source JSON tokens and 46
 summary JSON tokens (29.23% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`.
+`site_gateway_webfilter_summary` reads the documented gateway URL-filter grid
+for one site, at most 1,000 rules. It summarizes the documented gateway/AP rule
+type, enabled state, optional keyword/category/schedule flags and source
+feature-support flags. Rule IDs, names, URLs, keywords, category values, source
+IDs and schedule values are omitted. It reports configuration only; live support
+is unknown.
+
+A synthetic 20-rule gateway response measured 2,005 source JSON tokens and 225
+summary JSON tokens (88.78% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`.
+
+`site_gateway_qos_class_summary` reads the documented gateway QoS class-rule
+grid for one site, at most 1,000 rules. It counts documented enabled/disabled
+state, IPv4/IPv6 codes and class 1/2/3 values. Local/remote address-group
+values, service IDs, rule IDs and DSCP values are omitted. The output describes
+configuration only; it does not infer traffic matches or throughput.
+
+A synthetic 20-rule gateway fixture measured 1,109 source JSON tokens and 113
+summary JSON tokens (89.81% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`.
+
+A synthetic 20-rule webfilter page measured 2,005→225 serialized JSON tokens
+(88.78% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`.

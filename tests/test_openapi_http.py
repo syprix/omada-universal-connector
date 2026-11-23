@@ -809,6 +809,23 @@ class FakeOpenApiClient:
                     "enabled": 2, "disabled": 1, "unreported": 0},
                 "activation_semantics": "documented VPN status flag; not tunnel connectivity"}
 
+    def read_site_gateway_webfilter_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_gateway_webfilter_summary", site_ref))
+        return {"status": "ok", "resource": "site_gateway_webfilter_summary",
+                "site_ref": site_ref, "summarized_rule_count": 3,
+                "by_documented_rule_type": {"gateway": 3, "ap": 0},
+                "enabled_status_count": 2, "disabled_status_count": 1,
+                "configuration_only": True}
+
+    def read_site_gateway_qos_class_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_gateway_qos_class_summary", site_ref))
+        return {"status": "ok", "resource": "site_gateway_qos_class_summary",
+                "site_ref": site_ref, "summarized_rule_count": 2,
+                "enabled_state_counts": {"enabled": 1, "disabled": 1},
+                "documented_ip_version_counts": {"0": 1, "1": 1},
+                "documented_class_counts": {"1": 1, "3": 1},
+                "traffic_state": "configuration only"}
+
     def read_site_s2s_vpn_v2_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_s2s_vpn_v2_summary", site_ref))
         return {"status": "ok", "resource": "site_s2s_vpn_v2_summary",
@@ -4692,6 +4709,36 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(response["result"]["structuredContent"], direct)
         self.assertEqual(self.fake.calls,
                          [("site_s2s_vpn_inventory_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_site_gateway_webfilter_summary(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/gateway-webfilter/summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200, repr(direct))
+        self.assertEqual(direct["resource"], "site_gateway_webfilter_summary")
+        request = {"jsonrpc": "2.0", "id": 333, "method": "tools/call",
+                   "params": {"name": "omada_site_gateway_webfilter_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_gateway_webfilter_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_site_gateway_qos_class_summary(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/gateway-qos/classes/summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200, repr(direct))
+        self.assertEqual(direct["resource"], "site_gateway_qos_class_summary")
+        request = {"jsonrpc": "2.0", "id": 334, "method": "tools/call",
+                   "params": {"name": "omada_site_gateway_qos_class_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_gateway_qos_class_summary", site_ref)] * 2)
 
     def test_http_and_mcp_expose_site_vpn_server_config_summary(self) -> None:
         site_ref = "a" * 24
