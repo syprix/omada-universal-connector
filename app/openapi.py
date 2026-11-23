@@ -2102,6 +2102,14 @@ class OmadaOpenApiClient:
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/upgrade/overview/plans"
         r"\?page=([1-9][0-9]*)&pageSize=([1-9][0-9]*)"
     )
+    _CONTROLLER_UPGRADE_LOGS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/upgrade/overview/logs"
+        r"\?page=([1-9][0-9]*)&pageSize=([1-9][0-9]*)"
+    )
+    _CONTROLLER_UPGRADE_FAILED_DEVICES_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/logs/([A-Za-z0-9_-]{1,128})"
+        r"/upgrade/overview/failed-devices\?page=([1-9][0-9]*)&pageSize=([1-9][0-9]*)"
+    )
     _SITE_OPEN_VPN_TUNNEL_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
         r"/dashboard/open-vpn-tunnel-stats\?type=([01])"
@@ -17897,6 +17905,8 @@ class OmadaOpenApiClient:
                                   self._site_network_delivery_request_valid(path) or
                                   self._site_lan_profiles_request_valid(path) or
                                   self._controller_upgrade_plans_request_valid(path) or
+                                  self._controller_upgrade_logs_request_valid(path) or
+                                  self._controller_upgrade_failed_devices_request_valid(path) or
                                   self._site_dhcp_candidates_request_valid(path) or
                                   self._site_network_reservation_request_valid(path) or
                                   self._site_dhcp_reservations_request_valid(path) or
@@ -19565,6 +19575,16 @@ class OmadaOpenApiClient:
         match = self._CONTROLLER_UPGRADE_PLANS_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id and
                     int(match.group(2)) <= 10 and int(match.group(3)) <= 100)
+
+    def _controller_upgrade_logs_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_UPGRADE_LOGS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id and
+                    int(match.group(2)) <= 10 and int(match.group(3)) <= 100)
+
+    def _controller_upgrade_failed_devices_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_UPGRADE_FAILED_DEVICES_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id and
+                    int(match.group(3)) <= 10 and int(match.group(4)) <= 100)
 
     def _site_open_vpn_tunnel_request_valid(self, path: str) -> bool:
         match = self._SITE_OPEN_VPN_TUNNEL_REQUEST.fullmatch(path)

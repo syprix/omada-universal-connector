@@ -777,6 +777,36 @@ class OpenApiClientTests(unittest.TestCase):
         self.assertNotIn("private-version", json.dumps(result))
         self.assertIn("page=1&pageSize=100", request.call_args.args[1])
 
+    def test_controller_upgrade_log_paths_allow_only_bound_paged_gets(self) -> None:
+        allowed_paths = [
+            "/openapi/v1/controller_1/upgrade/overview/logs?page=1&pageSize=100",
+            ("/openapi/v1/controller_1/logs/upgrade-log-1/upgrade/overview/"
+             "failed-devices?page=10&pageSize=100"),
+        ]
+        rejected_paths = [
+            "/openapi/v1/other-controller/upgrade/overview/logs?page=1&pageSize=100",
+            "/openapi/v1/controller_1/upgrade/overview/logs?page=11&pageSize=100",
+            "/openapi/v1/controller_1/upgrade/overview/logs?page=1&pageSize=101",
+            ("/openapi/v1/other-controller/logs/upgrade-log-1/upgrade/overview/"
+             "failed-devices?page=1&pageSize=100"),
+            ("/openapi/v1/controller_1/logs/upgrade-log-1/upgrade/overview/"
+             "failed-devices?page=11&pageSize=100"),
+            ("/openapi/v1/controller_1/logs/upgrade-log-1/upgrade/overview/"
+             "failed-devices?page=1&pageSize=101"),
+            ("/openapi/v1/controller_1/logs/../upgrade/overview/failed-devices"
+             "?page=1&pageSize=100"),
+        ]
+        with patch.object(self.client, "_connection",
+                          side_effect=OpenApiError("connection_reached")):
+            for path in allowed_paths:
+                with self.subTest(path_kind="allowed"), self.assertRaisesRegex(
+                        OpenApiError, "connection_reached"):
+                    self.client._request_json("GET", path, token="token")
+            for path in rejected_paths:
+                with self.subTest(path_kind="rejected"), self.assertRaisesRegex(
+                        OpenApiError, "openapi_path_rejected"):
+                    self.client._request_json("GET", path, token="token")
+
     def test_controller_upgrade_failed_devices_refreshes_selector_and_redacts_rows(self) -> None:
         ref = self.client._opaque_ref("firmware-upgrade-log", "upgrade-secret")
         with patch.object(self.client, "_access_token", return_value="token"), \
