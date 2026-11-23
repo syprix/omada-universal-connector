@@ -1424,6 +1424,8 @@ class OmadaOpenApiClient:
     _SITE_FIREWALL_SETTINGS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/firewall"
     _SITE_BANDWIDTH_CONTROL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/bandwidth-control"
     _SITE_WAN_PORTS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/internet/ports-config"
+    _SITE_WAN_UNSUPPORTED_FUNCTIONS_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/wan/networks/unsupportedFunction")
     _SITE_VIRTUAL_WAN_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/virtual-wans"
     _SITE_VIRTUAL_WAN_AVAILABLE_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/setting/available-virtual-wans")
@@ -1471,6 +1473,8 @@ class OmadaOpenApiClient:
     _SITE_DHCP_SNOOPS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dhcpSnoops"
     _SITE_MDNS_RULES_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/setting/service/mdns")
+    _SITE_MDNS_PROFILES_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/profiles/bonjour-service")
     _SITE_DDNS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/service/ddns"
     _SITE_FIREWALL_DEFAULTS_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/firewall/timeout/default")
@@ -1804,6 +1808,10 @@ class OmadaOpenApiClient:
     _SITE_WAN_PORTS_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/internet/ports-config"
     )
+    _SITE_WAN_UNSUPPORTED_FUNCTIONS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/wan/networks/unsupportedFunction\?filter=1"
+    )
     _SITE_WAN_PORT_AVAILABILITY_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/setting/wan-ports"
     )
@@ -1907,6 +1915,10 @@ class OmadaOpenApiClient:
     _SITE_MDNS_RULES_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
         r"/setting/service/mdns\?page=([1-5])&pageSize=100"
+    )
+    _SITE_MDNS_PROFILES_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/profiles/bonjour-service"
     )
     _SITE_DDNS_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
@@ -2928,6 +2940,7 @@ class OmadaOpenApiClient:
         ("site_remote_logging_summary", "GET /v1/sites/{site_ref}/remote-logging/summary"),
         ("controller_upgrade_log_summary", "GET /v1/controller/firmware-upgrades/summary"),
         ("site_wan_qos_summary", "GET /v1/sites/{site_ref}/wan-qos-summary"),
+        ("site_wan_unsupported_function_summary", "GET /v1/sites/{site_ref}/wan/unsupported-functions/summary"),
         ("gateway_wan_health", "GET /v1/sites/{site_ref}/gateways/{device_ref}/wan-health"),
         ("gateway_health", "GET /v1/sites/{site_ref}/gateways/{gateway_ref}/health"),
         ("gateway_health_timeline", "GET /v1/sites/{site_ref}/gateways/{gateway_ref}/health/timeline"),
@@ -3151,6 +3164,7 @@ class OmadaOpenApiClient:
         ("site_dhcp_snooping_status", "GET /v1/sites/{site_ref}/dhcp-snooping-status"),
         ("site_dhcp_snoops_summary", "GET /v1/sites/{site_ref}/dhcp-snoops-summary"),
         ("site_mdns_rule_summary", "GET /v1/sites/{site_ref}/mdns-rule-summary"),
+        ("site_mdns_profile_summary", "GET /v1/sites/{site_ref}/bonjour/profiles/summary"),
         ("site_ddns_summary", "GET /v1/sites/{site_ref}/ddns-summary"),
         ("site_firewall_defaults", "GET /v1/sites/{site_ref}/firewall-defaults"),
         ("site_snmp_settings_summary", "GET /v1/sites/{site_ref}/snmp-summary"),
@@ -8936,6 +8950,29 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {"site_ref": site_ref, **projected}
 
+    @_track_capability("site_wan_unsupported_function_summary")
+    def read_site_wan_unsupported_function_summary(
+            self, site_ref: str) -> dict[str, object]:
+        """Count source-described WAN limitation entries without exposing their text."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_WAN_UNSUPPORTED_FUNCTIONS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id) + "?filter=1"
+        payload = self._request_json("GET", path, token=self._access_token())
+        if ("errorCode" in payload and
+                (type(payload["errorCode"]) is not int or payload["errorCode"] != 0)):
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            from .site_wan_unsupported_function_summary import (
+                summarize_wan_unsupported_functions,
+            )
+        except ImportError:  # direct execution in the image
+            from site_wan_unsupported_function_summary import (
+                summarize_wan_unsupported_functions,
+            )
+        projected = summarize_wan_unsupported_functions(payload)
+        return {"status": "ok", "resource": "site_wan_unsupported_function_summary",
+                "site_ref": site_ref, **projected}
+
     @_track_capability("site_vpn_server_status_summary")
     def read_site_vpn_server_status_summary(self, site_ref: str,
                                             vpn_type: int) -> dict[str, object]:
@@ -13941,6 +13978,24 @@ class OmadaOpenApiClient:
         return {"status": "ok", "resource": "site_mdns_rule_summary",
                 "site_ref": site_ref, **projected}
 
+    @_track_capability("site_mdns_profile_summary")
+    def read_site_mdns_profile_summary(self, site_ref: str) -> dict[str, object]:
+        """Count Bonjour profile defaults and service entries without their values."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_MDNS_PROFILES_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if ("errorCode" in payload and
+                (type(payload["errorCode"]) is not int or payload["errorCode"] != 0)):
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            from .site_mdns_profile_summary import summarize_mdns_profiles
+        except ImportError:  # direct execution in the image
+            from site_mdns_profile_summary import summarize_mdns_profiles
+        projected = summarize_mdns_profiles(payload.get("result"))
+        return {"status": "ok", "resource": "site_mdns_profile_summary",
+                "site_ref": site_ref, **projected}
+
     @_track_capability("site_ddns_summary")
     def read_site_ddns_summary(self, site_ref: str) -> dict[str, object]:
         """Count Dynamic DNS services without returning credentials or domains."""
@@ -16184,6 +16239,7 @@ class OmadaOpenApiClient:
                                   self._site_firewall_defaults_request_valid(path) or
                                   self._site_bandwidth_control_request_valid(path) or
                                   self._site_wan_ports_request_valid(path) or
+                                  self._site_wan_unsupported_functions_request_valid(path) or
                                   self._site_wan_port_availability_request_valid(path) or
                                   self._site_virtual_wan_request_valid(path) or
                                   self._site_virtual_wan_available_request_valid(path) or
@@ -16225,6 +16281,7 @@ class OmadaOpenApiClient:
                                   self._site_dhcp_snoop_status_request_valid(path) or
                                   self._site_dhcp_snoops_request_valid(path) or
                                   self._site_mdns_rules_request_valid(path) or
+                                  self._site_mdns_profiles_request_valid(path) or
                                   self._site_ddns_request_valid(path) or
                                   self._site_snmp_request_valid(path) or
                                   self._controller_gateway_wan_status_request_valid(path) or
@@ -17481,6 +17538,10 @@ class OmadaOpenApiClient:
         match = self._SITE_WAN_PORTS_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
 
+    def _site_wan_unsupported_functions_request_valid(self, path: str) -> bool:
+        match = self._SITE_WAN_UNSUPPORTED_FUNCTIONS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
     def _site_wan_port_availability_request_valid(self, path: str) -> bool:
         parsed = urlsplit(path)
         match = self._SITE_WAN_PORT_AVAILABILITY_REQUEST.fullmatch(parsed.path)
@@ -17644,6 +17705,10 @@ class OmadaOpenApiClient:
 
     def _site_mdns_rules_request_valid(self, path: str) -> bool:
         match = self._SITE_MDNS_RULES_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_mdns_profiles_request_valid(self, path: str) -> bool:
+        match = self._SITE_MDNS_PROFILES_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
 
     def _site_ddns_request_valid(self, path: str) -> bool:

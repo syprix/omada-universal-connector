@@ -3,8 +3,8 @@
   "catalog_sha256": "b5ea3aeeac5c1c990fed6a4418f68e46530faa240308c7751206e15323eaeb9d",
   "operation_count": 2445,
   "connector_evidence_counts": {
-    "not_mapped": 1972,
-    "fixed_get_registry_route": 448,
+    "not_mapped": 1970,
+    "fixed_get_registry_route": 450,
     "manual_source_map_only": 25
   },
   "function_verification_performed": false,
@@ -6993,6 +6993,7 @@
         "test_site_lock_to_ap_brief_inventory.py",
         "test_site_longest_client_uptime.py",
         "test_site_mac_auth_ssid_inventory.py",
+        "test_site_mdns_profile_openapi.py",
         "test_site_mdns_rule_summary.py",
         "test_site_mesh_summary_integration.py",
         "test_site_multicast_rate_limit_integration.py",
@@ -7040,6 +7041,7 @@
         "test_site_wan_max_speed_summary.py",
         "test_site_wan_port_availability_summary.py",
         "test_site_wan_ports_summary.py",
+        "test_site_wan_unsupported_function_openapi.py",
         "test_site_wids_config.py",
         "test_site_wifi_calling_profiles_summary.py",
         "test_site_wifi_summary_integration.py",
@@ -16636,11 +16638,22 @@
         "hardware-controller-6.3.0",
         "omada-cbc-standard-6.3.0"
       ],
-      "connector_evidence": "not_mapped",
-      "operation_ids": [],
-      "public_templates": [],
-      "source_map_label": null,
-      "static_test_references": [],
+      "connector_evidence": "fixed_get_registry_route",
+      "operation_ids": [
+        "site_mdns_profile_summary"
+      ],
+      "public_templates": [
+        "/v1/sites/{site_ref}/bonjour/profiles/summary"
+      ],
+      "source_map_label": "implemented_read",
+      "static_test_references": [
+        "test_full_api_matrix.py",
+        "test_openapi_http.py",
+        "test_operation_evidence.py",
+        "test_operation_registry.py",
+        "test_site_mdns_profile_openapi.py",
+        "test_site_mdns_profile_summary.py"
+      ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
       "function_verified": false,
@@ -21848,11 +21861,22 @@
         "hardware-controller-6.3.0",
         "omada-cbc-standard-6.3.0"
       ],
-      "connector_evidence": "not_mapped",
-      "operation_ids": [],
-      "public_templates": [],
-      "source_map_label": null,
-      "static_test_references": [],
+      "connector_evidence": "fixed_get_registry_route",
+      "operation_ids": [
+        "site_wan_unsupported_function_summary"
+      ],
+      "public_templates": [
+        "/v1/sites/{site_ref}/wan/unsupported-functions/summary"
+      ],
+      "source_map_label": "implemented_read",
+      "static_test_references": [
+        "test_full_api_matrix.py",
+        "test_openapi_http.py",
+        "test_operation_evidence.py",
+        "test_operation_registry.py",
+        "test_site_wan_unsupported_function_openapi.py",
+        "test_site_wan_unsupported_function_summary.py"
+      ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
       "function_verified": false,
@@ -25940,6 +25964,7 @@
         "test_site_vlan_port_support_summary.py",
         "test_site_vlan_ssid_usage_summary.py",
         "test_site_vlan_topology_summary.py",
+        "test_site_wan_unsupported_function_openapi.py",
         "test_ssid_network_diagnose.py",
         "test_switch_health_integration.py",
         "test_switch_network_membership_integration.py",

@@ -769,6 +769,12 @@ class FakeOpenApiClient:
                 "custom_category_count": 2,
                 "configuration_only": True}
 
+    def read_site_wan_unsupported_function_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_wan_unsupported_function_summary", site_ref))
+        return {"status": "ok", "resource": "site_wan_unsupported_function_summary",
+                "site_ref": site_ref, "result_state": "empty",
+                "reported_limitation_entry_count": 0, "truncated": False}
+
     def read_site_vpn_server_status_summary(self, site_ref: str,
                                             vpn_type: int) -> dict[str, object]:
         self.calls.append(("site_vpn_server_status_summary", site_ref, vpn_type))
@@ -2486,6 +2492,18 @@ class FakeOpenApiClient:
                          "pages_read": 1, "truncated": False},
                 "missing_field_count": 0, "invalid_field_count": 0,
                 "unknown_field_count": 0, "partial": False}
+
+    def read_site_mdns_profile_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_mdns_profile_summary", site_ref))
+        return {"status": "ok", "resource": "site_mdns_profile_summary",
+                "site_ref": site_ref, "profile_count": 1,
+                "default_profile_flags": {"true": 1, "false": 0,
+                                           "unreported": 0, "invalid": 0},
+                "service_entries_per_profile": {"zero": 0, "one": 1, "two": 0,
+                                                  "three": 0, "unreported": 0,
+                                                  "invalid": 0},
+                "invalid_profile_rows": 0, "unknown_profile_field_count": 0,
+                "truncated": False, "partial": False}
 
     def read_site_ddns_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_ddns_summary", site_ref))
@@ -4650,6 +4668,21 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(response["result"]["structuredContent"], direct)
         self.assertEqual(self.fake.calls, [("site_ids_ips_config_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_site_wan_unsupported_function_summary(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/wan/unsupported-functions/summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200, repr(direct))
+        self.assertEqual(direct["resource"], "site_wan_unsupported_function_summary")
+        request = {"jsonrpc": "2.0", "id": 340, "method": "tools/call",
+                   "params": {"name": "omada_site_wan_unsupported_function_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_wan_unsupported_function_summary", site_ref)] * 2)
 
     def test_http_and_mcp_expose_vpn_server_status_summary(self) -> None:
         site_ref = "a" * 24
@@ -8346,6 +8379,22 @@ class OpenApiHttpTests(unittest.TestCase):
                          "site_mdns_rule_summary")
         self.assertEqual(self.fake.calls,
                          [("site_mdns_rule_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_site_mdns_profile_summary(self) -> None:
+        site_ref = "8" * 24
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/bonjour/profiles/summary", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_mdns_profile_summary")
+        request = {"jsonrpc": "2.0", "id": 204, "method": "tools/call",
+                   "params": {"name": "omada_site_mdns_profile_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"]["resource"],
+                         "site_mdns_profile_summary")
+        self.assertEqual(self.fake.calls,
+                         [("site_mdns_profile_summary", site_ref)] * 2)
 
     def test_http_and_mcp_expose_site_ddns_summary(self) -> None:
         site_ref = "8" * 24

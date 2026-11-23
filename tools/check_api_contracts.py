@@ -123,6 +123,8 @@ OPERATIONS = {
     'site_firewall_defaults': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/firewall/timeout/default'),
     'site_bandwidth_control': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/bandwidth-control'),
     'site_wan_ports_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/internet/ports-config'),
+    'site_wan_unsupported_function_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/wan/networks/unsupportedFunction'),
+    'site_mdns_profile_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/profiles/bonjour-service'),
     'site_vlan_network_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/networks/vlans'),
     'site_internet_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/internet'),
     'site_lte_wan_config_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/internet/lte/ports-config'),

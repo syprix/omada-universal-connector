@@ -984,3 +984,14 @@ IDs and schedule values; it does not describe effective filtering.
 counts for class-rule enable state, documented IP versions and class values.
 Address groups, service and rule identifiers, and DSCP values are omitted. It
 does not report traffic matches or effective throughput.
+
+`omada_site_wan_unsupported_function_summary` reads the selected site's
+DS-Lite/MAP-E limitation list with the fixed documented `filter=1` query. It
+returns an entry count and result quality only; API label text is neither
+exposed nor interpreted as device status. Live support is unknown.
+
+`omada_site_mdns_profile_summary` takes a `site_ref` and counts configured
+Bonjour profiles by default-profile flag and by zero to three documented
+service entries. Profile IDs, names and service strings are omitted; results
+are capped at 1,000 profiles. This complements the rule summary and does not
+claim Bonjour reachability. Live support is unknown.
