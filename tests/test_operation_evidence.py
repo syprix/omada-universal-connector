@@ -141,8 +141,8 @@ class OperationEvidenceTests(unittest.TestCase):
         self.assertEqual(generated, expected)
         self.assertEqual(generated["operation_count"], 2445)
         self.assertEqual(generated["connector_evidence_counts"], {
-            "not_mapped": 2000,
-            "fixed_get_registry_route": 420,
+            "not_mapped": 1998,
+            "fixed_get_registry_route": 422,
             "manual_source_map_only": 25,
         })
         registry_rows = [row for row in generated["operations"]
@@ -155,6 +155,8 @@ class OperationEvidenceTests(unittest.TestCase):
         self.assertIn("site_ssid_topology_device_summary", indexed)
         self.assertIn("site_ap_topology_clients_summary", indexed)
         self.assertIn("site_network_delivery_summary", indexed)
+        self.assertIn("site_lan_port_profiles_summary", indexed)
+        self.assertIn("controller_upgrade_plans_summary", indexed)
         public_templates = {
             "/v1/sites/{site_ref}/clients/recent-summary",
             "/v1/sites/{site_ref}/networks/{network_ref}/vlans/affected-ports-summary",
@@ -205,6 +207,13 @@ class OperationEvidenceTests(unittest.TestCase):
             delivery = source["operations"]["site_network_delivery_summary"]["contract_review"]
             self.assertEqual(delivery["operation_id"], "getDeliveringProcessWithoutConfig")
             self.assertIn("does not imply device reachability", delivery["projection"].lower())
+            profiles = source["operations"]["site_lan_port_profiles_summary"]["contract_review"]
+            self.assertEqual(profiles["operation_id"], "getOswLanProfileList")
+            self.assertIn("no profile-to-device assignment is inferred",
+                          profiles["projection"].lower())
+            upgrade_plans = source["operations"]["controller_upgrade_plans_summary"]["contract_review"]
+            self.assertEqual(upgrade_plans["operation_id"], "getGridUpgradePlans")
+            self.assertIn("no execution-status field", upgrade_plans["response"].lower())
             remote = source["operations"]["site_remote_logging_summary"]["contract_review"]
             self.assertEqual(remote["operation_id"], "getRemoteLoggingSetting")
             self.assertIn("host and port", remote["projection"])

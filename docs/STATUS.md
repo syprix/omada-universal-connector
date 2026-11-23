@@ -475,6 +475,14 @@ The AP topology-client summary (#63) resolves an opaque AP reference from a fres
 
 The selected LAN network delivery summary (#64) refreshes the site's network inventory and reads `getDeliveringProcessWithoutConfig` only for that network. It reports documented state and counts from success/failure/delivering lists without device IDs. Completion does not imply device reachability. The operation is documented in all three exports; live support is unknown. A synthetic fixture with 20 device/stack entries measured 120 → 96 tokens (20% fewer), serialized payload only.
 
+The site LAN port profile summary (#65) reads `getOswLanProfileList` from all three exports. It counts documented profile/source enum values and safe feature toggles over bounded pagination while redacting names, IDs, VLANs and network references. No device assignment is inferred. Live behavior remains unknown.
+
+A synthetic 20-profile fixture measured 2,543 → 475 tokens (81.32% fewer) using `js-tiktoken` 1.0.21 (`o200k_base`); serialized payload only.
+
+The controller firmware plan summary (#66) reads `getGridUpgradePlans` from all three exports with a bounded ten-page limit. It counts documented site associations, current-version entries, schedule/model/version field presence and rollback origin; it does not reveal versions, model/site names, operators, identifiers or dates. The source has no execution-state field, so planned upgrades remain distinct from #58 execution records. Live behavior is unknown.
+
+A synthetic 20-plan fixture measured 2,002 → 166 tokens (91.71% fewer) using `js-tiktoken` 1.0.21 (`o200k_base`); serialized payload only.
+
 Site remote logging is exposed as a redacted HTTP/MCP read. Destination values and delivery claims are excluded; only documented enablement, category and target presence are summarized. Live behavior is unconfirmed.
 
 The controller-wide firmware upgrade-log read is bounded to a 100-row page and reports only documented aggregate state and coverage. It redacts identities, versions, model details and raw timestamps; no update action is exposed. Live behavior is unconfirmed.

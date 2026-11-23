@@ -78,6 +78,33 @@ A synthetic delivery response with 20 device/stack entries measured 120 tokens
 before and 96 after projection (20% fewer) using `js-tiktoken` 1.0.21 /
 `o200k_base`; serialized payload only.
 
+## LAN port profile overview
+
+`GET /v1/sites/{site_ref}/lan-port-profiles/summary` and its MCP tool read the
+selected site's paginated LAN profile list. They count the documented profile
+type/source flag enums and safe enablement/mode fields; names, IDs, VLAN and
+network references are discarded. Profiles are not linked to a device by this
+read. Pagination is capped at ten pages of at most 100 profiles, and incomplete
+or malformed rows are reported. Live support is unknown.
+
+A synthetic 20-profile source-shaped payload measured 2,543 tokens before and
+475 after projection (81.32% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`;
+this is serialized payload only.
+
+## Scheduled firmware plans
+
+`GET /v1/controller/firmware-upgrade-plans/summary` and its MCP tool read at
+most ten pages of 100 controller-wide plan rows. The summary reports coverage,
+site associations, current-version entry counts, schedule/model/version field
+presence and rollback-origin counts. It does not return model names, site
+names, versions, operators, IDs or scheduled dates. The source has no execution
+state, and scheduled plans are kept distinct from upgrade logs/results. Live
+support is unknown.
+
+A synthetic 20-plan payload measured 2,002 source tokens and 166 projected
+tokens (91.71% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; serialized
+payload only.
+
 With `js-tiktoken` 1.0.21 (`o200k_base`), a synthetic 20-tunnel
 source-shaped payload measured 1,743 tokens before projection and 90 after
 (94.84% fewer serialized-payload tokens). This is a fixture measurement, not
