@@ -566,3 +566,8 @@ status does not establish tunnel connectivity. Live support is unknown.
 The synthetic 20-row v2 VPN fixture measured 2,999→328 serialized JSON tokens
 (89.06% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; this is not a live
 measurement or billed agent usage.
+
+
+The selected stack network summary (#87) reads `getStackNetworkList` from all three exports after binding the opaque reference to a unique, fresh stack row in the selected site. It counts DHCP modes and documented status/management/IPv6 fields, while omitting VLAN/network identifiers, names, member details, addresses, DHCP values and VRF identifiers. The scan is capped at 1,000 rows. Fixture tests cover the projection and binding; the required stack hardware was not available for live testing.
+
+A synthetic 20-row stack-network response measured 2,526→138 serialized JSON tokens (94.54% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`. This fixture comparison excludes prompts, schemas, transport framing and billed agent use.

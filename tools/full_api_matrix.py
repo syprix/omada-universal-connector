@@ -412,6 +412,7 @@ IMPLEMENTED: dict[tuple[str, str], str] = {
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/wan-max-speed"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/routing/static-routings"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/wired-networks/disable-nats"): "implemented_read",
+    ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/stacks/{stack_id}/networks"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/routing/static-routings/interfaces"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/wireless-network/wlans/{wlan_id}/ssids/{ssid_id}"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/routing/policy-routings"): "implemented_read",

@@ -949,3 +949,6 @@ v2 site-to-site VPN inventory, including documented type and status flags,
 network-selection coverage and S2S support flags. It omits identities, raw
 network/WAN values, peer details and user/client counts. The status boolean
 does not establish tunnel connectivity; live support is unknown.
+
+
+`omada_site_stack_network_summary` takes a site and an opaque `stack_ref` returned by the stack connection summary. It refreshes stack inventory before reading that stack's VLAN-network configuration, returning counts for documented DHCP modes and status/management/IPv6 coverage. VLAN/network IDs, names, stack members, addresses and DHCP values are omitted. The read is capped at 1,000 rows; live stack support remains untested.
