@@ -2482,6 +2482,29 @@
             "request": "The selected SSID is bound through the selected site SSID inventory. The response is only deviceMacs; the API has no pagination schema or device classes.",
             "projection": "Joins topology MAC addresses only to the same-site v1 device inventory, then counts explicitly recognized AP, gateway, switch, and OLT types. Unmatched/ambiguous/unknown rows are reported as gaps. MACs, names, and IDs are omitted; no RF coverage is inferred."
           }
+        },
+        "site_ap_topology_clients_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getTopologyClients",
+            "permission": "Site Map Manager View Only, Site Home View Only, or Site Dashboard Manager View Only",
+            "path": "GET /openapi/v2/{omadacId}/sites/{siteId}/topology/devices/{mac}/clients",
+            "response": "Unpaginated list of TopologyClient objects. The documented properties include client MAC/name, wireless boolean, type string without enumerated values, guest boolean, and uplink information. No event time or online-state field is specified.",
+            "projection": "Resolves the selected AP only through the selected site inventory, then returns counts of wireless/wired/unknown connection flags, guest flags and client-type field presence. Type values, client identities and uplink details are omitted. The data is labeled as an untimestamped topology snapshot; no roam history or persistent connection state is implied."
+          }
+        },
+        "site_network_delivery_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getDeliveringProcessWithoutConfig",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/networks/{networkId}/brief-process",
+            "response": "VlanNetworkDeliverBriefDataVO has success/fail/delivering device and stack string arrays, doneDevicesNum, totalDevicesNum and state int32. Documented state values: 0 free/already delivered, 1 delivering, 2 deliver done.",
+            "binding": "networkId is resolved from a freshly refreshed LAN network inventory for the selected site.",
+            "projection": "Counts array rows, returns the documented source state code, state label and device totals. Network/device IDs are omitted. Delivery state does not imply device reachability; inconsistent/missing fields mark partial."
+          }
         }
       }
     },
@@ -4937,6 +4960,29 @@
             "request": "The selected SSID is bound through the selected site SSID inventory. The response is only deviceMacs; the API has no pagination schema or device classes.",
             "projection": "Joins topology MAC addresses only to the same-site v1 device inventory, then counts explicitly recognized AP, gateway, switch, and OLT types. Unmatched/ambiguous/unknown rows are reported as gaps. MACs, names, and IDs are omitted; no RF coverage is inferred."
           }
+        },
+        "site_ap_topology_clients_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getTopologyClients",
+            "permission": "Site Map Manager View Only, Site Home View Only, or Site Dashboard Manager View Only",
+            "path": "GET /openapi/v2/{omadacId}/sites/{siteId}/topology/devices/{mac}/clients",
+            "response": "Unpaginated list of TopologyClient objects. The documented properties include client MAC/name, wireless boolean, type string without enumerated values, guest boolean, and uplink information. No event time or online-state field is specified.",
+            "projection": "Resolves the selected AP only through the selected site inventory, then returns counts of wireless/wired/unknown connection flags, guest flags and client-type field presence. Type values, client identities and uplink details are omitted. The data is labeled as an untimestamped topology snapshot; no roam history or persistent connection state is implied."
+          }
+        },
+        "site_network_delivery_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getDeliveringProcessWithoutConfig",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/networks/{networkId}/brief-process",
+            "response": "VlanNetworkDeliverBriefDataVO has success/fail/delivering device and stack string arrays, doneDevicesNum, totalDevicesNum and state int32. Documented state values: 0 free/already delivered, 1 delivering, 2 deliver done.",
+            "binding": "networkId is resolved from a freshly refreshed LAN network inventory for the selected site.",
+            "projection": "Counts array rows, returns the documented source state code, state label and device totals. Network/device IDs are omitted. Delivery state does not imply device reachability; inconsistent/missing fields mark partial."
+          }
         }
       }
     },
@@ -7353,6 +7399,26 @@
           "contract_review": {
             "operation_id": null,
             "reason": "Operation is absent from this source export."
+          }
+        },
+        "site_ap_topology_clients_summary": {
+          "documented": false,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": null,
+            "reason": "Operation is absent from this source export."
+          }
+        },
+        "site_network_delivery_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getDeliveringProcessWithoutConfig",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/networks/{networkId}/brief-process",
+            "response": "VlanNetworkDeliverBriefDataVO has success/fail/delivering device and stack string arrays, doneDevicesNum, totalDevicesNum and state int32. Documented state values: 0 free/already delivered, 1 delivering, 2 deliver done.",
+            "binding": "networkId is resolved from a freshly refreshed LAN network inventory for the selected site.",
+            "projection": "Counts array rows, returns the documented source state code, state label and device totals. Network/device IDs are omitted. Delivery state does not imply device reachability; inconsistent/missing fields mark partial."
           }
         }
       }

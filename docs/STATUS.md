@@ -471,6 +471,10 @@ The selected-SSID topology device summary (#62) binds a fresh selected SSID to i
 
 Synthetic payload measurements with `js-tiktoken` 1.0.21 (`o200k_base`) were 1,743 → 90 tokens for twenty source-shaped VPN rows (#61; 94.84% fewer), and 241 → 87 for twenty topology MACs (#62; 63.90% fewer). These are serialized-payload fixtures, not live responses or billed-agent usage.
 
+The AP topology-client summary (#63) resolves an opaque AP reference from a freshly refreshed site inventory and then uses `getTopologyClients`. It counts documented wireless/guest fields plus whether the unenumerated client-type field is present, while omitting all client values and identifiers. The endpoint provides no source timestamp and no roaming history; no current connected-state claim is made. It is documented in Hardware Controller and CBC, not ER7212PC. Live behavior remains unknown.
+
+The selected LAN network delivery summary (#64) refreshes the site's network inventory and reads `getDeliveringProcessWithoutConfig` only for that network. It reports documented state and counts from success/failure/delivering lists without device IDs. Completion does not imply device reachability. The operation is documented in all three exports; live support is unknown. A synthetic fixture with 20 device/stack entries measured 120 → 96 tokens (20% fewer), serialized payload only.
+
 Site remote logging is exposed as a redacted HTTP/MCP read. Destination values and delivery claims are excluded; only documented enablement, category and target presence are summarized. Live behavior is unconfirmed.
 
 The controller-wide firmware upgrade-log read is bounded to a 100-row page and reports only documented aggregate state and coverage. It redacts identities, versions, model details and raw timestamps; no update action is exposed. Live behavior is unconfirmed.

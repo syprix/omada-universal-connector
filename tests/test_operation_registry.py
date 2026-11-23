@@ -58,6 +58,26 @@ class OperationRegistryTests(unittest.TestCase):
         self.assertEqual(route.operation_id, "site_ssid_topology_device_summary")
         self.assertEqual(dict(bindings), {"site_ref": "a" * 24, "ssid_ref": "b" * 24})
 
+    def test_site_ap_topology_clients_summary_binds_selected_ap(self):
+        operation = REGISTRY.get("site_ap_topology_clients_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"],
+                         ["site_ref", "device_ref"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/aps/" + "b" * 24 +
+            "/topology-clients/summary")
+        self.assertEqual(route.operation_id, "site_ap_topology_clients_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24, "device_ref": "b" * 24})
+
+    def test_site_network_delivery_summary_binds_selected_network(self):
+        operation = REGISTRY.get("site_network_delivery_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"],
+                         ["site_ref", "network_ref"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/networks/" + "b" * 24 +
+            "/delivery-summary")
+        self.assertEqual(route.operation_id, "site_network_delivery_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24, "network_ref": "b" * 24})
+
     def test_site_ssid_client_count_summary_binds_site_and_selected_ssid(self):
         operation = REGISTRY.get("site_ssid_client_count_summary")
         self.assertEqual(_tool(operation)["inputSchema"]["required"],
@@ -756,6 +776,8 @@ class OperationRegistryTests(unittest.TestCase):
             "site_vpn_s2s_status_summary",
             "site_ssid_client_count_summary",
             "site_ssid_topology_device_summary",
+            "site_ap_topology_clients_summary",
+            "site_network_delivery_summary",
             "site_remote_logging_summary",
             "controller_upgrade_log_summary",
             "site_wan_qos_summary",

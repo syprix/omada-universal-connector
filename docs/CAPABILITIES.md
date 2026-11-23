@@ -49,6 +49,35 @@ The topology endpoint is documented by Hardware Controller and CBC exports,
 not ER7212PC. It does not measure radio coverage. Live controller support is
 unknown.
 
+## Client counts at a selected access point
+
+`GET /v1/sites/{site_ref}/aps/{device_ref}/topology-clients/summary` and its
+MCP tool first refresh the selected site's AP inventory, then read the
+documented topology-client list for that AP. The projection counts only the
+documented wireless, guest and client-type field presence; client type values
+are unenumerated and are not exposed. It omits client and AP identifiers. The
+response is a topology snapshot with no source timestamp; it is not a roaming
+history or proof that a client remains connected. Hardware Controller and CBC
+document the operation, not ER7212PC. Live support is unknown.
+
+A synthetic 20-client source-shaped topology fixture measured 982 tokens
+before and 117 after projection (88.09% fewer) with `js-tiktoken` 1.0.21 /
+`o200k_base`. This is serialized payload only.
+
+## Delivery state for a selected LAN network
+
+`GET /v1/sites/{site_ref}/networks/{network_ref}/delivery-summary` and its
+MCP tool refresh the selected site's LAN network inventory before reading the
+network's documented delivery process. The output counts successful, failed
+and in-progress device/stack entries and returns the documented state code and
+device totals. It omits all device and network identities. A completed
+configuration delivery does not establish that devices are reachable. Live
+support is unknown.
+
+A synthetic delivery response with 20 device/stack entries measured 120 tokens
+before and 96 after projection (20% fewer) using `js-tiktoken` 1.0.21 /
+`o200k_base`; serialized payload only.
+
 With `js-tiktoken` 1.0.21 (`o200k_base`), a synthetic 20-tunnel
 source-shaped payload measured 1,743 tokens before projection and 90 after
 (94.84% fewer serialized-payload tokens). This is a fixture measurement, not

@@ -1466,6 +1466,8 @@ class OmadaOpenApiClient:
     _SITE_ISP_LOAD_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/isp-load"
     _SITE_VPN_TUNNEL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/vpn-tunnel-stats"
     _SITE_VPN_S2S_STATUS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/vpn/stats/s2s"
+    _SITE_AP_TOPOLOGY_CLIENTS_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/topology/devices/{ap_mac}/clients"
+    _SITE_NETWORK_DELIVERY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/networks/{network_id}/brief-process"
     _SITE_OPEN_VPN_TUNNEL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/open-vpn-tunnel-stats"
     _SITE_CLIENT_ACTIVITY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/client-activity"
     _SITE_CLIENT_ASSOCIATION_ACTIVITY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/client-association-activities"
@@ -1861,6 +1863,14 @@ class OmadaOpenApiClient:
     _SITE_SSID_TOPOLOGY_DEVICES_REQUEST = re.compile(
         r"/openapi/v3/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
         r"/topology/ssids/[A-Za-z0-9_-]{1,128}/devices"
+    )
+    _SITE_AP_TOPOLOGY_CLIENTS_REQUEST = re.compile(
+        r"/openapi/v2/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/topology/devices/([A-Fa-f0-9:-]{17})/clients"
+    )
+    _SITE_NETWORK_DELIVERY_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/networks/[A-Za-z0-9_-]{1,128}/brief-process"
     )
     _SITE_OPEN_VPN_TUNNEL_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
@@ -2750,6 +2760,8 @@ class OmadaOpenApiClient:
         ("site_vpn_s2s_status_summary", "GET /v1/sites/{site_ref}/vpn/site-to-site/status-summary"),
         ("site_ssid_client_count_summary", "GET /v1/sites/{site_ref}/ssids/{ssid_ref}/clients/summary"),
         ("site_ssid_topology_device_summary", "GET /v1/sites/{site_ref}/ssids/{ssid_ref}/topology-device-summary"),
+        ("site_ap_topology_clients_summary", "GET /v1/sites/{site_ref}/aps/{device_ref}/topology-clients/summary"),
+        ("site_network_delivery_summary", "GET /v1/sites/{site_ref}/networks/{network_ref}/delivery-summary"),
         ("site_remote_logging_summary", "GET /v1/sites/{site_ref}/remote-logging/summary"),
         ("controller_upgrade_log_summary", "GET /v1/controller/firmware-upgrades/summary"),
         ("site_wan_qos_summary", "GET /v1/sites/{site_ref}/wan-qos-summary"),
@@ -8588,6 +8600,62 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {**projected, "status": "ok",
                 "resource": "site_ssid_topology_device_summary"}
+
+    @_track_capability("site_ap_topology_clients_summary")
+    def read_site_ap_topology_clients_summary(self, site_ref: str,
+                                             device_ref: str) -> dict[str, object]:
+        """Read a selected AP's topology client snapshot and discard identities."""
+        site_id = self._resolve_site_ref(site_ref)
+        if not isinstance(device_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", device_ref):
+            raise OpenApiError("device_ref_invalid")
+        self.list_devices(site_ref)
+        ap_mac = self._device_macs_by_site_ref.get(site_ref, {}).get(device_ref)
+        if not ap_mac:
+            raise OpenApiError("ap_ref_unknown")
+        path = self._SITE_AP_TOPOLOGY_CLIENTS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, ap_mac=ap_mac)
+        payload = self._request_json("GET", path, token=self._access_token())
+        rows = payload.get("result")
+        try:
+            from .site_ap_topology_clients import (
+                SiteApTopologyClientsError, project_site_ap_topology_clients)
+        except ImportError:  # direct execution in the image
+            from site_ap_topology_clients import (
+                SiteApTopologyClientsError, project_site_ap_topology_clients)
+        try:
+            projected = project_site_ap_topology_clients(rows)
+        except SiteApTopologyClientsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**projected, "status": "ok", "resource": "site_ap_topology_clients_summary",
+                "site_ref": site_ref, "device_ref": device_ref}
+
+    @_track_capability("site_network_delivery_summary")
+    def read_site_network_delivery_summary(self, site_ref: str,
+                                           network_ref: str) -> dict[str, object]:
+        """Read one selected network's documented delivery state and aggregate counts."""
+        site_id = self._resolve_site_ref(site_ref)
+        if not isinstance(network_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", network_ref):
+            raise OpenApiError("network_ref_invalid")
+        self.list_networks(site_ref)
+        network_id = self._network_ids_by_site_ref.get(site_ref, {}).get(network_ref)
+        if not network_id:
+            raise OpenApiError("network_ref_unknown")
+        path = self._SITE_NETWORK_DELIVERY_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, network_id=network_id)
+        payload = self._request_json("GET", path, token=self._access_token())
+        result = payload.get("result")
+        try:
+            from .site_network_delivery_summary import (
+                SiteNetworkDeliveryError, project_site_network_delivery)
+        except ImportError:  # direct execution in the image
+            from site_network_delivery_summary import (
+                SiteNetworkDeliveryError, project_site_network_delivery)
+        try:
+            projected = project_site_network_delivery(result)
+        except SiteNetworkDeliveryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**projected, "status": "ok", "resource": "site_network_delivery_summary",
+                "site_ref": site_ref, "network_ref": network_ref}
 
     @_track_capability("site_remote_logging_summary")
     def read_site_remote_logging_summary(self, site_ref: str) -> dict[str, object]:
@@ -14814,6 +14882,8 @@ class OmadaOpenApiClient:
                                   self._site_vpn_session_request_valid(path) or
                                   self._site_vpn_s2s_status_request_valid(path) or
                                   self._site_ssid_topology_devices_request_valid(path) or
+                                  self._site_ap_topology_clients_request_valid(path) or
+                                  self._site_network_delivery_request_valid(path) or
                                   self._site_dhcp_candidates_request_valid(path) or
                                   self._site_network_reservation_request_valid(path) or
                                   self._site_dhcp_reservations_request_valid(path) or
@@ -16315,6 +16385,15 @@ class OmadaOpenApiClient:
 
     def _site_ssid_topology_devices_request_valid(self, path: str) -> bool:
         match = self._SITE_SSID_TOPOLOGY_DEVICES_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_ap_topology_clients_request_valid(self, path: str) -> bool:
+        match = self._SITE_AP_TOPOLOGY_CLIENTS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id and
+                    self._MAC.fullmatch(match.group(2)))
+
+    def _site_network_delivery_request_valid(self, path: str) -> bool:
+        match = self._SITE_NETWORK_DELIVERY_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
 
     def _site_open_vpn_tunnel_request_valid(self, path: str) -> bool:
