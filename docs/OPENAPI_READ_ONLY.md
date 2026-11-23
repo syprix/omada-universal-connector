@@ -1480,3 +1480,12 @@ descriptions and raw network/interface values are omitted. The output describes
 configuration only; effective enforcement and traffic behavior remain unknown.
 Hardware Controller and CBC document this operation; ER7212PC does not. Live
 support is unknown.
+
+`GET /v1/sites/{site_ref}/vpn/site-to-site-v2-summary` reads `getGridVpnS2SV2`
+using only its required page parameters. It summarizes documented VPN and site
+VPN type codes, boolean status flags, network type and reference coverage,
+failover-setting object coverage, and selected S2S capability booleans. Names,
+identifiers, WAN/network values, custom subnet data, peers and user/client
+counts are omitted. The v1 inventory remains the source for opaque VPN
+references; the v2 status boolean is not tunnel connectivity. All three source
+exports document the operation; live support is unknown.

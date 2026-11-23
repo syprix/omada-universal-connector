@@ -1635,3 +1635,17 @@ A synthetic 20-rule response measured 1,200 serialized JSON tokens before
 projection and 150 in the final result (87.5% fewer) using `js-tiktoken`
 1.0.21 with `o200k_base`. These fixture bodies exclude transport framing,
 live payloads and billed agent usage.
+
+`GET /v1/sites/{site_ref}/vpn/site-to-site-v2-summary` and MCP tool
+`omada_site_s2s_vpn_v2_summary` read the paginated v2 S2S VPN inventory. This
+adds the documented VPN type and status flags, network-selection coverage and
+four S2S support flags to the existing v1 opaque-reference inventory. It
+counts only; names, identifiers, WAN/network references, custom subnet values,
+peer details and user/client counts are omitted. The boolean VPN status is not
+a tunnel connectivity result. All three exports document the operation; live
+support is unknown.
+
+A synthetic 20-row v2 inventory measured 2,999 serialized source-response
+tokens and 328 projected-result tokens (89.06% fewer) with `js-tiktoken`
+1.0.21 and `o200k_base`. Fixture bodies exclude HTTP/MCP framing, live payloads
+and billed agent usage.

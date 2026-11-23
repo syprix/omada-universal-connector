@@ -419,6 +419,7 @@ IMPLEMENTED: dict[tuple[str, str], str] = {
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/setting/vpn/stats/server"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/setting/vpn/stats/s2s"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/vpn/site-to-site-vpns"): "implemented_read",
+    ("GET", "/openapi/v2/{controller_id}/sites/{site_id}/vpn/site-to-site-vpns"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/setting/vpn/stats/s2s/{vpn_id}/peer"): "implemented_read",
     ("GET", "/openapi/v3/{controller_id}/sites/{site_id}/topology/ssids/{ssid_id}/devices"): "implemented_read",
     ("GET", "/openapi/v2/{controller_id}/sites/{site_id}/topology/devices/{mac}/clients"): "implemented_read",

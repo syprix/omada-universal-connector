@@ -1489,6 +1489,8 @@ class OmadaOpenApiClient:
     _SITE_VPN_TUNNEL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/vpn-tunnel-stats"
     _SITE_VPN_S2S_STATUS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/vpn/stats/s2s"
     _SITE_S2S_VPN_INVENTORY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/vpn/site-to-site-vpns"
+    _SITE_S2S_VPN_V2_PATH = (
+        "/openapi/v2/{controller_id}/sites/{site_id}/vpn/site-to-site-vpns")
     _SITE_S2S_PEER_STATUS_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/setting/vpn/stats/s2s/{vpn_id}/peer")
     _SITE_AP_TOPOLOGY_CLIENTS_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/topology/devices/{ap_mac}/clients"
@@ -1936,6 +1938,10 @@ class OmadaOpenApiClient:
     _SITE_S2S_VPN_INVENTORY_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})"
         r"/vpn/site-to-site-vpns"
+    )
+    _SITE_S2S_VPN_V2_REQUEST = re.compile(
+        r"/openapi/v2/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})"
+        r"/vpn/site-to-site-vpns\?page=([1-9][0-9]*)&pageSize=100"
     )
     _SITE_S2S_PEER_STATUS_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})"
@@ -2859,6 +2865,7 @@ class OmadaOpenApiClient:
         ("site_vpn_client_status_summary", "GET /v1/sites/{site_ref}/vpn/clients/status-summary"),
         ("site_vpn_s2s_status_summary", "GET /v1/sites/{site_ref}/vpn/site-to-site/status-summary"),
         ("site_s2s_vpn_inventory_summary", "GET /v1/sites/{site_ref}/vpn/site-to-site/summary"),
+        ("site_s2s_vpn_v2_summary", "GET /v1/sites/{site_ref}/vpn/site-to-site-v2-summary"),
         ("site_s2s_peer_status_summary", "GET /v1/sites/{site_ref}/vpn/site-to-site/{vpn_ref}/peers/summary"),
         ("site_ssid_client_count_summary", "GET /v1/sites/{site_ref}/ssids/{ssid_ref}/clients/summary"),
         ("site_ssid_topology_device_summary", "GET /v1/sites/{site_ref}/ssids/{ssid_ref}/topology-device-summary"),
@@ -8843,6 +8850,47 @@ class OmadaOpenApiClient:
         result["duplicate_id_count"] = duplicate_id_count
         result["partial"] = bool(result["partial"] or duplicate_id_count)
         return {**result, "site_ref": site_ref}
+
+    @_track_capability("site_s2s_vpn_v2_summary")
+    def read_site_s2s_vpn_v2_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize documented v2 S2S VPN fields without names or network values."""
+        site_id = self._resolve_site_ref(site_ref)
+        page_size = 100
+        pages: list[object] = []
+        token = self._access_token()
+        for page_number in range(1, min(self.config.max_pages, 10) + 1):
+            path = self._SITE_S2S_VPN_V2_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id)
+            path += f"?page={page_number}&pageSize={page_size}"
+            payload = self._request_json("GET", path, token=token)
+            if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+                raise OpenApiError("openapi_response_invalid")
+            result = payload.get("result")
+            if not isinstance(result, Mapping):
+                raise OpenApiError("openapi_response_invalid")
+            pages.append(result)
+            total, rows = result.get("totalRows"), result.get("data")
+            if type(total) is int and total == 0:
+                break
+            if type(total) is int and total >= 0 and page_number * page_size >= total:
+                break
+            if not isinstance(rows, list) or len(rows) < page_size:
+                break
+        try:
+            from .site_s2s_vpn_v2_summary import (
+                SiteS2SVpnV2SummaryError, summarize_site_s2s_vpn_v2,
+            )
+        except ImportError:  # direct execution in the image
+            from site_s2s_vpn_v2_summary import (
+                SiteS2SVpnV2SummaryError, summarize_site_s2s_vpn_v2,
+            )
+        try:
+            projected = summarize_site_s2s_vpn_v2(pages, max_items=1000)
+        except SiteS2SVpnV2SummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "site_ref": site_ref,
+                "status_scope": "documented_vpn_boolean_not_tunnel_connectivity",
+                **projected}
 
     @_track_capability("site_s2s_peer_status_summary")
     def read_site_s2s_peer_status_summary(self, site_ref: str,
@@ -15805,6 +15853,7 @@ class OmadaOpenApiClient:
                                   self._site_vpn_session_request_valid(path) or
                                   self._site_vpn_s2s_status_request_valid(path) or
                                   self._site_s2s_vpn_inventory_request_valid(path) or
+                                  self._site_s2s_vpn_v2_request_valid(path) or
                                   self._site_s2s_peer_status_request_valid(path) or
                                   self._site_ssid_topology_devices_request_valid(path) or
                                   self._site_ap_topology_clients_request_valid(path) or
@@ -17356,6 +17405,11 @@ class OmadaOpenApiClient:
     def _site_s2s_vpn_inventory_request_valid(self, path: str) -> bool:
         match = self._SITE_S2S_VPN_INVENTORY_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_s2s_vpn_v2_request_valid(self, path: str) -> bool:
+        match = self._SITE_S2S_VPN_V2_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id and
+                    int(match.group(3)) <= 10)
 
     def _site_s2s_peer_status_request_valid(self, path: str) -> bool:
         match = self._SITE_S2S_PEER_STATUS_REQUEST.fullmatch(path)

@@ -844,6 +844,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_vpn_client_status_summary",
             "site_vpn_s2s_status_summary",
             "site_s2s_vpn_inventory_summary",
+            "site_s2s_vpn_v2_summary",
             "site_s2s_peer_status_summary",
             "site_ssid_client_count_summary",
             "site_ssid_topology_device_summary",
