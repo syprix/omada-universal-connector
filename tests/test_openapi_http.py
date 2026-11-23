@@ -3037,6 +3037,16 @@ class FakeOpenApiClient:
         return {"status": "ok", "resource": "site_stack_ospf_neighbor_summary",
                 "site_ref": site_ref, "stack_ref": stack_ref}
 
+    def read_site_intelli_recover_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_intelli_recover_summary", site_ref))
+        return {"status": "ok", "resource": "site_intelli_recover_summary",
+                "site_ref": site_ref}
+
+    def read_site_port_forwarding_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_port_forwarding_summary", site_ref))
+        return {"status": "ok", "resource": "site_port_forwarding_summary",
+                "site_ref": site_ref}
+
     def read_site_stack_dhcp_user_summary(self, site_ref: str,
                                           stack_ref: str) -> dict[str, object]:
         self.calls.append(("site_stack_dhcp_user_summary", site_ref, stack_ref))
@@ -10213,6 +10223,36 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(response["result"]["structuredContent"], direct)
         self.assertEqual(self.fake.calls,
                          [("site_stack_ospf_neighbor_summary", site_ref, stack_ref)] * 2)
+
+    def test_http_and_mcp_expose_intelli_recover_summary(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/automatic-recovery-settings/summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(direct["resource"], "site_intelli_recover_summary")
+        request = {"jsonrpc": "2.0", "id": 463, "method": "tools/call",
+                   "params": {"name": "omada_site_intelli_recover_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_intelli_recover_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_port_forwarding_summary(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/port-forwardings/summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(direct["resource"], "site_port_forwarding_summary")
+        request = {"jsonrpc": "2.0", "id": 464, "method": "tools/call",
+                   "params": {"name": "omada_site_port_forwarding_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_port_forwarding_summary", site_ref)] * 2)
 
     def test_http_and_mcp_expose_redacted_stack_dhcp_user_summary(self) -> None:
         site_ref, stack_ref = "a" * 24, "b" * 24

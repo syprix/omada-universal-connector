@@ -1291,6 +1291,10 @@ class OmadaOpenApiClient:
         "/openapi/v1/{controller_id}/sites/{site_id}/stacks/{stack_id}/staticRoutings")
     _SITE_STACK_OSPF_NEIGHBORS_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/stack/{stack_id}/ospf-neighbors")
+    _SITE_INTELLI_RECOVER_SETTINGS_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/intelli-recover/auto-setting/config")
+    _SITE_PORT_FORWARDINGS_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/nat/port-forwardings")
     _SITE_STACK_DHCP_USERS_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/stack/{stack_id}/dhcp/user-list")
     _SITE_STACK_VLAN_INTERFACES_PATH = (
@@ -2221,6 +2225,14 @@ class OmadaOpenApiClient:
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/stack/"
         r"[A-Za-z0-9_-]{1,128}/ospf-neighbors\?page=([1-9][0-9]{0,2})&pageSize=(1000|[1-9][0-9]{0,2})"
     )
+    _SITE_INTELLI_RECOVER_SETTINGS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/"
+        r"intelli-recover/auto-setting/config"
+    )
+    _SITE_PORT_FORWARDINGS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/"
+        r"nat/port-forwardings\?page=([1-9][0-9]{0,2})&pageSize=(1000|[1-9][0-9]{0,2})"
+    )
     _SITE_STACK_DHCP_USERS_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})/stack/"
         r"([A-Za-z0-9_-]{1,128})/dhcp/user-list\?page=([1-9][0-9]*)&pageSize=(?:1000|[1-9][0-9]{0,2})"
@@ -3093,6 +3105,8 @@ class OmadaOpenApiClient:
         ("site_stack_network_summary", "GET /v1/sites/{site_ref}/stacks/{stack_ref}/networks-summary"),
         ("site_stack_static_routing_summary", "GET /v1/sites/{site_ref}/stacks/{stack_ref}/static-routings/summary"),
         ("site_stack_ospf_neighbor_summary", "GET /v1/sites/{site_ref}/stacks/{stack_ref}/ospf-neighbors/summary"),
+        ("site_intelli_recover_summary", "GET /v1/sites/{site_ref}/automatic-recovery-settings/summary"),
+        ("site_port_forwarding_summary", "GET /v1/sites/{site_ref}/port-forwardings/summary"),
         ("site_stack_dhcp_user_summary", "GET /v1/sites/{site_ref}/stacks/{stack_ref}/dhcp-users/summary"),
         ("site_stack_vlan_interface_summary", "GET /v1/sites/{site_ref}/stacks/{stack_ref}/vlan-interfaces/summary"),
         ("site_snmp_incompatible_summary", "GET /v1/sites/{site_ref}/snmp/incompatible-devices/summary"),
@@ -11612,9 +11626,9 @@ class OmadaOpenApiClient:
             raise OpenApiError("stack_ref_unknown")
         return site_id, matches[0]
 
-    def _read_stack_summary_grid(self, base_path: str,
-                                 token: str) -> tuple[list[object], int, int]:
-        """Read at most 1,000 stack-grid rows and retain the source total."""
+    def _read_bounded_summary_grid(self, base_path: str,
+                                   token: str) -> tuple[list[object], int, int]:
+        """Read at most 1,000 grid rows and retain the source total."""
         page_size = min(max(1, self.config.page_size), 1_000)
         page_limit = min(max(1, self.config.max_pages), 10)
         rows: list[object] = []
@@ -11667,7 +11681,7 @@ class OmadaOpenApiClient:
         """Count documented route families for one freshly inventoried stack."""
         token = self._access_token()
         site_id, stack_id = self._resolve_site_stack(site_ref, stack_ref, token)
-        rows, total, omitted = self._read_stack_summary_grid(
+        rows, total, omitted = self._read_bounded_summary_grid(
             self._SITE_STACK_STATIC_ROUTINGS_PATH.format(
                 controller_id=self.config.controller_id, site_id=site_id,
                 stack_id=stack_id), token)
@@ -11690,7 +11704,7 @@ class OmadaOpenApiClient:
         """Report bounded OSPF row coverage without disclosing neighbor details."""
         token = self._access_token()
         site_id, stack_id = self._resolve_site_stack(site_ref, stack_ref, token)
-        rows, total, omitted = self._read_stack_summary_grid(
+        rows, total, omitted = self._read_bounded_summary_grid(
             self._SITE_STACK_OSPF_NEIGHBORS_PATH.format(
                 controller_id=self.config.controller_id, site_id=site_id,
                 stack_id=stack_id), token)
@@ -11706,6 +11720,49 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {"status": "ok", "resource": "site_stack_ospf_neighbor_summary",
                 "site_ref": site_ref, "stack_ref": stack_ref, **projected}
+
+    @_track_capability("site_intelli_recover_summary")
+    def read_site_intelli_recover_summary(self, site_ref: str) -> dict[str, object]:
+        """Summarize documented automatic-recovery settings for one site."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_INTELLI_RECOVER_SETTINGS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            from .site_intelli_recover_summary import (
+                IntelliRecoverSummaryError, summarize_intelli_recover_settings)
+        except ImportError:  # direct execution in the image
+            from site_intelli_recover_summary import (
+                IntelliRecoverSummaryError, summarize_intelli_recover_settings)
+        try:
+            projected = summarize_intelli_recover_settings(payload.get("result"))
+        except IntelliRecoverSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_intelli_recover_summary",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_port_forwarding_summary")
+    def read_site_port_forwarding_summary(self, site_ref: str) -> dict[str, object]:
+        """Count configured forwarding status/protocol/source codes only."""
+        site_id = self._resolve_site_ref(site_ref)
+        rows, total, omitted = self._read_bounded_summary_grid(
+            self._SITE_PORT_FORWARDINGS_PATH.format(
+                controller_id=self.config.controller_id, site_id=site_id),
+            self._access_token())
+        try:
+            from .site_port_forwarding_summary import (
+                PortForwardingSummaryError, summarize_port_forwarding_rows)
+        except ImportError:  # direct execution in the image
+            from site_port_forwarding_summary import (
+                PortForwardingSummaryError, summarize_port_forwarding_rows)
+        try:
+            projected = summarize_port_forwarding_rows(rows, total, omitted)
+        except PortForwardingSummaryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_port_forwarding_summary",
+                "site_ref": site_ref, **projected}
 
     @_track_capability("site_stack_dhcp_user_summary")
     def read_site_stack_dhcp_user_summary(
@@ -17652,6 +17709,8 @@ class OmadaOpenApiClient:
                                   self._site_stack_networks_request_valid(path) or
                                   self._site_stack_static_routings_request_valid(path) or
                                   self._site_stack_ospf_neighbors_request_valid(path) or
+                                  self._site_intelli_recover_settings_request_valid(path) or
+                                  self._site_port_forwardings_request_valid(path) or
                                   self._site_stack_vlan_interfaces_request_valid(path) or
                                   self._site_stack_dhcp_users_request_valid(path) or
                                   self._site_snmp_incompatible_request_valid(path) or
@@ -20135,6 +20194,20 @@ class OmadaOpenApiClient:
 
     def _site_stack_ospf_neighbors_request_valid(self, path: str) -> bool:
         match = self._SITE_STACK_OSPF_NEIGHBORS_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return (1 <= int(match.group(2)) <= min(self.config.max_pages, 10) and
+                    1 <= int(match.group(3)) <= 1000)
+        except (ValueError, OverflowError):
+            return False
+
+    def _site_intelli_recover_settings_request_valid(self, path: str) -> bool:
+        match = self._SITE_INTELLI_RECOVER_SETTINGS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_port_forwardings_request_valid(self, path: str) -> bool:
+        match = self._SITE_PORT_FORWARDINGS_REQUEST.fullmatch(path)
         if not match or match.group(1) != self.config.controller_id:
             return False
         try:

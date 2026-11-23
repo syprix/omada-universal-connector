@@ -426,6 +426,8 @@ IMPLEMENTED: dict[tuple[str, str], str] = {
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/stacks/{stack_id}/networks"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/stacks/{stack_id}/staticRoutings"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/stack/{stack_id}/ospf-neighbors"): "implemented_read",
+    ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/intelli-recover/auto-setting/config"): "implemented_read",
+    ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/nat/port-forwardings"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/stack/{stack_id}/dhcp/user-list"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/vlan-interface/stack/{stack_id}"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/setting/service/snmp/incompatible-devices"): "implemented_read",

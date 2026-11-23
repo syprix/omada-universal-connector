@@ -47,6 +47,14 @@ class CapabilityStateTests(unittest.TestCase):
         self.assertTrue(all(item["support_state"] == "unknown"
                             for item in catalog["items"]))
 
+    def test_recovery_and_forwarding_capabilities_are_listed_once(self) -> None:
+        names = ("site_intelli_recover_summary", "site_port_forwarding_summary")
+        for catalog in (self.client.capabilities(), OmadaOpenApiClient.capability_catalog()):
+            listed = [item["operation"] for item in catalog["items"]]
+            for name in names:
+                with self.subTest(catalog=catalog is not None, operation=name):
+                    self.assertEqual(listed.count(name), 1)
+
     def test_change_preview_operations_are_implemented_but_not_live_verified(self) -> None:
         expected = {
             "ap_radio_change_preview": "POST /v1/sites/{site_ref}/aps/{device_ref}/radio-preview",
