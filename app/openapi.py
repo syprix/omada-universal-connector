@@ -11622,10 +11622,11 @@ class OmadaOpenApiClient:
         for page in range(1, page_limit + 1):
             remaining_rows = (total_rows - len(rows)
                               if total_rows is not None else page_size)
-            request_size = min(page_size, 1_000 - len(rows), remaining_rows)
-            if request_size <= 0:
+            if min(1_000 - len(rows), remaining_rows) <= 0:
                 break
-            query = urlencode({"page": page, "pageSize": request_size})
+            # Keep pageSize fixed: shrinking the last request changes the page
+            # offset on controllers that use (page - 1) * pageSize.
+            query = urlencode({"page": page, "pageSize": page_size})
             payload = self._request_json("GET", base_path + "?" + query, token=token)
             if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
                 raise OpenApiError("openapi_response_invalid")
@@ -11636,18 +11637,20 @@ class OmadaOpenApiClient:
             current_size = result.get("currentSize") if isinstance(result, Mapping) else None
             empty_zero_page = (page == 1 and reported_total == 0 and current_page == 0 and
                                current_size == 0 and data == [])
-            if (not isinstance(data, list) or len(data) > request_size or
+            if (not isinstance(data, list) or len(data) > page_size or
                     type(reported_total) is not int or not 0 <= reported_total < (1 << 63) or
                     ((type(current_page) is not int or current_page != page) and
                      not empty_zero_page) or
                     type(current_size) is not int or
-                    current_size not in (len(data), request_size) and not empty_zero_page):
+                    current_size not in (len(data), page_size) and not empty_zero_page):
                 raise OpenApiError("openapi_response_invalid")
             if total_rows is None:
                 total_rows = reported_total
             elif reported_total != total_rows:
                 raise OpenApiError("openapi_response_invalid")
-            rows.extend(data)
+            if len(rows) + len(data) > reported_total:
+                raise OpenApiError("openapi_response_invalid")
+            rows.extend(data[:min(1_000 - len(rows), reported_total - len(rows))])
             if len(rows) > reported_total or len(rows) > 1_000:
                 raise OpenApiError("openapi_response_invalid")
             if not data and len(rows) < reported_total:
@@ -20349,8 +20352,8 @@ class OmadaOpenApiClient:
             remaining = max_items - len(rows)
             if remaining <= 0:
                 break
-            request_size = min(page_size, remaining)
-            query = urlencode({"page": page, "pageSize": request_size})
+            # Keep pageSize stable across pages; only trim locally at max_items.
+            query = urlencode({"page": page, "pageSize": page_size})
             payload = self._request_json("GET", base_path + "?" + query, token=token)
             if (require_success_code and
                     (type(payload.get("errorCode")) is not int or payload["errorCode"] != 0)):
@@ -20360,17 +20363,19 @@ class OmadaOpenApiClient:
             total = result.get("totalRows") if isinstance(result, dict) else None
             current_page = result.get("currentPage") if isinstance(result, dict) else None
             current_size = result.get("currentSize") if isinstance(result, dict) else None
-            if (not isinstance(data, list) or len(data) > request_size or
+            if (not isinstance(data, list) or len(data) > page_size or
                     type(total) is not int or total < 0 or
                     type(current_page) is not int or current_page != page or
                     type(current_size) is not int or
-                    current_size not in (len(data), request_size)):
+                    current_size not in (len(data), page_size)):
                 raise OpenApiError("openapi_response_invalid")
             if total_rows is None:
                 total_rows = total
             elif total != total_rows:
                 raise OpenApiError("openapi_response_invalid")
-            rows.extend(data)
+            if len(rows) + len(data) > total:
+                raise OpenApiError("openapi_response_invalid")
+            rows.extend(data[:remaining])
             if len(rows) > max_items or len(rows) > total:
                 raise OpenApiError("openapi_response_invalid")
             if not data and len(rows) < total:

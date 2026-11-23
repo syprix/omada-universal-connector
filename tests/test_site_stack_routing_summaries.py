@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
+from dataclasses import replace
 from unittest.mock import patch
 
 from app.openapi import OmadaOpenApiClient, OpenApiConfig, OpenApiError
@@ -69,8 +70,32 @@ class StackRoutingSummaryTests(unittest.TestCase):
         self.assertNotIn("private", json.dumps(result))
         self.assertIn("stacks/stack_1/staticRoutings?page=1&pageSize=2",
                       request.call_args_list[1].args[1])
-        self.assertIn("staticRoutings?page=2&pageSize=1",
+        self.assertIn("staticRoutings?page=2&pageSize=2",
                       request.call_args_list[2].args[1])
+
+    def test_stack_inventory_with_non_dividing_page_size_binds_last_stack_row(self) -> None:
+        self.client.config = replace(self.client.config, page_size=7, max_pages=6)
+        stack_ref = self.client._opaque_ref("stack", "site-1:stack_31")
+        inventory = []
+        for page in range(1, 6):
+            start = (page - 1) * 7
+            rows = [{"id": f"stack_{index}"}
+                    for index in range(start, min(start + 7, 32))]
+            inventory.append({"errorCode": 0,
+                              "result": {"totalRows": 32, "currentPage": page,
+                                         "currentSize": len(rows), "data": rows}})
+        grid = {"errorCode": 0,
+                "result": {"totalRows": 0, "currentPage": 0, "currentSize": 0,
+                           "data": []}}
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", side_effect=inventory + [grid]) as request:
+            result = self.client.read_site_stack_static_routing_summary(
+                self.site_ref, stack_ref)
+        self.assertEqual(result["route_count"], 0)
+        inventory_queries = [call.args[1] for call in request.call_args_list[:5]]
+        self.assertEqual(inventory_queries,
+                         [f"/openapi/v1/controller_1/sites/site-1/stacks?page={page}&pageSize=7"
+                          for page in range(1, 6)])
 
     def test_duplicate_stack_inventory_stops_before_selected_grid_read(self) -> None:
         with patch.object(self.client, "_access_token", return_value="token"), \

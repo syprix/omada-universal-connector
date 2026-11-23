@@ -886,10 +886,16 @@ page metadata with a placeholder row); the implementation accepts a genuinely
 empty zero-page result and rejects that example shape. No controller has been
 contacted.
 
+Review found that reducing `pageSize` on a final partial page could shift the
+offset and repeat or skip stack rows. The bounded grid readers now keep the
+same page size for every request and trim only after receiving a page. An
+offline case with 32 stack entries and a page size of 7 confirms that the last
+stack remains uniquely resolvable.
+
 Synthetic token measurements with `js-tiktoken` 1.0.21 / `o200k_base` compared
 20 source rows with the actual summary responses: static routes 2,216→122 tokens
 (94.49% fewer); OSPF neighbors 1,229→102 tokens (91.70% fewer). These exclude
 tool schemas, transport framing, prompts and billed agent usage. The full client
-and HTTP/MCP modules passed 476 tests; the registry, matrix and evidence gate
-passed 312 tests. Three-export contract checks, full API matrix, compileall and
-diff checks passed. Hosted CI is pending. Live controller support is unknown.
+and HTTP/MCP modules passed 477 tests after the pagination fix. The registry,
+matrix and evidence gate is being rerun on that fix. Three-export contract
+checks and the full API matrix passed. Live controller support is unknown.
