@@ -274,6 +274,8 @@ OPERATIONS = {
     'site_wlan_group_ssid_config_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/wireless-network/wlans/{wlanId}/ssids/{ssidId}'),
     'site_ap_group_capacity': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/count-ap-groups'),
     'site_ap_group_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/ap-groups'),
+    'site_ap_group_assignment_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/ap-groups/aps'),
+    'site_ap_group_info_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/ap-groups/{apGroupId}/info'),
     'site_ap_oui_vlan_rules_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/ap-oui-rules'),
     'site_vlan_ssid_usage_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/networks/{networkId}/vlan/{vlan}/ssids'),
     'site_vlan_device_usage_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/networks/{networkId}/vlan/{vlan}/devices'),

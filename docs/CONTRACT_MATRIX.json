@@ -3099,6 +3099,35 @@
             "response": "result is a typed list of OswDDMInfoOpenApiVO rows. dataReady:int32 (0 invalid, 1 valid), transmitFault:int32 (0 false, 1 true), and lossOfSignal:int32 (0 false, 1 true) are documented. Numeric optical readings and port fields are also present.",
             "projection": "Refreshes same-site device inventory, requires one unique switch device_ref, then counts only the three documented status flags. Omits port identifiers, standard port names and numeric optical readings. No device-health diagnosis is inferred."
           }
+        },
+        "site_ap_group_assignment_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getAllApGroupListBySite",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/ap-groups/aps",
+            "query": {
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, 1–1000"
+            },
+            "request_body": false,
+            "response": "OperationResponseGridVOSsidDeviceOpenApiVO resolves to GridVOSsidDeviceOpenApiVO with totalRows:int64, currentPage/currentSize:int32 and data:SsidDeviceOpenApiVO[]. Each row documents optional apGroupId:string, apGroupName:string, overrideNum:int32 (number of SSID overrides per AP), plus device identity, address, status, model and traffic fields.",
+            "projection": "Reads complete bounded pages (up to 10,000 rows). Counts rows with/without a reported non-empty apGroupId and rows with overrideNum > 0; sums documented overrideNum values only when all row values are present and valid. Missing or invalid values remain unknown/partial. Omits all device/group identifiers, names, addresses, model, status and traffic."
+          }
+        },
+        "site_ap_group_info_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getApGroupInfo",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/ap-groups/{apGroupId}/info",
+            "query": {},
+            "request_body": false,
+            "response": "OperationResponseApGroupOpenApiVO resolves to ApGroupOpenApiVO with optional primary:boolean, apNum:int64, remainingBinding:object<int32> (documented key 0=2g, 1=5g, 2=6g), id/name:string and ssidNameList:string[].",
+            "projection": "Requires one group_ref from the same-site AP-group inventory. Refreshes that inventory, rejects missing or duplicate references, and then reads one group. Reports primary, AP count and remainingBinding by documented band; missing/invalid values stay unknown. Omits raw group ID, name and SSID labels."
+          }
         }
       }
     },

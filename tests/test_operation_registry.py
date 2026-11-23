@@ -459,6 +459,15 @@ class OperationRegistryTests(unittest.TestCase):
         self.assertEqual(op.operation_id, "site_ap_group_summary")
         self.assertEqual(bindings, (("site_ref", "0123456789abcdef01234567"),))
         op, bindings = REGISTRY.match(
+            "GET", "/v1/sites/0123456789abcdef01234567/ap-groups/aps/summary")
+        self.assertEqual(op.operation_id, "site_ap_group_assignment_summary")
+        self.assertEqual(bindings, (("site_ref", "0123456789abcdef01234567"),))
+        op, bindings = REGISTRY.match(
+            "GET", "/v1/sites/0123456789abcdef01234567/ap-groups/abcdef0123456789abcdef01/info-summary")
+        self.assertEqual(op.operation_id, "site_ap_group_info_summary")
+        self.assertEqual(bindings, (("site_ref", "0123456789abcdef01234567"),
+                                    ("group_ref", "abcdef0123456789abcdef01")))
+        op, bindings = REGISTRY.match(
             "GET", "/v1/sites/0123456789abcdef01234567/dot1x/eap-candidates/summary")
         self.assertEqual(op.operation_id, "site_eap_dot1x_candidates_summary")
         self.assertEqual(bindings, (("site_ref", "0123456789abcdef01234567"),))
@@ -1128,6 +1137,8 @@ class OperationRegistryTests(unittest.TestCase):
             "site_wlan_group_capacity",
             "site_ap_group_capacity",
             "site_ap_group_summary",
+            "site_ap_group_assignment_summary",
+            "site_ap_group_info_summary",
             "site_ap_oui_vlan_rules_summary",
             "site_vlan_ssid_usage_summary",
             "site_vlan_device_usage_summary",

@@ -1360,6 +1360,19 @@ class FakeOpenApiClient:
                 "total_groups": 2, "primary_groups": 1, "non_primary_groups": 1,
                 "ap_count_total": 3, "partial": False}
 
+    def read_site_ap_group_assignment_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_ap_group_assignment_summary", site_ref))
+        return {"status": "ok", "resource": "site_ap_group_assignment_summary",
+                "ap_rows": 2, "with_reported_group_assignment": 1,
+                "without_reported_group_assignment": 1}
+
+    def read_site_ap_group_info_summary(
+            self, site_ref: str, group_ref: str) -> dict[str, object]:
+        self.calls.append(("site_ap_group_info_summary", site_ref, group_ref))
+        return {"status": "ok", "resource": "site_ap_group_info_summary",
+                "site_ref": site_ref, "group_ref": group_ref, "primary": True,
+                "ap_count": 2}
+
     def read_site_ap_oui_vlan_rules_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_ap_oui_vlan_rules_summary", site_ref))
         return {"status": "ok", "resource": "site_ap_oui_vlan_rules_summary",
@@ -9313,6 +9326,42 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(body["resource"], "site_ap_group_summary")
         self.assertEqual(self.fake.calls[-1], ("site_ap_group_summary", site_ref))
+
+    def test_site_ap_group_assignment_summary_is_available_over_http_and_mcp(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/ap-groups/aps/summary"
+        status, body = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(body["resource"], "site_ap_group_assignment_summary")
+        self.assertEqual(self.fake.calls[-1], ("site_ap_group_assignment_summary", site_ref))
+        status, response = self.request_post("/mcp", {
+            "jsonrpc": "2.0", "id": 390, "method": "tools/call",
+            "params": {"name": "omada_site_ap_group_assignment_summary",
+                       "arguments": {"site_ref": site_ref}},
+        }, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"]["resource"],
+                         "site_ap_group_assignment_summary")
+        self.assertEqual(self.fake.calls[-1], ("site_ap_group_assignment_summary", site_ref))
+
+    def test_site_ap_group_info_summary_is_available_over_http_and_mcp(self) -> None:
+        site_ref, group_ref = "a" * 24, "b" * 24
+        path = f"/v1/sites/{site_ref}/ap-groups/{group_ref}/info-summary"
+        status, body = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(body["resource"], "site_ap_group_info_summary")
+        self.assertEqual(self.fake.calls[-1],
+                         ("site_ap_group_info_summary", site_ref, group_ref))
+        status, response = self.request_post("/mcp", {
+            "jsonrpc": "2.0", "id": 391, "method": "tools/call",
+            "params": {"name": "omada_site_ap_group_info_summary",
+                       "arguments": {"site_ref": site_ref, "group_ref": group_ref}},
+        }, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"]["resource"],
+                         "site_ap_group_info_summary")
+        self.assertEqual(self.fake.calls[-1],
+                         ("site_ap_group_info_summary", site_ref, group_ref))
         status, response = self.request_post("/mcp", {
             "jsonrpc": "2.0", "id": 389, "method": "tools/call",
             "params": {"name": "omada_site_ap_group_summary",

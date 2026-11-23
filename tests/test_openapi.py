@@ -766,6 +766,50 @@ class OpenApiClientTests(unittest.TestCase):
                     self.client.read_site_wlan_group_ssid_config_summary(
                         site_ref, group_ref, ssid_ref)
 
+    def test_ap_group_info_rejects_reserved_path_segments_and_keeps_dotted_ids(self) -> None:
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        rows = [
+            {"id": ".", "primary": False, "apNum": 0},
+            {"id": "..", "primary": False, "apNum": 0},
+            {"id": "group.v1", "primary": True, "apNum": 1},
+        ]
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_read_pages_result", return_value={
+                    "totalRows": 3, "data": rows,
+                }):
+            inventory = self.client.read_site_ap_group_summary(site_ref)
+        self.assertEqual(len(inventory["groups"]), 1)
+        self.assertEqual(inventory["group_ref_missing_rows"], 2)
+        group_ref = inventory["groups"][0]["group_ref"]
+        self.assertEqual(self.client._ap_group_ids_by_site_ref[site_ref][group_ref], "group.v1")
+        for invalid_id in (".", ".."):
+            path = f"/openapi/v1/controller_1/sites/site-1/ap-groups/{invalid_id}/info"
+            self.assertFalse(self.client._site_ap_group_info_request_valid(path))
+        valid_path = "/openapi/v1/controller_1/sites/site-1/ap-groups/group.v1/info"
+        self.assertTrue(self.client._site_ap_group_info_request_valid(valid_path))
+
+        with patch.object(self.client, "read_site_ap_group_summary",
+                          return_value={"groups": [{"group_ref": group_ref}]}), \
+                patch.object(self.client, "_request_json") as detail_request:
+            self.client._ap_group_ids_by_site_ref[site_ref][group_ref] = ".."
+            with self.assertRaisesRegex(OpenApiError, "openapi_response_invalid"):
+                self.client.read_site_ap_group_info_summary(site_ref, group_ref)
+        detail_request.assert_not_called()
+
+        self.client._ap_group_ids_by_site_ref[site_ref][group_ref] = "group.v1"
+        with patch.object(self.client, "read_site_ap_group_summary",
+                          return_value={"groups": [{"group_ref": group_ref}]}), \
+                patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={
+                    "errorCode": 0,
+                    "result": {"primary": True, "apNum": 1,
+                               "remainingBinding": {"0": 1, "1": 2, "2": 3}},
+                }) as detail_request:
+            detail = self.client.read_site_ap_group_info_summary(site_ref, group_ref)
+        self.assertEqual(detail["status"], "ok")
+        self.assertEqual(detail_request.call_args.args[1], valid_path)
+
     def test_lte_wan_settings_use_fixed_site_path_and_redact_provider_values(self) -> None:
         site_ref = "a" * 24
         self.client._site_ids_by_ref[site_ref] = "site-1"

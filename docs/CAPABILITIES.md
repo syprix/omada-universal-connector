@@ -1117,18 +1117,34 @@ The paginated AP-group inventory is available at
 `GET /v1/sites/{site_ref}/ap-groups` through
 `omada_site_ap_group_summary`. It returns group and AP counts, bounded
 remaining-SSID-binding totals, and documented per-band SSID limits. Group IDs,
-group names and SSID labels are discarded. Hardware Controller and CBC
+group names and SSID labels are discarded. It provides opaque `group_ref`
+handles with documented primary and AP-count summaries for selecting one group.
+Hardware Controller and CBC
 Standard document `getApGroupList` with `Site Settings Manager View Only` or
 `Network Config Page View Only`; ER7212PC does not document this route. The
 fixed reader fetches bounded pages and accepts no caller filters. Offline
 projection, paging, HTTP and MCP tests cover the implementation; live support
 remains unknown.
 
-A synthetic 12-group response was serialized and counted with js-tiktoken
-1.0.21 using `o200k_base`: the raw JSON used 712 tokens and the projected
-summary used 163, saving 549 tokens (77.11%) for the result payload. This
-fixture comparison excludes HTTP framing, MCP schemas, prompts and host
-overhead; it is not a live controller or agent-billing measurement.
+`omada_site_ap_group_assignment_summary` counts AP rows with and without a
+reported group assignment and the documented SSID-override counts. It omits AP
+names, addresses, device/group IDs, model information and traffic values. It
+uses bounded pagination without caller filters. Hardware Controller and CBC
+document the typed row fields; ER7212PC does not document the route. Live
+support is unknown.
+
+`omada_site_ap_group_info_summary` takes a `site_ref` and a `group_ref` from the
+fresh site AP-group summary. It refreshes that group inventory, requires one
+unique matching group, then reports the documented primary flag, AP count and
+remaining SSID bindings by band. Group IDs, names and SSID labels are omitted.
+Hardware Controller and CBC document this read; ER7212PC does not. It reports
+controller configuration only and makes no claim about effective WLAN service.
+
+A synthetic 20-group AP inventory with repeated SSID labels was serialized and
+counted with js-tiktoken 1.0.21 / `o200k_base`: the raw page used 1,412 tokens
+and the aggregate plus group-selection references used 728. It excludes HTTP
+framing, MCP schemas, prompts and billed agent usage; it is not a live
+controller measurement.
 
 AP OUI-based VLAN rules are summarized at
 `GET /v1/sites/{site_ref}/ap-oui-rules/summary` through
