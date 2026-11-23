@@ -33,6 +33,23 @@ class FullApiMatrixTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.tmp.cleanup()
 
+    def test_upgrade_failure_and_stack_cable_log_reads_match_three_source_contracts(self):
+        path = Path(__file__).resolve().parents[1] / "docs/CONTRACT_MATRIX.json"
+        matrix = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(len(matrix["sources"]), 3)
+        expected = {
+            "controller_upgrade_log_inventory": "getGridUpgradeLogs",
+            "controller_upgrade_failed_devices_summary": "getUpgradeFailedDeviceInfos",
+            "site_stack_cable_test_log_summary": "getStackCableTestLogs",
+        }
+        for source in matrix["sources"]:
+            for operation_id, source_id in expected.items():
+                operation = source["operations"][operation_id]
+                self.assertTrue(operation["documented"])
+                self.assertEqual(operation["live_support"], "unknown")
+                self.assertEqual(operation["contract_review"]["operation_id"], source_id)
+
+
     def test_lan_switch_assignment_and_v2_ssid_topology_contracts_are_distinct(self):
         path = Path(__file__).resolve().parents[1] / "docs/CONTRACT_MATRIX.json"
         matrix = json.loads(path.read_text(encoding="utf-8"))

@@ -3366,6 +3366,51 @@
             "projection": "Counts rows, primary/candidate object references and failBack boolean values. FailBackTime values and nested tunnel status are omitted; only time-field presence is counted.",
             "permissions": "Site Settings Manager View Only; Network Config Page View Only"
           }
+        },
+        "controller_upgrade_log_inventory": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridUpgradeLogs",
+            "permission": "Site Manual Firmware Upgrade View Only",
+            "path": "/openapi/v1/{omadacId}/upgrade/overview/logs",
+            "query": {
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, 1–1000"
+            },
+            "request_body": false,
+            "response": "GridVOUpgradeLogOpenApiInfo contains totalRows/currentPage/currentSize/data; rows document string id. ER7212PC example has totalRows/currentPage/currentSize 0 and one exact blank placeholder row.",
+            "projection": "Returns opaque references only, one requested page, with invalid and duplicate selector coverage counts. The accepted ER7212PC empty placeholder is the only tolerated inconsistent example. No log names, model/site/operator names, dates, versions or raw IDs."
+          }
+        },
+        "controller_upgrade_failed_devices_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getUpgradeFailedDeviceInfos",
+            "permission": "Site Manual Firmware Upgrade View Only",
+            "path": "/openapi/v1/{omadacId}/logs/{upgradeLogId}/upgrade/overview/failed-devices",
+            "query": {
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, 1–1000"
+            },
+            "request_body": false,
+            "response": "GridVOUpgradeFailedDeviceInfo contains totalRows/currentPage/currentSize/data. Row type is string with documented values gateway, switch and ap; row also contains model, device name, MAC, current version and site name. ER7212PC documents one exact empty placeholder row for totalRows/currentPage/currentSize 0.",
+            "projection": "Refreshes and uniquely resolves an opaque selector from at most 1,000 controller log rows, then reads at most 1,000 failed-device rows. Counts only documented device types; unknown type and row truncation are partial. Names, MACs, site names, raw versions and log IDs are omitted. No upgrade action."
+          }
+        },
+        "site_stack_cable_test_log_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getStackCableTestLogs",
+            "permission": "Site Device Manager View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/cable-test/stacks/{stackId}/logs",
+            "query": {},
+            "request_body": false,
+            "response": "Result is a list of OswCableTestLogOpenApiVO with type codes 0=start, 1=test done, 2=interrupted, 3=timed out; timeStamp; and testPortList, completePortList, cancelPortList, timeoutPortList arrays of brief port objects.",
+            "projection": "Refreshes a complete bounded site stack inventory and binds the selected opaque stack reference. Caps output to counts over at most 64 logs and 128 entries per port list. Counts documented port-list entries and type codes; repeated port mentions across logs are event entries, not unique ports. No port identifiers or raw timestamps, test execution or freshness claim."
+          }
         }
       }
     },
@@ -6676,6 +6721,51 @@
             "projection": "Counts rows, primary/candidate object references and failBack boolean values. FailBackTime values and nested tunnel status are omitted; only time-field presence is counted.",
             "permissions": "Site Settings Manager View Only; Network Config Page View Only"
           }
+        },
+        "controller_upgrade_log_inventory": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridUpgradeLogs",
+            "permission": "Site Manual Firmware Upgrade View Only",
+            "path": "/openapi/v1/{omadacId}/upgrade/overview/logs",
+            "query": {
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, 1–1000"
+            },
+            "request_body": false,
+            "response": "GridVOUpgradeLogOpenApiInfo contains totalRows/currentPage/currentSize/data; rows document string id. ER7212PC example has totalRows/currentPage/currentSize 0 and one exact blank placeholder row.",
+            "projection": "Returns opaque references only, one requested page, with invalid and duplicate selector coverage counts. The accepted ER7212PC empty placeholder is the only tolerated inconsistent example. No log names, model/site/operator names, dates, versions or raw IDs."
+          }
+        },
+        "controller_upgrade_failed_devices_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getUpgradeFailedDeviceInfos",
+            "permission": "Site Manual Firmware Upgrade View Only",
+            "path": "/openapi/v1/{omadacId}/logs/{upgradeLogId}/upgrade/overview/failed-devices",
+            "query": {
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, 1–1000"
+            },
+            "request_body": false,
+            "response": "GridVOUpgradeFailedDeviceInfo contains totalRows/currentPage/currentSize/data. Row type is string with documented values gateway, switch and ap; row also contains model, device name, MAC, current version and site name. ER7212PC documents one exact empty placeholder row for totalRows/currentPage/currentSize 0.",
+            "projection": "Refreshes and uniquely resolves an opaque selector from at most 1,000 controller log rows, then reads at most 1,000 failed-device rows. Counts only documented device types; unknown type and row truncation are partial. Names, MACs, site names, raw versions and log IDs are omitted. No upgrade action."
+          }
+        },
+        "site_stack_cable_test_log_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getStackCableTestLogs",
+            "permission": "Site Device Manager View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/cable-test/stacks/{stackId}/logs",
+            "query": {},
+            "request_body": false,
+            "response": "Result is a list of OswCableTestLogOpenApiVO with type codes 0=start, 1=test done, 2=interrupted, 3=timed out; timeStamp; and testPortList, completePortList, cancelPortList, timeoutPortList arrays of brief port objects.",
+            "projection": "Refreshes a complete bounded site stack inventory and binds the selected opaque stack reference. Caps output to counts over at most 64 logs and 128 entries per port list. Counts documented port-list entries and type codes; repeated port mentions across logs are event entries, not unique ports. No port identifiers or raw timestamps, test execution or freshness claim."
+          }
         }
       }
     },
@@ -9894,6 +9984,51 @@
             "response": "OperationResponseGridVOIPsecFailover Information; rows have id, name, primary, candidates, failBack and int32 failBackTime; nested IPSec info has id, name and documented status codes",
             "projection": "Counts rows, primary/candidate object references and failBack boolean values. FailBackTime values and nested tunnel status are omitted; only time-field presence is counted.",
             "permissions": "Site Settings Manager View Only; Network Config Page View Only"
+          }
+        },
+        "controller_upgrade_log_inventory": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridUpgradeLogs",
+            "permission": "Site Manual Firmware Upgrade View Only",
+            "path": "/openapi/v1/{omadacId}/upgrade/overview/logs",
+            "query": {
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, 1–1000"
+            },
+            "request_body": false,
+            "response": "GridVOUpgradeLogOpenApiInfo contains totalRows/currentPage/currentSize/data; rows document string id. ER7212PC example has totalRows/currentPage/currentSize 0 and one exact blank placeholder row.",
+            "projection": "Returns opaque references only, one requested page, with invalid and duplicate selector coverage counts. The accepted ER7212PC empty placeholder is the only tolerated inconsistent example. No log names, model/site/operator names, dates, versions or raw IDs."
+          }
+        },
+        "controller_upgrade_failed_devices_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getUpgradeFailedDeviceInfos",
+            "permission": "Site Manual Firmware Upgrade View Only",
+            "path": "/openapi/v1/{omadacId}/logs/{upgradeLogId}/upgrade/overview/failed-devices",
+            "query": {
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, 1–1000"
+            },
+            "request_body": false,
+            "response": "GridVOUpgradeFailedDeviceInfo contains totalRows/currentPage/currentSize/data. Row type is string with documented values gateway, switch and ap; row also contains model, device name, MAC, current version and site name. ER7212PC documents one exact empty placeholder row for totalRows/currentPage/currentSize 0.",
+            "projection": "Refreshes and uniquely resolves an opaque selector from at most 1,000 controller log rows, then reads at most 1,000 failed-device rows. Counts only documented device types; unknown type and row truncation are partial. Names, MACs, site names, raw versions and log IDs are omitted. No upgrade action."
+          }
+        },
+        "site_stack_cable_test_log_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getStackCableTestLogs",
+            "permission": "Site Device Manager View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/cable-test/stacks/{stackId}/logs",
+            "query": {},
+            "request_body": false,
+            "response": "Result is a list of OswCableTestLogOpenApiVO with type codes 0=start, 1=test done, 2=interrupted, 3=timed out; timeStamp; and testPortList, completePortList, cancelPortList, timeoutPortList arrays of brief port objects.",
+            "projection": "Refreshes a complete bounded site stack inventory and binds the selected opaque stack reference. Caps output to counts over at most 64 logs and 128 entries per port list. Counts documented port-list entries and type codes; repeated port mentions across logs are event entries, not unique ports. No port identifiers or raw timestamps, test execution or freshness claim."
           }
         }
       }

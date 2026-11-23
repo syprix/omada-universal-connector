@@ -94,7 +94,8 @@ class OperationRegistry:
                                                   "site_routing_table_summary",
                                                   "site_allowed_application_summary",
                                                   "site_blocked_application_summary",
-                                                  "controller_gateway_wan_status_summary"),
+                                                  "controller_gateway_wan_status_summary",
+                                                  "controller_upgrade_log_inventory"),
                 ("pon_port", "page_number", "page_size"): "olt_onu_autofind_inventory_summary",
                 ("vpn_type",): ("site_vpn_tunnel_summary",
                                 "site_open_vpn_tunnel_summary",
@@ -164,7 +165,7 @@ class OperationRegistry:
             if ("$incident_context_mac" in bindings.values() and
                     "incident_ref" not in public_vars):
                 raise RegistryError("incident context requires an opaque incident reference")
-            if any(name not in {"site_ref", "history_ref", "incident_ref", "device_ref", "gateway_ref", "switch_ref", "stack_ref", "client_ref", "ssid_ref", "wlan_group_ref", "network_ref", "wan_port_ref", "site_template_ref", "msp_ref", "customer_ref", "vpn_ref", "group_ref", "family_id", "application_id", "port"}
+            if any(name not in {"site_ref", "history_ref", "incident_ref", "device_ref", "gateway_ref", "switch_ref", "stack_ref", "client_ref", "ssid_ref", "wlan_group_ref", "network_ref", "wan_port_ref", "site_template_ref", "msp_ref", "customer_ref", "vpn_ref", "group_ref", "upgrade_log_ref", "family_id", "application_id", "port"}
                    for name in public_vars):
                 raise RegistryError("unsupported public reference binding")
             if item.evidence != "unknown":
@@ -914,6 +915,16 @@ REGISTRY = OperationRegistry((
               "/v1/controller/firmware-upgrades/summary", "GET",
               "/openapi/v1/{controller_id}/upgrade/overview/logs",
               (("controller_id", "$config"),), max_items=100),
+    Operation("controller_upgrade_log_inventory", "GET",
+              "/v1/controller/firmware-upgrades/inventory", "GET",
+              "/openapi/v1/{controller_id}/upgrade/overview/logs",
+              (("controller_id", "$config"),),
+              extra_arguments=("page_number", "page_size"), max_items=100),
+    Operation("controller_upgrade_failed_devices_summary", "GET",
+              "/v1/controller/firmware-upgrades/{upgrade_log_ref}/failed-devices-summary", "GET",
+              "/openapi/v1/{controller_id}/logs/{upgrade_log_id}/upgrade/overview/failed-devices",
+              (("controller_id", "$config"), ("upgrade_log_id", "upgrade_log_ref")),
+              max_items=1000),
     Operation("site_wan_qos_summary", "GET",
               "/v1/sites/{site_ref}/wan-qos-summary", "GET",
               "/openapi/v1/{controller_id}/sites/{site_id}/qos/gateway/wans",
@@ -1189,6 +1200,11 @@ Operation("site_stack_connections_summary", "GET",
               "/openapi/v1/{controller_id}/sites/{site_id}/stack/{stack_id}/ospf-neighbors",
               (("controller_id", "$config"), ("site_id", "site_ref"),
                ("stack_id", "stack_ref")), max_items=1000),
+    Operation("site_stack_cable_test_log_summary", "GET",
+              "/v1/sites/{site_ref}/stacks/{stack_ref}/cable-test-log-summary", "GET",
+              "/openapi/v1/{controller_id}/sites/{site_id}/cable-test/stacks/{stack_id}/logs",
+              (("controller_id", "$config"), ("site_id", "site_ref"),
+               ("stack_id", "stack_ref")), max_items=64),
     Operation("site_intelli_recover_summary", "GET",
               "/v1/sites/{site_ref}/automatic-recovery-settings/summary", "GET",
               "/openapi/v1/{controller_id}/sites/{site_id}/intelli-recover/auto-setting/config",

@@ -609,7 +609,7 @@ def _tool(operation: Any) -> dict[str, object]:
     properties: dict[str, object] = {}
     required: list[str] = []
     for name in re.findall(r"\{([a-z][a-z0-9_]*)\}", operation.public_template):
-        if name not in {"site_ref", "history_ref", "incident_ref", "device_ref", "gateway_ref", "switch_ref", "stack_ref", "client_ref", "ssid_ref", "wlan_group_ref", "network_ref", "wan_port_ref", "site_template_ref", "msp_ref", "customer_ref", "group_ref", "family_id", "application_id"}:
+        if name not in {"site_ref", "history_ref", "incident_ref", "device_ref", "gateway_ref", "switch_ref", "stack_ref", "client_ref", "ssid_ref", "wlan_group_ref", "network_ref", "wan_port_ref", "site_template_ref", "msp_ref", "customer_ref", "group_ref", "upgrade_log_ref", "family_id", "application_id"}:
             if name != "port":
                 continue
         if name == "port":
@@ -659,6 +659,8 @@ def _tool(operation: Any) -> dict[str, object]:
                             if name == "vpn_ref" else
                             "Opaque site-template reference returned by the site-template inventory."
                             if name == "site_template_ref" else
+                            "Opaque firmware-upgrade log reference returned by the bounded controller log inventory."
+                            if name == "upgrade_log_ref" else
                             "Opaque history reference returned by the planning history read."),
         }
         required.append(name)
@@ -671,8 +673,12 @@ def _tool(operation: Any) -> dict[str, object]:
             }
             required.append(name)
         elif name == "page_number":
-            properties[name] = {"type": "integer", "minimum": 0, "maximum": 10000,
-                                "description": "Zero-based page number for a bounded paginated read."}
+            if operation.operation_id == "controller_upgrade_log_inventory":
+                properties[name] = {"type": "integer", "minimum": 1, "maximum": 10,
+                                    "description": "One-based source page number; the inventory is limited to ten pages."}
+            else:
+                properties[name] = {"type": "integer", "minimum": 0, "maximum": 10000,
+                                    "description": "Zero-based page number for a bounded paginated read."}
             required.append(name)
         elif name == "page_size":
             properties[name] = {"type": "integer", "minimum": 1, "maximum": 100,
@@ -1302,7 +1308,7 @@ def _invoke_tool(registry: Any, name: object, arguments: object,
                 raise McpRequestError("arguments_invalid")
             safe_arguments[key] = value
             continue
-        if key not in {"site_ref", "history_ref", "incident_ref", "device_ref", "gateway_ref", "switch_ref", "stack_ref", "client_ref", "ssid_ref", "wlan_group_ref", "network_ref", "wan_port_ref", "site_template_ref", "vpn_ref", "group_ref"} or not isinstance(value, str) or not _SAFE_REF.fullmatch(value):
+        if key not in {"site_ref", "history_ref", "incident_ref", "device_ref", "gateway_ref", "switch_ref", "stack_ref", "client_ref", "ssid_ref", "wlan_group_ref", "network_ref", "wan_port_ref", "site_template_ref", "vpn_ref", "group_ref", "upgrade_log_ref"} or not isinstance(value, str) or not _SAFE_REF.fullmatch(value):
             raise McpRequestError("arguments_invalid")
         safe_arguments[key] = value
     for key in extra:
@@ -1313,7 +1319,9 @@ def _invoke_tool(registry: Any, name: object, arguments: object,
                 raise McpRequestError("arguments_invalid") from exc
         elif key == "page_number":
             value = arguments.get(key)
-            if type(value) is not int or not 0 <= value <= 10_000:
+            if (type(value) is not int or
+                    not (1 <= value <= 10 if operation.operation_id == "controller_upgrade_log_inventory"
+                         else 0 <= value <= 10_000)):
                 raise McpRequestError("arguments_invalid")
             safe_arguments[key] = str(value)
         elif key == "page_size":

@@ -205,6 +205,21 @@ class OperationRegistryTests(unittest.TestCase):
         self.assertEqual(route.operation_id, "site_remote_logging_summary")
         self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
 
+    def test_controller_upgrade_log_inventory_pages_and_failed_device_summary_bind_ref(self):
+        inventory = REGISTRY.get("controller_upgrade_log_inventory")
+        self.assertEqual(_tool(inventory)["inputSchema"]["required"],
+                         ["page_number", "page_size"])
+        route, bindings = REGISTRY.match("GET", "/v1/controller/firmware-upgrades/inventory")
+        self.assertEqual(route.operation_id, "controller_upgrade_log_inventory")
+        self.assertEqual(dict(bindings), {})
+        failure = REGISTRY.get("controller_upgrade_failed_devices_summary")
+        self.assertEqual(_tool(failure)["inputSchema"]["required"], ["upgrade_log_ref"])
+        ref = "a" * 24
+        route, bindings = REGISTRY.match(
+            "GET", f"/v1/controller/firmware-upgrades/{ref}/failed-devices-summary")
+        self.assertEqual(route.operation_id, "controller_upgrade_failed_devices_summary")
+        self.assertEqual(dict(bindings), {"upgrade_log_ref": ref})
+
     def test_controller_upgrade_log_summary_is_controller_scoped(self):
         operation = REGISTRY.get("controller_upgrade_log_summary")
         self.assertEqual(_tool(operation)["inputSchema"]["required"], [])
@@ -269,6 +284,17 @@ class OperationRegistryTests(unittest.TestCase):
             "GET", "/v1/sites/" + "a" * 24 + "/stacks/" + "b" * 24 +
             "/ospf-neighbors/summary")
         self.assertEqual(route.operation_id, "site_stack_ospf_neighbor_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24,
+                                          "stack_ref": "b" * 24})
+
+    def test_site_stack_cable_test_log_summary_binds_site_and_stack(self):
+        operation = REGISTRY.get("site_stack_cable_test_log_summary")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"],
+                         ["site_ref", "stack_ref"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/stacks/" + "b" * 24 +
+            "/cable-test-log-summary")
+        self.assertEqual(route.operation_id, "site_stack_cable_test_log_summary")
         self.assertEqual(dict(bindings), {"site_ref": "a" * 24,
                                           "stack_ref": "b" * 24})
 
@@ -1139,6 +1165,8 @@ class OperationRegistryTests(unittest.TestCase):
             "controller_auto_check_upgrade_summary",
             "site_remote_logging_summary",
             "controller_upgrade_log_summary",
+            "controller_upgrade_log_inventory",
+            "controller_upgrade_failed_devices_summary",
             "site_wan_qos_summary",
             "site_vlan_network_summary",
             "site_lan_network_detail_summary",
@@ -1203,6 +1231,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_stack_network_summary",
             "site_stack_static_routing_summary",
             "site_stack_ospf_neighbor_summary",
+            "site_stack_cable_test_log_summary",
             "site_intelli_recover_summary",
             "site_port_forwarding_summary",
             "site_stack_dhcp_user_summary",
