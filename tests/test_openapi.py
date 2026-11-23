@@ -152,6 +152,52 @@ class OpenApiClientTests(unittest.TestCase):
         with self.assertRaises(OpenApiError):
             self.client.read_site_vpn_client_status_summary(site_ref, 2)
 
+    def test_s2s_status_read_counts_raw_codes_and_redacts_peers(self) -> None:
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={"result": {
+                    "totalRows": 1, "currentPage": 1, "currentSize": 1,
+                    "supportWireguardStatus": True,
+                    "data": [{"status": 8, "remotePeerIp": "192.0.2.1",
+                              "name": "private", "vpnType": 2}]}}) as request:
+            result = self.client.read_site_vpn_s2s_status_summary(site_ref, 2)
+        self.assertEqual(result["status_code_counts"], {"8": 1})
+        self.assertEqual(result["vpn_type_name"], "ipsec")
+        for secret in ("192.0.2.1", "private"):
+            self.assertNotIn(secret, json.dumps(result))
+        self.assertIn("filters.vpnType=2&page=1&pageSize=2", request.call_args.args[1])
+        with self.assertRaises(OpenApiError):
+            self.client.read_site_vpn_s2s_status_summary(site_ref, 0)
+
+    def test_ssid_topology_read_joins_same_site_inventory_and_redacts_macs(self) -> None:
+        site_ref, ssid_ref = "a" * 24, "b" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        mac = "00:11:22:33:44:55"
+
+        def refresh_ssids(ref: str) -> dict[str, object]:
+            self.assertEqual(ref, site_ref)
+            self.client._ssid_ids_by_site_ref[site_ref] = {ssid_ref: "ssid-1"}
+            return {"status": "ok", "resource": "ssids", "items": []}
+
+        def list_devices(ref: str) -> dict[str, object]:
+            self.assertEqual(ref, site_ref)
+            device_ref = "c" * 24
+            self.client._inventory_macs_by_site_ref[site_ref] = {device_ref: mac}
+            return {"items": [{"device_ref": device_ref, "device_type": "ap"}]}
+
+        with patch.object(self.client, "list_ssids", side_effect=refresh_ssids) as ssids, \
+                patch.object(self.client, "list_devices", side_effect=list_devices) as devices, \
+                patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={
+                    "result": {"deviceMacs": [mac]}}) as request:
+            result = self.client.read_site_ssid_topology_device_summary(site_ref, ssid_ref)
+        self.assertEqual(result["device_class_counts"]["ap"], 1)
+        self.assertNotIn(mac, json.dumps(result))
+        self.assertEqual((ssids.call_count, devices.call_count), (1, 1))
+        self.assertIn("/openapi/v3/controller_1/sites/site-1/topology/ssids/ssid-1/devices",
+                      request.call_args.args[1])
+
     def test_ssid_client_count_binds_selected_site_and_uses_flat_query_fields(self) -> None:
         site_ref, ssid_ref = "a" * 24, "b" * 24
         self.client._site_ids_by_ref[site_ref] = "site-1"

@@ -141,14 +141,18 @@ class OperationEvidenceTests(unittest.TestCase):
         self.assertEqual(generated, expected)
         self.assertEqual(generated["operation_count"], 2445)
         self.assertEqual(generated["connector_evidence_counts"], {
-            "not_mapped": 2004,
-            "fixed_get_registry_route": 416,
+            "not_mapped": 2002,
+            "fixed_get_registry_route": 418,
             "manual_source_map_only": 25,
         })
         registry_rows = [row for row in generated["operations"]
                          if row["connector_evidence"] == "fixed_get_registry_route"]
         self.assertTrue(all(row["static_test_references"] for row in registry_rows))
         self.assertTrue(all(not row["function_verified"] for row in generated["operations"]))
+        indexed = {operation_id for row in registry_rows
+                   for operation_id in row["operation_ids"]}
+        self.assertIn("site_vpn_s2s_status_summary", indexed)
+        self.assertIn("site_ssid_topology_device_summary", indexed)
         public_templates = {
             "/v1/sites/{site_ref}/clients/recent-summary",
             "/v1/sites/{site_ref}/networks/{network_ref}/vlans/affected-ports-summary",
@@ -177,6 +181,16 @@ class OperationEvidenceTests(unittest.TestCase):
             vpn = source["operations"]["site_vpn_client_status_summary"]["contract_review"]
             self.assertEqual(vpn["operation_id"], "getGridVpnClientStatus")
             self.assertIn("no status-code semantics", vpn["response"])
+            s2s = source["operations"]["site_vpn_s2s_status_summary"]["contract_review"]
+            self.assertEqual(s2s["operation_id"], "getGridVpnS2SStatus")
+            self.assertIn("without enumerated values", s2s["response"])
+            self.assertIn("does not say connected or disconnected", s2s["projection"])
+            topology = source["operations"]["site_ssid_topology_device_summary"]
+            if source["label"].startswith("ER7212PC"):
+                self.assertFalse(topology["documented"])
+            else:
+                self.assertEqual(topology["contract_review"]["operation_id"],
+                                 "getFilterDevicesOfSsid")
             remote = source["operations"]["site_remote_logging_summary"]["contract_review"]
             self.assertEqual(remote["operation_id"], "getRemoteLoggingSetting")
             self.assertIn("host and port", remote["projection"])

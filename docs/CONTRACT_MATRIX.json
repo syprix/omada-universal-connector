@@ -2454,6 +2454,34 @@
             "response": "AvailableWanResultOpenApiVO has optional enable boolean and wanPorts array. Each optional row field is documented: portName, portUuid, type int32, configured boolean (QOS configured), supportIptv boolean, virtualWanNum int32, proto string, ipv6 boolean, ipv6Proto string, recommendedWan boolean and ip string.",
             "projection": "Site-bound HTTP/MCP GET with one validated function code. Counts listed rows and known true values for configured/IPv6/IPTV/recommended flags; omits names, UUIDs, addresses, protocol strings and raw types. Missing fields/unknown additions mark partial; no physical link status is inferred. Hardware/CBC only."
           }
+        },
+        "site_vpn_s2s_status_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridVpnS2SStatus",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/setting/vpn/stats/s2s",
+            "query": {
+              "filters.vpnType": "required string; 2 IPsec or 4 WireGuard",
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, source range 1–1000"
+            },
+            "response": "Paginated VpnTunnelStatusVO rows. The optional status property is int32 without enumerated values or documented status-code meanings. The result also has optional supportWireguardStatus.",
+            "source_example": "The ER7212PC example has totalRows/currentPage/currentSize equal to zero while including one data row; this conflicts with its page metadata and is not treated as a valid pagination contract.",
+            "projection": "Counts raw documented status integer codes by explicitly selected protocol, with bounded pagination. It omits VPN identifiers, names, peers and IP addresses, and does not say connected or disconnected. Raw status codes do not repair #45 IPsec SA status semantics."
+          }
+        },
+        "site_ssid_topology_device_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getFilterDevicesOfSsid",
+            "permission": "Site Settings Manager View Only, Site Dashboard Manager View Only, or Site Device Manager View Only",
+            "path": "GET /openapi/v3/{omadacId}/sites/{siteId}/topology/ssids/{ssidId}/devices",
+            "request": "The selected SSID is bound through the selected site SSID inventory. The response is only deviceMacs; the API has no pagination schema or device classes.",
+            "projection": "Joins topology MAC addresses only to the same-site v1 device inventory, then counts explicitly recognized AP, gateway, switch, and OLT types. Unmatched/ambiguous/unknown rows are reported as gaps. MACs, names, and IDs are omitted; no RF coverage is inferred."
+          }
         }
       }
     },
@@ -4881,6 +4909,34 @@
             "response": "AvailableWanResultOpenApiVO has optional enable boolean and wanPorts array. Each optional row field is documented: portName, portUuid, type int32, configured boolean (QOS configured), supportIptv boolean, virtualWanNum int32, proto string, ipv6 boolean, ipv6Proto string, recommendedWan boolean and ip string.",
             "projection": "Site-bound HTTP/MCP GET with one validated function code. Counts listed rows and known true values for configured/IPv6/IPTV/recommended flags; omits names, UUIDs, addresses, protocol strings and raw types. Missing fields/unknown additions mark partial; no physical link status is inferred. Hardware/CBC only."
           }
+        },
+        "site_vpn_s2s_status_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridVpnS2SStatus",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/setting/vpn/stats/s2s",
+            "query": {
+              "filters.vpnType": "required string; 2 IPsec or 4 WireGuard",
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, source range 1–1000"
+            },
+            "response": "Paginated VpnTunnelStatusVO rows. The optional status property is int32 without enumerated values or documented status-code meanings. The result also has optional supportWireguardStatus.",
+            "source_example": "The ER7212PC example has totalRows/currentPage/currentSize equal to zero while including one data row; this conflicts with its page metadata and is not treated as a valid pagination contract.",
+            "projection": "Counts raw documented status integer codes by explicitly selected protocol, with bounded pagination. It omits VPN identifiers, names, peers and IP addresses, and does not say connected or disconnected. Raw status codes do not repair #45 IPsec SA status semantics."
+          }
+        },
+        "site_ssid_topology_device_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getFilterDevicesOfSsid",
+            "permission": "Site Settings Manager View Only, Site Dashboard Manager View Only, or Site Device Manager View Only",
+            "path": "GET /openapi/v3/{omadacId}/sites/{siteId}/topology/ssids/{ssidId}/devices",
+            "request": "The selected SSID is bound through the selected site SSID inventory. The response is only deviceMacs; the API has no pagination schema or device classes.",
+            "projection": "Joins topology MAC addresses only to the same-site v1 device inventory, then counts explicitly recognized AP, gateway, switch, and OLT types. Unmatched/ambiguous/unknown rows are reported as gaps. MACs, names, and IDs are omitted; no RF coverage is inferred."
+          }
         }
       }
     },
@@ -7273,6 +7329,31 @@
         "site_wan_port_availability_summary": {
           "documented": false,
           "live_support": "unknown"
+        },
+        "site_vpn_s2s_status_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridVpnS2SStatus",
+            "permission": "Site Settings Manager View Only or Network Config Page View Only",
+            "path": "GET /openapi/v1/{omadacId}/sites/{siteId}/setting/vpn/stats/s2s",
+            "query": {
+              "filters.vpnType": "required string; 2 IPsec or 4 WireGuard",
+              "page": "required int32, starts at 1",
+              "pageSize": "required int32, source range 1–1000"
+            },
+            "response": "Paginated VpnTunnelStatusVO rows. The optional status property is int32 without enumerated values or documented status-code meanings. The result also has optional supportWireguardStatus.",
+            "source_example": "The ER7212PC example has totalRows/currentPage/currentSize equal to zero while including one data row; this conflicts with its page metadata and is not treated as a valid pagination contract.",
+            "projection": "Counts raw documented status integer codes by explicitly selected protocol, with bounded pagination. It omits VPN identifiers, names, peers and IP addresses, and does not say connected or disconnected. Raw status codes do not repair #45 IPsec SA status semantics."
+          }
+        },
+        "site_ssid_topology_device_summary": {
+          "documented": false,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": null,
+            "reason": "Operation is absent from this source export."
+          }
         }
       }
     }
