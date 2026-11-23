@@ -3155,6 +3155,14 @@ class FakeOpenApiClient:
                 "window_start_ms": 1, "window_end_ms": 86_400_001,
                 "health_version": 2, "score": 80, "dimensions": {},
                 "dimension_count": 0, "partial": False}
+
+    def read_client_health(self, site_ref: str, client_ref: str) -> dict[str, object]:
+        self.calls.append(("client_health", site_ref + ":" + client_ref))
+        return {"status": "ok", "resource": "client_health", "site_ref": site_ref,
+                "client_ref": client_ref, "partial": True,
+                "unclassified_minus_one_fields": ["score"],
+                "data": {"score": None}}
+
     def read_site_backup_inventory_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_backup_inventory_summary", site_ref))
         return {"status": "ok", "resource": "site_backup_inventory_summary",
@@ -10500,6 +10508,34 @@ class OpenApiHttpTests(unittest.TestCase):
                          "client_health_detail_v2")
         self.assertEqual(self.fake.calls[-1],
                          ("client_health_detail_v2", site_ref + ":" + client_ref))
+
+    def test_http_and_mcp_expose_unclassified_client_health_scores(self) -> None:
+        site_ref, client_ref = "c" * 24, "d" * 24
+        path = f"/v1/sites/{site_ref}/clients/{client_ref}/health"
+        status, body = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(body["resource"], "client_health")
+        self.assertTrue(body["partial"])
+        self.assertEqual(body["data"]["score"], None)
+        self.assertEqual(body["unclassified_minus_one_fields"], ["score"])
+        self.assertEqual(self.fake.calls[-1],
+                         ("client_health", site_ref + ":" + client_ref))
+
+        status, response = self.request_post("/mcp", {
+            "jsonrpc": "2.0", "id": 411, "method": "tools/call",
+            "params": {"name": "omada_client_health",
+                       "arguments": {"site_ref": site_ref, "client_ref": client_ref}},
+        }, self.token)
+        self.assertEqual(status, 200)
+        self.assertNotIn("isError", response)
+        structured = response["result"]["structuredContent"]
+        self.assertEqual(structured["resource"], "client_health")
+        self.assertTrue(structured["partial"])
+        self.assertEqual(structured["data"]["score"], None)
+        self.assertEqual(structured["unclassified_minus_one_fields"], ["score"])
+        self.assertEqual(self.fake.calls[-1],
+                         ("client_health", site_ref + ":" + client_ref))
+
     def test_http_and_mcp_expose_selected_site_backup_inventory_summary(self) -> None:
         site_ref = "a" * 24
         status, response = self.request(
