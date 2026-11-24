@@ -215,6 +215,16 @@ class ApAfcIntegrationTests(unittest.TestCase):
                     # the change preview itself must refuse it.
                     self.assertEqual(status, 200)
                     self.assertEqual(get_error["data"], value)
+                elif value == {"enable": False}:
+                    self.assertEqual(status, 200)
+                    self.assertEqual(get_error["status"], "partial")
+                    self.assertEqual(get_error["data"],
+                                     {"supportAfc": None, "enable": False})
+                elif value == {"supportAfc": True}:
+                    self.assertEqual(status, 200)
+                    self.assertEqual(get_error["status"], "partial")
+                    self.assertEqual(get_error["data"],
+                                     {"supportAfc": True, "enable": None})
                 else:
                     self.assertEqual(status, 502)
                     self.assertEqual(get_error["error"], "openapi_response_invalid")

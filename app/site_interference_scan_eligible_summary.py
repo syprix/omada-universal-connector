@@ -28,6 +28,27 @@ PAGE = 1
 
 
 def summarize_site_interference_scan_eligible_aps(value: object) -> dict[str, object]:
+    page = PAGE
+    page_size = MAX_ROWS
+    total_rows: int | None = None
+    if isinstance(value, dict):
+        if set(value) - {"currentPage", "currentSize", "totalRows", "data"}:
+            unknown_page_fields = len(set(value) - {"currentPage", "currentSize", "totalRows", "data"})
+        else:
+            unknown_page_fields = 0
+        current_page = value.get("currentPage")
+        current_size = value.get("currentSize")
+        total = value.get("totalRows")
+        rows_value = value.get("data")
+        if (type(current_page) is not int or current_page != PAGE or
+                type(current_size) is not int or not 1 <= current_size <= MAX_ROWS or
+                type(total) is not int or total < 0 or not isinstance(rows_value, list) or
+                len(rows_value) > current_size or total < len(rows_value)):
+            raise SiteInterferenceScanEligibleError("AP page is invalid")
+        page, page_size, total_rows = current_page, current_size, total
+        value = rows_value
+    else:
+        unknown_page_fields = 0
     if not isinstance(value, list):
         raise SiteInterferenceScanEligibleError("AP list must be a list")
 
@@ -99,7 +120,7 @@ def summarize_site_interference_scan_eligible_aps(value: object) -> dict[str, ob
                 invalid += 1
 
     truncated = len(value) > MAX_ROWS
-    coverage_unknown = True
+    coverage_unknown = total_rows is None or total_rows > len(rows) or page != 1
     return {
         "data": {
             "returned_ap_count": len(value),
@@ -108,18 +129,18 @@ def summarize_site_interference_scan_eligible_aps(value: object) -> dict[str, ob
             "wireless_linked_ap_count": wireless,
             "scan_status_counts": scan_counts,
             "power_mode_counts": power_counts,
-            "page": PAGE,
-            "page_size": MAX_ROWS,
-            "total_count": None,
-            "total_count_known": False,
-            "coverage_scope": "first_page_only",
+            "page": page,
+            "page_size": page_size,
+            "total_count": total_rows,
+            "total_count_known": total_rows is not None,
+            "coverage_scope": "first_page_only" if coverage_unknown else "complete_reported_page",
             "coverage_unknown": coverage_unknown,
             "truncated": truncated,
         },
         "missing_field_count": missing_scan_status,
         "invalid_field_count": invalid,
-        "unknown_field_count": unknown + unknown_scan_status + unknown_power_mode,
+        "unknown_field_count": unknown + unknown_scan_status + unknown_power_mode + unknown_page_fields,
         "partial": bool(invalid or unknown or missing_scan_status or
                         unknown_scan_status or unknown_power_mode or truncated or
-                        coverage_unknown),
+                        unknown_page_fields or coverage_unknown),
     }

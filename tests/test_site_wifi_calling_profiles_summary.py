@@ -43,6 +43,12 @@ class WifiCallingProfilesProjectionTests(unittest.TestCase):
         self.assertGreaterEqual(result["unknown_field_count"], 2)
         self.assertNotIn("hidden", repr(result))
 
+    def test_counts_live_profile_list_envelope_without_returning_values(self) -> None:
+        result = project_site_wifi_calling_profiles_summary({"profileList": []})
+        self.assertEqual(result["profile_count"], 0)
+        self.assertEqual(result["carrier_count"], 0)
+        self.assertFalse(result["partial"])
+
     def test_malformed_and_oversized_nested_values_fail_or_mark_invalid(self) -> None:
         for raw in (None, {}, [None], [{}] * 1001):
             with self.subTest(raw=type(raw).__name__), self.assertRaises(WifiCallingProfilesError):
@@ -61,7 +67,7 @@ class WifiCallingProfilesClientTests(unittest.TestCase):
         self.client._site_ids_by_ref[SITE_REF] = "site-1"
 
     def test_reads_fixed_site_route_and_returns_only_summary(self) -> None:
-        payload = {"result": [{"name": "secret", "carrierList": []}]}
+        payload = {"result": {"profileList": [{"name": "secret", "carrierList": []}]}}
         with patch.object(self.client, "_access_token", return_value="token"), \
                 patch.object(self.client, "_request_json", return_value=payload) as request:
             result = self.client.read_site_wifi_calling_profiles_summary(SITE_REF)

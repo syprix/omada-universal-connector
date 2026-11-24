@@ -12,13 +12,18 @@ _MAX_EPDGS_PER_CARRIER = 1_000
 
 
 def project_site_wifi_calling_profiles_summary(raw: object) -> dict[str, object]:
+    wrapper_unknown = 0
+    if isinstance(raw, dict) and "profileList" in raw:
+        wrapper_unknown = len(set(raw) - {"profileList"})
+        raw = raw["profileList"]
     if not isinstance(raw, list) or len(raw) > _MAX_PROFILES:
         raise WifiCallingProfilesError("profile_list_invalid")
     carriers = epdgs = domain_endpoints = ip_endpoints = 0
     priorities: dict[str, int] = {}
     epdg_types = {"domain": 0, "ip": 0, "unknown": 0}
     resources: dict[str, int] = {}
-    redacted = unknown = invalid = 0
+    redacted = invalid = 0
+    unknown = wrapper_unknown
     for profile in raw:
         if not isinstance(profile, dict):
             raise WifiCallingProfilesError("profile_invalid")

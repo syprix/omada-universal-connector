@@ -5476,7 +5476,7 @@ class OmadaOpenApiClient:
 
     @_track_capability("site_interference_scan_eligible_summary")
     def read_site_interference_scan_eligible_summary(self, site_ref: str) -> dict[str, object]:
-        """Summarize a bounded first page of APs eligible for interference scans."""
+        """Summarize the reported page of APs eligible for interference scans."""
         site_id = self._resolve_site_ref(site_ref)
         path = self._SITE_INTERFERENCE_SCAN_ELIGIBLE_PATH.format(
             controller_id=self.config.controller_id, site_id=site_id)
@@ -5493,7 +5493,8 @@ class OmadaOpenApiClient:
             projected = summarize_site_interference_scan_eligible_aps(result)
         except SiteInterferenceScanEligibleError:
             raise OpenApiError("openapi_response_invalid") from None
-        return {"status": "ok", "resource": "site_interference_scan_eligible_summary",
+        return {"status": "partial" if projected["partial"] else "ok",
+                "resource": "site_interference_scan_eligible_summary",
                 "site_ref": site_ref, **projected}
 
     @_track_capability("site_lock_to_ap_brief_inventory")
@@ -6514,7 +6515,8 @@ class OmadaOpenApiClient:
             projected = project_site_incident_distribution(result)
         except SiteIncidentDistributionError:
             raise OpenApiError("openapi_response_invalid") from None
-        return {"status": "ok", "resource": "site_incident_distribution",
+        return {"status": "partial" if projected["partial"] else "ok",
+                "resource": "site_incident_distribution",
                 "site_ref": site_ref, "window_start_ms": start_ms,
                 "window_end_ms": end_ms, **projected}
 
@@ -7474,7 +7476,7 @@ class OmadaOpenApiClient:
 
     @_track_capability("site_dpi")
     def read_site_dpi_logging(self, site_ref: str) -> dict[str, object]:
-        """Read the complete, documented site DPI/traffic-logging state."""
+        """Read reported site DPI and traffic-logging settings."""
         if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
             raise OpenApiError("site_ref_invalid")
         site_id = self._site_ids_by_ref.get(site_ref, "")
@@ -7483,10 +7485,15 @@ class OmadaOpenApiClient:
         path = self._SITE_DPI_LOGGING_PATH.format(
             controller_id=self.config.controller_id, site_id=site_id)
         result = self._request_json("GET", path, token=self._access_token()).get("result")
-        if not self._valid_site_dpi_logging_state(result):
+        if not isinstance(result, dict) or set(result) - {"dpi", "loggingTraffic"}:
             raise OpenApiError("openapi_response_invalid")
-        return {"status": "ok", "resource": "site_dpi_logging", "site_ref": site_ref,
-                "data": {"dpi": result["dpi"], "loggingTraffic": result["loggingTraffic"]}}
+        if any(type(value) is not bool for value in result.values()):
+            raise OpenApiError("openapi_response_invalid")
+        missing = {"dpi", "loggingTraffic"} - set(result)
+        data = {"dpi": result.get("dpi"), "loggingTraffic": result.get("loggingTraffic")}
+        return {"status": "partial" if missing else "ok", "resource": "site_dpi_logging",
+                "site_ref": site_ref, "data": data, "partial": bool(missing),
+                "missing_field_count": len(missing)}
 
     def put_site_dpi_logging(self, site_ref: str, body: object) -> None:
         """PUT the complete two-boolean DPI/logging state for one known site."""
@@ -8608,12 +8615,17 @@ class OmadaOpenApiClient:
         site_id, mac = self._known_ap_mac(site_ref, device_ref)
         path = self._AP_AFC_PATH.format(controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
         result = self._request_json("GET", path, token=self._access_token()).get("result")
-        if (not isinstance(result, dict) or set(result) != {"supportAfc", "enable"} or
-                type(result.get("supportAfc")) is not bool or type(result.get("enable")) is not bool):
+        if (not isinstance(result, dict) or not result or
+                set(result) - {"supportAfc", "enable"} or
+                any(type(value) is not bool for value in result.values())):
             raise OpenApiError("openapi_response_invalid")
-        return {"status": "ok", "resource": "ap_afc", "site_ref": site_ref,
-                "device_ref": device_ref, "data": {"supportAfc": result["supportAfc"],
-                                                     "enable": result["enable"]}}
+        missing = {"supportAfc", "enable"} - set(result)
+        return {"resource": "ap_afc", "site_ref": site_ref,
+                "device_ref": device_ref,
+                "data": {"supportAfc": result.get("supportAfc"),
+                         "enable": result.get("enable")},
+                "partial": bool(missing), "missing_field_count": len(missing),
+                "status": "partial" if missing else "ok"}
 
     def put_ap_afc(self, site_ref: str, device_ref: str, body: object) -> None:
         """PUT only the documented AFC enable switch for a known AP."""
