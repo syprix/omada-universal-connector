@@ -42,7 +42,7 @@ class ControllerFirmwareInventorySummaryTests(unittest.TestCase):
         pages = [
             {"result": {"totalRows": 3, "currentPage": 1, "currentSize": 2,
                         "data": [{"id": "x"}, {"id": "y"}]}},
-            {"result": {"totalRows": 3, "currentPage": 2, "currentSize": 1,
+            {"result": {"totalRows": 3, "currentPage": 2, "currentSize": 2,
                         "data": [{"id": "z"}]}},
         ]
         with patch.object(client, "_access_token", return_value="token"), \
@@ -75,6 +75,18 @@ class ControllerFirmwareInventorySummaryTests(unittest.TestCase):
                     "totalRows": 0, "currentPage": 0, "currentSize": 1, "data": [{}]}}):
             with self.assertRaisesRegex(OpenApiError, "openapi_response_invalid"):
                 client.read_controller_firmware_inventory_summary()
+
+    def test_empty_grid_reports_page_capacity_not_returned_rows(self):
+        client = OmadaOpenApiClient(OpenApiConfig(
+            "https://controller.example", "ctrl", "id", "secret",
+            cert_sha256="a" * 64, page_size=100))
+        with patch.object(client, "_access_token", return_value="token"), \
+                patch.object(client, "_request_json", return_value={"result": {
+                    "totalRows": 0, "currentPage": 1, "currentSize": 100, "data": []}}):
+            result = client.read_controller_firmware_inventory_summary()
+        self.assertEqual(result["firmware_entry_count"], 0)
+        self.assertTrue(result["coverage_complete"])
+        self.assertFalse(result["partial"])
 
 
 if __name__ == "__main__":

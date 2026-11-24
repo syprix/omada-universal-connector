@@ -47,14 +47,17 @@ def project_ap_wired_downlink(raw: object,
     """
     if not isinstance(raw, dict) or len(raw) > 16:
         raise ApWiredDownlinkError("response_invalid")
-    partial = False
+    collection_reported = "wiredDownlinkList" in raw
+    partial = not collection_reported
     unknown = redacted = omitted = 0
     if set(raw) - {"wiredDownlinkList"}:
         unknown += sum(1 for key in raw if key != "wiredDownlinkList")
         partial = True
     rows = raw.get("wiredDownlinkList")
-    if not isinstance(rows, list) or len(rows) > _MAX_ROWS:
+    if collection_reported and (not isinstance(rows, list) or len(rows) > _MAX_ROWS):
         raise ApWiredDownlinkError("response_invalid")
+    if not collection_reported:
+        rows = []
 
     items: list[dict[str, object]] = []
     for row in rows:
@@ -107,9 +110,10 @@ def project_ap_wired_downlink(raw: object,
         else:
             omitted += 1
             partial = True
-    if rows is None:
-        partial = True
     return {"status": "ok", "resource": "ap_wired_downlink", "count": len(items),
-            "source_count": len(rows), "items": items, "partial": partial,
+            "source_count": len(rows) if collection_reported else None,
+            "collection_reported": collection_reported,
+            "missing_collection_count": int(not collection_reported),
+            "items": items, "partial": partial,
             "omitted_count": omitted, "unknown_field_count": unknown,
             "redacted_field_count": redacted}

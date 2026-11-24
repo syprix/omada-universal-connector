@@ -10514,7 +10514,7 @@ class OmadaOpenApiClient:
                     (type(current_page) is not int or current_page != page) and
                     not empty_zero_page or
                     type(current_size) is not int or
-                    not 0 <= current_size <= page_size or current_size != len(data)):
+                    not 0 <= current_size <= page_size or len(data) > current_size):
                 raise OpenApiError("openapi_response_invalid")
             if total is None:
                 total = page_total
