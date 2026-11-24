@@ -9,7 +9,7 @@ from app.site_client_traffic_summary import (
 
 def sample_page():
     return {
-        "totalRows": 3, "currentPage": 0, "currentSize": 2,
+        "totalRows": 3, "currentPage": 1, "currentSize": 2,
         "data": [
             {"type": "Mobile", "manager": True, "clientName": "private-one",
              "mac": "aa:bb", "traffic": 50, "trafficPercent": {"value": 60},
@@ -59,6 +59,13 @@ class SiteClientTrafficSummaryIntegrationTests(unittest.TestCase):
         self.assertFalse(result["partial"])
         self.assertEqual(result["unknown_field_count"], 0)
 
+    def test_projector_requires_controller_page_number_to_be_one_based(self):
+        page = sample_page()
+        page["currentPage"] = 0
+        result = project_site_client_traffic_summary(page, 0, 2)
+        self.assertTrue(result["partial"])
+        self.assertEqual(result["invalid_field_count"], 1)
+
     def test_projector_rejects_oversize_rows_and_invalid_page_arguments(self):
         with self.assertRaises(SiteClientTrafficSummaryError):
             project_site_client_traffic_summary({"data": [{}] * 101}, 0, 100)
@@ -71,8 +78,8 @@ class SiteClientTrafficSummaryIntegrationTests(unittest.TestCase):
         site_ref = "c" * 24
         def request(_method, path, token):
             self.assertTrue(self.client._site_client_traffic_request_valid(path))
-            self.assertIn("&page=2&pageSize=50", path)
-            return {"result": {"totalRows": 101, "currentPage": 2, "currentSize": 1,
+            self.assertIn("&page=3&pageSize=50", path)
+            return {"result": {"totalRows": 101, "currentPage": 3, "currentSize": 1,
                                 "data": [sample_page()["data"][0]]}}
         with patch.object(self.client, "_resolve_site_ref", return_value="site_1"), \
                 patch.object(self.client, "_access_token", return_value="token"), \
@@ -84,14 +91,20 @@ class SiteClientTrafficSummaryIntegrationTests(unittest.TestCase):
 
     def test_path_guard_binds_controller_window_and_page_bounds(self):
         good = ("/openapi/v1/ctrl/sites/site/dashboard/clientTraffic"
-                "?start=100&end=86500&page=0&pageSize=100")
+                "?start=100&end=86500&page=1&pageSize=100")
         self.assertTrue(self.client._site_client_traffic_request_valid(good))
+        self.assertFalse(self.client._site_client_traffic_request_valid(
+            good.replace("page=1", "page=0")))
         self.assertFalse(self.client._site_client_traffic_request_valid(
             good.replace("/ctrl/", "/other/")))
         self.assertFalse(self.client._site_client_traffic_request_valid(
             good.replace("end=86500", "end=86501")))
         self.assertFalse(self.client._site_client_traffic_request_valid(
             good.replace("pageSize=100", "pageSize=101")))
+        self.assertTrue(self.client._site_client_traffic_request_valid(
+            good.replace("page=1", "page=10001")))
+        self.assertFalse(self.client._site_client_traffic_request_valid(
+            good.replace("page=1", "page=10002")))
 
     def test_bad_upstream_page_is_rejected(self):
         with patch.object(self.client, "_resolve_site_ref", return_value="site_1"), \

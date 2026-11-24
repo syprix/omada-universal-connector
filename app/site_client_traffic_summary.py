@@ -55,7 +55,8 @@ def project_site_client_traffic_summary(
     if ("totalRows" in metadata and
             metadata["totalRows"] < page_number * page_size + len(rows)):
         invalid += 1
-    if "currentPage" in metadata and metadata["currentPage"] != page_number:
+    # The connector is zero-based, while Omada's documented query page starts at 1.
+    if "currentPage" in metadata and metadata["currentPage"] != page_number + 1:
         invalid += 1
     if "currentSize" in metadata and metadata["currentSize"] > page_size:
         invalid += 1

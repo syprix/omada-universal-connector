@@ -2158,7 +2158,7 @@ class OmadaOpenApiClient:
     _SITE_CLIENT_TRAFFIC_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
         r"/dashboard/clientTraffic\?start=([0-9]{1,16})&end=([0-9]{1,16})"
-        r"&page=(0|[1-9][0-9]{0,4})&pageSize=([1-9][0-9]{0,2})"
+        r"&page=([1-9][0-9]{0,4})&pageSize=([1-9][0-9]{0,2})"
     )
     _SITE_RECENT_CLIENTS_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
@@ -16198,7 +16198,9 @@ class OmadaOpenApiClient:
         start = end - 86_400
         path = self._SITE_CLIENT_TRAFFIC_PATH.format(
             controller_id=self.config.controller_id, site_id=site_id)
-        path += f"?start={start}&end={end}&page={page_number}&pageSize={page_size}"
+        # The public connector uses zero-based page numbers; Omada starts at 1.
+        upstream_page = page_number + 1
+        path += f"?start={start}&end={end}&page={upstream_page}&pageSize={page_size}"
         result = self._request_json("GET", path, token=self._access_token()).get("result")
         try:
             from .site_client_traffic_summary import (
@@ -19789,7 +19791,8 @@ class OmadaOpenApiClient:
             return False
         try:
             return (int(match.group(3)) - int(match.group(2)) == 86_400 and
-                    int(match.group(4)) <= 10_000 and 1 <= int(match.group(5)) <= 100)
+                    1 <= int(match.group(4)) <= 10_001 and
+                    1 <= int(match.group(5)) <= 100)
         except (ValueError, OverflowError):
             return False
 
