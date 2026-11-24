@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from datetime import datetime as RealDateTime, timezone
 from unittest.mock import patch
 
 from app.openapi import OmadaOpenApiClient, OpenApiConfig, OpenApiError
@@ -11,6 +12,7 @@ from app.site_incident_category_counts import (
 
 
 SITE = "a" * 24
+NOW_MS = 1_800_000_000_000
 
 
 class SiteIncidentCategoryCountsTests(unittest.TestCase):
@@ -58,35 +60,54 @@ class SiteIncidentCategoryCountsTests(unittest.TestCase):
         }])
         self.assertEqual(level["data"]["invalid_count"], 1)
 
-    def test_client_uses_exact_site_route_and_redacted_projection(self) -> None:
+    def test_client_uses_one_category_fixed_window_and_redacted_projection(self) -> None:
         client = OmadaOpenApiClient(OpenApiConfig(
             "https://controller.example", "ctrl", "client", "secret",
             cert_sha256="a" * 64))
         client._site_ids_by_ref[SITE] = "site-id"
+        instant = RealDateTime.fromtimestamp(NOW_MS / 1000, timezone.utc)
         with patch.object(client, "_access_token", return_value="fixture-token"), \
                 patch.object(client, "_request_json", return_value={
-                    "errorCode": 0, "result": [{"anomalyCode": "A1", "counts": 3}]}) as request:
-            result = client.read_site_incident_category_counts(SITE)
+                    "errorCode": 0, "result": [{"anomalyCode": "A1", "counts": 3}]}) as request, \
+                patch("app.openapi.datetime") as clock:
+            clock.now.return_value = instant
+            clock.side_effect = lambda *args, **kwargs: RealDateTime(*args, **kwargs)
+            result = client.read_site_incident_category_counts(SITE, 11)
+        start_ms = NOW_MS - 86_400_000
         request.assert_called_once_with(
-            "GET", "/openapi/v1/ctrl/sites/site-id/anomaly/category",
+            "GET", f"/openapi/v1/ctrl/sites/site-id/anomaly/category?filters.startTime={start_ms}"
+            f"&filters.endTime={NOW_MS}&category=11",
             token="fixture-token")
         self.assertEqual(result["resource"], "site_incident_category_counts")
+        self.assertEqual(result["category"], 11)
+        self.assertEqual((result["window_start_ms"], result["window_end_ms"]),
+                         (start_ms, NOW_MS))
         self.assertEqual(result["data"]["categories"][0]["anomaly_code"], "A1")
+        self.assertNotIn("category", result["data"]["categories"][0])
 
     def test_client_validates_site_binding_before_request(self) -> None:
         client = OmadaOpenApiClient(OpenApiConfig(
             "https://controller.example", "ctrl", "client", "secret",
             cert_sha256="a" * 64))
         with patch.object(client, "_request_json") as request:
+            with self.assertRaisesRegex(OpenApiError, "incident_category_invalid"):
+                client.read_site_incident_category_counts(SITE, 10)
+            with self.assertRaisesRegex(OpenApiError, "incident_category_invalid"):
+                client.read_site_incident_category_counts(SITE, True)
             with self.assertRaisesRegex(OpenApiError, "site_ref_unknown"):
-                client.read_site_incident_category_counts(SITE)
+                client.read_site_incident_category_counts(SITE, 11)
             with self.assertRaisesRegex(OpenApiError, "site_ref_invalid"):
-                client.read_site_incident_category_counts("A" * 24)
+                client.read_site_incident_category_counts("A" * 24, 11)
         request.assert_not_called()
-        route = "/openapi/v1/ctrl/sites/site-id/anomaly/category"
+        route = ("/openapi/v1/ctrl/sites/site-id/anomaly/category?"
+                 f"filters.startTime={NOW_MS - 86_400_000}&filters.endTime={NOW_MS}&category=11")
         self.assertTrue(client._site_incident_category_counts_request_valid(route))
         self.assertFalse(client._site_incident_category_counts_request_valid(
-            "/openapi/v1/other/sites/site-id/anomaly/category"))
+            route.replace("/ctrl/", "/other/")))
+        self.assertFalse(client._site_incident_category_counts_request_valid(
+            route.replace("category=11", "category=20")))
+        self.assertFalse(client._site_incident_category_counts_request_valid(
+            route.replace(f"filters.endTime={NOW_MS}", f"filters.endTime={NOW_MS - 1}")))
         self.assertFalse(client._site_incident_category_counts_request_valid(route + "?debug=true"))
 
 

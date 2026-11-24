@@ -1051,13 +1051,18 @@ Hardware Controller 6.3.0 and CBC Standard 6.3.0 document the route; ER7212PC
 ## Site incident category counts
 
 `GET /v1/sites/{site_ref}/incidents/categories` uses
-`GET /openapi/v1/{omadacId}/sites/{siteId}/anomaly/category`. The response is
-a list of category aggregates: anomaly code, active/total/current-status
+`GET /openapi/v1/{omadacId}/sites/{siteId}/anomaly/category`. Supply the
+required numeric `category` query parameter (11–19); the connector fixes the
+time bounds to the trailing 24 hours. The result returns the selected code and
+window once as query context. The response is a list of category aggregates:
+anomaly code, active/total/current-status
 counts, influencing device/client counts and level. The connector validates
 nonnegative int32 values, limits the list to 128 entries, and omits all
 unrecognized fields. The permission is `Incidents Page View Only`. Hardware
 Controller 6.3.0 and CBC Standard 6.3.0 document the operation; ER7212PC 6.2.14
-does not. Fixture coverage does not establish live support.
+does not. One OC200 request for a selected category returned a partial result
+through HTTP and MCP; this does not verify other category codes or ER7212PC.
+
 ## Site incident list
 
 `GET /v1/sites/{site_ref}/incidents/list` uses

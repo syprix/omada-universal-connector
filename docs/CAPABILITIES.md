@@ -1398,11 +1398,18 @@ document the route with `Incidents Page View Only`; ER7212PC 6.2.14 does not.
 Fixture coverage does not establish live support.
 
 Site incident categories are available at
-`GET /v1/sites/{site_ref}/incidents/categories`. The connector returns at most
-128 validated category aggregates and omits records and identities. Hardware
+`GET /v1/sites/{site_ref}/incidents/categories` with the required integer
+query parameter `category` (11 through 19). The MCP tool accepts the same
+required integer argument. The caller must select one documented numeric
+category code; there is no default. The
+connector uses a fixed trailing 24-hour window, returns the selected code and
+window as query context, and returns at most 128 validated aggregates without
+records or identities. Hardware
 Controller 6.3.0 and CBC Standard 6.3.0 document the route with
 `Incidents Page View Only`; ER7212PC 6.2.14 does not. Live support remains
-unknown.
+partially verified: one OC200 request for a selected category returned a
+partial result through HTTP and MCP. Other category codes and ER7212PC remain
+unverified.
 
 The bounded site incident list is available at
 `GET /v1/sites/{site_ref}/incidents/list`. It reads page 1 with at most 50

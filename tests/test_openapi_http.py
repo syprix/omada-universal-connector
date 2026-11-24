@@ -1337,9 +1337,10 @@ class FakeOpenApiClient:
                 "data": {"points": [], "point_count": 0, "missing_count": 0,
                          "invalid_count": 0, "unknown_field_count": 0}, "partial": False}
 
-    def read_site_incident_category_counts(self, site_ref: str) -> dict[str, object]:
-        self.calls.append(("site_incident_category_counts", site_ref))
+    def read_site_incident_category_counts(self, site_ref: str, category: int) -> dict[str, object]:
+        self.calls.append(("site_incident_category_counts", site_ref, category))
         return {"status": "ok", "resource": "site_incident_category_counts", "site_ref": site_ref,
+                "category": category, "window_start_ms": 100, "window_end_ms": 200,
                 "data": {"categories": [], "category_count": 0, "missing_count": 0,
                          "invalid_count": 0, "unknown_field_count": 0}, "partial": False}
 
@@ -5965,19 +5966,41 @@ class OpenApiHttpTests(unittest.TestCase):
 
     def test_http_and_mcp_expose_site_incident_category_counts(self) -> None:
         site_ref = "a" * 24
-        path = f"/v1/sites/{site_ref}/incidents/categories"
+        path = f"/v1/sites/{site_ref}/incidents/categories?category=13"
         status, response = self.request(path, self.token)
         self.assertEqual(status, 200)
         self.assertEqual(response["resource"], "site_incident_category_counts")
+        self.assertEqual(response["category"], 13)
+        self.assertEqual((response["window_start_ms"], response["window_end_ms"]), (100, 200))
         self.assertEqual(response["data"]["category_count"], 0)
         rpc = {"jsonrpc": "2.0", "id": 89, "method": "tools/call",
                "params": {"name": "omada_site_incident_category_counts",
-                          "arguments": {"site_ref": site_ref}}}
+                          "arguments": {"site_ref": site_ref, "category": 13}}}
         status, result = self.request_post("/mcp", rpc, self.token)
         self.assertEqual(status, 200)
         self.assertEqual(result["result"]["structuredContent"]["resource"],
                          "site_incident_category_counts")
-        self.assertEqual(self.fake.calls, [("site_incident_category_counts", site_ref)] * 2)
+        self.assertEqual(result["result"]["structuredContent"]["category"], 13)
+        self.assertEqual(self.fake.calls, [("site_incident_category_counts", site_ref, 13)] * 2)
+
+    def test_site_incident_category_requires_one_valid_code_before_dispatch(self) -> None:
+        site_ref = "a" * 24
+        for path in (f"/v1/sites/{site_ref}/incidents/categories",
+                     f"/v1/sites/{site_ref}/incidents/categories?category=10",
+                     f"/v1/sites/{site_ref}/incidents/categories?category=20",
+                     f"/v1/sites/{site_ref}/incidents/categories?category=11&category=12"):
+            status, response = self.request(path, self.token)
+            self.assertEqual(status, 400)
+            self.assertEqual(response["error"], "incident_category_required_or_invalid")
+        for arguments in ({"site_ref": site_ref}, {"site_ref": site_ref, "category": 20},
+                          {"site_ref": site_ref, "category": True}):
+            rpc = {"jsonrpc": "2.0", "id": 890, "method": "tools/call",
+                   "params": {"name": "omada_site_incident_category_counts",
+                              "arguments": arguments}}
+            status, response = self.request_post("/mcp", rpc, self.token)
+            self.assertEqual(status, 200)
+            self.assertEqual(response["error"]["message"], "arguments_invalid")
+        self.assertEqual(self.fake.calls, [])
 
     def test_http_and_mcp_expose_redacted_site_incident_list(self) -> None:
         site_ref = "a" * 24

@@ -113,6 +113,7 @@ class OperationRegistry:
                     set(item.extra_arguments) & set(public_vars)):
                 raise RegistryError("invalid extra arguments")
             supported_local = {
+                ("category",): {"site_incident_category_counts"},
                 ("client_name", "ssid_name"): {"site_client_identity_match"},
                 ("start_ms", "end_ms"): {
                     "site_events_window_summary", "site_alerts_window_summary",
@@ -1313,7 +1314,8 @@ Operation("site_stack_connections_summary", "GET",
     Operation("site_incident_category_counts", "GET",
               "/v1/sites/{site_ref}/incidents/categories", "GET",
               "/openapi/v1/{controller_id}/sites/{site_id}/anomaly/category",
-              (("controller_id", "$config"), ("site_id", "site_ref")), max_items=128),
+              (("controller_id", "$config"), ("site_id", "site_ref")),
+              local_arguments=("category",), max_items=128),
     Operation("site_incident_list", "GET",
               "/v1/sites/{site_ref}/incidents/list", "GET",
               "/openapi/v1/{controller_id}/sites/{site_id}/anomaly/incidents",
