@@ -60,6 +60,21 @@ class SiteInterferenceScanEligibleSummaryTests(unittest.TestCase):
         with self.assertRaises(SiteInterferenceScanEligibleError):
             summarize_site_interference_scan_eligible_aps({"rows": []})
 
+    def test_projects_reported_page_and_marks_only_unreturned_rows_unknown(self):
+        page = {"totalRows": 3, "currentPage": 1, "currentSize": 500,
+                "data": [{"scanStatus": 0}, {"scanStatus": 2}, {"scanStatus": 0}]}
+        result = summarize_site_interference_scan_eligible_aps(page)
+        self.assertEqual(result["data"]["returned_ap_count"], 3)
+        self.assertEqual(result["data"]["total_count"], 3)
+        self.assertTrue(result["data"]["total_count_known"])
+        self.assertFalse(result["data"]["coverage_unknown"])
+        self.assertFalse(result["partial"])
+
+        page["totalRows"] = 4
+        result = summarize_site_interference_scan_eligible_aps(page)
+        self.assertTrue(result["data"]["coverage_unknown"])
+        self.assertTrue(result["partial"])
+
 
 class SiteInterferenceScanEligibleClientTests(unittest.TestCase):
     def setUp(self):
@@ -71,9 +86,10 @@ class SiteInterferenceScanEligibleClientTests(unittest.TestCase):
 
     def test_reads_fixed_paginated_path_and_returns_aggregate(self):
         with patch.object(self.client, "_access_token", return_value="token"), \
-                patch.object(self.client, "_request_json", return_value={"result": [
-                    {"mac": "00-11-22-33-44-55", "name": "Private AP", "scanStatus": 0}
-                ]}) as request:
+                patch.object(self.client, "_request_json", return_value={"result": {
+                    "totalRows": 1, "currentPage": 1, "currentSize": 500,
+                    "data": [{"mac": "00-11-22-33-44-55", "name": "Private AP", "scanStatus": 0}],
+                }}) as request:
             result = self.client.read_site_interference_scan_eligible_summary(
                 self.site_ref)
         request.assert_called_once_with(
@@ -85,7 +101,9 @@ class SiteInterferenceScanEligibleClientTests(unittest.TestCase):
 
     def test_rejects_bad_result_and_guards_fixed_path(self):
         with patch.object(self.client, "_access_token", return_value="token"), \
-                patch.object(self.client, "_request_json", return_value={"result": {}}):
+                patch.object(self.client, "_request_json", return_value={"result": {
+                    "totalRows": 1, "currentPage": 1, "currentSize": 500, "data": {},
+                }}):
             with self.assertRaisesRegex(OpenApiError, "openapi_response_invalid"):
                 self.client.read_site_interference_scan_eligible_summary(self.site_ref)
         expected = ("/openapi/v1/ctrl/sites/site_internal/grid/full-channel-detect"

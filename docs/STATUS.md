@@ -926,6 +926,30 @@ tokens (33 more, including the connector's status and resource envelope).
 These measurements exclude tool schemas, transport framing, prompts and billed
 agent usage.
 
+## 2026-11-24 — OC200 read-response corrections
+
+Read-only checks on the released controller build exposed five existing response
+mismatches. The incident-distribution read returned 143 time buckets, exceeding
+the former 128-point bound; the bound is now 256 and incomplete count fields
+remain explicitly partial. The Wi-Fi calling response wraps its list in
+`profileList`; an empty reported list now yields an empty count summary. DPI
+returned `dpi` without `loggingTraffic`, and AP AFC returned `supportAfc`
+without `enable`; both reads now preserve the reported Boolean and mark the
+missing value unknown. Their configuration previews still require complete
+state. The interference-eligibility GET returned a page object with three rows,
+`totalRows` 3, page 1 and page size 500; the summary now validates and consumes
+that page, reporting complete coverage of the controller-reported result.
+This endpoint only lists eligible devices; no interference scan was started.
+
+Each route passed read-only HTTP and MCP checks on the OC200 after the change.
+Incident distribution reported partial category coverage, Wi-Fi calling
+reported an empty profile list, DPI and AFC were partial, and the eligible AP
+list was complete for the reported page. No configuration change or active
+measurement was made. The original response-mismatch failures remain in the
+private acceptance history; the corrected results are counted once as their
+current outcome. Local regression and hosted checks are recorded separately in
+the pull request.
+
 ## 2026-11-23 — Stack static routes and OSPF neighbor coverage (in progress)
 
 #119 and #120 use fresh, complete same-site stack inventory binding and a

@@ -44,6 +44,12 @@ class SiteIncidentDistributionTests(unittest.TestCase):
         with self.assertRaises(SiteIncidentDistributionError):
             project_site_incident_distribution({"incidentCounts": [row] * (MAX_POINTS + 1)})
 
+    def test_accepts_live_143_point_day_within_bounded_limit(self) -> None:
+        row = complete_result()["incidentCounts"][0]
+        result = project_site_incident_distribution({"incidentCounts": [row] * 143})
+        self.assertEqual(result["data"]["point_count"], 143)
+        self.assertFalse(result["partial"])
+
     def test_marks_missing_invalid_and_unknown_fields_partial(self) -> None:
         result = project_site_incident_distribution({
             "incidentCounts": [{"critical": True, "time": MAX_INT64 + 1, "mac": "private"}]

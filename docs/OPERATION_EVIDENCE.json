@@ -7874,7 +7874,8 @@
       "source_map_label": "implemented_read",
       "static_test_references": [
         "test_openapi_http.py",
-        "test_operation_registry.py"
+        "test_operation_registry.py",
+        "test_partial_controller_reads.py"
       ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
