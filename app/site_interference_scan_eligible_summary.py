@@ -28,7 +28,7 @@ PAGE = 1
 
 
 def summarize_site_interference_scan_eligible_aps(value: object) -> dict[str, object]:
-    page = 1
+    page = PAGE
     page_size = MAX_ROWS
     total_rows: int | None = None
     if isinstance(value, dict):
@@ -40,10 +40,10 @@ def summarize_site_interference_scan_eligible_aps(value: object) -> dict[str, ob
         current_size = value.get("currentSize")
         total = value.get("totalRows")
         rows_value = value.get("data")
-        if (type(current_page) is not int or current_page < 1 or
+        if (type(current_page) is not int or current_page != PAGE or
                 type(current_size) is not int or not 1 <= current_size <= MAX_ROWS or
                 type(total) is not int or total < 0 or not isinstance(rows_value, list) or
-                len(rows_value) > current_size):
+                len(rows_value) > current_size or total < len(rows_value)):
             raise SiteInterferenceScanEligibleError("AP page is invalid")
         page, page_size, total_rows = current_page, current_size, total
         value = rows_value

@@ -75,6 +75,17 @@ class SiteInterferenceScanEligibleSummaryTests(unittest.TestCase):
         self.assertTrue(result["data"]["coverage_unknown"])
         self.assertTrue(result["partial"])
 
+    def test_rejects_page_mismatch_and_total_smaller_than_returned_rows(self):
+        rows = [{"scanStatus": 0}, {"scanStatus": 2}, {"scanStatus": 0}]
+        for page in (
+                {"totalRows": 3, "currentPage": 2, "currentSize": 500,
+                 "data": rows},
+                {"totalRows": 2, "currentPage": 1, "currentSize": 500,
+                 "data": rows}):
+            with self.subTest(page=page["currentPage"], total=page["totalRows"]):
+                with self.assertRaises(SiteInterferenceScanEligibleError):
+                    summarize_site_interference_scan_eligible_aps(page)
+
 
 class SiteInterferenceScanEligibleClientTests(unittest.TestCase):
     def setUp(self):
