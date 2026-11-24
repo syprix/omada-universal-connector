@@ -385,7 +385,10 @@ class ControllerHealthTests(unittest.TestCase):
             with self.subTest(path=path), self.assertRaisesRegex(OpenApiError, "openapi_path_rejected"):
                 self.client._request_json("GET", path)
 
-    def test_rf_planning_dashboard_current_uses_legacy_fixed_path(self) -> None:
+    def test_rf_planning_dashboard_current_uses_fixed_24_hour_window(self) -> None:
+        now = RealDateTime(2026, 11, 24, 12, 0, tzinfo=timezone.utc)
+        end_ms = int(now.timestamp() * 1000)
+        start_ms = end_ms - 86_400_000
         payload = {"wlanOptDashBoardDetail2g": {
             "cciTrendDetail": {"cciTrendItemList": []},
             "cciCurrentDetail": {"currentHighCciInfoList": [],
@@ -396,19 +399,26 @@ class ControllerHealthTests(unittest.TestCase):
                                         "currentApDensityMediumInfo": [],
                                         "currentApDensityLowInfo": [], "noDataList": []},
         }}
-        with patch.object(self.client, "_access_token", return_value="token"), \
+        with patch("app.openapi.datetime") as dt, \
+                patch.object(self.client, "_access_token", return_value="token"), \
                 patch.object(self.client, "_request_json", return_value={"result": payload}) as request:
+            dt.now.return_value = now
             result = self.client.read_rf_planning_dashboard_current(self.site_ref)
         request.assert_called_once_with(
-            "GET", "/openapi/v1/ctrl/sites/site_1/rfPlanning/dashboard", token="token")
+            "GET", f"/openapi/v1/ctrl/sites/site_1/rfPlanning/dashboard?start={start_ms}&end={end_ms}",
+            token="token")
         self.assertEqual(result["resource"], "rf_planning_dashboard_current")
 
     def test_rf_planning_dashboard_current_path_is_controller_bound(self) -> None:
-        allowed = "/openapi/v1/ctrl/sites/site_1/rfPlanning/dashboard"
+        start_ms = 1_000_000
+        end_ms = start_ms + 86_400_000
+        allowed = ("/openapi/v1/ctrl/sites/site_1/rfPlanning/dashboard"
+                   f"?start={start_ms}&end={end_ms}")
         with patch.object(self.client, "_connection", side_effect=OpenApiError("connection_reached")):
             with self.assertRaisesRegex(OpenApiError, "connection_reached"):
                 self.client._request_json("GET", allowed)
-        for path in (allowed + "?extra=1", allowed.replace("ctrl", "other"),
+        for path in (allowed + "&extra=1", allowed.replace("ctrl", "other"),
+                     allowed.replace(f"end={end_ms}", f"end={end_ms + 1}"),
                      allowed + "/unknown"):
             with self.subTest(path=path), self.assertRaisesRegex(OpenApiError, "openapi_path_rejected"):
                 self.client._request_json("GET", path)
@@ -440,24 +450,28 @@ class ControllerHealthTests(unittest.TestCase):
 
         with patch.object(self.client, "_access_token", return_value="token"), \
                 patch.object(self.client, "list_devices", side_effect=inventory) as inventory_call, \
-                patch.object(self.client, "_request_json", return_value={"result": [{
+                patch.object(self.client, "_request_json", return_value={"result": {
+                    "currentPage": 1, "currentSize": 1, "totalRows": 1, "data": [{
                     "mac": "AA:BB:CC:DD:EE:FF", "name": "private", "ip": "192.0.2.1",
                     "unsupportType": 1, "statusCategory": 0, "addedInAdvanced": False,
-                }]}) as request:
+                }]}}) as request:
             result = self.client.read_rf_excluded_aps(self.site_ref)
         inventory_call.assert_called_once_with(self.site_ref)
         request.assert_called_once_with(
-            "GET", "/openapi/v1/ctrl/sites/site_1/rfPlanning/excludeAps", token="token")
+            "GET", "/openapi/v1/ctrl/sites/site_1/rfPlanning/excludeAps"
+            "?currentPage=1&currentPageSize=256", token="token")
         self.assertEqual(result["items"][0]["ap_ref"], ap_ref)
         for private in ("AA:BB:CC:DD:EE:FF", "private", "192.0.2.1"):
             self.assertNotIn(private, repr(result))
 
     def test_rf_excluded_aps_path_is_exact_and_controller_bound(self) -> None:
-        allowed = "/openapi/v1/ctrl/sites/site_1/rfPlanning/excludeAps"
+        allowed = ("/openapi/v1/ctrl/sites/site_1/rfPlanning/excludeAps"
+                   "?currentPage=1&currentPageSize=256")
         with patch.object(self.client, "_connection", side_effect=OpenApiError("connection_reached")):
             with self.assertRaisesRegex(OpenApiError, "connection_reached"):
                 self.client._request_json("GET", allowed)
-        for path in (allowed + "?extra=1", allowed.replace("ctrl", "other"),
+        for path in (allowed + "&extra=1", allowed.replace("ctrl", "other"),
+                     allowed.replace("currentPage=1", "currentPage=2"),
                      allowed + "/extra"):
             with self.subTest(path=path), self.assertRaisesRegex(OpenApiError, "openapi_path_rejected"):
                 self.client._request_json("GET", path)
