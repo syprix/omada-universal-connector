@@ -218,11 +218,12 @@ class GatewayVoipIntegrationTests(unittest.TestCase):
         self.assertEqual(self.put_calls, [])
         plan["before"], plan["target"] = old_before, old_target
 
-    def test_missing_or_invalid_optional_port_fails_closed_and_no_write(self) -> None:
+    def test_missing_optional_port_is_partial_but_invalid_port_fails_closed(self) -> None:
         self.state = {"enable": False}
         status, missing = self.request("GET", self._read_path(), token=TOKEN)
-        self.assertEqual(status, 502)
-        self.assertEqual(missing["error"], "openapi_response_invalid")
+        self.assertEqual(status, 200)
+        self.assertTrue(missing["partial"])
+        self.assertIsNone(missing["data"]["sipUdpPort"])
         status, preview = self.request(
             "POST", self._preview_path(), token=TOKEN,
             body={"changes": {"enable": True}, "disruption_confirmed": True})
@@ -277,6 +278,13 @@ class GatewayVoipIntegrationTests(unittest.TestCase):
         self.assertEqual(status, 409)
         self.assertEqual(duplicate["error"], "operator_approval_reused")
         self.assertEqual(len(self.put_calls), 1)
+
+    def test_read_allows_documented_optional_sip_port_as_partial(self) -> None:
+        self.state = {"enable": False}
+        result = self.client.read_gateway_voip(SITE_REF)
+        self.assertEqual(result["status"], "partial")
+        self.assertTrue(result["partial"])
+        self.assertEqual(result["data"], {"enable": False, "sipUdpPort": None})
 
     def test_single_full_state_put_and_readback_and_mismatch_recovery(self) -> None:
         os.environ["OMADA_ENABLE_WRITES"] = "true"

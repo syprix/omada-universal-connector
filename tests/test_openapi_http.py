@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 from app import main
 from app.change_journal import ChangePlanJournal, derive_controller_binding
+from app.device_upgrade_result import DeviceUpgradeResultError, project_device_upgrade_result
 from app.openapi import OmadaOpenApiClient, OpenApiConfig, OpenApiError
 from app.site_setting_existence import FIELDS
 from app.site_capabilities import FIELDS as SITE_CAPABILITY_FIELDS
@@ -10749,3 +10750,30 @@ class OpenApiHttpTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DeviceUpgradeResultProjectionTests(unittest.TestCase):
+    def test_absent_result_is_unreported_partial_not_a_success_or_empty_task(self) -> None:
+        projected = project_device_upgrade_result(None, result_reported=False)
+        self.assertTrue(projected["partial"])
+        self.assertEqual(projected["data"], {
+            "finished": None, "success": None, "present_count": 0,
+            "missing_count": 2, "invalid_count": 0, "unknown_field_count": 0,
+            "result_reported": False,
+        })
+
+    def test_explicit_null_result_remains_invalid(self) -> None:
+        with self.assertRaises(DeviceUpgradeResultError):
+            project_device_upgrade_result(None, result_reported=True)
+
+    def test_client_marks_absent_optional_result_partial(self) -> None:
+        client = OmadaOpenApiClient(OpenApiConfig(
+            "https://controller.example", "ctrl", "id", "secret",
+            cert_sha256="a" * 64))
+        site_ref, device_ref = "a" * 24, "b" * 24
+        with patch.object(client, "_device_read_context", return_value=("site", "mac")),              patch.object(client, "_access_token", return_value="token"),              patch.object(client, "_request_json", return_value={"errorCode": 0, "msg": "ok"}):
+            result = client.read_device_upgrade_result(site_ref, device_ref)
+        self.assertEqual(result["status"], "partial")
+        self.assertFalse(result["data"]["result_reported"])
+        self.assertIsNone(result["data"]["finished"])
+        self.assertIsNone(result["data"]["success"])

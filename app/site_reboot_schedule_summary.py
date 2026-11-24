@@ -34,7 +34,23 @@ def _mac_key(value: Any) -> str | None:
 def summarize_site_reboot_schedules(
     result: Any,
     inventory_macs_by_ref: dict[str, str],
+    *,
+    result_reported: bool = True,
 ) -> dict[str, object]:
+    if not result_reported:
+        return {
+            "status": "partial",
+            "partial": True,
+            "schedule_count": None,
+            "enabled_count": None,
+            "schedule_columns": SCHEDULE_COLUMNS,
+            "schedule_rows": [],
+            "schedule_clock_timezone": "not_specified_by_source",
+            "omitted_schedule_count": 0,
+            "invalid_entry_or_field_count": 0,
+            "collection_reported": False,
+            "schedule_semantics": "configured_schedule_only; does_not_confirm_a_reboot",
+        }
     if not isinstance(result, list):
         raise SiteRebootScheduleError("response_invalid")
 
@@ -157,5 +173,6 @@ def summarize_site_reboot_schedules(
         "schedule_clock_timezone": "not_specified_by_source",
         "omitted_schedule_count": omitted,
         "invalid_entry_or_field_count": invalid,
+        "collection_reported": True,
         "schedule_semantics": "configured_schedule_only; does_not_confirm_a_reboot",
     }

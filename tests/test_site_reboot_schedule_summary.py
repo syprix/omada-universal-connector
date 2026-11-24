@@ -33,6 +33,18 @@ class SiteRebootScheduleSummaryTests(unittest.TestCase):
         self.assertNotIn("aa:bb:cc:dd:ee:ff", repr(result))
         self.assertIn("does_not_confirm_a_reboot", result["schedule_semantics"])
 
+    def test_unreported_result_is_partial_and_null_result_is_invalid(self) -> None:
+        result = summarize_site_reboot_schedules(
+            None, {}, result_reported=False)
+        self.assertEqual(result["status"], "partial")
+        self.assertTrue(result["partial"])
+        self.assertFalse(result["collection_reported"])
+        self.assertIsNone(result["schedule_count"])
+        self.assertEqual(result["schedule_rows"], [])
+        from app.site_reboot_schedule_summary import SiteRebootScheduleError
+        with self.assertRaises(SiteRebootScheduleError):
+            summarize_site_reboot_schedules(None, {}, result_reported=True)
+
     def test_unmapped_targets_invalid_values_and_schedule_cap_are_partial(self) -> None:
         row = {"status": True, "deviceMacs": ["00:00:00:00:00:01"],
                "time": {"timingType": 1, "hour": 30, "minute": 0}}

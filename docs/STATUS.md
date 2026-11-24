@@ -27,6 +27,34 @@ connector marks the collection unreported and the result partial. AP
 power-saving still returns a null result where the available response schema
 describes an object, so that read remains rejected.
 
+## 2026-11-24 — Five controller response mismatches
+
+A bounded read-only check used the existing OC200 and one selected site; the
+device-specific read used its single listed gateway. The controller returned
+errorCode 0 for each upstream call. The virtual-WAN page reported
+currentSize as page capacity and reported zero rows in both its inventory and
+availability collections. The connector now accepts that documented paging
+meaning and returns a complete empty summary.
+
+The reboot-schedule response omitted result. The available response schema
+does not require that property, so the connector marks the collection
+unreported and the summary partial; it does not claim that no schedules exist.
+The device-upgrade response also omitted result; it is now partial with both
+task fields unknown, without inferring that no upgrade task exists.
+
+The VoIP response contained the required enable field but omitted the
+optional sipUdpPort; the connector returns that port as unknown and marks the
+read partial. Tag QoS reported an empty tagConfigList; because its source
+description specifies four classes, the connector reports the empty list as
+partial and does not create default class values. Write validation remains
+strict and rejects incomplete state for previews.
+
+All five operations returned successful HTTP and MCP calls on the OC200 after
+the corrections. Focused offline regression tests passed. No configuration
+change, reboot, upgrade, or active measurement was made. These results apply
+only to the checked controller and do not establish behavior on other hardware
+or firmware.
+
 ## Follow-on read workflows
 
 - #59 controller-wide event and alert windows: fixed, paginated HTTP/MCP reads use bounded time filters and omit row text and identifiers. Source contracts include the global log read permission in all three exports. A synthetic 20-row fixture measured 850→82 serialized tokens (90.35% fewer); live support remains unknown.
