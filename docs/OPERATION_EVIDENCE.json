@@ -6921,7 +6921,9 @@
         "test_radius_user_summary.py",
         "test_reference_integration.py",
         "test_registry_shadow.py",
+        "test_rf_excluded_aps.py",
         "test_rf_interference_read.py",
+        "test_rf_planning_dashboard.py",
         "test_rf_reads.py",
         "test_roaming_integration.py",
         "test_rogue_ap_results_integration.py",
@@ -17453,7 +17455,8 @@
         "test_controller_health.py",
         "test_openapi_http.py",
         "test_operation_registry.py",
-        "test_registry_shadow.py"
+        "test_registry_shadow.py",
+        "test_rf_planning_dashboard.py"
       ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
