@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from urllib.parse import parse_qs
 from unittest.mock import patch
 
 from app.openapi import OmadaOpenApiClient, OpenApiConfig, OpenApiError
@@ -68,8 +69,14 @@ class SiteIncidentInfluencesTests(unittest.TestCase):
             incidents = self.client.read_device_health_incidents(self.site_ref, self.target_ref)
             incident_ref = incidents["items"][0]["incident_ref"]
             result = self.client.read_site_incident_influencing_clients(self.site_ref, incident_ref)
-        self.assertEqual(request.call_args_list[0].args[:2], (
-            "GET", f"/openapi/v1/ctrl/sites/site_1/health/incident/{self.target_mac}"))
+        method, path = request.call_args_list[0].args[:2]
+        self.assertEqual(method, "GET")
+        self.assertTrue(path.startswith(
+            f"/openapi/v1/ctrl/sites/site_1/health/incident/{self.target_mac}?"))
+        incident_query = parse_qs(path.split("?", 1)[1], strict_parsing=True)
+        self.assertEqual(set(incident_query), {"filters.startTime", "filters.endTime"})
+        self.assertEqual(int(incident_query["filters.endTime"][0]) -
+                         int(incident_query["filters.startTime"][0]), 86_400_000)
         self.assertEqual(request.call_args_list[1].args[:2], (
             "GET", f"/openapi/v1/ctrl/sites/site_1/anomaly/{self.target_mac}/"
             "influencing-clients?anomalyCode=01001001&page=1&pageSize=100"))

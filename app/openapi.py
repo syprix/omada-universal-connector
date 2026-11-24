@@ -27,6 +27,8 @@ from functools import wraps
 from dataclasses import dataclass
 from urllib.parse import parse_qs, parse_qsl, quote, urlencode, urlsplit
 
+_HEALTH_INCIDENT_WINDOW_MS = 24 * 60 * 60 * 1000
+
 try:
     from .operation_registry import REGISTRY
 except ImportError:  # direct execution in the image
@@ -6879,8 +6881,12 @@ class OmadaOpenApiClient:
         # even if the upstream request or response validation fails.
         self._incident_ids_by_site_ref[site_ref] = {}
         self._incident_context_by_site_ref[site_ref] = {}
+        end_ms = int(time.time() * 1000)
+        start_ms = end_ms - _HEALTH_INCIDENT_WINDOW_MS
         path = self._DEVICE_HEALTH_INCIDENTS_PATH.format(
             controller_id=self.config.controller_id, site_id=site_id, mac=mac)
+        path += "?" + urlencode({"filters.startTime": start_ms,
+                                 "filters.endTime": end_ms})
         result = self._request_json("GET", path, token=self._access_token()).get("result")
         try:
             rows = extract_incidents(result)
@@ -6903,7 +6909,8 @@ class OmadaOpenApiClient:
         self._incident_context_by_site_ref[site_ref] = incident_context
         resource = target_kind + "_health_incidents"
         return {"status": "ok", "resource": resource,
-                "site_ref": site_ref, "count": len(items), "items": items}
+                "site_ref": site_ref, "count": len(items), "items": items,
+                "window_start_ms": start_ms, "window_end_ms": end_ms}
 
     @_track_capability("site_incident_notification")
     def read_site_incident_notification(self, site_ref: str) -> dict[str, object]:
@@ -20502,11 +20509,28 @@ class OmadaOpenApiClient:
         return bool(match and match.group(1) == self.config.controller_id)
 
     def _device_health_incidents_request_valid(self, path: str) -> bool:
+        raw_path, separator, raw_query = path.partition("?")
         match = re.fullmatch(
             r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})/"
-            r"health/incident/([0-9A-Fa-f:-]{17})", path)
-        return bool(match and match.group(1) == self.config.controller_id and
-                    self._MAC.fullmatch(match.group(3)))
+            r"health/incident/([0-9A-Fa-f:-]{17})", raw_path)
+        if not separator or not match or match.group(1) != self.config.controller_id or \
+                not self._MAC.fullmatch(match.group(3)):
+            return False
+        try:
+            query = parse_qs(raw_query, keep_blank_values=True, strict_parsing=True)
+        except ValueError:
+            return False
+        if (set(query) != {"filters.startTime", "filters.endTime"} or
+                any(len(values) != 1 or not values[0].isdigit()
+                    for values in query.values())):
+            return False
+        start_ms = int(query["filters.startTime"][0])
+        end_ms = int(query["filters.endTime"][0])
+        now_ms = int(time.time() * 1000)
+        return (end_ms > start_ms and end_ms - start_ms == _HEALTH_INCIDENT_WINDOW_MS and
+                abs(now_ms - end_ms) <= 60_000 and
+                urlencode({"filters.startTime": start_ms,
+                          "filters.endTime": end_ms}) == raw_query)
 
     def _site_incident_detail_request_valid(self, path: str) -> bool:
         match = re.fullmatch(
