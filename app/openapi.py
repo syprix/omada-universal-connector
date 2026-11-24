@@ -17274,19 +17274,25 @@ class OmadaOpenApiClient:
             total_rows = result.get("totalRows")
             if (not isinstance(rows, list) or len(rows) > _RF_EXCLUDED_APS_PAGE_SIZE or
                     type(current_page) is not int or current_page != 1 or
-                    type(current_size) is not int or not 0 <= current_size <= _RF_EXCLUDED_APS_PAGE_SIZE or
+                    type(current_size) is not int or not 0 <= current_size <= 1000 or
                     type(total_rows) is not int or total_rows < len(rows) or total_rows > 2_147_483_647):
                 raise OpenApiError("openapi_response_invalid")
+            returned_row_count = len(rows)
             result = rows
             reported_total = total_rows
+        else:
+            returned_row_count = len(result) if isinstance(result, list) else 0
         try:
             projected = project_rf_excluded_aps(result, ap_refs_by_mac)
         except RfExcludedApsError:
             raise OpenApiError("openapi_response_invalid") from None
         if reported_total is not None:
-            page_limit_reached = reported_total > projected["count"]
+            # totalRows is the controller row count, before site-inventory matching.
+            # currentSize semantics are not defined in the exports, so it does not
+            # determine whether this page is complete.
+            page_limit_reached = reported_total > returned_row_count
             projected["page_limit_reached"] = page_limit_reached
-            projected["partial"] = bool(projected["partial"] or page_limit_reached)
+            projected["partial"] = bool(projected["omitted_field_count"] or page_limit_reached)
         return {**projected, "site_ref": site_ref}
 
     @_track_capability("rf_deploy_history")
