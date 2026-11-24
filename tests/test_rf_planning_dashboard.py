@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import unittest
+from datetime import datetime, timezone
+from unittest.mock import patch
 
+from app.openapi import OmadaOpenApiClient, OpenApiConfig
 from app.rf_planning_dashboard import (
     RfPlanningDashboardError,
     project_rf_planning_dashboard,
@@ -84,6 +87,31 @@ class RfPlanningDashboardTests(unittest.TestCase):
         self.assertIn("out_of_window_trend_points", result["omitted_fields"])
         self.assertNotIn("private-ap", repr(result))
         self.assertNotIn("AA:BB:CC:DD:EE:FF", repr(result))
+
+    def test_current_dashboard_uses_fixed_24_hour_query_and_guard(self) -> None:
+        client = OmadaOpenApiClient(OpenApiConfig(
+            "https://controller.example", "ctrl", "client-id", "client-secret",
+            cert_sha256="a" * 64))
+        site_ref = "a" * 24
+        client._site_ids_by_ref[site_ref] = "site_1"
+        current = datetime(2026, 11, 24, 12, 0, tzinfo=timezone.utc)
+        end_ms = int(current.timestamp() * 1000)
+        start_ms = end_ms - 86_400_000
+        expected_path = (
+            "/openapi/v1/ctrl/sites/site_1/rfPlanning/dashboard"
+            f"?start={start_ms}&end={end_ms}")
+        with patch("app.openapi.datetime") as mocked_datetime, \
+                patch.object(client, "_access_token", return_value="token"), \
+                patch.object(client, "_request_json",
+                             return_value={"result": {"wlanOptDashBoardDetail2g": band_fixture()}}) as request:
+            mocked_datetime.now.return_value = current
+            result = client.read_rf_planning_dashboard_current(site_ref)
+        request.assert_called_once_with("GET", expected_path, token="token")
+        self.assertTrue(client._rf_planning_dashboard_current_request_valid(expected_path))
+        self.assertFalse(client._rf_planning_dashboard_current_request_valid(
+            expected_path.replace(f"end={end_ms}", f"end={end_ms + 1}")))
+        self.assertEqual(result["window_start_ms"], start_ms)
+        self.assertEqual(result["window_end_ms"], end_ms)
 
 
 if __name__ == "__main__":
