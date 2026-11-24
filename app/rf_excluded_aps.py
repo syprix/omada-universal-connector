@@ -56,12 +56,14 @@ def project_rf_excluded_aps(raw: object, ap_refs_by_mac: dict[str, list[str]]) -
         known = _REDACTED | {"unsupportType", "statusCategory", "addedInAdvanced"}
         omitted_count += sum(1 for key in row if key not in known)
         items.append(item)
+    page_limit_reached = len(raw) == _MAX_ROWS
     return {
         "status": "ok",
         "resource": "rf_excluded_aps",
         "count": len(items),
         "items": items,
-        "partial": omitted_count > 0,
+        "partial": omitted_count > 0 or page_limit_reached,
+        "page_limit_reached": page_limit_reached,
         "omitted_field_count": omitted_count,
         "redacted_field_count": redacted_count,
     }
