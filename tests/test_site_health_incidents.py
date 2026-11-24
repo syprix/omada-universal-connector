@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import unittest
+import time
 from unittest.mock import patch
+from urllib.parse import parse_qs, urlencode
 
 from app.openapi import OmadaOpenApiClient, OpenApiConfig, OpenApiError
 from app.site_health_incidents import (
@@ -52,8 +54,17 @@ class SiteHealthIncidentTests(unittest.TestCase):
         self.assertNotIn(MAC, repr(detail))
         self.assertEqual(detail["data"]["anomaly_code"], "01001001")
         self.assertEqual(detail["data"]["object_type"], "CLIENT")
-        self.assertEqual(request.call_args_list[0].args,
-                         ("GET", f"/openapi/v1/ctrl/sites/site-id/health/incident/{MAC}"))
+        method, path = request.call_args_list[0].args
+        self.assertEqual(method, "GET")
+        self.assertTrue(path.startswith(
+            f"/openapi/v1/ctrl/sites/site-id/health/incident/{MAC}?"))
+        query = parse_qs(path.split("?", 1)[1], strict_parsing=True)
+        self.assertEqual(set(query), {"filters.startTime", "filters.endTime"})
+        self.assertEqual(int(query["filters.endTime"][0]) -
+                         int(query["filters.startTime"][0]), 86_400_000)
+        self.assertIn("window_start_ms", listed)
+        self.assertEqual(listed["window_end_ms"] - listed["window_start_ms"],
+                         86_400_000)
         self.assertEqual(request.call_args_list[1].args,
                          ("GET", f"/openapi/v1/ctrl/sites/site-id/anomaly/incident/{INCIDENT_ID}"))
 
@@ -86,8 +97,9 @@ class SiteHealthIncidentTests(unittest.TestCase):
             result = self.client.read_client_health_incidents(SITE, "d" * 24)
         self.assertEqual(result["resource"], "client_health_incidents")
         self.assertEqual(result["count"], 1)
-        self.assertEqual(request.call_args.args[1],
-                         f"/openapi/v1/ctrl/sites/site-id/health/incident/{MAC}")
+        path = request.call_args.args[1]
+        self.assertTrue(path.startswith(
+            f"/openapi/v1/ctrl/sites/site-id/health/incident/{MAC}?"))
         self.assertNotIn(INCIDENT_ID, repr(result))
 
     def test_projection_rejects_malformed_ids_and_keeps_no_free_text(self) -> None:
@@ -99,11 +111,18 @@ class SiteHealthIncidentTests(unittest.TestCase):
         self.assertNotIn("private", repr(projected))
 
     def test_fixed_paths_require_configured_controller_and_documented_shapes(self) -> None:
-        good_list = f"/openapi/v1/ctrl/sites/site-id/health/incident/{MAC}"
+        end_ms = int(time.time() * 1000)
+        query = urlencode({"filters.startTime": end_ms - 86_400_000,
+                           "filters.endTime": end_ms})
+        good_list = f"/openapi/v1/ctrl/sites/site-id/health/incident/{MAC}?{query}"
         good_detail = f"/openapi/v1/ctrl/sites/site-id/anomaly/incident/{INCIDENT_ID}"
         self.assertTrue(self.client._device_health_incidents_request_valid(good_list))
         self.assertTrue(self.client._site_incident_detail_request_valid(good_detail))
         self.assertFalse(self.client._device_health_incidents_request_valid(good_list.replace("/ctrl/", "/other/")))
+        self.assertFalse(self.client._device_health_incidents_request_valid(
+            good_list.replace("filters.endTime", "filters.module")))
+        self.assertFalse(self.client._device_health_incidents_request_valid(
+            good_list.replace("filters.endTime", "filters.startTime")))
         self.assertFalse(self.client._site_incident_detail_request_valid(good_detail + "?x=1"))
 
 
