@@ -746,6 +746,11 @@ def _tool(operation: Any) -> dict[str, object]:
                 "type": "integer", "minimum": 1, "maximum": 4094,
                 "description": "VLAN ID selected for the site-bound summary.",
             }
+        elif name == "category" and operation.operation_id == "site_incident_category_counts":
+            properties[name] = {
+                "type": "integer", "minimum": 11, "maximum": 19,
+                "description": "Required documented incident category code (11–19). Uses a fixed trailing 24-hour window.",
+            }
         elif name == "type" and operation.operation_id == "site_mac_auth_ssid_inventory":
             properties[name] = {
                 "type": "integer", "enum": [1, 2, 3],
@@ -1382,6 +1387,10 @@ def _invoke_tool(registry: Any, name: object, arguments: object,
             safe_arguments[key] = "true" if value else "false"
         elif key == "vlan_id":
             if type(value) is not int or not 1 <= value <= 4094:
+                raise McpRequestError("arguments_invalid")
+            safe_arguments[key] = str(value)
+        elif key == "category" and operation.operation_id == "site_incident_category_counts":
+            if type(value) is not int or not 11 <= value <= 19:
                 raise McpRequestError("arguments_invalid")
             safe_arguments[key] = str(value)
         elif key == "type" and operation.operation_id == "site_mac_auth_ssid_inventory":

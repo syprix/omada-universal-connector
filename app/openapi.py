@@ -6526,22 +6526,30 @@ class OmadaOpenApiClient:
                 "window_end_ms": end_ms, **projected}
 
     @_track_capability("site_incident_category_counts")
-    def read_site_incident_category_counts(self, site_ref: str) -> dict[str, object]:
-        """Read bounded site incident counts grouped by anomaly category."""
+    def read_site_incident_category_counts(self, site_ref: str,
+                                           category: int) -> dict[str, object]:
+        """Read bounded site incident counts for one documented category code."""
+        if type(category) is not int or not 11 <= category <= 19:
+            raise OpenApiError("incident_category_invalid")
         if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
             raise OpenApiError("site_ref_invalid")
         site_id = self._site_ids_by_ref.get(site_ref, "")
         if not site_id:
             raise OpenApiError("site_ref_unknown")
+        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        start_ms = end_ms - INCIDENT_DISTRIBUTION_WINDOW_MS
         path = self._SITE_INCIDENT_CATEGORY_COUNTS_PATH.format(
             controller_id=self.config.controller_id, site_id=site_id)
+        path += (f"?filters.startTime={start_ms}&filters.endTime={end_ms}"
+                 f"&category={category}")
         result = self._request_json("GET", path, token=self._access_token()).get("result")
         try:
             projected = project_site_incident_category_counts(result)
         except SiteIncidentCategoryCountsError:
             raise OpenApiError("openapi_response_invalid") from None
         return {"status": "ok", "resource": "site_incident_category_counts",
-                "site_ref": site_ref, **projected}
+                "site_ref": site_ref, "category": category,
+                "window_start_ms": start_ms, "window_end_ms": end_ms, **projected}
 
     @_track_capability("site_incident_list")
     def read_site_incident_list(self, site_ref: str) -> dict[str, object]:
@@ -20472,8 +20480,13 @@ class OmadaOpenApiClient:
     def _site_incident_category_counts_request_valid(self, path: str) -> bool:
         match = re.fullmatch(
             r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/"
-            r"anomaly/category", path)
-        return bool(match and match.group(1) == self.config.controller_id)
+            r"anomaly/category\?filters\.startTime=([1-9][0-9]{0,18})"
+            r"&filters\.endTime=([1-9][0-9]{0,18})&category=(1[1-9])", path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        start_ms, end_ms = int(match.group(2)), int(match.group(3))
+        return (end_ms <= 9_223_372_036_854_775_807 and end_ms > start_ms and
+                end_ms - start_ms == INCIDENT_DISTRIBUTION_WINDOW_MS)
 
     def _site_incident_list_request_valid(self, path: str) -> bool:
         match = re.fullmatch(

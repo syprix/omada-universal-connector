@@ -2611,6 +2611,13 @@ class Handler(BaseHTTPRequestHandler):
             registry_match = REGISTRY.match("GET", parsed_request.path)
             operation = registry_match[0]
             query_values = parse_qs(parsed_request.query, keep_blank_values=True, strict_parsing=True)
+            if operation.operation_id == "site_incident_category_counts":
+                category_values = query_values.get("category", [])
+                if not category_values:
+                    raise RegistryError("incident category required (11-19)")
+                if (len(category_values) != 1 or
+                        not re.fullmatch(r"1[1-9]", category_values[0])):
+                    raise RegistryError("incident category invalid (11-19)")
             local_argument_sets = REGISTRY.local_argument_sets(operation)
             optional_argument_sets = {
                 frozenset(group)
@@ -2664,6 +2671,9 @@ class Handler(BaseHTTPRequestHandler):
                 if (not re.fullmatch(r"[1-9][0-9]{0,3}", vlan_text) or
                         not 1 <= int(vlan_text) <= 4094):
                     raise RegistryError("vlan selector invalid")
+            if "category" in local_arguments:
+                if not re.fullmatch(r"1[1-9]", registry_bindings["category"]):
+                    raise RegistryError("incident category invalid")
             if "pon_port" in registry_bindings:
                 validate_pon_port_selector(registry_bindings["pon_port"])
             if "page_number" in registry_bindings:
@@ -2692,6 +2702,11 @@ class Handler(BaseHTTPRequestHandler):
             self._send(HTTPStatus.BAD_REQUEST, {"status": "error", "error": "pon_port_invalid"})
             return
         except (RegistryError, ValueError):
+            if (registry_match and
+                    registry_match[0].operation_id == "site_incident_category_counts"):
+                self._send(HTTPStatus.BAD_REQUEST,
+                           {"status": "error", "error": "incident_category_required_or_invalid"})
+                return
             if (registry_match and
                     registry_match[0].operation_id in {"site_mac_auth_ssid_inventory", "site_vlan_ssid_usage_summary",
                                                         "site_vlan_device_usage_summary", "site_vlan_port_support_summary", "site_vlan_topology_summary", "site_vlan_topology_reference_count",
@@ -3885,7 +3900,8 @@ class Handler(BaseHTTPRequestHandler):
                 elif registry_operation == "site_incident_distribution":
                     result = client.read_site_incident_distribution(registry_bindings["site_ref"])
                 elif registry_operation == "site_incident_category_counts":
-                    result = client.read_site_incident_category_counts(registry_bindings["site_ref"])
+                    result = client.read_site_incident_category_counts(
+                        registry_bindings["site_ref"], int(registry_bindings["category"]))
                 elif registry_operation == "site_incident_list":
                     result = client.read_site_incident_list(registry_bindings["site_ref"])
                 elif registry_operation == "site_batch_interference_history":

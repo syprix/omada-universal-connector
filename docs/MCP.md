@@ -1166,3 +1166,15 @@ switch row with `es: true` before reading the Agile general config. It returns
 only LED, jumbo-frame and power-alert settings. Names, locations, tags and
 device identifiers are omitted. Both operations are fixture-tested; live
 support is unknown.
+
+# Site incident category counts
+
+`omada_site_incident_category_counts` requires the selected site's `site_ref`
+and one integer `category` from 11 through 19. It reads only that category
+over a connector-fixed trailing 24-hour window and returns the chosen code and
+window once as query context. Omitting the category or supplying a value
+outside the documented range is rejected before any controller request. The
+result rows keep their existing redacted fields; codes have no inferred
+manufacturer meaning.
+One OC200 request for a selected category returned a partial result through
+HTTP and MCP. Other category codes and ER7212PC remain unverified.
