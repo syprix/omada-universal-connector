@@ -85,6 +85,49 @@ class RfExcludedApsTests(unittest.TestCase):
             with self.assertRaisesRegex(OpenApiError, "openapi_response_invalid"):
                 client.read_rf_excluded_aps(site_ref)
 
+    def test_unmatched_row_is_partial_without_falsely_reaching_page_limit(self) -> None:
+        client = OmadaOpenApiClient(OpenApiConfig(
+            "https://controller.example", "ctrl", "client-id", "client-secret",
+            cert_sha256="a" * 64))
+        site_ref = "a" * 24
+        client._site_ids_by_ref[site_ref] = "site_1"
+        client._device_macs_by_site_ref[site_ref] = {}
+        with patch.object(client, "list_devices"), \
+                patch.object(client, "_access_token", return_value="token"), \
+                patch.object(client, "_request_json", return_value={"result": {
+                    "currentPage": 1, "currentSize": 1, "totalRows": 1,
+                    "data": [{"mac": "AA:BB:CC:DD:EE:FF", "unsupportType": 1}],
+                }}):
+            result = client.read_rf_excluded_aps(site_ref)
+        self.assertEqual(result["count"], 0)
+        self.assertEqual(result["omitted_field_count"], 1)
+        self.assertTrue(result["partial"])
+        self.assertFalse(result["page_limit_reached"])
+
+    def test_complete_full_paged_response_is_not_partial_at_exact_total(self) -> None:
+        client = OmadaOpenApiClient(OpenApiConfig(
+            "https://controller.example", "ctrl", "client-id", "client-secret",
+            cert_sha256="a" * 64))
+        site_ref = "a" * 24
+        client._site_ids_by_ref[site_ref] = "site_1"
+        rows = []
+        macs = {}
+        for index in range(256):
+            mac = ":".join(f"{byte:02X}" for byte in (2, 0, 0, 0, index // 256, index % 256))
+            ap_ref = f"{index + 1:024x}"
+            macs[ap_ref] = mac
+            rows.append({"mac": mac, "unsupportType": 1})
+        client._device_macs_by_site_ref[site_ref] = macs
+        with patch.object(client, "list_devices"), \
+                patch.object(client, "_access_token", return_value="token"), \
+                patch.object(client, "_request_json", return_value={"result": {
+                    "currentPage": 1, "currentSize": 256, "totalRows": 256, "data": rows,
+                }}):
+            result = client.read_rf_excluded_aps(site_ref)
+        self.assertEqual(result["count"], 256)
+        self.assertFalse(result["partial"])
+        self.assertFalse(result["page_limit_reached"])
+
     def test_reads_one_documented_bounded_site_page(self) -> None:
         client = OmadaOpenApiClient(OpenApiConfig(
             "https://controller.example", "ctrl", "client-id", "client-secret",
