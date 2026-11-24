@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from urllib.parse import parse_qs, parse_qsl, quote, urlencode, urlsplit
 
 _HEALTH_INCIDENT_WINDOW_MS = 24 * 60 * 60 * 1000
+_RF_EXCLUDED_APS_PAGE_SIZE = 256
 
 try:
     from .operation_registry import REGISTRY
@@ -2672,14 +2673,16 @@ class OmadaOpenApiClient:
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/rfPlanning/dashboard/status"
     )
     _RF_PLANNING_DASHBOARD_CURRENT_REQUEST = re.compile(
-        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/rfPlanning/dashboard"
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/rfPlanning/dashboard\?start=([0-9]{1,16})&end=([0-9]{1,16})"
     )
     _RF_PLANNING_DASHBOARD_HISTORY_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/rfPlanning/dashboard/history"
         r"\?start=([0-9]{1,16})&end=([0-9]{1,16})"
     )
     _RF_EXCLUDED_APS_REQUEST = re.compile(
-        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/rfPlanning/excludeAps"
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/rfPlanning/excludeAps\?currentPage=1&currentPageSize=256"
     )
     _RF_DEPLOY_HISTORY_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/rfplanning/history"
@@ -17120,20 +17123,24 @@ class OmadaOpenApiClient:
 
     @_track_capability("rf_planning_dashboard_current")
     def read_rf_planning_dashboard_current(self, site_ref: str) -> dict[str, object]:
-        """Read the separately documented RF dashboard representation."""
+        """Read the RF dashboard over a connector-fixed trailing 24-hour window."""
         if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
             raise OpenApiError("site_ref_invalid")
         site_id = self._site_ids_by_ref.get(site_ref, "")
         if not site_id:
             raise OpenApiError("site_ref_unknown")
+        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        start_ms = end_ms - 86_400_000
         path = self._RF_PLANNING_DASHBOARD_CURRENT_PATH.format(
             controller_id=self.config.controller_id, site_id=site_id)
+        path += f"?start={start_ms}&end={end_ms}"
         result = self._request_json("GET", path, token=self._access_token()).get("result")
         try:
-            projected = project_rf_planning_dashboard(result)
+            projected = project_rf_planning_dashboard(result, start_ms=start_ms, end_ms=end_ms)
         except RfPlanningDashboardError:
             raise OpenApiError("openapi_response_invalid") from None
-        return {**projected, "resource": "rf_planning_dashboard_current", "site_ref": site_ref}
+        return {**projected, "resource": "rf_planning_dashboard_current", "site_ref": site_ref,
+                "window_start_ms": start_ms, "window_end_ms": end_ms}
 
     @_track_capability("rf_planning_dashboard_history")
     def read_rf_planning_dashboard_history(self, site_ref: str) -> dict[str, object]:
@@ -17257,11 +17264,30 @@ class OmadaOpenApiClient:
             ap_refs_by_mac.setdefault(re.sub(r"[:-]", "", mac).lower(), []).append(ap_ref)
         path = self._RF_EXCLUDED_APS_PATH.format(
             controller_id=self.config.controller_id, site_id=site_id)
+        path += f"?currentPage=1&currentPageSize={_RF_EXCLUDED_APS_PAGE_SIZE}"
         result = self._request_json("GET", path, token=self._access_token()).get("result")
+        reported_total: int | None = None
+        if isinstance(result, dict):
+            rows = result.get("data")
+            current_page = result.get("currentPage")
+            current_size = result.get("currentSize")
+            total_rows = result.get("totalRows")
+            if (not isinstance(rows, list) or len(rows) > _RF_EXCLUDED_APS_PAGE_SIZE or
+                    type(current_page) is not int or current_page != 1 or
+                    type(current_size) is not int or not 0 <= current_size <= _RF_EXCLUDED_APS_PAGE_SIZE or
+                    type(total_rows) is not int or total_rows < len(rows) or total_rows > 2_147_483_647):
+                raise OpenApiError("openapi_response_invalid")
+            result = rows
+            reported_total = total_rows
         try:
-            return {**project_rf_excluded_aps(result, ap_refs_by_mac), "site_ref": site_ref}
+            projected = project_rf_excluded_aps(result, ap_refs_by_mac)
         except RfExcludedApsError:
             raise OpenApiError("openapi_response_invalid") from None
+        if reported_total is not None:
+            page_limit_reached = reported_total > projected["count"]
+            projected["page_limit_reached"] = page_limit_reached
+            projected["partial"] = bool(projected["partial"] or page_limit_reached)
+        return {**projected, "site_ref": site_ref}
 
     @_track_capability("rf_deploy_history")
     def read_rf_deploy_history(self, site_ref: str) -> dict[str, object]:
@@ -20698,7 +20724,12 @@ class OmadaOpenApiClient:
 
     def _rf_planning_dashboard_current_request_valid(self, path: str) -> bool:
         match = self._RF_PLANNING_DASHBOARD_CURRENT_REQUEST.fullmatch(path)
-        return bool(match and match.group(1) == self.config.controller_id)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            return int(match.group(3)) - int(match.group(2)) == 86_400_000
+        except (ValueError, OverflowError):
+            return False
 
     def _rf_planning_dashboard_history_request_valid(self, path: str) -> bool:
         match = self._RF_PLANNING_DASHBOARD_HISTORY_REQUEST.fullmatch(path)
