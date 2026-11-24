@@ -16,6 +16,17 @@ three supplied API exports describe an object with the `ClientSummaryVO` shape.
 The returned list rows do not expose those documented summary fields, so the
 connector leaves these reads rejected rather than guessing their meaning.
 
+Two paginated reads compared `currentSize` with the number of rows in the
+current page. The firmware-list schema defines it as page capacity; the OC200
+reported 100 with zero firmware rows. Its AP SSID-audit grid reported a
+capacity of 10 with zero rows; those API exports omit a success-response schema
+for this operation, so the bounded projection uses `currentSize` only as an
+upper bound and retains the reported total. The AP wired-downlink response is
+an empty object; the available response schema leaves its list optional, so the
+connector marks the collection unreported and the result partial. AP
+power-saving still returns a null result where the available response schema
+describes an object, so that read remains rejected.
+
 ## Follow-on read workflows
 
 - #59 controller-wide event and alert windows: fixed, paginated HTTP/MCP reads use bounded time filters and omit row text and identifiers. Source contracts include the global log read permission in all three exports. A synthetic 20-row fixture measured 850→82 serialized tokens (90.35% fewer); live support remains unknown.

@@ -34,7 +34,7 @@ def summarize_ap_ssid_override_audit(
             type(current_page) is not int or current_page != page or
             type(current_size) is not int or not 0 <= current_size <= page_size or
             not isinstance(rows, list) or len(rows) > page_size or
-            current_size != len(rows)):
+            len(rows) > current_size):
         raise ApSsidOverrideAuditError("invalid audit grid metadata")
 
     counts = {value: 0 for value in _FLAG_FIELDS.values()}

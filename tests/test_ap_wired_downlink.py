@@ -48,6 +48,13 @@ class ApWiredDownlinkProjectionTests(unittest.TestCase):
         empty = project_ap_wired_downlink({"wiredDownlinkList": []}, self.refs)
         self.assertEqual(empty["count"], 0)
         self.assertFalse(empty["partial"])
+        self.assertTrue(empty["collection_reported"])
+        missing = project_ap_wired_downlink({}, self.refs)
+        self.assertEqual(missing["count"], 0)
+        self.assertIsNone(missing["source_count"])
+        self.assertFalse(missing["collection_reported"])
+        self.assertEqual(missing["missing_collection_count"], 1)
+        self.assertTrue(missing["partial"])
         for raw in (None, [], {"wiredDownlinkList": None},
                     {"wiredDownlinkList": [{}] * 257}):
             with self.subTest(raw=raw), self.assertRaises(ApWiredDownlinkError):

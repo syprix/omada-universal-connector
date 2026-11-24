@@ -60,6 +60,15 @@ class ApSsidOverrideAuditProjectionTests(unittest.TestCase):
                     self.assertRaises(ApSsidOverrideAuditError):
                 summarize_ap_ssid_override_audit(value)
 
+    def test_empty_grid_uses_page_capacity_not_returned_row_count(self) -> None:
+        result = summarize_ap_ssid_override_audit({
+            "totalRows": 0, "currentPage": 1, "currentSize": 10, "data": [],
+        })
+        self.assertEqual(result["data"]["reported_total_row_count"], 0)
+        self.assertEqual(result["data"]["returned_row_count"], 0)
+        self.assertFalse(result["truncated"])
+        self.assertFalse(result["partial"])
+
 
 class ApSsidOverrideAuditClientTests(unittest.TestCase):
     def setUp(self) -> None:
