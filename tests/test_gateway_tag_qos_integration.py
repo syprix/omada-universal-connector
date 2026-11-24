@@ -192,7 +192,7 @@ class GatewayTagQosIntegrationTests(unittest.TestCase):
 
         status, read = self.request("GET", self._read_path(), token=TOKEN)
         self.assertEqual(status, 200)
-        self.assertEqual(read["data"], INITIAL)
+        self.assertEqual(read["data"], {"tagConfigList": INITIAL["tagConfigList"]})
         preview = self.preview()
         expected = copy.deepcopy(INITIAL)
         expected["tagConfigList"][2]["enable"] = True
@@ -220,7 +220,6 @@ class GatewayTagQosIntegrationTests(unittest.TestCase):
 
     def test_missing_extra_duplicate_classes_and_dscp_fail_closed(self) -> None:
         malformed = [
-            {"tagConfigList": INITIAL["tagConfigList"][:3]},
             {"tagConfigList": [*INITIAL["tagConfigList"], INITIAL["tagConfigList"][0]]},
             {"tagConfigList": [{**row, "extra": True} for row in INITIAL["tagConfigList"]]},
             {"tagConfigList": [{**row, "classType": 0} if index == 1 else row
@@ -243,6 +242,17 @@ class GatewayTagQosIntegrationTests(unittest.TestCase):
                 self.assertNotEqual(status, 200)
                 self.assertNotIn("plan_id", preview)
                 self.assertEqual(self.put_calls, [])
+        self.state = {"tagConfigList": INITIAL["tagConfigList"][:3]}
+        status, partial = self.request("GET", self._read_path(), token=TOKEN)
+        self.assertEqual(status, 200)
+        self.assertEqual(partial["status"], "partial")
+        self.assertEqual(partial["data"]["missing_class_count"], 1)
+        status, preview = self.request(
+            "POST", self._preview_path(), token=TOKEN,
+            body={"changes": {"classType": 2, "enable": True},
+                  "disruption_confirmed": True})
+        self.assertNotEqual(status, 200)
+        self.assertNotIn("plan_id", preview)
         self.state = copy.deepcopy(INITIAL)
 
     def test_same_valid_dscp_across_classes_is_preserved_without_normalization(self) -> None:
@@ -289,6 +299,13 @@ class GatewayTagQosIntegrationTests(unittest.TestCase):
         self.assertEqual([row[0] for row in self.transport_calls[-3:]], ["GET", "PUT", "GET"])
         self.assertEqual(json.loads(self.transport_calls[-2][2]), target)
         self.assertEqual(len(self.put_calls), 1)
+
+    def test_read_preserves_empty_reported_list_as_partial(self) -> None:
+        self.state = {"tagConfigList": []}
+        result = self.client.read_gateway_tag_qos(SITE_REF)
+        self.assertEqual(result["status"], "partial")
+        self.assertTrue(result["partial"])
+        self.assertEqual(result["data"], {"tagConfigList": [], "missing_class_count": 4})
 
     def test_post_intent_foreign_change_and_readback_mismatch_are_in_doubt_no_replay(self) -> None:
         os.environ["OMADA_ENABLE_WRITES"] = "true"

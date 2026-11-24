@@ -17051,6 +17051,7 @@
       ],
       "source_map_label": "implemented_read",
       "static_test_references": [
+        "test_gateway_tag_qos_integration.py",
         "test_openapi_http.py",
         "test_operation_registry.py"
       ],
@@ -17076,6 +17077,7 @@
       ],
       "source_map_label": "implemented_read",
       "static_test_references": [
+        "test_gateway_voip_integration.py",
         "test_openapi_http.py",
         "test_operation_registry.py"
       ],

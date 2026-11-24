@@ -29,6 +29,14 @@ class SiteVirtualWanProjectionTests(unittest.TestCase):
         for secret in ("private-vwan", "private-physical", "private-physical-2"):
             self.assertNotIn(secret, repr(projected))
 
+    def test_current_size_is_page_capacity_for_empty_page(self) -> None:
+        projected = project_virtual_wan_pages([{
+            "totalRows": 0, "currentPage": 1, "currentSize": 100, "data": [],
+        }], [])
+        self.assertEqual(projected["virtual_wan_count"], 0)
+        self.assertEqual(projected["declared_total"], 0)
+        self.assertTrue(projected["complete"])
+
     def test_incomplete_page_is_explicit(self) -> None:
         projected = project_virtual_wan_pages([{
             "totalRows": 101, "currentPage": 1, "currentSize": 1,

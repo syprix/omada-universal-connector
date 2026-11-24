@@ -10,7 +10,16 @@ class DeviceUpgradeResultError(ValueError):
     """Raised when the upgrade-result response has an invalid shape."""
 
 
-def project_device_upgrade_result(result: Any) -> dict[str, object]:
+def project_device_upgrade_result(
+    result: Any, *, result_reported: bool = True,
+) -> dict[str, object]:
+    if not result_reported:
+        return {
+            "data": {"finished": None, "success": None, "present_count": 0,
+                     "missing_count": len(FIELDS), "invalid_count": 0,
+                     "unknown_field_count": 0, "result_reported": False},
+            "partial": True,
+        }
     if not isinstance(result, dict) or len(result) > len(FIELDS):
         raise DeviceUpgradeResultError("response_invalid")
     projected: dict[str, bool | None] = {"finished": None, "success": None}
@@ -29,6 +38,6 @@ def project_device_upgrade_result(result: Any) -> dict[str, object]:
         "data": {"finished": projected["finished"], "success": projected["success"],
                  "present_count": sum(value is not None for value in projected.values()),
                  "missing_count": missing, "invalid_count": invalid,
-                 "unknown_field_count": unknown},
+                 "unknown_field_count": unknown, "result_reported": True},
         "partial": bool(missing or invalid or unknown),
     }

@@ -4387,11 +4387,12 @@ class OmadaOpenApiClient:
             controller_id=self.config.controller_id, site_id=site_id, device_mac=mac)
         payload = self._request_json("GET", path, token=self._access_token())
         try:
-            projected = project_device_upgrade_result(payload.get("result"))
+            projected = project_device_upgrade_result(
+                payload.get("result"), result_reported=("result" in payload))
         except DeviceUpgradeResultError as exc:
             raise OpenApiError("openapi_response_invalid") from exc
-        return {"status": "ok", "resource": "device_upgrade_result",
-                "device_ref": device_ref, **projected}
+        return {"status": "partial" if projected["partial"] else "ok",
+                "resource": "device_upgrade_result", "device_ref": device_ref, **projected}
 
     @_track_capability("device_timeline")
     def read_device_timeline(self, site_ref: str, device_ref: str) -> dict[str, object]:
@@ -7517,12 +7518,20 @@ class OmadaOpenApiClient:
             raise OpenApiError("site_ref_unknown")
         path = self._GATEWAY_VOIP_PATH.format(
             controller_id=self.config.controller_id, site_id=site_id)
-        result = self._request_json("GET", path, token=self._access_token()).get("result")
-        if not self._valid_gateway_voip_state(result):
+        payload = self._request_json("GET", path, token=self._access_token())
+        result = payload.get("result")
+        if (not isinstance(result, dict) or type(result.get("enable")) is not bool or
+                set(result) - {"enable", "sipUdpPort"}):
             raise OpenApiError("openapi_response_invalid")
-        return {"status": "ok", "resource": "gateway_voip",
+        port = result.get("sipUdpPort")
+        if ("sipUdpPort" in result and
+                (type(port) is not int or not 0 <= port <= 65535)):
+            raise OpenApiError("openapi_response_invalid")
+        partial = "sipUdpPort" not in result
+        return {"status": "partial" if partial else "ok", "resource": "gateway_voip",
                 "site_ref": site_ref, "data": {"enable": result["enable"],
-                                                 "sipUdpPort": result["sipUdpPort"]}}
+                                                 "sipUdpPort": port},
+                "partial": partial}
 
     def put_gateway_voip(self, site_ref: str, body: object) -> None:
         """PUT exactly the complete validated site VoIP prioritization state."""
@@ -7556,10 +7565,26 @@ class OmadaOpenApiClient:
         path = self._GATEWAY_TAG_QOS_PATH.format(
             controller_id=self.config.controller_id, site_id=site_id)
         result = self._request_json("GET", path, token=self._access_token()).get("result")
-        if not self._valid_gateway_tag_qos_state(result):
+        rows = result.get("tagConfigList") if isinstance(result, dict) else None
+        dscp_values = {"8", "16", "24", "32", "40", "48", "56", "10", "12", "14",
+                       "18", "20", "22", "26", "28", "30", "34", "36", "38", "46"}
+        if (not isinstance(result, dict) or set(result) != {"tagConfigList"} or
+                not isinstance(rows, list) or len(rows) > 4):
             raise OpenApiError("openapi_response_invalid")
-        return {"status": "ok", "resource": "gateway_tag_qos", "site_ref": site_ref,
-                "data": {"tagConfigList": result["tagConfigList"]}}
+        seen: set[int] = set()
+        for row in rows:
+            if (not isinstance(row, dict) or set(row) != {"classType", "enable", "dscp"} or
+                    type(row.get("classType")) is not int or row["classType"] not in (0, 1, 2, 3) or
+                    row["classType"] in seen or type(row.get("enable")) is not bool or
+                    type(row.get("dscp")) is not str or row["dscp"] not in dscp_values):
+                raise OpenApiError("openapi_response_invalid")
+            seen.add(row["classType"])
+        partial = seen != {0, 1, 2, 3}
+        data = {"tagConfigList": rows}
+        if partial:
+            data["missing_class_count"] = 4 - len(seen)
+        return {"status": "partial" if partial else "ok", "resource": "gateway_tag_qos",
+                "site_ref": site_ref, "data": data, "partial": partial}
 
     def put_gateway_tag_qos(self, site_ref: str, body: object) -> None:
         """PUT only a complete four-class, schema-validated state."""
@@ -13610,10 +13635,12 @@ class OmadaOpenApiClient:
         site_id = self._resolve_site_ref(site_ref)
         path = self._SITE_REBOOT_SCHEDULE_PATH.format(
             controller_id=self.config.controller_id, site_id=site_id)
-        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        payload = self._request_json("GET", path, token=self._access_token())
+        result = payload.get("result")
         try:
             projected = summarize_site_reboot_schedules(
-                result, self._device_macs_by_site_ref.get(site_ref, {}))
+                result, self._device_macs_by_site_ref.get(site_ref, {}),
+                result_reported=("result" in payload))
         except SiteRebootScheduleError:
             raise OpenApiError("openapi_response_invalid") from None
         return {"status": projected["status"], "resource": "site_reboot_schedule_summary",

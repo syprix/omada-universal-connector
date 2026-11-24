@@ -41,7 +41,8 @@ def project_virtual_wan_pages(
         if (isinstance(total, bool) or not isinstance(total, int) or total < 0 or
                 isinstance(current, bool) or not isinstance(current, int) or current != expected_page or
                 isinstance(current_size, bool) or not isinstance(current_size, int) or
-                not isinstance(data, list) or len(data) > page_size or current_size != len(data)):
+                current_size < 0 or current_size > page_size or
+                not isinstance(data, list) or len(data) > current_size):
             invalid_pages += 1
             continue
         if total_rows is None:
