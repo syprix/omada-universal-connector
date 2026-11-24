@@ -4348,6 +4348,43 @@ class OpenApiHttpTests(unittest.TestCase):
                 self.assertEqual(self.fake.calls[-2:],
                                  [(operation_id, site_ref)] * 2)
 
+    def test_site_events_accepts_optional_window_over_http_and_mcp(self) -> None:
+        from urllib.parse import urlencode
+
+        site_ref = "a" * 24
+        start_ms, end_ms = 1_795_000_000_000 - 60_000, 1_795_000_000_000
+        calls = []
+
+        def read(ref, start=None, end=None):
+            calls.append((ref, start, end))
+            return {"status": "ok", "resource": "site_events", "site_ref": ref,
+                    "count": 0, "items": [], "window_start_ms": start,
+                    "window_end_ms": end}
+
+        self.fake.list_site_events = read
+        route = f"/v1/sites/{site_ref}/events?" + urlencode(
+            {"start_ms": str(start_ms), "end_ms": str(end_ms)})
+        status, response = self.request(route, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["window_start_ms"], start_ms)
+        self.assertEqual(calls[-1], (site_ref, start_ms, end_ms))
+
+        request = {"jsonrpc": "2.0", "id": 41, "method": "tools/call",
+                   "params": {"name": "omada_site_events",
+                              "arguments": {"site_ref": site_ref,
+                                            "start_ms": start_ms, "end_ms": end_ms}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"]["window_end_ms"], end_ms)
+        self.assertEqual(calls[-1], (site_ref, start_ms, end_ms))
+
+        invalid_route = f"/v1/sites/{site_ref}/events?" + urlencode(
+            {"start_ms": str(end_ms), "end_ms": str(start_ms)})
+        previous_call_count = len(calls)
+        status, response = self.request(invalid_route, self.token)
+        self.assertEqual(status, 400)
+        self.assertEqual(len(calls), previous_call_count)
+
     def test_http_and_mcp_expose_identity_and_time_window_reads(self) -> None:
         from urllib.parse import urlencode
 

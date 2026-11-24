@@ -33,6 +33,9 @@ class SiteEventReadTests(unittest.TestCase):
                 dt.now.return_value = __import__("datetime").datetime.fromtimestamp(now / 1000,
                                                                __import__("datetime").timezone.utc)
                 result = self.client.list_site_events(self.site_ref)
+        query = dict(part.split("=", 1) for part in paths[0].split("?", 1)[1].split("&"))
+        self.assertEqual(int(query["filters.timeEnd"]), now)
+        self.assertEqual(int(query["filters.timeStart"]), now - 30 * 24 * 60 * 60 * 1000)
         self.assertEqual(result["items"][0]["module"], "device")
         self.assertEqual(result["items"][0]["time_ms"], now)
         self.assertNotIn("event-1", str(result))
@@ -42,6 +45,59 @@ class SiteEventReadTests(unittest.TestCase):
         capability = next(item for item in self.client.capabilities()["items"]
                           if item["operation"] == "site_events")
         self.assertEqual(capability["runtime_evidence"][0]["result"], "success")
+
+    def test_events_accept_a_short_explicit_window(self) -> None:
+        end_ms = int(time.time() * 1000)
+        start_ms = end_ms - 5 * 60 * 1000
+        payload = {"result": {"totalRows": 1, "currentPage": 1, "currentSize": 1,
+                              "data": [{"id": "event-1", "module": "System",
+                                        "time": end_ms}]}}
+        paths = []
+
+        def request(method, path, **kwargs):
+            paths.append(path)
+            return payload
+
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", side_effect=request):
+            result = self.client.list_site_events(self.site_ref, start_ms, end_ms)
+
+        self.assertEqual(len(paths), 1)
+        self.assertIn(f"filters.timeStart={start_ms}", paths[0])
+        self.assertIn(f"filters.timeEnd={end_ms}", paths[0])
+        self.assertEqual(result["window_start_ms"], start_ms)
+        self.assertEqual(result["window_end_ms"], end_ms)
+        self.assertFalse(result["partial"])
+
+    def test_events_reject_invalid_explicit_windows_before_request(self) -> None:
+        end_ms = int(time.time() * 1000)
+        invalid_windows = (
+            (end_ms - 1_000, None),
+            (end_ms, end_ms - 1_000),
+            (end_ms - 24 * 60 * 60 * 1000 - 1, end_ms),
+            (end_ms - 1_000, end_ms + 120_000),
+        )
+        with patch.object(self.client, "_read_site_log_pages") as read_pages:
+            for start_ms, window_end_ms in invalid_windows:
+                with self.subTest(start_ms=start_ms, end_ms=window_end_ms):
+                    with self.assertRaisesRegex(OpenApiError, "time_window_invalid"):
+                        self.client.list_site_events(self.site_ref, start_ms, window_end_ms)
+        read_pages.assert_not_called()
+
+    def test_events_page_limit_still_fails_closed_with_explicit_window(self) -> None:
+        client = OmadaOpenApiClient(OpenApiConfig(
+            "https://controller.example", "ctrl", "id", "secret",
+            cert_sha256="a" * 64, page_size=1, max_pages=1))
+        client._site_ids_by_ref[self.site_ref] = "site_1"
+        end_ms = int(time.time() * 1000)
+        start_ms = end_ms - 5 * 60 * 1000
+        payload = {"result": {"totalRows": 2, "currentPage": 1, "currentSize": 1,
+                              "data": [{"id": "event-1", "module": "System",
+                                        "time": end_ms}]}}
+        with patch.object(client, "_access_token", return_value="token"), \
+                patch.object(client, "_request_json", return_value=payload):
+            with self.assertRaisesRegex(OpenApiError, "openapi_page_limit_reached"):
+                client.list_site_events(self.site_ref, start_ms, end_ms)
 
     def test_alerts_normalize_severity_and_drop_free_text(self) -> None:
         now = 1_800_000_000_000
