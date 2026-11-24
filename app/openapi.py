@@ -2440,7 +2440,7 @@ class OmadaOpenApiClient:
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/controller/setting/client-recognition"
     )
     _CONTROLLER_DEVICE_STATISTICS_REQUEST = re.compile(
-        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/devices/stat"
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/devices/stat\?page=1&pageSize=1"
     )
     _CONTROLLER_CLIENT_ACTIVE_TIMEOUT_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/controller/setting/active-timeout"
@@ -16490,6 +16490,9 @@ class OmadaOpenApiClient:
         """Read bounded controller-wide device and health counters."""
         path = self._CONTROLLER_DEVICE_STATISTICS_PATH.format(
             controller_id=self.config.controller_id)
+        # Hardware/CBC 6.3 require paging parameters even though the returned
+        # object is an aggregate. Keep the fixed read to one page and one row.
+        path += "?page=1&pageSize=1"
         result = self._request_json("GET", path, token=self._access_token()).get("result")
         try:
             projected = project_controller_device_statistics(result)

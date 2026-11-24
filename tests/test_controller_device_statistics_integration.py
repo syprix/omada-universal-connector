@@ -16,7 +16,8 @@ class ControllerDeviceStatisticsIntegrationTests(unittest.TestCase):
         with patch.object(self.client, "_access_token", return_value="token"), \
                 patch.object(self.client, "_request_json", return_value={"result": raw}) as request:
             result = self.client.read_controller_device_statistics()
-        request.assert_called_once_with("GET", "/openapi/v1/ctrl/devices/stat", token="token")
+        request.assert_called_once_with(
+            "GET", "/openapi/v1/ctrl/devices/stat?page=1&pageSize=1", token="token")
         self.assertEqual(result["resource"], "controller_device_statistics")
         self.assertEqual(result["data"]["counts"], {
             "total_devices": 4, "health_good": 3, "health_poor": 1})
@@ -35,12 +36,20 @@ class ControllerDeviceStatisticsIntegrationTests(unittest.TestCase):
                 patch.object(self.client, "_request_json", return_value={"result": []}):
             with self.assertRaisesRegex(OpenApiError, "openapi_response_invalid"):
                 self.client.read_controller_device_statistics()
-        good = "/openapi/v1/ctrl/devices/stat"
+        good = "/openapi/v1/ctrl/devices/stat?page=1&pageSize=1"
         with patch.object(self.client, "_connection", side_effect=OpenApiError("connection_reached")):
             with self.assertRaisesRegex(OpenApiError, "connection_reached"):
                 self.client._request_json("GET", good)
         with self.assertRaisesRegex(OpenApiError, "openapi_path_rejected"):
             self.client._request_json("GET", good.replace("/ctrl/", "/other/"))
+        for bad in (
+                "/openapi/v1/ctrl/devices/stat",
+                "/openapi/v1/ctrl/devices/stat?page=2&pageSize=1",
+                "/openapi/v1/ctrl/devices/stat?page=1&pageSize=1000",
+                "/openapi/v1/ctrl/devices/stat?pageSize=1&page=1"):
+            with self.subTest(path=bad), self.assertRaisesRegex(
+                    OpenApiError, "openapi_path_rejected"):
+                self.client._request_json("GET", bad)
 
 
 if __name__ == "__main__":
