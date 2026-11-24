@@ -1075,3 +1075,12 @@ Both functions are implemented from the three API exports. Offline checks passed
 ## #130 — all-time hotspot voucher summary
 
 #130 reads the documented all-time voucher categories independently in separate count and duration maps. Missing values are null and `missing_fields`/`invalid_fields` identify each affected metric. Amount and currency source values are omitted. No codes, user data, revenue, or arithmetic between categories is exposed. Offline checks passed: registry/full-matrix/evidence (327 tests), HTTP/MCP (399 tests), and OpenAPI/capabilities/projection (105 tests); `compileall` and `git diff --check` passed. A synthetic complete response measured 124 source tokens → 98 projected tokens (20.97% fewer), using `js-tiktoken` 1.0.21 / `o200k_base`. GitHub checks are pending for the separate draft; live behavior is unknown.
+
+
+## 2026-11-24 — OC200 read acceptance follow-up
+
+The site event-list read covers a fixed rolling 30-day window and enforces the configured page-size/page-count cap. The recorded `openapi_page_limit_reached` means the connector could not establish a complete list within that cap; it is an expected safety boundary, not evidence of a controller defect. The separate event-window summary can return bounded partial coverage and `page_limit_reached`. No pagination or access limit was increased.
+
+The 6.3 hardware and CBC exports require `page` and `pageSize` for `getGridAdoptedDevicesStatByGlobal`. The connector now pins this aggregate read to page 1 with page size 1. On controller firmware 6.3.0.45, the corrected call returned HTTP 200 through both HTTP and MCP with an explicitly partial projection. The earlier rejection is consistent with the omitted required parameters; missing statistics remain unknown.
+
+The global gateway WAN read already sends the documented page parameters and binds its controller ID. The exports require Site Device Manager View Only and document -7131 for an invalid controller ID. The recorded response exposed only the generic `openapi_rejected` code, so its cause remains unconfirmed; no repeat call was made.
