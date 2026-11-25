@@ -1231,46 +1231,167 @@ class OpenApiClientTests(unittest.TestCase):
                 with self.assertRaisesRegex(OpenApiError, "openapi_response_invalid"):
                     self.client.list_ssids("a" * 24)
 
-    def test_group_ssid_detail_requires_unique_current_same_site_membership(self) -> None:
-        site_ref, group_ref, ssid_ref = "a" * 24, "b" * 24, "c" * 24
+    def test_group_ssid_detail_uses_real_inventories_and_redacts_detail(self) -> None:
+        site_ref = "a" * 24
         self.client._site_ids_by_ref[site_ref] = "site-1"
-        self.client._wlan_group_ids_by_site_ref[site_ref] = {group_ref: "group-private"}
-        self.client._ssid_ids_by_site_ref[site_ref] = {ssid_ref: "ssid-private"}
-        with patch.object(self.client, "read_site_wlan_group_summary",
-                          return_value={"items": [{"group_ref": group_ref}]}), \
-                patch.object(self.client, "list_ssids",
-                             return_value={"items": [{"ssid_ref": ssid_ref}]}), \
-                patch.object(self.client, "_access_token", return_value="token"), \
-                patch.object(self.client, "_request_json", side_effect=[
-                    {"result": {"data": [{"id": "ssid-private"}],
-                                "totalRows": 1, "currentPage": 1, "currentSize": 1}},
-                    {"result": {"ssidEnable": True, "band": 3, "deviceType": 1,
-                                "name": "private SSID", "pskSetting": {"securityKey": "secret"}}},
-                ]) as request:
-            result = self.client.read_site_wlan_group_ssid_config_summary(
-                site_ref, group_ref, ssid_ref)
+        group_ref = self.client._opaque_ref("wlan", "site-1:group-private")
+        ssid_ref = self.client._opaque_ref("ssid", "site-1:ssid-private")
+        group_row = {"id": "group-private", "wlanId": "group-private",
+                     "name": "private group", "primary": True, "clone": False,
+                     "resource": 0}
+        ssid_row = {"id": "ssid-private", "ssidId": "ssid-private",
+                    "name": "private SSID", "band": 3, "security": 3,
+                    "description": True, "chooseDevices": 1}
+        member_row = {"id": "ssid-private", "ssidId": "ssid-private",
+                      "name": "private SSID"}
+        detail = {"ssidEnable": True, "band": 3, "deviceType": 1,
+                  "name": "private SSID", "pskSetting": {"securityKey": "secret"}}
+        fixtures = [
+            self.token_payload(),
+            {"errorCode": 0, "result": {"gridWlanGroup": {
+                "data": [group_row], "totalRows": 1, "currentPage": 1,
+                "currentSize": 1}}},
+            self.token_payload(),
+            self.grid([ssid_row], 1, 1),
+            self.token_payload(),
+            self.grid([member_row], 1, 1),
+            {"errorCode": 0, "result": detail},
+        ]
+        self.queue_responses(fixtures)
+        result = self.client.read_site_wlan_group_ssid_config_summary(
+            site_ref, group_ref, ssid_ref)
         self.assertTrue(result["ssid_enabled"])
         self.assertEqual(result["band_enabled"],
                          {"2.4ghz": True, "5ghz": True, "6ghz": False})
         rendered = json.dumps(result)
         for private in ("ssid-private", "group-private", "private SSID", "secret"):
             self.assertNotIn(private, rendered)
-        self.assertIn("/wlans/group-private/ssids/ssid-private", request.call_args_list[-1].args[1])
+        paths = [call[1] for connection in self.connections
+                 for call in connection.calls]
+        self.assertEqual(sum(path.endswith("/wireless-network/wlans?page=1&pageSize=2")
+                             for path in paths), 1)
+        self.assertEqual(sum(path.endswith("/wireless-network/ssids?page=1&pageSize=2")
+                             for path in paths), 1)
+        self.assertEqual(sum("/wireless-network/wlans/group-private/ssids?page=1&pageSize=100"
+                             in path for path in paths), 1)
+        self.assertEqual(sum(path.endswith(
+            "/wireless-network/wlans/group-private/ssids/ssid-private")
+            for path in paths), 1)
+        detail_path = ("/openapi/v1/controller_1/sites/site-1/wireless-network/"
+                       "wlans/group-private/ssids/ssid-private")
+        self.assertTrue(self.client._site_wlan_group_ssid_detail_request_valid(detail_path))
+        for rejected in (
+                detail_path.replace("/controller_1/", "/other-controller/"),
+                detail_path + "?includeSecrets=true",
+                detail_path + "/extra"):
+            self.assertFalse(self.client._site_wlan_group_ssid_detail_request_valid(rejected))
 
-        for members in ([{"id": "other-ssid"}],
-                        [{"id": "ssid-private"}, {"id": "ssid-private"}]):
-            with self.subTest(members=members), \
-                    patch.object(self.client, "read_site_wlan_group_summary",
-                                 return_value={"items": [{"group_ref": group_ref}]}), \
-                    patch.object(self.client, "list_ssids",
-                                 return_value={"items": [{"ssid_ref": ssid_ref}]}), \
-                    patch.object(self.client, "_access_token", return_value="token"), \
-                    patch.object(self.client, "_request_json", return_value={"result": {
-                        "data": members, "totalRows": len(members),
-                        "currentPage": 1, "currentSize": len(members)}}):
-                with self.assertRaisesRegex(OpenApiError, "ssid_group_binding_unavailable"):
-                    self.client.read_site_wlan_group_ssid_config_summary(
-                        site_ref, group_ref, ssid_ref)
+    def test_group_ssid_detail_accepts_short_final_page_reported_as_page_size(self) -> None:
+        site_ref = "a" * 24
+        site_id = "site-1"
+        group_id = "group-private"
+        target_ssid_id = "member-100"
+        self.client._site_ids_by_ref[site_ref] = site_id
+        group_ref = self.client._opaque_ref("wlan", site_id + ":" + group_id)
+        ssid_ref = self.client._opaque_ref("ssid", site_id + ":" + target_ssid_id)
+        group_page = {"errorCode": 0, "result": {"gridWlanGroup": {
+            "data": [{"id": group_id, "name": "private group"}],
+            "totalRows": 1, "currentPage": 1, "currentSize": 1}}}
+        ssid_page = self.grid([{"id": target_ssid_id, "name": "private SSID"}], 1, 1)
+        first_rows = [{"id": f"member-{number:03d}", "ssidId": f"member-{number:03d}"}
+                      for number in range(100)]
+        first_members = {"errorCode": 0, "result": {
+            "data": first_rows, "totalRows": 101, "currentPage": 1, "currentSize": 100}}
+        short_final = {"errorCode": 0, "result": {
+            "data": [{"id": target_ssid_id, "ssidId": target_ssid_id}],
+            "totalRows": 101, "currentPage": 2, "currentSize": 100}}
+        invalid_final = {"errorCode": 0, "result": {
+            "data": [{"id": target_ssid_id, "ssidId": target_ssid_id}],
+            "totalRows": 101, "currentPage": 2, "currentSize": 3}}
+        detail = {"errorCode": 0, "result": {"ssidEnable": True, "band": 3,
+                  "deviceType": 1, "name": "private SSID", "securityKey": "secret"}}
+
+        for final_page, expected_error, expected_detail_count in (
+                (short_final, None, 1), (invalid_final, "openapi_response_invalid", 0)):
+            with self.subTest(expected_error=expected_error):
+                client = OmadaOpenApiClient(self.config)
+                client._site_ids_by_ref[site_ref] = site_id
+                case_group_ref = client._opaque_ref("wlan", site_id + ":" + group_id)
+                case_ssid_ref = client._opaque_ref("ssid", site_id + ":" + target_ssid_id)
+                fixtures = [
+                    self.token_payload(), group_page,
+                    self.token_payload(), ssid_page,
+                    self.token_payload(), first_members, final_page, detail,
+                ]
+                responses = iter(fixtures)
+                connections = []
+
+                def connect():
+                    connection = self.respond(next(responses))
+                    connections.append(connection)
+                    return connection
+
+                with patch.object(client, "_connection", side_effect=connect):
+                    if expected_error is None:
+                        projected = client.read_site_wlan_group_ssid_config_summary(
+                            site_ref, case_group_ref, case_ssid_ref)
+                        self.assertEqual(projected["status"], "ok")
+                        self.assertFalse(projected["partial"])
+                    else:
+                        with self.assertRaisesRegex(OpenApiError, expected_error):
+                            client.read_site_wlan_group_ssid_config_summary(
+                                site_ref, case_group_ref, case_ssid_ref)
+
+                paths = [call[1] for connection in connections for call in connection.calls]
+                member_paths = [path for path in paths if "/wireless-network/wlans/" in path
+                                and "/ssids?page=" in path]
+                detail_paths = [path for path in paths if path.endswith(
+                    f"/wireless-network/wlans/{group_id}/ssids/{target_ssid_id}")]
+                self.assertEqual(len(member_paths), 2)
+                self.assertEqual(len(detail_paths), expected_detail_count)
+
+    def test_group_ssid_detail_rejects_unbound_or_unverified_membership(self) -> None:
+        site_ref = "a" * 24
+        group_id, ssid_id = "group-private", "ssid-private"
+        cases = (
+            ("not_member", [{"id": "other-ssid", "ssidId": "other-ssid"}], 1,
+             "ssid_group_binding_unavailable"),
+            ("incomplete_page", [{"id": ssid_id, "ssidId": ssid_id}], 2,
+             "openapi_response_invalid"),
+            ("conflicting_ids", [{"id": ssid_id, "ssidId": "other-ssid"}], 1,
+             "openapi_response_invalid"),
+        )
+        for label, members, total, expected_error in cases:
+            with self.subTest(label=label):
+                client = OmadaOpenApiClient(self.config)
+                client._site_ids_by_ref[site_ref] = "site-1"
+                group_ref = client._opaque_ref("wlan", "site-1:" + group_id)
+                ssid_ref = client._opaque_ref("ssid", "site-1:" + ssid_id)
+                fixtures = [
+                    self.token_payload(),
+                    {"errorCode": 0, "result": {"gridWlanGroup": {
+                        "data": [{"id": group_id, "name": "private group",
+                                  "primary": True, "clone": False, "resource": 0}],
+                        "totalRows": 1, "currentPage": 1, "currentSize": 1}}},
+                    self.token_payload(),
+                    self.grid([{"id": ssid_id, "name": "private SSID",
+                                "band": 3, "security": 3}], 1, 1),
+                    self.token_payload(),
+                    self.grid(members, 1, total),
+                ]
+                responses = iter(fixtures)
+                connections = []
+                def connect():
+                    connection = self.respond(next(responses))
+                    connections.append(connection)
+                    return connection
+                with patch.object(client, "_connection", side_effect=connect):
+                    with self.assertRaisesRegex(OpenApiError, expected_error):
+                        client.read_site_wlan_group_ssid_config_summary(
+                            site_ref, group_ref, ssid_ref)
+                paths = [call[1] for connection in connections for call in connection.calls]
+                detail_suffix = f"/wireless-network/wlans/{group_id}/ssids/{ssid_id}"
+                self.assertFalse(any(path.endswith(detail_suffix) for path in paths))
 
     def test_ap_group_info_rejects_reserved_path_segments_and_keeps_dotted_ids(self) -> None:
         site_ref = "a" * 24
