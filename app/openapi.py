@@ -7287,7 +7287,7 @@ class OmadaOpenApiClient:
     def read_site_vlan_affected_ports_summary(self, site_ref: str, network_ref: str,
                                               vlan_id: int, page_number: int,
                                               page_size: int) -> dict[str, object]:
-        """Summarize redacted page counts for a selected network and VLAN."""
+        """Summarize a selected network/VLAN page and gateway IPPT capability counts."""
         if (type(vlan_id) is not int or not 1 <= vlan_id <= 4094 or
                 type(page_number) is not int or not 0 <= page_number <= 10_000 or
                 type(page_size) is not int or not 1 <= page_size <= 100):

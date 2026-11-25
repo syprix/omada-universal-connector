@@ -23,10 +23,50 @@ class SiteVlanAffectedPortsSummaryTests(unittest.TestCase):
         self.assertEqual(result["numeric_port_memberships"], 2)
         self.assertEqual(result["standard_port_memberships"], 1)
         self.assertEqual(result["lag_memberships"], 1)
+        self.assertEqual(result["gateway_ip_passthrough_capability_counts"], {
+            "supported": 0, "unsupported": 0, "unreported": 0, "invalid": 0})
         self.assertTrue(result["has_more"])
         self.assertTrue(result["partial"])
         for private in ("private-mac", "private-name", "1/0/4", "client"):
             self.assertNotIn(private, repr(result))
+
+    def test_gateway_ip_passthrough_capability_counts_are_redacted_and_typed(self):
+        result = project_site_vlan_affected_ports({
+            "totalRows": 8, "currentPage": 1, "currentSize": 8,
+            "data": [
+                {"type": "gateway", "mac": "private-gateway-1", "name": "private-name-1",
+                 "gatewayInfo": {"gatewayDetail": {"supportIppt": True}}},
+                {"type": "gateway", "mac": "private-gateway-2",
+                 "gatewayInfo": {"gatewayDetail": {"supportIppt": False}}},
+                {"type": "gateway"},
+                {"type": "gateway", "gatewayInfo": {}},
+                {"type": "gateway", "gatewayInfo": None},
+                {"type": "gateway", "gatewayInfo": {"gatewayDetail": None}},
+                {"type": "gateway", "gatewayInfo": {"gatewayDetail": {"supportIppt": None}}},
+                {"type": "gateway", "gatewayInfo": {"gatewayDetail": {"supportIppt": "true"}}},
+            ],
+        }, 0, 10)
+        self.assertEqual(result["gateway_ip_passthrough_capability_counts"], {
+            "supported": 1, "unsupported": 1, "unreported": 2, "invalid": 4})
+        self.assertEqual(result["invalid_field_count"], 4)
+        self.assertTrue(result["partial"])
+        for private in ("private-gateway-1", "private-gateway-2", "private-name-1",
+                        "gatewayInfo", "gatewayDetail", "supportIppt", "true", "false"):
+            self.assertNotIn(private, repr(result))
+
+    def test_capability_count_only_uses_gateway_rows_and_current_page(self):
+        result = project_site_vlan_affected_ports({
+            "totalRows": 19, "currentPage": 2, "currentSize": 2,
+            "data": [
+                {"type": "switch", "gatewayInfo": {
+                    "gatewayDetail": {"supportIppt": True}}},
+                {"type": "gateway", "gatewayInfo": {
+                    "gatewayDetail": {"supportIppt": False}}},
+            ],
+        }, 1, 10)
+        self.assertEqual(result["gateway_ip_passthrough_capability_counts"], {
+            "supported": 0, "unsupported": 1, "unreported": 0, "invalid": 0})
+        self.assertTrue(result["partial"])
 
     def test_rejects_wrong_page_and_malformed_details(self):
         with self.assertRaises(VlanAffectedPortsError):

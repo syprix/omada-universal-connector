@@ -1514,6 +1514,8 @@ class FakeOpenApiClient:
                            vlan_id, page_number, page_size))
         return {"status": "ok", "resource": "site_vlan_affected_ports_summary",
                 "reported_affected_device_count": 3, "sampled_device_count": 2,
+                "gateway_ip_passthrough_capability_counts": {
+                    "supported": 1, "unsupported": 0, "unreported": 1, "invalid": 0},
                 "partial": True}
 
     def read_site_wifi_calling_profiles_summary(self, site_ref: str) -> dict[str, object]:
@@ -9970,6 +9972,8 @@ class OpenApiHttpTests(unittest.TestCase):
         status, body = self.request(route, self.token)
         self.assertEqual(status, 200, repr(body))
         self.assertEqual(body["resource"], "site_vlan_affected_ports_summary")
+        self.assertEqual(body["gateway_ip_passthrough_capability_counts"], {
+            "supported": 1, "unsupported": 0, "unreported": 1, "invalid": 0})
         self.assertTrue(body["partial"])
         self.assertEqual(self.fake.calls[-1],
                          ("site_vlan_affected_ports_summary", site_ref, network_ref, 52, 0, 10))
@@ -9982,6 +9986,9 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(response["result"]["structuredContent"]["resource"],
                          "site_vlan_affected_ports_summary")
+        self.assertEqual(response["result"]["structuredContent"][
+            "gateway_ip_passthrough_capability_counts"], {
+                "supported": 1, "unsupported": 0, "unreported": 1, "invalid": 0})
         self.assertEqual(self.fake.calls[-1],
                          ("site_vlan_affected_ports_summary", site_ref, network_ref, 52, 0, 10))
 
