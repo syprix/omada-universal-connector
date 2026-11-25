@@ -56,7 +56,8 @@ def _keys(value: dict[object, object]) -> None:
 
 
 def _trend(raw: object, field: str, values: tuple[str, ...], label: str,
-           missing: list[str], omitted: set[str], omitted_count: list[int]
+           missing: list[str], omitted: set[str], omitted_count: list[int],
+           start_ms: int | None, end_ms: int | None
            ) -> list[dict[str, int]] | None:
     if raw is None:
         missing.append(label)
@@ -80,6 +81,12 @@ def _trend(raw: object, field: str, values: tuple[str, ...], label: str,
             _omit(omitted, omitted_count, "invalid_trend_points")
             continue
         _keys(row)
+        timestamp = row.get("time")
+        valid_timestamp = type(timestamp) is int and 0 <= timestamp <= _INT64_MAX
+        if (valid_timestamp and start_ms is not None and end_ms is not None and
+                not start_ms <= timestamp <= end_ms):
+            _omit(omitted, omitted_count, "out_of_window_trend_points")
+            continue
         point: dict[str, int] = {}
         for name in ("time", *values):
             if name not in row:
@@ -101,6 +108,9 @@ def _trend(raw: object, field: str, values: tuple[str, ...], label: str,
         extras = sum(1 for key in row if key not in known)
         if extras:
             _omit(omitted, omitted_count, "unknown_fields", extras)
+        if start_ms is not None and end_ms is not None and not valid_timestamp:
+            _omit(omitted, omitted_count, "missing_trend_time")
+            continue
         result.append(point)
     extras = sum(1 for key in raw if key != field)
     if extras:
@@ -189,12 +199,12 @@ def project_rf_planning_dashboard(raw: object, *, start_ms: int | None = None,
         _keys(details)
         cci_trend = _trend(details.get("cciTrendDetail"), "cciTrendItemList",
                            _CCI_TREND, band + ".cci_trend", missing, omitted,
-                           omitted_count)
+                           omitted_count, start_ms, end_ms)
         cci_current = _group_counts(details.get("cciCurrentDetail"), _CCI_GROUPS,
                                     band + ".cci_current", missing, omitted, omitted_count)
         density_trend = _trend(details.get("apDensityTrendDetail"), "apDensityItemList",
                                _DENSITY_TREND, band + ".ap_density_trend", missing, omitted,
-                               omitted_count)
+                               omitted_count, start_ms, end_ms)
         density_current = _group_counts(details.get("apDensityCurrentDetail"), _DENSITY_GROUPS,
                                         band + ".ap_density_current", missing, omitted,
                                         omitted_count)
@@ -212,24 +222,6 @@ def project_rf_planning_dashboard(raw: object, *, start_ms: int | None = None,
                          "apDensityTrendDetail", "apDensityCurrentDetail"})
         if extras:
             _omit(omitted, omitted_count, "unknown_fields", extras)
-    if start_ms is not None and end_ms is not None:
-        for band_data in bands.values():
-            if not isinstance(band_data, dict):
-                continue
-            for name in ("cci_trend", "ap_density_trend"):
-                points = band_data.get(name)
-                if not isinstance(points, list):
-                    continue
-                in_window: list[dict[str, int]] = []
-                for point in points:
-                    timestamp = point.get("time_ms")
-                    if not isinstance(timestamp, int):
-                        _omit(omitted, omitted_count, "missing_trend_time")
-                    elif not start_ms <= timestamp <= end_ms:
-                        _omit(omitted, omitted_count, "out_of_window_trend_points")
-                    else:
-                        in_window.append(point)
-                band_data[name] = in_window
     extras = sum(1 for key in raw if key not in _BANDS)
     if extras:
         _omit(omitted, omitted_count, "unknown_fields", extras)
