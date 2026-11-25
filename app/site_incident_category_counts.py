@@ -50,8 +50,7 @@ def project_site_incident_category_counts(result: Any) -> dict[str, object]:
                 missing_count += 1
                 continue
             value = row[source]
-            if type(value) is int and 0 <= value <= MAX_INT32 and \
-                    (source != "level" or value <= 3):
+            if type(value) is int and 0 <= value <= MAX_INT32:
                 counts[target] = value
             else:
                 row_invalid += 1
