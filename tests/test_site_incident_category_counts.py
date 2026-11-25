@@ -55,10 +55,22 @@ class SiteIncidentCategoryCountsTests(unittest.TestCase):
             }])
             self.assertEqual(result["data"]["invalid_count"], 1)
             self.assertNotIn("active_count", result["data"]["categories"][0]["counts"])
-        level = project_site_incident_category_counts([{
-            "anomalyCode": "A1", "level": 4,
-        }])
-        self.assertEqual(level["data"]["invalid_count"], 1)
+
+    def test_level_accepts_documented_int32_without_invented_severity_bound(self) -> None:
+        for value in (4, MAX_INT32):
+            with self.subTest(value=value):
+                result = project_site_incident_category_counts([{
+                    "anomalyCode": "A1", "level": value,
+                }])
+                self.assertEqual(
+                    result["data"]["categories"][0]["counts"]["level_code"], value)
+                self.assertEqual(result["data"]["invalid_count"], 0)
+        for value in (-1, MAX_INT32 + 1, 1.0, True):
+            with self.subTest(value=type(value).__name__):
+                result = project_site_incident_category_counts([{
+                    "anomalyCode": "A1", "level": value,
+                }])
+                self.assertEqual(result["data"]["invalid_count"], 1)
 
     def test_client_uses_one_category_fixed_window_and_redacted_projection(self) -> None:
         client = OmadaOpenApiClient(OpenApiConfig(
