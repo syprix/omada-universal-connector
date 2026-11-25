@@ -117,31 +117,43 @@ def _dimension(
     incident_occurrences = 0
     incident_omitted = 0
     incidents = raw.get("incidents")
-    if incidents is not None:
-        if not isinstance(incidents, list):
+    if "incidents" in raw:
+        occurrences_complete = True
+        if incidents is None:
+            # The source schema says a null incident collection means no incidents.
+            output["incident_entry_count"] = 0
+            output["incident_occurrence_count"] = 0
+        elif not isinstance(incidents, list):
             invalid += 1
             partial = True
+            occurrences_complete = False
+            output["incident_entry_count"] = 0
+            output["incident_occurrence_count"] = None
         else:
             if len(incidents) > MAX_INCIDENTS_PER_DIMENSION:
                 incident_omitted = len(incidents) - MAX_INCIDENTS_PER_DIMENSION
                 partial = True
+                occurrences_complete = False
             for item in incidents[:MAX_INCIDENTS_PER_DIMENSION]:
                 if not isinstance(item, dict) or len(item) > 32:
                     invalid += 1
                     partial = True
+                    occurrences_complete = False
                     continue
+                incident_entries += 1
                 count = item.get("count")
                 if count is None:
-                    incident_entries += 1
+                    partial = True
+                    occurrences_complete = False
                 elif _integer(count, 0, 1_000_000):
-                    incident_entries += 1
                     incident_occurrences += count
                 else:
                     invalid += 1
                     partial = True
-    if incidents is not None:
-        output["incident_entry_count"] = incident_entries
-        output["incident_occurrence_count"] = incident_occurrences
+                    occurrences_complete = False
+            output["incident_entry_count"] = incident_entries
+            output["incident_occurrence_count"] = (
+                incident_occurrences if occurrences_complete else None)
     return (output, partial, invalid, incident_entries, incident_omitted)
 
 
