@@ -8048,51 +8048,6 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {**data, "site_ref": site_ref, "device_ref": device_ref}
 
-    @_track_capability("ap_mesh_candidates")
-    def read_ap_mesh_candidates(self, site_ref: str, device_ref: str) -> dict[str, object]:
-        """Read a bounded mesh candidate page and return only aggregate fields."""
-        site_id, mac = self._known_ap_mac(site_ref, device_ref)
-        base = self._AP_MESH_CANDIDATES_PATH.format(
-            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
-        rows: list[object] = []
-        expected_total: int | None = None
-        token = self._access_token()
-        final_grid: dict[str, object] | None = None
-        for page in range(1, self.config.max_pages + 1):
-            query = urlencode({"page": page, "pageSize": self.config.page_size})
-            payload = self._request_json("GET", base + "?" + query, token=token)
-            if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
-                raise OpenApiError("openapi_response_invalid")
-            grid = payload.get("result")
-            data = grid.get("data") if isinstance(grid, dict) else None
-            total = grid.get("totalRows") if isinstance(grid, dict) else None
-            current_page = grid.get("currentPage") if isinstance(grid, dict) else None
-            current_size = grid.get("currentSize") if isinstance(grid, dict) else None
-            if (not isinstance(data, list) or len(data) > self.config.page_size or
-                    type(total) is not int or not 0 <= total <= 2000 or
-                    type(current_page) is not int or current_page != page or
-                    type(current_size) is not int or current_size not in
-                    (len(data), self.config.page_size)):
-                raise OpenApiError("openapi_response_invalid")
-            if expected_total is None:
-                expected_total = total
-            elif total != expected_total:
-                raise OpenApiError("openapi_response_invalid")
-            rows.extend(data)
-            if len(rows) > total:
-                raise OpenApiError("openapi_response_invalid")
-            final_grid = {"data": rows, "totalRows": total,
-                          "currentPage": page, "currentSize": len(data)}
-            if len(rows) == total or not data:
-                break
-        if final_grid is None or len(rows) != expected_total:
-            raise OpenApiError("openapi_response_invalid")
-        try:
-            result = summarize_ap_mesh_candidates(final_grid)
-        except ApMeshCandidatesError:
-            raise OpenApiError("openapi_response_invalid") from None
-        return {**result, "site_ref": site_ref, "device_ref": device_ref}
-
     @_track_capability("ap_general_config")
     def read_ap_general_config(self, site_ref: str, device_ref: str) -> dict[str, object]:
         """Read an inventoried AP's projected general settings."""
