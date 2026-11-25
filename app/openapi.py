@@ -17348,8 +17348,14 @@ class OmadaOpenApiClient:
 
     @_track_capability("site_events")
     def list_site_events(self, site_ref: str, start_ms: int | None = None,
-                         end_ms: int | None = None) -> dict[str, object]:
-        return self._list_site_log(site_ref, "events", start_ms, end_ms)
+                         end_ms: int | None = None, *,
+                         page_number: int | None = None,
+                         page_size: int | None = None,
+                         expected_total: int | None = None) -> dict[str, object]:
+        return self._list_site_log(
+            site_ref, "events", start_ms, end_ms,
+            page_number=page_number, page_size=page_size,
+            expected_total=expected_total)
 
     @_track_capability("site_alerts")
     def list_site_alerts(self, site_ref: str) -> dict[str, object]:
@@ -17506,7 +17512,10 @@ class OmadaOpenApiClient:
 
     def _list_site_log(self, site_ref: str, kind: str,
                        start_ms: int | None = None,
-                       end_ms: int | None = None) -> dict[str, object]:
+                       end_ms: int | None = None, *,
+                       page_number: int | None = None,
+                       page_size: int | None = None,
+                       expected_total: int | None = None) -> dict[str, object]:
         if kind not in {"events", "alerts"}:
             raise OpenApiError("site_log_kind_invalid")
         if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
@@ -17514,7 +17523,21 @@ class OmadaOpenApiClient:
         site_id = self._site_ids_by_ref.get(site_ref, "")
         if not site_id:
             raise OpenApiError("site_ref_unknown")
-        if start_ms is None and end_ms is None:
+        paged_events = kind == "events" and any(
+            value is not None for value in (page_number, page_size, expected_total))
+        if paged_events:
+            start_ms, end_ms = self._validate_paged_site_event_window(start_ms, end_ms)
+            if (type(page_number) is not int or not 1 <= page_number <= 64 or
+                    type(page_size) is not int or
+                    not 1 <= page_size <= min(200, self.config.page_size) or
+                    (page_number == 1 and expected_total is not None) or
+                    (page_number > 1 and
+                     (type(expected_total) is not int or
+                      not 0 <= expected_total <= 2**63 - 1))):
+                raise OpenApiError("site_events_page_arguments_invalid")
+            if page_number > 1 and page_number > (expected_total + page_size - 1) // page_size:
+                raise OpenApiError("site_events_page_out_of_range")
+        elif start_ms is None and end_ms is None:
             # Keep existing callers bounded when no time window is supplied.
             end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
             start_ms = end_ms - int(timedelta(days=30).total_seconds() * 1000)
@@ -17526,10 +17549,100 @@ class OmadaOpenApiClient:
         assert start_ms is not None and end_ms is not None
         template = self._SITE_EVENT_PATH if kind == "events" else self._SITE_ALERT_PATH
         base = template.format(controller_id=self.config.controller_id, site_id=site_id)
-        rows, total_count, module_totals, _pages_fetched = self._read_site_log_pages(
-            base, self._access_token(), start_ms, end_ms,
-            use_event_summary=(kind == "events"))
+        if paged_events:
+            rows, total_count, module_totals = self._read_site_log_page(
+                base, self._access_token(), start_ms, end_ms,
+                page_number, page_size, expected_total)
+        else:
+            rows, total_count, module_totals, _pages_fetched = self._read_site_log_pages(
+                base, self._access_token(), start_ms, end_ms,
+                use_event_summary=(kind == "events"))
+        items = self._project_site_log_items(
+            rows, kind, start_ms, end_ms, site_id,
+            reject_duplicate_refs=paged_events)
+        result: dict[str, object] = {
+            "status": "ok", "resource": "site_" + kind, "count": len(items),
+            "total_count": total_count, "partial": len(items) < total_count,
+            "window_start_ms": start_ms, "window_end_ms": end_ms, "items": items,
+        }
+        if module_totals is not None:
+            result["module_counts"] = module_totals
+        if paged_events:
+            next_page = page_number + 1 if page_number * page_size < total_count else None
+            page_limit_reached = next_page is not None and page_number == 64
+            result["pagination"] = {
+                "page_number": page_number,
+                "page_size": page_size,
+                "page_limit": 64,
+                "next_page": None if page_limit_reached else next_page,
+                "page_limit_reached": page_limit_reached,
+                "window_exhausted": next_page is None and not page_limit_reached,
+            }
+        return result
+
+    @staticmethod
+    def _validate_paged_site_event_window(start_ms: int | None,
+                                          end_ms: int | None) -> tuple[int, int]:
+        now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        if (type(start_ms) is not int or type(end_ms) is not int or
+                not 946_684_800_000 <= start_ms < end_ms <= 4_102_444_800_000 or
+                end_ms - start_ms > 30 * 86_400_000 or end_ms > now_ms + 60_000):
+            raise OpenApiError("time_window_invalid")
+        return start_ms, end_ms
+
+    def _read_site_log_page(self, base_path: str, token: str,
+                            start_ms: int, end_ms: int, page_number: int,
+                            page_size: int, expected_total: int | None
+                            ) -> tuple[list[object], int, dict[str, int] | None]:
+        query = urlencode({"page": page_number, "pageSize": page_size,
+                           "filters.timeStart": start_ms, "filters.timeEnd": end_ms})
+        payload = self._request_json("GET", base_path + "?" + query, token=token)
+        result = payload.get("result")
+        data = result.get("data") if isinstance(result, dict) else None
+        total = result.get("totalRows") if isinstance(result, dict) else None
+        current_page = result.get("currentPage") if isinstance(result, dict) else None
+        current_size = result.get("currentSize") if isinstance(result, dict) else None
+        expected_rows = (min(page_size, max(0, total - (page_number - 1) * page_size))
+                         if type(total) is int and total >= 0 else None)
+        if (not isinstance(data, list) or len(data) > page_size or
+                isinstance(total, bool) or type(total) is not int or
+                not 0 <= total <= 2**63 - 1 or
+                type(current_page) is not int or current_page != page_number or
+                isinstance(current_size, bool) or type(current_size) is not int or
+                current_size not in (len(data), page_size) or
+                len(data) != expected_rows or
+                (expected_total is not None and total != expected_total) or
+                (total == 0 and page_number != 1)):
+            raise OpenApiError("openapi_response_invalid")
+        module_totals = None
+        if page_number == 1:
+            summary = result.get("eventLogStat")
+            if summary is not None:
+                fields = {
+                    "totalLogNum": "total",
+                    "systemLogNum": "system",
+                    "deviceLogNum": "device",
+                    "clientLogNum": "client",
+                }
+                if (not isinstance(summary, dict) or len(summary) > 16 or
+                        not set(fields).issubset(summary) or
+                        any(type(summary[key]) is not int or
+                            not 0 <= summary[key] <= 2**63 - 1
+                            for key in fields) or
+                        summary["totalLogNum"] != total or
+                        sum(summary[key] for key in fields if key != "totalLogNum") != total):
+                    raise OpenApiError("openapi_response_invalid")
+                module_totals = {
+                    target: summary[source]
+                    for source, target in fields.items() if target != "total"
+                }
+        return data, total, module_totals
+
+    def _project_site_log_items(self, rows: list[object], kind: str,
+                                start_ms: int, end_ms: int, site_id: str, *,
+                                reject_duplicate_refs: bool = False) -> list[dict[str, object]]:
         items = []
+        references: set[str] = set()
         modules = {"system", "device", "client"}
         levels = {"info", "warning", "error", "critical"}
         for row in rows:
@@ -17552,6 +17665,10 @@ class OmadaOpenApiClient:
                 "time_ms": raw_time,
                 "module": module if module in modules else "other",
             }
+            reference = item["event_ref" if kind == "events" else "alert_ref"]
+            if reject_duplicate_refs and reference in references:
+                raise OpenApiError("openapi_response_invalid")
+            references.add(reference)
             if kind == "alerts":
                 raw_level = row.get("level")
                 if not isinstance(raw_level, str) or len(raw_level) > 32:
@@ -17559,14 +17676,7 @@ class OmadaOpenApiClient:
                 level = raw_level.casefold()
                 item["severity"] = level if level in levels else "other"
             items.append(item)
-        result: dict[str, object] = {
-            "status": "ok", "resource": "site_" + kind, "count": len(items),
-            "total_count": total_count, "partial": len(items) < total_count,
-            "window_start_ms": start_ms, "window_end_ms": end_ms, "items": items,
-        }
-        if module_totals is not None:
-            result["module_counts"] = module_totals
-        return result
+        return items
 
     def _read_site_log_pages(self, base_path: str, token: str,
                              start_ms: int, end_ms: int, *,

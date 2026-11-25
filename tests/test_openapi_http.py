@@ -4378,12 +4378,174 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(response["result"]["structuredContent"]["window_end_ms"], end_ms)
         self.assertEqual(calls[-1], (site_ref, start_ms, end_ms))
 
+        equal_route = f"/v1/sites/{site_ref}/events?" + urlencode(
+            {"start_ms": str(end_ms), "end_ms": str(end_ms)})
+        status, response = self.request(equal_route, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["window_start_ms"], end_ms)
+        self.assertEqual(response["window_end_ms"], end_ms)
+        self.assertEqual(calls[-1], (site_ref, end_ms, end_ms))
+
+        equal_request = {"jsonrpc": "2.0", "id": 42, "method": "tools/call",
+                         "params": {"name": "omada_site_events",
+                                    "arguments": {"site_ref": site_ref,
+                                                  "start_ms": end_ms, "end_ms": end_ms}}}
+        status, response = self.request_post("/mcp", equal_request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"]["window_start_ms"], end_ms)
+        self.assertEqual(response["result"]["structuredContent"]["window_end_ms"], end_ms)
+        self.assertEqual(calls[-1], (site_ref, end_ms, end_ms))
+
         invalid_route = f"/v1/sites/{site_ref}/events?" + urlencode(
             {"start_ms": str(end_ms), "end_ms": str(start_ms)})
         previous_call_count = len(calls)
         status, response = self.request(invalid_route, self.token)
         self.assertEqual(status, 400)
         self.assertEqual(len(calls), previous_call_count)
+
+    def test_site_events_paged_read_dispatches_explicit_page_over_http_and_mcp(self) -> None:
+        import time
+        from urllib.parse import urlencode
+
+        site_ref = "a" * 24
+        end_ms = int(time.time() * 1000)
+        start_ms = end_ms - 30 * 86_400_000
+        calls = []
+
+        def read(ref, start=None, end=None, **page):
+            calls.append((ref, start, end, page))
+            return {"status": "ok", "resource": "site_events", "site_ref": ref,
+                    "count": 1, "total_count": 6056, "partial": True,
+                    "window_start_ms": start, "window_end_ms": end,
+                    "items": [{"event_ref": "b" * 24, "time_ms": end,
+                               "module": "device"}],
+                    "pagination": {"page_number": page["page_number"],
+                                   "page_size": page["page_size"],
+                                   "next_page": page["page_number"] + 1,
+                                   "page_limit": 64, "page_limit_reached": False}}
+
+        self.fake.list_site_events = read
+        arguments = {"start_ms": start_ms, "end_ms": end_ms,
+                     "page_number": 1, "page_size": 200}
+        route = f"/v1/sites/{site_ref}/events?" + urlencode(arguments)
+        status, response = self.request(route, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["pagination"]["next_page"], 2)
+        self.assertEqual(calls[-1], (site_ref, start_ms, end_ms,
+                                     {"page_number": 1, "page_size": 200}))
+
+        request = {"jsonrpc": "2.0", "id": 48, "method": "tools/call",
+                   "params": {"name": "omada_site_events", "arguments": {
+                       "site_ref": site_ref, **arguments}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"]["pagination"]["next_page"], 2)
+        self.assertEqual(calls[-1], (site_ref, start_ms, end_ms,
+                                     {"page_number": 1, "page_size": 200}))
+
+        continuation = {**arguments, "page_number": 2, "expected_total": 6056}
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/events?" + urlencode(continuation), self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(calls[-1][3], {
+            "page_number": 2, "page_size": 200, "expected_total": 6056})
+
+        invalid = {**arguments, "page_number": 1, "expected_total": 6056}
+        previous = len(calls)
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/events?" + urlencode(invalid), self.token)
+        self.assertEqual(status, 400)
+        self.assertEqual(len(calls), previous)
+
+        for invalid_page in (
+                {**arguments, "page_number": 65},
+                {**arguments, "page_number": 2},
+                {**arguments, "start_ms": start_ms - 1},
+                {**arguments, "start_ms": end_ms}):
+            previous = len(calls)
+            status, _ = self.request(
+                f"/v1/sites/{site_ref}/events?" + urlencode(invalid_page), self.token)
+            self.assertEqual(status, 400)
+            self.assertEqual(len(calls), previous)
+
+        invalid_mcp = {"jsonrpc": "2.0", "id": 49, "method": "tools/call",
+                       "params": {"name": "omada_site_events", "arguments": {
+                           "site_ref": site_ref, **arguments, "page_number": 2}}}
+        previous = len(calls)
+        status, response = self.request_post("/mcp", invalid_mcp, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["error"]["code"], -32602)
+        self.assertEqual(len(calls), previous)
+
+    def test_site_events_6056_fixture_completes_through_http_and_mcp_pages(self) -> None:
+        import json
+        import time
+        from urllib.parse import urlencode
+        from app.openapi import OmadaOpenApiClient, OpenApiConfig
+
+        site_ref = "a" * 24
+        end_ms = int(time.time() * 1000)
+        start_ms = end_ms - 30 * 86_400_000
+        client = OmadaOpenApiClient(OpenApiConfig(
+            "https://controller.example", "ctrl", "client-id", "client-secret",
+            cert_sha256="c" * 64, page_size=200))
+        client._site_ids_by_ref[site_ref] = "site_1"
+        upstream_pages = []
+
+        def request(method, path, **kwargs):
+            self.assertEqual(method, "GET")
+            query = dict(part.split("=", 1) for part in path.split("?", 1)[1].split("&"))
+            page, size = int(query["page"]), int(query["pageSize"])
+            self.assertEqual((int(query["filters.timeStart"]), int(query["filters.timeEnd"])),
+                             (start_ms, end_ms))
+            upstream_pages.append(page)
+            rows = [{"id": f"event-{index}", "module": "Device", "time": end_ms,
+                     "content": "private event text"}
+                    for index in range((page - 1) * size, min(page * size, 6056))]
+            return {"result": {"totalRows": 6056, "currentPage": page,
+                               "currentSize": len(rows), "data": rows}}
+
+        page_refs = {"http": set(), "mcp": set()}
+        with patch.object(main, "_openapi_client", return_value=client), \
+                patch.object(client, "_access_token", return_value="synthetic-token"), \
+                patch.object(client, "_request_json", side_effect=request):
+            for transport in ("http", "mcp"):
+                for page in range(1, 32):
+                    arguments = {"site_ref": site_ref, "start_ms": start_ms,
+                                 "end_ms": end_ms, "page_number": page,
+                                 "page_size": 200}
+                    if page > 1:
+                        arguments["expected_total"] = 6056
+                    before = len(upstream_pages)
+                    if transport == "http":
+                        query = {key: value for key, value in arguments.items()
+                                 if key != "site_ref"}
+                        status, result = self.request(
+                            f"/v1/sites/{site_ref}/events?" + urlencode(query), self.token)
+                        self.assertEqual(status, 200)
+                    else:
+                        request_body = {"jsonrpc": "2.0", "id": page,
+                                        "method": "tools/call",
+                                        "params": {"name": "omada_site_events",
+                                                   "arguments": arguments}}
+                        status, response = self.request_post("/mcp", request_body, self.token)
+                        self.assertEqual(status, 200)
+                        result = response["result"]["structuredContent"]
+                    self.assertEqual(len(upstream_pages) - before, 1)
+                    self.assertEqual(result["count"], 56 if page == 31 else 200)
+                    self.assertEqual(result["total_count"], 6056)
+                    self.assertEqual(result["partial"], result["count"] < 6056)
+                    self.assertEqual(result["pagination"]["next_page"],
+                                     page + 1 if page < 31 else None)
+                    self.assertNotIn("private event text", json.dumps(result))
+                    refs = {item["event_ref"] for item in result["items"]}
+                    self.assertEqual(len(refs), result["count"])
+                    self.assertFalse(page_refs[transport].intersection(refs))
+                    page_refs[transport].update(refs)
+
+        self.assertEqual(upstream_pages, list(range(1, 32)) * 2)
+        self.assertEqual(len(page_refs["http"]), 6056)
+        self.assertEqual(len(page_refs["mcp"]), 6056)
 
     def test_http_and_mcp_expose_identity_and_time_window_reads(self) -> None:
         from urllib.parse import urlencode

@@ -2654,9 +2654,25 @@ class Handler(BaseHTTPRequestHandler):
                     raise RegistryError("log time bound invalid")
                 start_ms, end_ms = int(start_text), int(end_text)
                 now_ms = int(time.time() * 1000)
+                paged_event_window = (operation.operation_id == "site_events" and
+                                      "page_number" in local_arguments)
+                maximum_window_ms = 30 * 86_400_000 if paged_event_window else 86_400_000
                 if (not 946684800000 <= start_ms <= end_ms <= 4102444800000 or
-                        end_ms - start_ms > 86_400_000 or end_ms > now_ms + 60_000):
+                        (paged_event_window and start_ms == end_ms) or
+                        end_ms - start_ms > maximum_window_ms or end_ms > now_ms + 60_000):
                     raise RegistryError("log time window invalid")
+            if operation.operation_id == "site_events" and "page_number" in local_arguments:
+                page_text = registry_bindings.get("page_number", "")
+                size_text = registry_bindings.get("page_size", "")
+                expected_text = registry_bindings.get("expected_total")
+                if (not re.fullmatch(r"(?:[1-9]|[1-5][0-9]|6[0-4])", page_text) or
+                        not re.fullmatch(r"(?:[1-9]|[1-9][0-9]|1[0-9]{2}|200)", size_text) or
+                        (int(page_text) == 1 and expected_text is not None) or
+                        (int(page_text) > 1 and expected_text is None) or
+                        (expected_text is not None and
+                         (not re.fullmatch(r"(?:0|[1-9][0-9]{0,18})", expected_text) or
+                          int(expected_text) > 9223372036854775807))):
+                    raise RegistryError("event page arguments invalid")
             if {"start_local", "end_local", "time_zone"} == local_arguments:
                 try:
                     resolve_local_site_log_window(
@@ -2680,9 +2696,13 @@ class Handler(BaseHTTPRequestHandler):
                 number, size = registry_bindings["page_number"], registry_bindings["page_size"]
                 min_page = 1 if operation.operation_id == "controller_upgrade_log_inventory" else 0
                 max_page = 10 if operation.operation_id == "controller_upgrade_log_inventory" else 10_000
+                if operation.operation_id == "site_events":
+                    min_page, max_page, max_size = 1, 64, 200
+                else:
+                    max_size = 100
                 if (not number.isdecimal() or not size.isdecimal() or
                         str(int(number)) != number or str(int(size)) != size or
-                        not min_page <= int(number) <= max_page or not 1 <= int(size) <= 100):
+                        not min_page <= int(number) <= max_page or not 1 <= int(size) <= max_size):
                     raise RegistryError("page arguments invalid")
             if "vpn_type" in registry_bindings:
                 allowed_vpn_types = (
@@ -4322,6 +4342,19 @@ class Handler(BaseHTTPRequestHandler):
                             "window_start_local": local_start.isoformat(),
                             "window_end_local": local_end.isoformat(),
                         })
+                    elif "page_number" in registry_bindings:
+                        page_arguments = {
+                            "page_number": int(registry_bindings["page_number"]),
+                            "page_size": int(registry_bindings["page_size"]),
+                        }
+                        if "expected_total" in registry_bindings:
+                            page_arguments["expected_total"] = int(
+                                registry_bindings["expected_total"])
+                        result = client.list_site_events(
+                            events_match.group(1),
+                            int(registry_bindings["start_ms"]),
+                            int(registry_bindings["end_ms"]),
+                            **page_arguments)
                     elif "start_ms" in registry_bindings:
                         result = client.list_site_events(
                             events_match.group(1),
