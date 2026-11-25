@@ -46,6 +46,7 @@ def project_site_vlan_affected_ports(result: Any, page_number: int,
     types = {name: 0 for name in sorted(_DEVICE_TYPES)}
     counts = {name: 0 for name in ("numeric_port_memberships",
                                    "standard_port_memberships", "lag_memberships")}
+    gateway_ippt = {name: 0 for name in ("supported", "unsupported", "unreported", "invalid")}
     invalid = unknown = missing_port_detail = 0
     for row in rows:
         if not isinstance(row, dict) or len(row) > 20:
@@ -56,6 +57,32 @@ def project_site_vlan_affected_ports(result: Any, page_number: int,
             invalid += 1
             continue
         types[device_type] += 1
+        if device_type == "gateway":
+            if "gatewayInfo" not in row:
+                gateway_ippt["unreported"] += 1
+                gateway_info = None
+            else:
+                gateway_info = row["gatewayInfo"]
+            if "gatewayInfo" in row and not isinstance(gateway_info, dict):
+                gateway_ippt["invalid"] += 1
+                invalid += 1
+            elif isinstance(gateway_info, dict):
+                if "gatewayDetail" not in gateway_info:
+                    gateway_ippt["unreported"] += 1
+                    gateway_detail = None
+                else:
+                    gateway_detail = gateway_info["gatewayDetail"]
+                if "gatewayDetail" in gateway_info and not isinstance(gateway_detail, dict):
+                    gateway_ippt["invalid"] += 1
+                    invalid += 1
+                elif isinstance(gateway_detail, dict) and "supportIppt" not in gateway_detail:
+                    gateway_ippt["unreported"] += 1
+                elif isinstance(gateway_detail, dict) and type(gateway_detail["supportIppt"]) is bool:
+                    gateway_ippt["supported" if gateway_detail["supportIppt"]
+                                 else "unsupported"] += 1
+                elif isinstance(gateway_detail, dict):
+                    gateway_ippt["invalid"] += 1
+                    invalid += 1
         nested_present = False
         for key in _NESTED:
             if key not in row:
@@ -99,6 +126,7 @@ def project_site_vlan_affected_ports(result: Any, page_number: int,
         "reported_affected_device_count": total,
         "sampled_device_count": len(rows),
         "device_type_counts": types,
+        "gateway_ip_passthrough_capability_counts": gateway_ippt,
         **counts,
         "affected_port_membership_count": sum(counts.values()),
         "has_gateway": result.get("hasGateway"),
@@ -106,6 +134,7 @@ def project_site_vlan_affected_ports(result: Any, page_number: int,
         "missing_port_detail_device_count": missing_port_detail,
         "invalid_field_count": invalid,
         "unknown_field_count": unknown,
-        "partial": bool(has_more or invalid or unknown or missing_port_detail),
+        "partial": bool(has_more or invalid or unknown or missing_port_detail or
+                         gateway_ippt["unreported"]),
         "port_counts_are_memberships_not_unique_physical_ports": True,
     }

@@ -936,7 +936,7 @@ On a synthetic 10-adopted/4-pending bridge inventory, the projection measured 12
 
 `omada_site_recent_clients_summary` accepts `site_ref`, `start_ms` and `end_ms`. The window is limited to 24 hours and returns one page of up to 100 rows as counts only. It does not interpret the undocumented `lastSeen` unit or infer outages. A synthetic 20-client fixture measured 1,546 source tokens and 83 summary tokens (94.63% fewer; js-tiktoken 1.0.21/o200k_base).
 
-`omada_site_vlan_affected_ports_summary` accepts `site_ref`, `network_ref`, `vlan_id`, `page_number` and `page_size` (1–100). It counts documented device types and port/LAG memberships for the selected network/VLAN; identifiers and client details are omitted. The counts are memberships, not unique physical ports. A synthetic 10-device fixture measured 1,445 source tokens and 121 summary tokens (91.63% fewer; js-tiktoken 1.0.21/o200k_base).
+`omada_site_vlan_affected_ports_summary` accepts `site_ref`, `network_ref`, `vlan_id`, `page_number` and `page_size` (1–100). It counts documented device types and port/LAG memberships for the selected network/VLAN; identifiers and client details are omitted. For gateway rows, it also reports counts of the documented generic IP-passthrough capability flag as supported, unsupported, unreported or invalid. This flag does not report the configured passthrough state or prove IPv6 support. The counts are memberships, not unique physical ports. A synthetic 10-device fixture measured 1,445 source tokens and 121 summary tokens (91.63% fewer; js-tiktoken 1.0.21/o200k_base).
 
 The documented SSID client-list read is not exposed because the ER7212PC export omits the route and leaves `queryDataVO` serialization unspecified.
 

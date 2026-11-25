@@ -2370,8 +2370,8 @@
               "page": "required int32; starts at 1",
               "pageSize": "required int32; source range 1..1000"
             },
-            "response": "page of affected device rows with documented device type and nested switch/easy-switch/stack affectedPorts. Port membership arrays are integers in Hardware Controller and CBC Standard, strings in ER7212PC.",
-            "connector_projection": "selected site/network/VLAN binding, one page up to 100 rows; counts device classes and numeric-port, standard-port and LAG memberships; omits identifiers and client records; counts are memberships, not unique physical ports."
+            "response": "page of affected device rows with documented device type, gatewayInfo.gatewayDetail.supportIppt boolean, and nested switch/easy-switch/stack affectedPorts. Port membership arrays are integers in Hardware Controller and CBC Standard, strings in ER7212PC.",
+            "connector_projection": "selected site/network/VLAN binding, one page up to 100 rows; counts device classes, generic gateway IP-passthrough capability flags, and numeric-port, standard-port and LAG memberships; omits identifiers and client records; counts are memberships, not unique physical ports. Capability does not establish configured state or IPv6 support."
           }
         },
         "site_port_schedule_summary": {
@@ -5767,8 +5767,8 @@
               "page": "required int32; starts at 1",
               "pageSize": "required int32; source range 1..1000"
             },
-            "response": "page of affected device rows with documented device type and nested switch/easy-switch/stack affectedPorts. Port membership arrays are integers in Hardware Controller and CBC Standard, strings in ER7212PC.",
-            "connector_projection": "selected site/network/VLAN binding, one page up to 100 rows; counts device classes and numeric-port, standard-port and LAG memberships; omits identifiers and client records; counts are memberships, not unique physical ports."
+            "response": "page of affected device rows with documented device type, gatewayInfo.gatewayDetail.supportIppt boolean, and nested switch/easy-switch/stack affectedPorts. Port membership arrays are integers in Hardware Controller and CBC Standard, strings in ER7212PC.",
+            "connector_projection": "selected site/network/VLAN binding, one page up to 100 rows; counts device classes, generic gateway IP-passthrough capability flags, and numeric-port, standard-port and LAG memberships; omits identifiers and client records; counts are memberships, not unique physical ports. Capability does not establish configured state or IPv6 support."
           }
         },
         "site_port_schedule_summary": {
@@ -9114,8 +9114,8 @@
               "page": "required int32; starts at 1",
               "pageSize": "required int32; source range 1..1000"
             },
-            "response": "page of affected device rows with documented device type and nested switch/easy-switch/stack affectedPorts. Port membership arrays are integers in Hardware Controller and CBC Standard, strings in ER7212PC.",
-            "connector_projection": "selected site/network/VLAN binding, one page up to 100 rows; counts device classes and numeric-port, standard-port and LAG memberships; omits identifiers and client records; counts are memberships, not unique physical ports."
+            "response": "page of affected device rows with documented device type, gatewayInfo.gatewayDetail.supportIppt boolean, and nested switch/easy-switch/stack affectedPorts. Port membership arrays are integers in Hardware Controller and CBC Standard, strings in ER7212PC.",
+            "connector_projection": "selected site/network/VLAN binding, one page up to 100 rows; counts device classes, generic gateway IP-passthrough capability flags, and numeric-port, standard-port and LAG memberships; omits identifiers and client records; counts are memberships, not unique physical ports. Capability does not establish configured state or IPv6 support."
           }
         },
         "site_port_schedule_summary": {

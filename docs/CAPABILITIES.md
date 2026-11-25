@@ -1737,7 +1737,7 @@ A synthetic 10-adopted/4-pending bridge-device fixture measured 1,042 source JSO
 
 A synthetic 20-client response measured 1,546 source JSON tokens and 83 projected tokens (1,463 fewer; 94.63%) with js-tiktoken 1.0.21/o200k_base. This is serialized fixture size, not agent billing.
 
-`omada_site_vlan_affected_ports_summary` requires a selected site, network, and VLAN and returns one requested page of up to 100 devices. It counts device classes and reported numeric-port, standard-port, and LAG memberships, omitting identifiers and client data. Membership counts are not unique physical-port counts.
+`omada_site_vlan_affected_ports_summary` requires a selected site, network, and VLAN and returns one requested page of up to 100 devices. It counts device classes and reported numeric-port, standard-port, and LAG memberships, omitting identifiers and client data. Gateway rows also contribute redacted counts for the API's generic IP-passthrough capability flag: supported, unsupported, unreported, or invalid. This does not report the configured passthrough state or prove IPv6 support. Membership counts are not unique physical-port counts.
 
 A synthetic 10-device response measured 1,445 source JSON tokens and 121 projected tokens (1,324 fewer; 91.63%) with js-tiktoken 1.0.21/o200k_base. ER7212PC documents these port arrays as strings; the other two exports use integers for numeric ports and LAGs. Live support is unknown.
 
