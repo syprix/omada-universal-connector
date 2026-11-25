@@ -69,6 +69,192 @@ class SiteEventReadTests(unittest.TestCase):
         self.assertEqual(result["window_end_ms"], end_ms)
         self.assertFalse(result["partial"])
 
+    def test_pagewise_events_read_one_page_per_call_for_6056_rows(self) -> None:
+        client = OmadaOpenApiClient(OpenApiConfig(
+            "https://controller.example", "ctrl", "id", "secret",
+            cert_sha256="a" * 64, page_size=200))
+        client._site_ids_by_ref[self.site_ref] = "site_1"
+        now = int(time.time() * 1000)
+        start_ms, end_ms = now - 30 * 86_400_000, now
+        calls: list[str] = []
+
+        def request(method, path, **kwargs):
+            self.assertEqual(method, "GET")
+            calls.append(path)
+            query = dict(part.split("=", 1) for part in path.split("?", 1)[1].split("&"))
+            page = int(query["page"])
+            size = int(query["pageSize"])
+            rows = [{"id": f"event-{index}", "module": "Device",
+                     "time": end_ms, "content": "private event text"}
+                    for index in range((page - 1) * size, min(page * size, 6056))]
+            return {"result": {"totalRows": 6056, "currentPage": page,
+                               "currentSize": len(rows), "data": rows}}
+
+        observed_refs: set[str] = set()
+        total_rows = 0
+        expected_total = None
+        for page in range(1, 32):
+            before = len(calls)
+            with patch.object(client, "_access_token", return_value="token"), \
+                    patch.object(client, "_request_json", side_effect=request):
+                result = client.list_site_events(
+                    self.site_ref, start_ms, end_ms, page_number=page,
+                    page_size=200, expected_total=expected_total)
+            self.assertEqual(len(calls) - before, 1)
+            expected_total = result["total_count"]
+            refs = [item["event_ref"] for item in result["items"]]
+            self.assertEqual(len(refs), len(set(refs)))
+            self.assertFalse(observed_refs.intersection(refs))
+            observed_refs.update(refs)
+            total_rows += result["count"]
+            self.assertEqual(result["window_start_ms"], start_ms)
+            self.assertEqual(result["window_end_ms"], end_ms)
+            self.assertEqual(result["pagination"]["page_number"], page)
+            self.assertEqual(result["pagination"]["next_page"], page + 1 if page < 31 else None)
+            self.assertEqual(result["partial"], result["count"] < result["total_count"])
+            self.assertEqual(result["pagination"]["window_exhausted"], page == 31)
+            self.assertNotIn("private event text", str(result))
+
+        self.assertEqual(total_rows, 6056)
+        self.assertEqual(len(observed_refs), 6056)
+        self.assertEqual(len(calls), 31)
+
+    def test_pagewise_events_fails_for_changed_total_or_wrong_page(self) -> None:
+        client = OmadaOpenApiClient(OpenApiConfig(
+            "https://controller.example", "ctrl", "id", "secret",
+            cert_sha256="a" * 64, page_size=200))
+        client._site_ids_by_ref[self.site_ref] = "site_1"
+        now = int(time.time() * 1000)
+        start_ms, end_ms = now - 30 * 86_400_000, now
+        payload = {"result": {"totalRows": 201, "currentPage": 2,
+                              "currentSize": 1,
+                              "data": [{"id": "event-200", "module": "System",
+                                        "time": end_ms}]}}
+        with patch.object(client, "_access_token", return_value="token"), \
+                patch.object(client, "_request_json", return_value=payload):
+            with self.assertRaisesRegex(OpenApiError, "openapi_response_invalid"):
+                client.list_site_events(
+                    self.site_ref, start_ms, end_ms, page_number=2,
+                    page_size=200, expected_total=202)
+        payload["result"]["totalRows"] = 201
+        payload["result"]["currentPage"] = 1
+        with patch.object(client, "_access_token", return_value="token"), \
+                patch.object(client, "_request_json", return_value=payload):
+            with self.assertRaisesRegex(OpenApiError, "openapi_response_invalid"):
+                client.list_site_events(
+                    self.site_ref, start_ms, end_ms, page_number=2,
+                    page_size=200, expected_total=201)
+        payload["result"]["totalRows"] = 202
+        payload["result"]["currentPage"] = 2
+        with patch.object(client, "_access_token", return_value="token"), \
+                patch.object(client, "_request_json", return_value=payload):
+            with self.assertRaisesRegex(OpenApiError, "openapi_response_invalid"):
+                client.list_site_events(
+                    self.site_ref, start_ms, end_ms, page_number=2,
+                    page_size=200, expected_total=202)
+
+    def test_pagewise_event_uses_fixed_allowlisted_request_once(self) -> None:
+        import json
+
+        client = OmadaOpenApiClient(OpenApiConfig(
+            "https://controller.example", "ctrl", "id", "secret",
+            cert_sha256="a" * 64, page_size=200))
+        client._site_ids_by_ref[self.site_ref] = "site_1"
+        now = int(time.time() * 1000)
+        start_ms, end_ms = now - 30 * 86_400_000, now
+        response_body = json.dumps({"result": {
+            "totalRows": 6056, "currentPage": 31, "currentSize": 56,
+            "data": [{"id": f"event-{i}", "module": "Device", "time": end_ms}
+                     for i in range(6000, 6056)]}}, separators=(",", ":")).encode()
+
+        class Response:
+            status = 200
+            def getheader(self, name, default=""):
+                return "application/json" if name == "Content-Type" else default
+            def read(self, limit=-1):
+                return response_body[:limit]
+
+        class Connection:
+            _omada_tls_verified = True
+            def __init__(self):
+                self.requests = []
+            def request(self, method, path, **kwargs):
+                self.requests.append((method, path, kwargs))
+            def getresponse(self):
+                return Response()
+            def close(self):
+                pass
+
+        connection = Connection()
+        with patch.object(client, "_access_token", return_value="token"), \
+                patch.object(client, "_connection", return_value=connection):
+            result = client.list_site_events(
+                self.site_ref, start_ms, end_ms, page_number=31,
+                page_size=200, expected_total=6056)
+
+        self.assertEqual(len(connection.requests), 1)
+        method, path, _headers = connection.requests[0]
+        self.assertEqual(method, "GET")
+        self.assertEqual(path, (
+            "/openapi/v1/ctrl/sites/site_1/logs/events?page=31&pageSize=200&"
+            f"filters.timeStart={start_ms}&filters.timeEnd={end_ms}"))
+        self.assertEqual(result["count"], 56)
+        self.assertEqual(result["total_count"], 6056)
+
+    def test_pagewise_events_rejects_duplicate_refs_and_page_budget_overflow(self) -> None:
+        client = OmadaOpenApiClient(OpenApiConfig(
+            "https://controller.example", "ctrl", "id", "secret",
+            cert_sha256="a" * 64, page_size=200))
+        client._site_ids_by_ref[self.site_ref] = "site_1"
+        now = int(time.time() * 1000)
+        start_ms, end_ms = now - 30 * 86_400_000, now
+        duplicate = {"result": {"totalRows": 2, "currentPage": 1,
+                                "currentSize": 2,
+                                "data": [{"id": "same", "module": "System", "time": end_ms},
+                                         {"id": "same", "module": "System", "time": end_ms}]}}
+        with patch.object(client, "_access_token", return_value="token"), \
+                patch.object(client, "_request_json", return_value=duplicate):
+            with self.assertRaisesRegex(OpenApiError, "openapi_response_invalid"):
+                client.list_site_events(
+                    self.site_ref, start_ms, end_ms, page_number=1, page_size=200)
+
+        page64 = {"result": {"totalRows": 12_801, "currentPage": 64,
+                             "currentSize": 200,
+                             "data": [{"id": f"event-{i}", "module": "System",
+                                       "time": end_ms} for i in range(12_600, 12_800)]}}
+        with patch.object(client, "_access_token", return_value="token"), \
+                patch.object(client, "_request_json", return_value=page64):
+            result = client.list_site_events(
+                self.site_ref, start_ms, end_ms, page_number=64,
+                page_size=200, expected_total=12_801)
+        self.assertTrue(result["partial"])
+        self.assertTrue(result["pagination"]["page_limit_reached"])
+        self.assertIsNone(result["pagination"]["next_page"])
+
+    def test_pagewise_events_validate_30_day_window_and_continuation_before_request(self) -> None:
+        now = int(time.time() * 1000)
+        cases = (
+            (now - 30 * 86_400_000 - 1, now, 1, 200, None),
+            (now - 1_000, now + 120_000, 1, 200, None),
+            (now - 60_000, now, 65, 200, None),
+            (now - 60_000, now, 2, 200, None),
+            (now - 60_000, now, 1, 200, 1),
+            (now - 60_000, now, 2, 200, 0),
+            (now, now, 1, 100, None),
+            (now - 60_000, now, 1, 101, None),
+            (now - 60_000, now, 1, 201, None),
+        )
+        with patch.object(self.client, "_request_json") as request:
+            for start_ms, end_ms, page, size, expected_total in cases:
+                with self.subTest(page=page, size=size, expected_total=expected_total):
+                    with patch.object(self.client, "_access_token", return_value="token"):
+                        with self.assertRaises(OpenApiError):
+                            self.client.list_site_events(
+                                self.site_ref, start_ms, end_ms,
+                                page_number=page, page_size=size,
+                                expected_total=expected_total)
+            request.assert_not_called()
+
     def test_events_reject_invalid_explicit_windows_before_request(self) -> None:
         end_ms = int(time.time() * 1000)
         invalid_windows = (

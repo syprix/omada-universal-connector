@@ -525,9 +525,13 @@ class OperationRegistryTests(unittest.TestCase):
         operation = REGISTRY.get("site_events")
         schema = _tool(operation)["inputSchema"]
         self.assertEqual(schema["required"], ["site_ref"])
-        self.assertEqual(len(schema["oneOf"]), 3)
+        self.assertEqual(len(schema["oneOf"]), 5)
         self.assertEqual(set(schema["properties"]), {
-            "site_ref", "start_ms", "end_ms", "start_local", "end_local", "time_zone"})
+            "site_ref", "start_ms", "end_ms", "start_local", "end_local", "time_zone",
+            "page_number", "page_size", "expected_total"})
+        self.assertEqual(schema["properties"]["page_number"]["maximum"], 64)
+        self.assertEqual(schema["properties"]["page_size"]["maximum"], 200)
+        self.assertIn("default 100", schema["properties"]["page_size"]["description"])
 
     def test_controller_log_window_routes_and_mcp_schemas_are_controller_scoped(self):
         for kind in ("events", "alerts"):

@@ -722,7 +722,24 @@ def _tool(operation: Any) -> dict[str, object]:
         elif name in {"start_ms", "end_ms"}:
             properties[name] = {
                 "type": "integer", "minimum": 946684800000, "maximum": 4102444800000,
-                "description": "UTC epoch milliseconds; both bounds are required and the window is capped at 24 hours.",
+                "description": ("UTC epoch milliseconds; both bounds are required. Page-wise site-event reads allow at most 30 days; existing window and other reads remain capped at 24 hours."
+                                if operation.operation_id == "site_events" else
+                                "UTC epoch milliseconds; both bounds are required and the window is capped at 24 hours."),
+            }
+        elif name == "page_number" and operation.operation_id == "site_events":
+            properties[name] = {
+                "type": "integer", "minimum": 1, "maximum": 64,
+                "description": "One-based page number; each call reads exactly one page, at most 64 pages per fixed window.",
+            }
+        elif name == "page_size" and operation.operation_id == "site_events":
+            properties[name] = {
+                "type": "integer", "minimum": 1, "maximum": 200,
+                "description": "Repeat this page size on continuations; effective maximum is the configured connector page_size (default 100, hard maximum 200).",
+            }
+        elif name == "expected_total" and operation.operation_id == "site_events":
+            properties[name] = {
+                "type": "integer", "minimum": 0, "maximum": 9223372036854775807,
+                "description": "Use the total_count returned by page 1 on every continuation page.",
             }
         elif name in {"start_local", "end_local"}:
             properties[name] = {
@@ -1369,6 +1386,18 @@ def _invoke_tool(registry: Any, name: object, arguments: object,
             if type(value) is not int or not 946684800000 <= value <= 4102444800000:
                 raise McpRequestError("arguments_invalid")
             safe_arguments[key] = str(value)
+        elif key == "page_number" and operation.operation_id == "site_events":
+            if type(value) is not int or not 1 <= value <= 64:
+                raise McpRequestError("arguments_invalid")
+            safe_arguments[key] = str(value)
+        elif key == "page_size" and operation.operation_id == "site_events":
+            if type(value) is not int or not 1 <= value <= 200:
+                raise McpRequestError("arguments_invalid")
+            safe_arguments[key] = str(value)
+        elif key == "expected_total" and operation.operation_id == "site_events":
+            if type(value) is not int or not 0 <= value <= 9223372036854775807:
+                raise McpRequestError("arguments_invalid")
+            safe_arguments[key] = str(value)
         elif key in {"start_local", "end_local"}:
             if (not isinstance(value, str) or not 16 <= len(value) <= 23 or
                     not re.fullmatch(
@@ -1408,6 +1437,15 @@ def _invoke_tool(registry: Any, name: object, arguments: object,
                 safe_arguments["time_zone"])
         except SiteLogWindowError as exc:
             raise McpRequestError("arguments_invalid") from exc
+    if operation_id == "site_events" and "page_number" in safe_arguments:
+        page_number = int(safe_arguments["page_number"])
+        page_size = int(safe_arguments["page_size"])
+        expected_total = safe_arguments.get("expected_total")
+        if ((page_number == 1 and expected_total is not None) or
+                (page_number > 1 and expected_total is None) or
+                (expected_total is not None and page_number >
+                 (int(expected_total) + page_size - 1) // page_size)):
+            raise McpRequestError("arguments_invalid")
     value = invoke_read(operation_id, safe_arguments)
     return _tool_result(value)
 
