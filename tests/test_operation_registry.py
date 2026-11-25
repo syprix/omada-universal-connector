@@ -521,6 +521,14 @@ class OperationRegistryTests(unittest.TestCase):
         self.assertEqual(set(schema["properties"]), {
             "site_ref", "start_ms", "end_ms", "start_local", "end_local", "time_zone"})
 
+    def test_site_events_mcp_schema_allows_optional_complete_time_window(self):
+        operation = REGISTRY.get("site_events")
+        schema = _tool(operation)["inputSchema"]
+        self.assertEqual(schema["required"], ["site_ref"])
+        self.assertEqual(len(schema["oneOf"]), 3)
+        self.assertEqual(set(schema["properties"]), {
+            "site_ref", "start_ms", "end_ms", "start_local", "end_local", "time_zone"})
+
     def test_controller_log_window_routes_and_mcp_schemas_are_controller_scoped(self):
         for kind in ("events", "alerts"):
             op_id = f"controller_{kind}_window_summary"

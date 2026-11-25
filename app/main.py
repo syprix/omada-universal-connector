@@ -2710,7 +2710,8 @@ class Handler(BaseHTTPRequestHandler):
             if (registry_match and
                     registry_match[0].operation_id in {"site_mac_auth_ssid_inventory", "site_vlan_ssid_usage_summary",
                                                         "site_vlan_device_usage_summary", "site_vlan_port_support_summary", "site_vlan_topology_summary", "site_vlan_topology_reference_count",
-                                                        "site_lan_network_interface_summary", "controller_upgrade_log_inventory"}):
+                                                        "site_lan_network_interface_summary", "controller_upgrade_log_inventory",
+                                                        "site_events"}):
                 self._send(HTTPStatus.BAD_REQUEST,
                            {"status": "error", "error": "query_invalid"})
                 return
@@ -2936,7 +2937,7 @@ class Handler(BaseHTTPRequestHandler):
         dns_cache_match = re.fullmatch(r"/v1/sites/([0-9a-f]{24})/dns/cache", self.path)
         dns_proxy_match = re.fullmatch(r"/v1/sites/([0-9a-f]{24})/dns/proxy", self.path)
         dns_records_match = re.fullmatch(r"/v1/sites/([0-9a-f]{24})/dns/records", self.path)
-        events_match = re.fullmatch(r"/v1/sites/([0-9a-f]{24})/events", self.path)
+        events_match = re.fullmatch(r"/v1/sites/([0-9a-f]{24})/events", parsed_request.path)
         alerts_match = re.fullmatch(r"/v1/sites/([0-9a-f]{24})/alerts", self.path)
         if registry_match is None and site_channel_limit_match is None and ap_channel_limit_match is None and ap_ofdma_match is None and ap_qos_match is None and ap_lag_match is None and ap_load_balance_match is None and ap_antenna_match is None and ap_antenna_gain_match is None and ap_power_saving_match is None and ap_wired_uplink_match is None and ap_wired_downlink_match is None and ap_ports_match is None and ap_lan_traffic_match is None and ap_vlan_match is None and site_lldp_match is None and site_dpi_match is None and gateway_voip_match is None and gateway_tag_qos_match is None and ap_afc_status_match is None and ap_afc_match is None and site_led_match is None and roaming_settings_match is None and rrm_incompatible_match is None and site_dashboard_channels_match is None and site_client_signal_distribution_match is None and band_steering_match is None and rrm_settings_match is None and switch_port_status_match is None and switch_health_match is None and switch_health_timeline_match is None and switch_sdm_usage_match is None and switch_cable_test_logs_match is None and switch_cable_test_full_results_match is None and switch_cable_test_increment_results_match is None and switch_cable_test_ports_match is None and switch_dhcp_users_match is None and switch_ospf_neighbors_match is None and switch_port_networks_match is None and switch_exist_networks_match is None and switch_networks_match is None and switch_interfaces_match is None and switch_routing_table_match is None and switch_static_routes_match is None and switch_vrfs_match is None and switch_vlan_interfaces_match is None and switch_statistics_match is None and switch_lldp_match is None and wifi_health_match is None and wifi_health_details_match is None and not sites_route and not controller_health_match and not controller_gateway_wan_status_match and controller_sdwan_group_summary_match is None and site_overview_match is None and site_topology_match is None and site_health_timeline_match is None and site_client_health_timeline_match is None and site_wifi_summary_match is None and site_6ghz_ap_presence_match is None and site_setting_existence_match is None and site_capabilities_match is None and site_rogue_ap_results_match is None and site_wids_summary_match is None and site_wids_blacklist_summary_match is None and switch_port_tags_match is None and ap_wifi_neighbors_match is None and ap_speed_test_results_match is None and experience_index_match is None and rf_planning_result_match is None and rf_planning_dashboard_match is None and rf_planning_dashboard_history_match is None and rf_planning_dashboard_current_match is None and rf_planning_detail_match is None and rf_planning_history_match is None and rf_planning_history_detail_match is None and rf_planning_recent_history_match is None and rf_excluded_aps_match is None and rf_deploy_history_match is None and devices_match is None and device_firmware_match is None and ap_health_match is None and ap_health_timeline_match is None and ap_retry_drop_match is None and ap_mesh_match is None and clients_match is None and recent_clients_match is None and client_detail_match is None and client_connections_match is None and client_history_match is None and client_timeline_match is None and client_health_match is None and client_health_detail_v2_match is None and client_health_timeline_match is None and networks_match is None and ssids_match is None and wlan_groups_match is None and ssid_config_match is None and ap_available_channels_match is None and ap_match is None and ap_rf_scan_match is None and gateway_wan_match is None and gateway_wan_health_match is None and gateway_health_match is None and gateway_health_timeline_match is None and gateway_lan_status_match is None and gateway_ports_match is None and gateway_speed_test_results_match is None and gateway_dhcp_leases_match is None and gateway_internet_info_match is None and gateway_ipv6_match is None and switch_ports_match is None and switch_port_counters_match is None and switch_port_poe_info_match is None and switch_poe_match is None and switch_vlans_match is None and firewall_rules_match is None and switch_acl_match is None and ap_acl_match is None and dhcp_leases_match is None and dns_cache_match is None and dns_proxy_match is None and dns_records_match is None and events_match is None and alerts_match is None and site_speed_test_settings_match is None and ap_uplink_config_match is None and ap_lldp_config_match is None and ap_port_vlans_match is None and ap_bridge_config_match is None and ap_mesh_candidates_match is None and ap_general_config_match is None and ap_ip_setting_match is None and ap_ipv6_setting_match is None and ap_p2p_info_match is None and ap_l3_access_match is None and ap_paring_window_match is None and ap_lag_config_match is None and ap_rf_scan_v2_match is None and ap_management_ssid_match is None and ap_snmp_config_match is None and ap_vlan_v1_match is None and ap_wlan_overrides_match is None:
             self._send(HTTPStatus.NOT_FOUND, {"status": "error", "error": "not_found"})
@@ -4308,7 +4309,26 @@ class Handler(BaseHTTPRequestHandler):
                 elif dns_records_match is not None:
                     result = client.list_lan_dns_records(dns_records_match.group(1))
                 elif events_match is not None:
-                    result = client.list_site_events(events_match.group(1))
+                    if "start_local" in registry_bindings:
+                        start_ms, end_ms, zone_name, local_start, local_end = (
+                            resolve_local_site_log_window(
+                                registry_bindings["start_local"],
+                                registry_bindings["end_local"],
+                                registry_bindings["time_zone"]))
+                        result = client.list_site_events(
+                            events_match.group(1), start_ms, end_ms)
+                        result.update({
+                            "time_zone": zone_name,
+                            "window_start_local": local_start.isoformat(),
+                            "window_end_local": local_end.isoformat(),
+                        })
+                    elif "start_ms" in registry_bindings:
+                        result = client.list_site_events(
+                            events_match.group(1),
+                            int(registry_bindings["start_ms"]),
+                            int(registry_bindings["end_ms"]))
+                    else:
+                        result = client.list_site_events(events_match.group(1))
                 elif alerts_match is not None:
                     result = client.list_site_alerts(alerts_match.group(1))
                 elif site_rogue_ap_results_match is not None:

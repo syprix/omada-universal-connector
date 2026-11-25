@@ -116,7 +116,7 @@ class OperationRegistry:
                 ("category",): {"site_incident_category_counts"},
                 ("client_name", "ssid_name"): {"site_client_identity_match"},
                 ("start_ms", "end_ms"): {
-                    "site_events_window_summary", "site_alerts_window_summary",
+                    "site_events", "site_events_window_summary", "site_alerts_window_summary",
                     "controller_threat_severity_summary", "client_outage_timeline",
                     "site_audit_log_window_summary", "controller_audit_log_window_summary",
                     "controller_events_window_summary", "controller_alerts_window_summary",
@@ -130,8 +130,9 @@ class OperationRegistry:
                                "site_vlan_topology_summary", "site_vlan_topology_reference_count"},
             }
             supported_local_alternatives = {
+                ("start_ms", "end_ms"): {"site_events"},
                 ("start_local", "end_local", "time_zone"): {
-                    "site_events_window_summary", "site_alerts_window_summary",
+                    "site_events", "site_events_window_summary", "site_alerts_window_summary",
                     "client_outage_timeline", "site_audit_log_window_summary",
                     "controller_audit_log_window_summary",
                     "controller_events_window_summary", "controller_alerts_window_summary"},
@@ -1970,7 +1971,9 @@ Operation("site_stack_connections_summary", "GET",
     Operation("site_events", "GET",
               "/v1/sites/{site_ref}/events", "GET",
               "/openapi/v1/{controller_id}/sites/{site_id}/logs/events",
-              (("controller_id", "$config"), ("site_id", "site_ref"))),
+              (("controller_id", "$config"), ("site_id", "site_ref")),
+              local_argument_alternatives=(("start_ms", "end_ms"),
+                                          ("start_local", "end_local", "time_zone"))),
     Operation("site_events_window_summary", "GET",
               "/v1/sites/{site_ref}/events/window", "GET",
               "/openapi/v1/{controller_id}/sites/{site_id}/logs/events",

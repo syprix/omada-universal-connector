@@ -17321,8 +17321,9 @@ class OmadaOpenApiClient:
         return {**projected, "site_ref": site_ref}
 
     @_track_capability("site_events")
-    def list_site_events(self, site_ref: str) -> dict[str, object]:
-        return self._list_site_log(site_ref, "events")
+    def list_site_events(self, site_ref: str, start_ms: int | None = None,
+                         end_ms: int | None = None) -> dict[str, object]:
+        return self._list_site_log(site_ref, "events", start_ms, end_ms)
 
     @_track_capability("site_alerts")
     def list_site_alerts(self, site_ref: str) -> dict[str, object]:
@@ -17477,7 +17478,9 @@ class OmadaOpenApiClient:
         }
         return summary
 
-    def _list_site_log(self, site_ref: str, kind: str) -> dict[str, object]:
+    def _list_site_log(self, site_ref: str, kind: str,
+                       start_ms: int | None = None,
+                       end_ms: int | None = None) -> dict[str, object]:
         if kind not in {"events", "alerts"}:
             raise OpenApiError("site_log_kind_invalid")
         if not isinstance(site_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", site_ref):
@@ -17485,10 +17488,16 @@ class OmadaOpenApiClient:
         site_id = self._site_ids_by_ref.get(site_ref, "")
         if not site_id:
             raise OpenApiError("site_ref_unknown")
-        # The API requires time bounds. Keep the public operation fixed to a
-        # rolling 30-day window to bound data volume and avoid arbitrary queries.
-        end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
-        start_ms = end_ms - int(timedelta(days=30).total_seconds() * 1000)
+        if start_ms is None and end_ms is None:
+            # Keep existing callers bounded when no time window is supplied.
+            end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+            start_ms = end_ms - int(timedelta(days=30).total_seconds() * 1000)
+        else:
+            try:
+                start_ms, end_ms = validate_site_log_window(start_ms, end_ms)
+            except SiteLogWindowError:
+                raise OpenApiError("time_window_invalid") from None
+        assert start_ms is not None and end_ms is not None
         template = self._SITE_EVENT_PATH if kind == "events" else self._SITE_ALERT_PATH
         base = template.format(controller_id=self.config.controller_id, site_id=site_id)
         rows, total_count, module_totals, _pages_fetched = self._read_site_log_pages(

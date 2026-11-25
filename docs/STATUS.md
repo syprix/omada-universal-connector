@@ -1079,7 +1079,7 @@ Both functions are implemented from the three API exports. Offline checks passed
 
 ## 2026-11-24 — OC200 read acceptance follow-up
 
-The site event-list read covers a fixed rolling 30-day window and enforces the configured page-size/page-count cap. The recorded `openapi_page_limit_reached` means the connector could not establish a complete list within that cap; it is an expected safety boundary, not evidence of a controller defect. The separate event-window summary can return bounded partial coverage and `page_limit_reached`. No pagination or access limit was increased.
+The site event-list read defaults to a rolling 30-day window and also accepts an optional, validated window of up to 24 hours. It enforces the configured page-size/page-count cap. The recorded `openapi_page_limit_reached` means the connector could not establish a complete list within that cap; it is an expected safety boundary, not evidence of a controller defect. The separate event-window summary can return bounded partial coverage and `page_limit_reached`. No pagination or access limit was increased.
 
 The 6.3 hardware and CBC exports require `page` and `pageSize` for `getGridAdoptedDevicesStatByGlobal`. The connector now pins this aggregate read to page 1 with page size 1. On controller firmware 6.3.0.45, the corrected call returned HTTP 200 through both HTTP and MCP with an explicitly partial projection. The earlier rejection is consistent with the omitted required parameters; missing statistics remain unknown.
 
