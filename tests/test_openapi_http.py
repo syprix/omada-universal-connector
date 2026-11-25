@@ -85,7 +85,7 @@ class FakeOpenApiClient:
     def read_controller_device_statistics(self) -> dict[str, object]:
         self.calls.append(("controller_device_statistics", None))
         return {"status": "ok", "resource": "controller_device_statistics",
-                "data": {"counts": {"total_devices": 4}, "present_count": 1,
+                "data": {"counts": {"total_devices": 4}, "health_counts": {}, "present_count": 1,
                          "missing_count": 13, "invalid_count": 0,
                          "omitted_variant_field_count": 0, "unknown_field_count": 0},
                 "partial": True}

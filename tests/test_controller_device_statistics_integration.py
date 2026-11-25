@@ -12,7 +12,8 @@ class ControllerDeviceStatisticsIntegrationTests(unittest.TestCase):
 
     def test_exact_controller_read_and_redacted_projection(self):
         raw = {"allDevices": 4, "good": 3, "poor": 1,
-               "switchHealth": {"good": 1}, "private": "omit"}
+               "switchHealth": {"good": 1, "fair": 2, "poor": 0, "noData": 0},
+               "private": "omit"}
         with patch.object(self.client, "_access_token", return_value="token"), \
                 patch.object(self.client, "_request_json", return_value={"result": raw}) as request:
             result = self.client.read_controller_device_statistics()
@@ -21,7 +22,9 @@ class ControllerDeviceStatisticsIntegrationTests(unittest.TestCase):
         self.assertEqual(result["resource"], "controller_device_statistics")
         self.assertEqual(result["data"]["counts"], {
             "total_devices": 4, "health_good": 3, "health_poor": 1})
-        self.assertEqual(result["data"]["omitted_variant_field_count"], 1)
+        self.assertEqual(result["data"]["health_counts"], {
+            "switches": {"good": 1, "fair": 2, "poor": 0, "noData": 0}})
+        self.assertEqual(result["data"]["omitted_variant_field_count"], 0)
         self.assertEqual(result["data"]["unknown_field_count"], 1)
         self.assertTrue(result["partial"])
         self.assertNotIn("private", str(result))

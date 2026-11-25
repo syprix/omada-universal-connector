@@ -1279,13 +1279,16 @@ No live controller response has been observed.
 
 Controller device statistics are available at
 `GET /v1/controller/devices/statistics`. The projection returns only the 14
-documented int32 inventory, activation and device-health counters. Nested
-switch/EAP/gateway health objects are omitted because their response schemas
-are inconsistent across the supplied exports; their presence marks the response
-partial. All three descriptions list `Site Device Manager View Only` or `MSP
-Device Manager View Only`. Fixture tests cover each scalar mapping, malformed
-values, exact GET, response redaction, HTTP/MCP dispatch and controller binding.
-No live controller response has been observed.
+documented int32 inventory and activation counters, plus the documented
+`good`, `fair`, `poor` and `noData` int32 counters nested under switch, EAP and
+gateway health objects. The separate flat `allSwitchsAndGateway` counter
+remains the combined switch/gateway total. The same nested shape is present in
+the hardware 6.3, CBC 6.3 and ER7212PC 6.2.14 exports. Missing or invalid values are omitted and
+mark the result partial; identifiers and unknown names/values are not exposed.
+All three descriptions list `Site Device Manager View Only` or `MSP Device
+Manager View Only`. Fixture tests cover each mapping, malformed values, exact
+GET, response redaction, HTTP/MCP dispatch and controller binding. No live
+controller response has been observed.
 
 
 Controller client active-timeout is exposed at

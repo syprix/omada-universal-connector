@@ -489,10 +489,14 @@ support remains unknown.
 
 
 `omada_controller_device_statistics` reads aggregate controller-wide device,
-activation and health counters. It omits nested category objects whose schemas
-differ across the supplied exports, marking that result partial when they are
-present. The tool takes no arguments and uses a fixed GET. Fixture coverage is
-local; live support remains unknown.
+activation and health counters. In addition to scalar totals, it projects the
+documented `switchHealth`, `eapHealth` and `gatewayHealth` objects as bounded
+`good`, `fair`, `poor` and `noData` counts under `health_counts`. Missing or
+invalid nested counts are omitted and keep the result partial. The flat
+`allSwitchsAndGateway` scalar remains a separate combined count. Unknown fields
+are counted without exposing their names or values. The tool takes no
+arguments and uses a fixed GET. Fixture coverage is local; live support
+remains unknown.
 
 
 `omada_controller_client_active_timeout` returns the documented client
