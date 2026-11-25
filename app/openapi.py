@@ -3004,6 +3004,10 @@ class OmadaOpenApiClient:
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
         r"/wireless-network/wlans/[A-Za-z0-9_-]{1,128}/ssids\?page=([1-5])&pageSize=100"
     )
+    _SITE_WLAN_GROUP_SSID_DETAIL_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/wireless-network/wlans/[A-Za-z0-9_-]{1,128}/ssids/[A-Za-z0-9_-]{1,128}"
+    )
     _SAFE_FIELD = re.compile(r"[A-Za-z0-9._() /+:-]{1,96}")
     _MAC = re.compile(
         r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}"
@@ -5617,8 +5621,10 @@ class OmadaOpenApiClient:
         if not isinstance(ssid_ref, str) or not re.fullmatch(r"[0-9a-f]{24}", ssid_ref):
             raise OpenApiError("ssid_ref_invalid")
 
-        # Refresh both site inventories before resolving opaque references.
-        groups = self.read_site_wlan_group_summary(site_ref)
+        # Refresh both reference inventories before resolving opaque references.
+        # read_site_wlan_group_summary() is intentionally identity-free; the
+        # reference-bearing inventory is list_wlan_groups().
+        groups = self.list_wlan_groups(site_ref)
         ssids = self.list_ssids(site_ref)
         group_items = groups.get("items") if isinstance(groups, Mapping) else None
         ssid_items = ssids.get("items") if isinstance(ssids, Mapping) else None
@@ -5628,11 +5634,20 @@ class OmadaOpenApiClient:
         ssid_refs = ([row.get("ssid_ref") for row in ssid_items]
                      if isinstance(ssid_items, list) and
                      all(isinstance(row, Mapping) for row in ssid_items) else None)
-        if (group_refs is None or ssid_refs is None or
+        if (not isinstance(groups, Mapping) or not isinstance(ssids, Mapping) or
+                not isinstance(group_items, list) or not isinstance(ssid_items, list) or
+                groups.get("status") != "ok" or ssids.get("status") != "ok" or
+                type(groups.get("count")) is not int or groups["count"] != len(group_items or []) or
+                type(ssids.get("count")) is not int or ssids["count"] != len(ssid_items or []) or
+                group_refs is None or ssid_refs is None or
                 any(not isinstance(ref, str) for ref in group_refs + ssid_refs) or
                 len(set(group_refs)) != len(group_refs) or
                 len(set(ssid_refs)) != len(ssid_refs)):
             raise OpenApiError("openapi_response_invalid")
+        if wlan_group_ref not in group_refs:
+            raise OpenApiError("wlan_group_ref_unknown")
+        if ssid_ref not in ssid_refs:
+            raise OpenApiError("ssid_ref_unknown")
         wlan_id = self._wlan_group_ids_by_site_ref.get(site_ref, {}).get(wlan_group_ref)
         ssid_id = self._ssid_ids_by_site_ref.get(site_ref, {}).get(ssid_ref)
         if not wlan_id:
@@ -5643,35 +5658,46 @@ class OmadaOpenApiClient:
         token = self._access_token()
         membership_ids: list[str] = []
         expected_total: int | None = None
+        page_size = 100
         for page_number in range(1, 6):
             path = self._SITE_WLAN_GROUP_SSIDS_PATH.format(
                 controller_id=self.config.controller_id, site_id=site_id, wlan_id=wlan_id)
-            path += f"?page={page_number}&pageSize=100"
+            path += f"?page={page_number}&pageSize={page_size}"
             result = self._request_json("GET", path, token=token).get("result")
             if not isinstance(result, Mapping):
                 raise OpenApiError("openapi_response_invalid")
             rows, total = result.get("data"), result.get("totalRows")
-            if (not isinstance(rows, list) or len(rows) > 100 or type(total) is not int or
+            if (not isinstance(rows, list) or len(rows) > page_size or type(total) is not int or
                     total < 0 or type(result.get("currentPage")) is not int or
                     result["currentPage"] != page_number or
                     type(result.get("currentSize")) is not int or
-                    result["currentSize"] != len(rows) or
+                    result["currentSize"] not in (len(rows), page_size) or
                     (expected_total is not None and total != expected_total)):
                 raise OpenApiError("openapi_response_invalid")
             expected_total = total
             for row in rows:
                 if not isinstance(row, Mapping):
                     raise OpenApiError("openapi_response_invalid")
-                member_id = self._first_string(row, ("id", "ssidId"))
+                member_fields = [row[key] for key in ("id", "ssidId") if key in row]
+                if (not member_fields or
+                        any(not isinstance(value, str) or
+                            not self._IDENTIFIER.fullmatch(value)
+                            for value in member_fields) or
+                        len(set(member_fields)) != 1):
+                    raise OpenApiError("openapi_response_invalid")
+                member_id = member_fields[0]
                 if not member_id or not self._IDENTIFIER.fullmatch(member_id):
                     raise OpenApiError("openapi_response_invalid")
                 membership_ids.append(member_id)
             if len(membership_ids) > total:
                 raise OpenApiError("openapi_response_invalid")
-            if len(membership_ids) >= total or len(rows) < 100:
+            if len(membership_ids) >= total or len(rows) < page_size:
                 break
         else:
             raise OpenApiError("openapi_page_limit_reached")
+        if (expected_total is None or len(membership_ids) != expected_total or
+                len(set(membership_ids)) != len(membership_ids)):
+            raise OpenApiError("openapi_response_invalid")
         if membership_ids.count(ssid_id) != 1:
             raise OpenApiError("ssid_group_binding_unavailable")
 
@@ -18165,6 +18191,7 @@ class OmadaOpenApiClient:
                                   self._WLAN_GROUP_REQUEST.fullmatch(path) or
                                   self._site_wlan_group_request_valid(path) or
                                   self._site_wlan_group_ssids_request_valid(path) or
+                                  self._site_wlan_group_ssid_detail_request_valid(path) or
                                   self._site_wlan_group_detail_request_valid(path) or
                                   self._site_lock_to_ap_brief_request_valid(path) or
                                   self._site_ineligible_interference_ap_request_valid(path) or
@@ -19464,6 +19491,10 @@ class OmadaOpenApiClient:
 
     def _site_wlan_group_ssids_request_valid(self, path: str) -> bool:
         match = self._SITE_WLAN_GROUP_SSIDS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_wlan_group_ssid_detail_request_valid(self, path: str) -> bool:
+        match = self._SITE_WLAN_GROUP_SSID_DETAIL_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
 
     def _site_wlan_group_detail_request_valid(self, path: str) -> bool:
