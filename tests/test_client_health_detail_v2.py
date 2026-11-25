@@ -77,7 +77,41 @@ class ClientHealthDetailV2ProjectionTests(unittest.TestCase):
         self.assertEqual(projection["omitted_series_limit"], 6)
         self.assertEqual(projection["omitted_incident_entry_count"], 3)
         self.assertEqual(projection["dimensions"]["snr"]["series"]["values"]["sample_count"], 64)
+        self.assertEqual(projection["incident_entry_count"], 32)
+        self.assertIsNone(projection["dimensions"]["snr"]["incident_occurrence_count"])
         self.assertNotIn("hidden", str(projection))
+
+    def test_empty_or_null_incident_collection_means_zero_but_empty_record_count_is_unknown(self) -> None:
+        projection = project_client_health_detail_v2({
+            "snr": {"incidents": []},
+            "dataRate": {"incidents": None},
+        })
+        self.assertEqual(projection["status"], "ok")
+        self.assertEqual(projection["incident_entry_count"], 0)
+        for dimension in ("snr", "data_rate"):
+            self.assertEqual(projection["dimensions"][dimension]["incident_entry_count"], 0)
+            self.assertEqual(projection["dimensions"][dimension]["incident_occurrence_count"], 0)
+
+        missing = project_client_health_detail_v2({
+            "snr": {"incidents": [{"incidentId": "private"}]},
+        })
+        self.assertEqual(missing["incident_entry_count"], 1)
+        self.assertIsNone(missing["dimensions"]["snr"]["incident_occurrence_count"])
+        self.assertTrue(missing["partial"])
+        self.assertNotIn("private", str(missing))
+
+    def test_invalid_or_null_occurrence_count_keeps_entry_and_unknown_total(self) -> None:
+        for count in (None, "bad", True, -1, 1_000_001):
+            with self.subTest(count_type=type(count).__name__):
+                projection = project_client_health_detail_v2({
+                    "snr": {"incidents": [{"count": count}]},
+                })
+                self.assertEqual(projection["incident_entry_count"], 1)
+                self.assertIsNone(projection["dimensions"]["snr"]["incident_occurrence_count"])
+                self.assertTrue(projection["partial"])
+        zero = project_client_health_detail_v2({"snr": {"incidents": [{"count": 0}]}})
+        self.assertEqual(zero["incident_entry_count"], 1)
+        self.assertEqual(zero["dimensions"]["snr"]["incident_occurrence_count"], 0)
 
     def test_unknown_fields_and_invalid_shapes_are_not_reported_as_complete(self) -> None:
         projection = project_client_health_detail_v2({"score": 87, "private": "do-not-return"})
