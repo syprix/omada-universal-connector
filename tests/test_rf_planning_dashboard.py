@@ -88,6 +88,46 @@ class RfPlanningDashboardTests(unittest.TestCase):
         self.assertNotIn("private-ap", repr(result))
         self.assertNotIn("AA:BB:CC:DD:EE:FF", repr(result))
 
+    def test_window_coverage_excludes_measurement_fields_from_dropped_points(self) -> None:
+        raw = {"wlanOptDashBoardDetail2g": band_fixture()}
+        cci = raw["wlanOptDashBoardDetail2g"]["cciTrendDetail"]["cciTrendItemList"]
+        cci[0] = {"time": 99}
+        cci.append({"time": 200, "strongInterferenceApNum": 1,
+                    "strongInterferenceApPercent": 10,
+                    "moderateInterferenceApNum": 2, "moderateInterferenceApPercent": 20,
+                    "weakInterferenceApNum": 7, "weakInterferenceApPercent": 70})
+        density = raw["wlanOptDashBoardDetail2g"]["apDensityTrendDetail"]["apDensityItemList"]
+        density[0]["time"] = 201
+
+        bounded = project_rf_planning_dashboard(raw, start_ms=100, end_ms=200)
+        band = bounded["data"]["bands"]["2g"]
+        self.assertEqual([p["time_ms"] for p in band["cci_trend"]], [200])
+        self.assertEqual(band["ap_density_trend"], [])
+        self.assertFalse(any("cciTrendItemList[0]." in field
+                             for field in bounded["missing_fields"]))
+        self.assertEqual(bounded["omitted_field_count"], 2)
+        self.assertIn("out_of_window_trend_points", bounded["omitted_fields"])
+
+        unbounded = project_rf_planning_dashboard(raw)
+        self.assertEqual(len(unbounded["data"]["bands"]["2g"]["cci_trend"]), 2)
+        self.assertTrue(any("cciTrendItemList[0].strongInterferenceApNum" in field
+                            for field in unbounded["missing_fields"]))
+
+    def test_window_keeps_missing_and_invalid_timestamp_handling(self) -> None:
+        raw = {"wlanOptDashBoardDetail2g": band_fixture()}
+        points = raw["wlanOptDashBoardDetail2g"]["cciTrendDetail"]["cciTrendItemList"]
+        valid = points[0]
+        points[:] = [{k: v for k, v in valid.items() if k != "time"},
+                     {**valid, "time": True}, {**valid, "time": 99},
+                     {**valid, "time": 100}]
+
+        result = project_rf_planning_dashboard(raw, start_ms=100, end_ms=200)
+        self.assertEqual([p["time_ms"] for p in
+                          result["data"]["bands"]["2g"]["cci_trend"]], [100])
+        self.assertEqual(result["omitted_field_count"], 5)
+        self.assertIn("missing_trend_time", result["omitted_fields"])
+        self.assertIn("invalid_trend_values", result["omitted_fields"])
+
     def test_current_dashboard_uses_fixed_24_hour_query_and_guard(self) -> None:
         client = OmadaOpenApiClient(OpenApiConfig(
             "https://controller.example", "ctrl", "client-id", "client-secret",
