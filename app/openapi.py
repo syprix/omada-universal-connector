@@ -1568,6 +1568,8 @@ class OmadaOpenApiClient:
     _CONTROLLER_GLOBAL_LOG_NOTIFICATION_PATH = "/openapi/v2/{controller_id}/log-notification"
     _CONTROLLER_UPGRADE_MODEL_LIST_PATH = "/openapi/v1/{controller_id}/upgrade/plan/models"
     _CONTROLLER_FIRMWARE_LIST_PATH = "/openapi/v1/{controller_id}/upgrade/firmwares"
+    _CONTROLLER_FIRMWARE_CRITICAL_MODEL_COUNT_PATH = (
+        "/openapi/v1/{controller_id}/upgrade/overview/critical")
     _SITE_LAN_MULTICASTS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/lan-multicasts"
     _SITE_BANDWIDTH_RULES_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/bandwidth-control/rules"
     _SITE_LOG_NOTIFICATION_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/site/log-notification"
@@ -2428,6 +2430,9 @@ class OmadaOpenApiClient:
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/upgrade/firmwares"
         r"\?page=(?:[1-9]|10)&pageSize=(?:[1-9]|[1-9][0-9]|100)"
     )
+    _CONTROLLER_FIRMWARE_CRITICAL_MODEL_COUNT_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/upgrade/overview/critical"
+    )
     _CONTROLLER_SCENARIOS_REQUEST = re.compile(
         r"/openapi/v1/[A-Za-z0-9_-]{1,128}/scenarios"
     )
@@ -3145,6 +3150,8 @@ class OmadaOpenApiClient:
         ("controller_global_log_notification_summary", "GET /v1/controller/log-notifications/summary"),
         ("controller_upgrade_model_list_summary", "GET /v1/controller/firmware-upgrade-models/summary"),
         ("controller_firmware_inventory_summary", "GET /v1/controller/firmware-inventory-summary"),
+        ("controller_firmware_critical_model_count",
+         "GET /v1/controller/firmware-critical-model-count/summary"),
         ("site_remote_logging_summary", "GET /v1/sites/{site_ref}/remote-logging/summary"),
         ("controller_upgrade_log_summary", "GET /v1/controller/firmware-upgrades/summary"),
         ("controller_upgrade_log_inventory", "GET /v1/controller/firmware-upgrades/inventory"),
@@ -10360,6 +10367,28 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         projected["page_size"] = page_size
         return {**projected, "status": "ok", "resource": "controller_firmware_inventory_summary"}
+
+    @_track_capability("controller_firmware_critical_model_count")
+    def read_controller_firmware_critical_model_count(self) -> dict[str, object]:
+        """Read the documented controller-wide critical-model count only."""
+        path = self._CONTROLLER_FIRMWARE_CRITICAL_MODEL_COUNT_PATH.format(
+            controller_id=self.config.controller_id)
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            from .controller_firmware_critical_model_count import (
+                ControllerFirmwareCriticalModelCountError, project_critical_model_count,
+            )
+        except ImportError:  # direct execution in the image
+            from controller_firmware_critical_model_count import (
+                ControllerFirmwareCriticalModelCountError, project_critical_model_count,
+            )
+        result = payload.get("result")
+        try:
+            projected = project_critical_model_count(result)
+        except ControllerFirmwareCriticalModelCountError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**projected, "status": "ok",
+                "resource": "controller_firmware_critical_model_count"}
 
     @_track_capability("site_remote_logging_summary")
     def read_site_remote_logging_summary(self, site_ref: str) -> dict[str, object]:
@@ -18224,6 +18253,7 @@ class OmadaOpenApiClient:
                                   self._controller_global_log_notification_request_valid(path) or
                                   self._controller_upgrade_model_list_request_valid(path) or
                                   self._controller_firmware_list_request_valid(path) or
+                                  self._controller_firmware_critical_model_count_request_valid(path) or
                                   self._CONTROLLER_SCENARIOS_REQUEST.fullmatch(path) or
                                   self._CONTROLLER_SCENARIO_DIFFERENCE_REQUEST.fullmatch(path) or
                                   self._controller_threat_severity_request_valid(path) or
@@ -19884,6 +19914,10 @@ class OmadaOpenApiClient:
 
     def _controller_firmware_list_request_valid(self, path: str) -> bool:
         match = self._CONTROLLER_FIRMWARE_LIST_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_firmware_critical_model_count_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_FIRMWARE_CRITICAL_MODEL_COUNT_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
 
     def _controller_device_statistics_request_valid(self, path: str) -> bool:
