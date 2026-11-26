@@ -574,8 +574,11 @@ def project_controller_adopt_tip(result: Any) -> dict[str, object]:
     return _project_adopt_tip_counts(result)
 
 
+MAX_CONTROLLER_CLIENT_CORRECTION_OPTIONS_PER_LIST = 1_200
+
+
 def project_controller_client_correction_options(result: Any) -> dict[str, object]:
-    """Project only the documented client correction option keys and labels."""
+    """Project documented client correction options with a route-local list bound."""
     if not isinstance(result, dict) or len(result) > 16:
         raise ControllerSystemStatusError("response_invalid")
 
@@ -600,7 +603,8 @@ def project_controller_client_correction_options(result: Any) -> dict[str, objec
             missing += 1
             continue
         rows = result[source]
-        if not isinstance(rows, list) or len(rows) > 128:
+        if (not isinstance(rows, list) or
+                len(rows) > MAX_CONTROLLER_CLIENT_CORRECTION_OPTIONS_PER_LIST):
             invalid += 1
             continue
         candidates: list[dict[str, str]] = []
