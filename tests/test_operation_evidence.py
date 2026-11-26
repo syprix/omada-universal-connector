@@ -142,8 +142,8 @@ class OperationEvidenceTests(unittest.TestCase):
         self.assertEqual(generated, expected)
         self.assertEqual(generated["operation_count"], 2445)
         self.assertEqual(generated["connector_evidence_counts"], {
-            "not_mapped": 1927,
-            "fixed_get_registry_route": 493,
+            "not_mapped": 1926,
+            "fixed_get_registry_route": 494,
             "manual_source_map_only": 25,
         })
         registry_rows = [row for row in generated["operations"]

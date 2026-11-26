@@ -807,6 +807,8 @@ A synthetic page of eight gateways, each with one WAN status record, measured 1,
 
 `omada_site_portal_logout_domain` reads the site-bound portal logout domain. The three source exports define `domain` as a string; two add a domain pattern, while one omits it and shows an empty-string example. The connector accepts any documented string, including empty, and does not infer or enforce a controller-specific pattern. Permission and live support are unspecified/unknown.
 
+`omada_site_portal_domain_setting_state` reads the separate portal `autoRefresh` setting. It returns the strict Boolean state and whether a nonempty URL was reported only when auto-refresh is explicitly false. The URL value, host and path are never returned; the URL field is not inspected when auto-refresh is enabled or unknown. Missing and invalid values remain distinct, and unknown fields are counted only. The source requires Network Config Page View Only; live support is unknown.
+
 
 `omada_site_wids_config` reads the site’s documented wireless IDS fields. It returns the enabled flag, the numeric detection level and optional detection codes. The source exports disagree about code 15, so the connector preserves int32 codes and does not enforce that enum list. Detection codes are required only when the level is Custom; permission and live support are unspecified/unknown.
 
