@@ -412,6 +412,9 @@ try:
     from .site_mac_filtering import (
         SiteMacFilteringError, project_site_mac_filtering_general_state,
     )
+    from .site_device_model_whitelist import (
+        SiteDeviceWhitelistError, summarize_site_device_whitelist,
+    )
     from .site_entity_summary import SiteEntitySummaryError, summarize_site_entity
     from .site_reboot_schedule_summary import (
         SiteRebootScheduleError, summarize_site_reboot_schedules,
@@ -623,6 +626,9 @@ except ImportError:  # direct execution in the image
     from site_setting_existence import SiteSettingExistenceError, project_site_setting_existence
     from site_mac_filtering import (
         SiteMacFilteringError, project_site_mac_filtering_general_state,
+    )
+    from site_device_model_whitelist import (
+        SiteDeviceWhitelistError, summarize_site_device_whitelist,
     )
     from site_entity_summary import SiteEntitySummaryError, summarize_site_entity
     from site_reboot_schedule_summary import (
@@ -1423,6 +1429,8 @@ class OmadaOpenApiClient:
         "/openapi/v1/{controller_id}/sites/{site_id}/session-limit")
     _SITE_MAC_FILTERING_GENERAL_STATE_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/mac-filter")
+    _SITE_DEVICE_MODEL_WHITELIST_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/device-white-list")
     _SITE_REBOOT_SCHEDULE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/reboot-schedules"
     _SITE_UPNP_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/upnp"
     _SITE_IOT_AGING_TIME_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/iot/aging-time"
@@ -3399,6 +3407,8 @@ class OmadaOpenApiClient:
          "GET /v1/sites/{site_ref}/session-limit/enable-state"),
         ("site_mac_filtering_general_state",
          "GET /v1/sites/{site_ref}/mac-filtering/general-state"),
+        ("site_device_model_whitelist_coverage",
+         "GET /v1/sites/{site_ref}/devices/model-whitelist-coverage"),
         ("site_switch_qos_mode", "GET /v1/sites/{site_ref}/switches/qos-mode"),
         ("site_switch_qos_scheduler_summary", "GET /v1/sites/{site_ref}/switches/qos/scheduler-summary"),
         ("site_switch_qos_dscp_summary", "GET /v1/sites/{site_ref}/switches/qos/dscp-summary"),
@@ -6523,6 +6533,20 @@ class OmadaOpenApiClient:
         except SiteMacFilteringError:
             raise OpenApiError("openapi_response_invalid") from None
         return {"status": "ok", "resource": "site_mac_filtering_general_state",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_device_model_whitelist_coverage")
+    def read_site_device_model_whitelist_coverage(self, site_ref: str) -> dict[str, object]:
+        """Read documented whitelist field coverage without values or identities."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_DEVICE_MODEL_WHITELIST_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = summarize_site_device_whitelist(result)
+        except SiteDeviceWhitelistError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_device_model_whitelist_coverage",
                 "site_ref": site_ref, **projected}
 
     @_track_capability("site_capabilities")
@@ -18224,6 +18248,7 @@ class OmadaOpenApiClient:
                                   self._site_entity_request_valid(path) or
                                   self._site_session_limit_request_valid(path) or
                                   self._site_mac_filtering_general_state_request_valid(path) or
+                                  self._site_device_model_whitelist_request_valid(path) or
                                   self._site_reboot_schedule_request_valid(path) or
                                   self._site_upnp_request_valid(path) or
                                   self._site_iot_aging_time_request_valid(path) or
@@ -19371,6 +19396,12 @@ class OmadaOpenApiClient:
     def _site_mac_filtering_general_state_request_valid(self, path: str) -> bool:
         match = re.fullmatch(
             r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/mac-filter",
+            path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_device_model_whitelist_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/device-white-list",
             path)
         return bool(match and match.group(1) == self.config.controller_id)
 

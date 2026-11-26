@@ -1382,6 +1382,21 @@ class FakeOpenApiClient:
                 "unknown_field_count": 0, "direction_invalid_field_count": 0,
                 "direction_unknown_field_count": 0, "partial": False}
 
+    def read_site_device_model_whitelist_coverage(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_device_model_whitelist_coverage", site_ref))
+        return {"status": "ok", "resource": "site_device_model_whitelist_coverage",
+                "site_ref": site_ref, "data": {
+                    "record_count": 0, "empty": True,
+                    "known_fields_complete_count": 0,
+                    "model_coverage": {"valid_count": 0, "missing_count": 0,
+                                       "invalid_count": 0, "uninspected_record_count": 0},
+                    "hardware_version_coverage": {
+                        "valid_count": 0, "missing_count": 0,
+                        "invalid_count": 0, "uninspected_record_count": 0},
+                    "unreadable_record_count": 0, "unknown_field_count": 0,
+                    "truncation_status": "not_reported_by_contract",
+                }, "partial": False}
+
     def read_site_capabilities(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_capabilities", site_ref))
         return {"status": "ok", "resource": "site_capabilities", "site_ref": site_ref,
@@ -6319,6 +6334,25 @@ class OpenApiHttpTests(unittest.TestCase):
             response["result"]["structuredContent"]["data"]["enabled"])
         self.assertEqual(self.fake.calls,
                          [("site_mac_filtering_general_state", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_site_device_model_whitelist_coverage(self) -> None:
+        site_ref = "a" * 24
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/devices/model-whitelist-coverage", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_device_model_whitelist_coverage")
+        self.assertTrue(response["data"]["empty"])
+        self.assertEqual(response["data"]["record_count"], 0)
+        request = {"jsonrpc": "2.0", "id": 156, "method": "tools/call",
+                   "params": {"name": "omada_site_device_model_whitelist_coverage",
+                              "arguments": {"site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        content = response["result"]["structuredContent"]
+        self.assertEqual(content["resource"], "site_device_model_whitelist_coverage")
+        self.assertEqual(content["data"]["record_count"], 0)
+        self.assertEqual(self.fake.calls,
+                         [("site_device_model_whitelist_coverage", site_ref)] * 2)
 
     def test_http_and_mcp_expose_site_capabilities(self) -> None:
         path = f"/v1/sites/{'a' * 24}/capabilities"

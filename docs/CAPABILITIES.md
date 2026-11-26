@@ -250,6 +250,15 @@ absent without inferring a target type. All three supplied API exports document
 the GET with `Site Settings Manager View Only`, `Device Config Page View Only`,
 or `Site Device Manager View Only` permission; live support remains unknown.
 
+`GET /v1/sites/{site_ref}/devices/model-whitelist-coverage` and MCP tool
+`omada_site_device_model_whitelist_coverage` summarize only returned record
+counts and coverage of the documented `model` and `hwVersion` strings. They
+never expose model/version values or device identities. A valid empty array is
+reported separately from malformed output. The API schema supplies no paging
+or truncation marker; a local limit rejects responses over 512 rows, and a
+valid response therefore does not establish server-side completeness or any
+authorization decision. Live support remains unknown.
+
 A synthetic delivery response with 20 device/stack entries measured 120 tokens
 before and 96 after projection (20% fewer) using `js-tiktoken` 1.0.21 /
 `o200k_base`; serialized payload only.
