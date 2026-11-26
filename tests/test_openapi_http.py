@@ -1397,6 +1397,23 @@ class FakeOpenApiClient:
                     "truncation_status": "not_reported_by_contract",
                 }, "partial": False}
 
+    def read_site_portal_inventory_coverage(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_portal_inventory_coverage", site_ref))
+        empty_coverage = {"present_count": 0, "missing_count": 0,
+                          "invalid_count": 0, "empty_count": 0,
+                          "entry_count": 0, "uninspected_portal_count": 0}
+        return {"status": "ok", "resource": "site_portal_inventory_coverage",
+                "site_ref": site_ref, "data": {
+                    "portal_count": 0, "empty": True,
+                    "activation_coverage": {
+                        "true_count": 0, "false_count": 0, "missing_count": 0,
+                        "invalid_count": 0, "uninspected_portal_count": 0},
+                    "ssid_list_coverage": dict(empty_coverage),
+                    "network_list_coverage": dict(empty_coverage),
+                    "unreadable_portal_count": 0,
+                    "truncation_status": "not_reported_by_contract",
+                }, "partial": False}
+
     def read_site_capabilities(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_capabilities", site_ref))
         return {"status": "ok", "resource": "site_capabilities", "site_ref": site_ref,
@@ -6353,6 +6370,25 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(content["data"]["record_count"], 0)
         self.assertEqual(self.fake.calls,
                          [("site_device_model_whitelist_coverage", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_site_portal_inventory_coverage(self) -> None:
+        site_ref = "a" * 24
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/portals/coverage", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_portal_inventory_coverage")
+        self.assertTrue(response["data"]["empty"])
+        self.assertEqual(response["data"]["portal_count"], 0)
+        request = {"jsonrpc": "2.0", "id": 157, "method": "tools/call",
+                   "params": {"name": "omada_site_portal_inventory_coverage",
+                              "arguments": {"site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        content = response["result"]["structuredContent"]
+        self.assertEqual(content["resource"], "site_portal_inventory_coverage")
+        self.assertEqual(content["data"]["portal_count"], 0)
+        self.assertEqual(self.fake.calls,
+                         [("site_portal_inventory_coverage", site_ref)] * 2)
 
     def test_http_and_mcp_expose_site_capabilities(self) -> None:
         path = f"/v1/sites/{'a' * 24}/capabilities"
