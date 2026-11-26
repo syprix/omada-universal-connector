@@ -64,6 +64,33 @@ class OperationRegistryTests(unittest.TestCase):
                          "/openapi/v1/{controller_id}/sites/{site_id}/mac-filter")
         self.assertEqual(dict(bindings), {"site_ref": site_ref})
 
+    def test_site_device_model_whitelist_coverage_maps_capability_route(self):
+        from app.openapi import OmadaOpenApiClient
+
+        operation = REGISTRY.get("site_device_model_whitelist_coverage")
+        tool = _tool(operation)
+        self.assertEqual(tool["inputSchema"]["required"], ["site_ref"])
+        self.assertTrue(tool["annotations"]["readOnlyHint"])
+        self.assertEqual(
+            dict(OmadaOpenApiClient.CAPABILITY_OPERATIONS)[
+                "site_device_model_whitelist_coverage"],
+            "GET /v1/sites/{site_ref}/devices/model-whitelist-coverage")
+
+    def test_site_device_model_whitelist_coverage_is_bound_to_selected_site(self):
+        operation = REGISTRY.get("site_device_model_whitelist_coverage")
+        tool = _tool(operation)
+        site_ref = "a" * 24
+        self.assertEqual(tool["inputSchema"]["required"], ["site_ref"])
+        self.assertEqual(tool["inputSchema"]["additionalProperties"], False)
+        self.assertTrue(tool["annotations"]["readOnlyHint"])
+        route, bindings = REGISTRY.match(
+            "GET", f"/v1/sites/{site_ref}/devices/model-whitelist-coverage")
+        self.assertEqual(route.operation_id, "site_device_model_whitelist_coverage")
+        self.assertEqual(route.upstream_method, "GET")
+        self.assertEqual(route.upstream_template,
+                         "/openapi/v1/{controller_id}/sites/{site_id}/device-white-list")
+        self.assertEqual(dict(bindings), {"site_ref": site_ref})
+
     def test_topology_snapshot_and_gateway_qos_profiles_are_site_bound(self):
         site_ref = "a" * 24
         cases = (
@@ -1187,6 +1214,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_entity_summary",
             "site_session_limit_enable_state",
             "site_mac_filtering_general_state",
+            "site_device_model_whitelist_coverage",
             "site_switch_qos_mode",
             "site_switch_qos_scheduler_summary",
             "site_switch_qos_dscp_summary",
