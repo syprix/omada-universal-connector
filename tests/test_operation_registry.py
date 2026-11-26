@@ -873,7 +873,7 @@ class OperationRegistryTests(unittest.TestCase):
                     if operation_id == "msp_device_link_topology" else
                     (("msp_ref", "msp-id_safe"),) if operation_id.startswith("msp_") else
                     (("site_ref", "a" * 24), ("family_id", "17")) if operation_id in {"site_category_application_summary", "site_category_client_summary"} else
-                    (("site_ref", "a" * 24),) if operation_id.startswith("site_switch_qos_") or operation_id in {"site_iot_aging_time", "site_iot_radio_summary", "site_mesh_summary", "site_multicast_rate_limit_summary", "site_beacon_control_summary", "site_iot_transmit_power_summary", "site_bluetooth_advertising_v2_summary", "site_remember_setting_summary", "site_client_connection_summary", "site_poe_usage_summary", "site_device_counts_summary", "site_ipsec_tunnel_summary", "site_client_association_time_summary", "site_network_activity_summary", "site_client_rssi_distribution_summary", "site_ap_rssi_density_summary", "site_client_attachment_distribution_summary", "site_client_frequency_distribution_summary", "site_device_traffic_summary", "site_past_client_summary", "site_current_client_summary", "site_gateway_isp_summary", "site_top_ap_retry_drop_summary", "site_active_ap_summary", "site_active_switch_summary", "site_device_memory_summary", "site_switch_dashboard_summary", "site_ap_interference_summary", "site_application_category_summary"} else ())
+                    (("site_ref", "a" * 24),) if operation_id.startswith("site_switch_qos_") or operation_id in {"site_iot_aging_time", "site_iot_radio_summary", "site_mesh_summary", "site_multicast_rate_limit_summary", "site_beacon_control_summary", "site_iot_transmit_power_summary", "site_bluetooth_advertising_v2_summary", "site_remember_setting_summary", "site_client_connection_summary", "site_poe_usage_summary", "site_device_counts_summary", "site_ipsec_tunnel_summary", "site_client_association_time_summary", "site_network_activity_summary", "site_client_rssi_distribution_summary", "site_ap_rssi_density_summary", "site_client_attachment_distribution_summary", "site_client_frequency_distribution_summary", "site_device_traffic_summary", "site_past_client_summary", "site_current_client_summary", "site_gateway_isp_summary", "site_top_ap_retry_drop_summary", "site_active_ap_summary", "site_active_switch_summary", "site_device_memory_summary", "site_switch_dashboard_summary", "site_ap_interference_summary", "site_application_category_summary", "site_application_family_inventory"} else ())
                 self.assertEqual(bindings, expected)
         op, bindings = REGISTRY.match("GET", "/v1/controller/devices/statistics")
         self.assertEqual(op.operation_id, "controller_device_statistics")
@@ -1234,6 +1234,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_switch_dashboard_summary",
             "site_ap_interference_summary",
             "site_application_category_summary",
+            "site_application_family_inventory",
             "site_category_application_summary",
             "site_category_client_summary",
             "site_active_application_summary",

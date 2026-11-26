@@ -1793,6 +1793,16 @@ A synthetic workflow with 20 failed-device rows measured 1,433 source-response t
 
 A synthetic 20-log response with 200 port-list entries measured 1,510 source-response tokens against 124 projected tokens (91.79% fewer) with the same tokenizer. It excludes prompts, tool schemas and billed agent usage.
 
+## Site application-family selectors
+
+`GET /v1/sites/{site_ref}/application-families` reads the documented site DPI
+family list. It returns only unique, valid nonnegative int32 family IDs as
+decimal `family_refs` for the existing category application/client readers.
+Family names, descriptions and raw rows are omitted. Invalid or duplicate
+entries make the result partial, and lists over 100 rows are rejected. The
+manufacturer documents view-only site permissions and requires a DPI-capable
+gateway; live support is unknown.
+
 ## All-time hotspot voucher summary
 
 `GET /v1/sites/{site_ref}/hotspot/vouchers/all-time-summary` reads the selected site's documented all-time hotspot voucher summary. It reports independent `voucher_counts` and `voucher_durations_minutes` maps for `current`, `inuse`, `expired`, `unused` and `created`. Missing values are `null`; `missing_fields` and `invalid_fields` identify each affected metric. Amount and currency source values are omitted. The output contains no voucher codes or user data and does not report revenue or derive relationships among category totals. `supportVoucherTrafficStat` is reported only as the documented capability flag; it is not a traffic measurement. Live support is unknown.
