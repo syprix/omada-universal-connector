@@ -67,6 +67,52 @@ class ClientHealthDetailV2ProjectionTests(unittest.TestCase):
         self.assertNotIn("secret", str(result))
         self.assertNotIn("00:11:22:33:44:55", str(result))
 
+    def test_series_values_use_documented_inclusive_integer_ranges(self) -> None:
+        result = project_client_health_detail_v2({
+            "snr": {"pastNums": [
+                {"time": 1000, "pastNum": -(2**31)},
+                {"time": 2000, "pastNum": 2**31 - 1},
+            ]},
+            "dataRate": {"pastTxRate": [
+                {"time": 1000, "pastNum": -(2**63)},
+                {"time": 2**63 - 1, "pastNum": 2**63 - 1},
+            ]},
+        })
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["dimensions"]["snr"]["series"]["values"]["minimum"], -(2**31))
+        self.assertEqual(result["dimensions"]["snr"]["series"]["values"]["maximum"], 2**31 - 1)
+        tx = result["dimensions"]["data_rate"]["series"]["transmit_rate"]
+        self.assertEqual(tx["minimum"], -(2**63))
+        self.assertEqual(tx["maximum"], 2**63 - 1)
+        self.assertEqual(tx["last_time_ms"], 2**63 - 1)
+
+    def test_value_above_int32_is_valid_only_in_documented_long_rate_series(self) -> None:
+        above_int32 = 2**31
+        result = project_client_health_detail_v2({
+            "snr": {"pastNums": [{"time": 1000, "pastNum": above_int32}]},
+            "dataRate": {
+                "pastTxRate": [{"time": 1000, "pastNum": above_int32}],
+                "pastRxRate": [{"time": 1000, "pastNum": above_int32}],
+            },
+        })
+        self.assertTrue(result["partial"])
+        self.assertEqual(result["invalid_entry_or_field_count"], 1)
+        self.assertEqual(result["dimensions"]["snr"]["series"]["values"]["sample_count"], 0)
+        rates = result["dimensions"]["data_rate"]["series"]
+        self.assertEqual(rates["transmit_rate"]["maximum"], above_int32)
+        self.assertEqual(rates["receive_rate"]["maximum"], above_int32)
+
+    def test_series_rejects_bool_and_malformed_shapes_without_coercion(self) -> None:
+        result = project_client_health_detail_v2({
+            "snr": {"pastNums": [True, {"time": 1000, "pastNum": True}]},
+            "linkErrorScore": {"pastNums": {"time": 1000, "pastNum": 1}},
+        })
+        self.assertTrue(result["partial"])
+        self.assertEqual(result["invalid_entry_or_field_count"], 2)
+        self.assertEqual(result["dimensions"]["snr"]["series"]["values"]["sample_count"], 0)
+        self.assertNotIn("pastNum", str(result))
+        self.assertNotIn("1000", str(result))
+
     def test_bounds_series_and_incidents_and_marks_partial(self) -> None:
         projection = project_client_health_detail_v2({
             "snr": {"pastNums": [
