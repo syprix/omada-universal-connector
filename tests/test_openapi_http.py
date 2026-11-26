@@ -1009,6 +1009,12 @@ class FakeOpenApiClient:
                 "plan_count": 0, "channel_counts": {}, "site_association_count": 0,
                 "partial": False}
 
+    def read_controller_firmware_pool_channel_counts(self) -> dict[str, object]:
+        self.calls.append(("controller_firmware_pool_channel_counts",))
+        return {"status": "ok", "resource": "controller_firmware_pool_channel_counts",
+                "channel_counts": {"stable": 0, "release_candidate": 2, "beta": 3},
+                "partial": False}
+
     def read_controller_firmware_inventory_summary(self) -> dict[str, object]:
         self.calls.append(("controller_firmware_inventory_summary",))
         return {"status": "ok", "resource": "controller_firmware_inventory_summary",
@@ -5795,6 +5801,19 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(response["result"]["structuredContent"], direct)
         self.assertEqual(self.fake.calls, [("controller_firmware_inventory_summary",)] * 2)
+
+    def test_http_and_mcp_expose_controller_firmware_pool_channel_counts(self) -> None:
+        path = "/v1/controller/firmware-pool-channel-counts/summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        request = {"jsonrpc": "2.0", "id": 260, "method": "tools/call",
+                   "params": {"name": "omada_controller_firmware_pool_channel_counts",
+                              "arguments": {}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("controller_firmware_pool_channel_counts",)] * 2)
 
     def test_http_and_mcp_expose_agile_switch_general_config_summary(self) -> None:
         site_ref, switch_ref = "a" * 24, "b" * 24

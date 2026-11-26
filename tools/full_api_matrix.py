@@ -38,6 +38,7 @@ IMPLEMENTED: dict[tuple[str, str], str] = {
     ("GET", "/openapi/v2/{controller_id}/log-notification"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/upgrade/plan/models"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/upgrade/firmwares"): "implemented_read",
+    ("GET", "/openapi/v1/{controller_id}/upgrade/overview/firmwares"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/global/gateways/wan-status"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/scenarios"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/scenarios/difference"): "implemented_read",

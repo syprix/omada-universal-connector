@@ -1587,6 +1587,8 @@ class OmadaOpenApiClient:
     _CONTROLLER_FIRMWARE_LIST_PATH = "/openapi/v1/{controller_id}/upgrade/firmwares"
     _CONTROLLER_FIRMWARE_CRITICAL_MODEL_COUNT_PATH = (
         "/openapi/v1/{controller_id}/upgrade/overview/critical")
+    _CONTROLLER_FIRMWARE_POOL_COUNTS_PATH = (
+        "/openapi/v1/{controller_id}/upgrade/overview/firmwares")
     _CONTROLLER_FIRMWARE_EMAIL_REMINDER_STATUS_PATH = (
         "/openapi/v1/{controller_id}/upgrade/overview/mail/reminder")
     _SITE_LAN_MULTICASTS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/lan-multicasts"
@@ -2468,6 +2470,10 @@ class OmadaOpenApiClient:
     _CONTROLLER_FIRMWARE_CRITICAL_MODEL_COUNT_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/upgrade/overview/critical"
     )
+    _CONTROLLER_FIRMWARE_POOL_COUNTS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/upgrade/overview/firmwares"
+        r"\?channel=0&page=1&pageSize=1"
+    )
     _CONTROLLER_FIRMWARE_EMAIL_REMINDER_STATUS_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/upgrade/overview/mail/reminder"
     )
@@ -3194,6 +3200,8 @@ class OmadaOpenApiClient:
         ("controller_firmware_inventory_summary", "GET /v1/controller/firmware-inventory-summary"),
         ("controller_firmware_critical_model_count",
          "GET /v1/controller/firmware-critical-model-count/summary"),
+        ("controller_firmware_pool_channel_counts",
+         "GET /v1/controller/firmware-pool-channel-counts/summary"),
         ("controller_firmware_email_reminder_status",
          "GET /v1/controller/firmware-email-reminder/status"),
         ("site_remote_logging_summary", "GET /v1/sites/{site_ref}/remote-logging/summary"),
@@ -10463,6 +10471,47 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {**projected, "status": "ok",
                 "resource": "controller_firmware_critical_model_count"}
+
+    @_track_capability("controller_firmware_pool_channel_counts")
+    def read_controller_firmware_pool_channel_counts(self) -> dict[str, object]:
+        """Read documented firmware pool counts using one fixed stable page."""
+        path = (self._CONTROLLER_FIRMWARE_POOL_COUNTS_PATH.format(
+            controller_id=self.config.controller_id) + "?channel=0&page=1&pageSize=1")
+        payload = self._request_json("GET", path, token=self._access_token())
+        result = payload.get("result")
+        if not isinstance(result, Mapping) or len(result) > 16:
+            raise OpenApiError("openapi_response_invalid")
+        data = result.get("data")
+        total = result.get("totalRows")
+        current_page = result.get("currentPage")
+        current_size = result.get("currentSize")
+        total_valid = type(total) is int and 0 <= total < (1 << 63)
+        page_valid = type(current_page) is int and 0 <= current_page < (1 << 31)
+        size_valid = type(current_size) is int and 0 <= current_size <= 1
+        empty_zero_page = (total_valid and total == 0 and page_valid and current_page == 0 and
+                           size_valid and current_size == 0 and data == [])
+        if (not isinstance(data, list) or len(data) > 1 or
+                any(not isinstance(row, Mapping) or len(row) > 16 for row in data) or
+                not total_valid or not page_valid or not size_valid or
+                (current_page != 1 and not empty_zero_page) or
+                len(data) > current_size or len(data) > total):
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            from .controller_firmware_pool_channel_counts import (
+                ControllerFirmwarePoolCountsError, project_firmware_pool_channel_counts,
+            )
+        except ImportError:  # direct execution in the image
+            from controller_firmware_pool_channel_counts import (
+                ControllerFirmwarePoolCountsError, project_firmware_pool_channel_counts,
+            )
+        try:
+            projected = project_firmware_pool_channel_counts(result.get("fwNum"))
+        except ControllerFirmwarePoolCountsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**projected, "status": "ok",
+                "resource": "controller_firmware_pool_channel_counts",
+                "page_row_count": len(data), "reported_page_total": total,
+                "page_rows_complete": len(data) >= total}
 
     @_track_capability("controller_firmware_email_reminder_status")
     def read_controller_firmware_email_reminder_status(self) -> dict[str, object]:
@@ -18432,6 +18481,7 @@ class OmadaOpenApiClient:
                                   self._controller_upgrade_model_list_request_valid(path) or
                                   self._controller_firmware_list_request_valid(path) or
                                   self._controller_firmware_critical_model_count_request_valid(path) or
+                                  self._controller_firmware_pool_channel_counts_request_valid(path) or
                                   self._controller_firmware_email_reminder_status_request_valid(path) or
                                   self._CONTROLLER_SCENARIOS_REQUEST.fullmatch(path) or
                                   self._CONTROLLER_SCENARIO_DIFFERENCE_REQUEST.fullmatch(path) or
@@ -20114,6 +20164,10 @@ class OmadaOpenApiClient:
 
     def _controller_firmware_critical_model_count_request_valid(self, path: str) -> bool:
         match = self._CONTROLLER_FIRMWARE_CRITICAL_MODEL_COUNT_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_firmware_pool_channel_counts_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_FIRMWARE_POOL_COUNTS_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
 
     def _controller_firmware_email_reminder_status_request_valid(self, path: str) -> bool:

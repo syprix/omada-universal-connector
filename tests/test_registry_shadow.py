@@ -43,6 +43,12 @@ class FakeClient:
         self.calls.append(("controller_health", None))
         return {"status": "ok", "resource": "controller_health", "data": {}}
 
+    def read_controller_firmware_pool_channel_counts(self):
+        self.calls.append(("controller_firmware_pool_channel_counts", None))
+        return {"status": "ok", "resource": "controller_firmware_pool_channel_counts",
+                "channel_counts": {"stable": 0, "release_candidate": 2, "beta": 3},
+                "partial": False}
+
     def read_controller_firmware_critical_model_count(self):
         self.calls.append(("controller_firmware_critical_model_count", None))
         return {"status": "ok", "resource": "controller_firmware_critical_model_count",
@@ -192,6 +198,8 @@ class RegistryShadowTests(unittest.TestCase):
             "/v1/controller/health": ("controller_health", None),
             "/v1/controller/firmware-critical-model-count/summary":
                 ("controller_firmware_critical_model_count", None),
+            "/v1/controller/firmware-pool-channel-counts/summary":
+                ("controller_firmware_pool_channel_counts", None),
             f"/v1/sites/{ref}/health/summary": ("site_overview", ref),
             f"/v1/sites/{ref}/health/timeline": ("site_health_timeline", ref),
             f"/v1/sites/{ref}/health/client/timeline": ("site_client_health_timeline", ref),
@@ -237,7 +245,7 @@ class RegistryShadowTests(unittest.TestCase):
                 self.assertEqual(body["resource"], call[0])
                 self.assertEqual(self.fake.calls[-1], call)
         # The fake is the only client supplied; no real upstream transport is constructed.
-        self.assertEqual(len(self.fake.calls), 25)
+        self.assertEqual(len(self.fake.calls), 26)
 
     def test_invalid_refs_queries_and_methods_are_rejected_by_both_layers(self):
         paths = (
