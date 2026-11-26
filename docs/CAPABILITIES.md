@@ -1814,6 +1814,17 @@ list. The result is reference data only and does not describe installed devices
 or imply current gateway support. The manufacturer documents Site Settings
 Manager View Only or Network Config Page View Only; live support is unknown.
 
+## Site voucher currency options
+
+`GET /v1/sites/{site_ref}/hotspot/voucher-currency-options` reads the
+documented `currencyList` and `selectedCurrency` short-code fields. It preserves
+the selected string separately from the candidate list, and distinguishes a
+missing or malformed list from a valid empty list. Candidate codes are bounded
+to 100 rows and 32 printable characters; duplicate and invalid values are
+counted. The result does not classify ISO currencies, provide exchange rates or
+prices, or change voucher settings. The source requires Site Hotspot Manager
+View Only; live support is unknown.
+
 ## All-time hotspot voucher summary
 
 `GET /v1/sites/{site_ref}/hotspot/vouchers/all-time-summary` reads the selected site's documented all-time hotspot voucher summary. It reports independent `voucher_counts` and `voucher_durations_minutes` maps for `current`, `inuse`, `expired`, `unused` and `created`. Missing values are `null`; `missing_fields` and `invalid_fields` identify each affected metric. Amount and currency source values are omitted. The output contains no voucher codes or user data and does not report revenue or derive relationships among category totals. `supportVoucherTrafficStat` is reported only as the documented capability flag; it is not a traffic measurement. Live support is unknown.

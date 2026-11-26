@@ -1420,6 +1420,8 @@ class OmadaOpenApiClient:
     _SITE_VOUCHER_ALL_TIME_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/hotspot/vouchers/statistics/summary"
     )
+    _SITE_VOUCHER_CURRENCY_OPTIONS_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/hotspot/voucher-groups/currency-list")
     _SITE_IOT_TRANSMIT_POWER_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/iot/radio/transmit-power"
     _SITE_BLUETOOTH_ADVERTISING_V2_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/setting/iot/devices/config"
     _SITE_REMEMBER_SETTING_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/remember-device"
@@ -1982,6 +1984,10 @@ class OmadaOpenApiClient:
     _SITE_VOUCHER_ALL_TIME_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
         r"/hotspot/vouchers/statistics/summary"
+    )
+    _SITE_VOUCHER_CURRENCY_OPTIONS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/hotspot/voucher-groups/currency-list"
     )
     _SITE_ES_NETWORK_OVERVIEW_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
@@ -3172,6 +3178,7 @@ class OmadaOpenApiClient:
         ("site_bandwidth_rules_summary", "GET /v1/sites/{site_ref}/bandwidth-control-rules/summary"),
         ("site_log_notification_summary", "GET /v1/sites/{site_ref}/log-notification-summary"),
         ("site_voucher_all_time_summary", "GET /v1/sites/{site_ref}/hotspot/vouchers/all-time-summary"),
+        ("site_voucher_currency_options", "GET /v1/sites/{site_ref}/hotspot/voucher-currency-options"),
         ("site_lan_network_interface_summary", "GET /v1/sites/{site_ref}/lan-network-interfaces/summary"),
         ("controller_upgrade_plans_summary", "GET /v1/controller/firmware-upgrade-plans/summary"),
         ("controller_try_beta_settings_summary", "GET /v1/controller/firmware-preview-settings/summary"),
@@ -10019,6 +10026,30 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {"status": "ok", "resource": "site_voucher_all_time_summary",
                 "site_ref": site_ref, **summary}
+
+    @_track_capability("site_voucher_currency_options")
+    def read_site_voucher_currency_options(self, site_ref: str) -> dict[str, object]:
+        """Read documented voucher currency short-code options for one site."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_VOUCHER_CURRENCY_OPTIONS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if not isinstance(payload, Mapping) or payload.get("errorCode") != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            from .site_voucher_currency_options import (
+                SiteVoucherCurrencyOptionsError, project_site_voucher_currency_options,
+            )
+        except ImportError:  # direct execution in the image
+            from site_voucher_currency_options import (
+                SiteVoucherCurrencyOptionsError, project_site_voucher_currency_options,
+            )
+        try:
+            projected = project_site_voucher_currency_options(payload.get("result"))
+        except SiteVoucherCurrencyOptionsError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_voucher_currency_options",
+                "site_ref": site_ref, **projected}
 
     @_track_capability("site_lan_network_interface_summary")
     def read_site_lan_network_interface_summary(
@@ -18059,6 +18090,7 @@ class OmadaOpenApiClient:
                                   self._site_static_route_interface_options_request_valid(path) or
                                   self._site_nat_exception_request_valid(path) or
                                   self._site_voucher_all_time_request_valid(path) or
+                                  self._site_voucher_currency_options_request_valid(path) or
                                   self._site_switch_port_detail_request_valid(path) or
                                   self._site_es_network_overview_request_valid(path) or
                                   self._site_es_general_config_request_valid(path) or
@@ -19465,6 +19497,10 @@ class OmadaOpenApiClient:
 
     def _site_voucher_all_time_request_valid(self, path: str) -> bool:
         match = self._SITE_VOUCHER_ALL_TIME_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_voucher_currency_options_request_valid(self, path: str) -> bool:
+        match = self._SITE_VOUCHER_CURRENCY_OPTIONS_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
 
     def _site_es_network_overview_request_valid(self, path: str) -> bool:
