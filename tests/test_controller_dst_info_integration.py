@@ -12,13 +12,16 @@ class ControllerDstInfoIntegrationTests(unittest.TestCase):
 
     def test_fixed_route_and_projected_dst_settings(self):
         raw = {"enable": False, "status": False, "mode": 0, "offset": 3_600_000,
-               "timeZone": "Europe/Berlin"}
+               "timeZone": "Europe/Berlin", "startTime": 123, "endTime": 456}
         with patch.object(self.client, "_access_token", return_value="token"), \
                 patch.object(self.client, "_request_json", return_value={"result": raw}) as request:
             result = self.client.read_controller_dst_info()
         request.assert_called_once_with("GET", "/openapi/v1/ctrl/dst-info", token="token")
         self.assertEqual(result["resource"], "controller_dst_info")
         self.assertFalse(result["data"]["settings"]["enabled"])
+        self.assertEqual(result["data"]["timestamps_ms"], {
+            "startTime": 123, "endTime": 456})
+        self.assertNotIn("timestamps_unit_unspecified", result["data"])
         evidence = next(item for item in self.client.capabilities()["items"]
                         if item["operation"] == "controller_dst_info")["runtime_evidence"][0]
         self.assertFalse(evidence["controller_response_observed"])

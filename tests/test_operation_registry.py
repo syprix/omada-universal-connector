@@ -1032,6 +1032,7 @@ class OperationRegistryTests(unittest.TestCase):
             "controller_ui_interface",
             "controller_retention",
             "controller_dst_info",
+            "site_dst_info",
             "controller_experience_improvement",
             "controller_client_detail_info",
             "controller_general_settings",

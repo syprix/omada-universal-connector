@@ -137,6 +137,16 @@ class FakeOpenApiClient:
                          "missing_count": 12, "invalid_count": 0,
                          "unknown_field_count": 0}, "partial": False}
 
+    def read_site_dst_info(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_dst_info", site_ref))
+        return {"status": "ok", "resource": "site_dst_info", "site_ref": site_ref,
+                "data": {"settings": {"enabled": False}, "time_rules": {},
+                         "timestamps_ms": {"nextStart": 456},
+                         "timestamps_unit_unspecified": {"startTime": 123},
+                         "present_count": 2,
+                         "missing_count": 12, "invalid_count": 0,
+                         "unknown_field_count": 0}, "partial": False}
+
     def read_controller_experience_improvement(self) -> dict[str, object]:
         self.calls.append(("controller_experience_improvement", None))
         return {"status": "ok", "resource": "controller_experience_improvement",
@@ -7101,6 +7111,28 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(response["result"]["structuredContent"]["resource"],
                          "controller_dst_info")
         self.assertEqual(self.fake.calls, [("controller_dst_info", None)] * 2)
+
+    def test_http_and_mcp_expose_site_dst_info(self) -> None:
+        site_ref = "a" * 24
+        status, response = self.request(f"/v1/sites/{site_ref}/dst-info", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_dst_info")
+        self.assertEqual(response["site_ref"], site_ref)
+        self.assertEqual(response["data"]["timestamps_unit_unspecified"], {"startTime": 123})
+        self.assertEqual(response["data"]["timestamps_ms"], {"nextStart": 456})
+        self.assertFalse(response["partial"])
+        request = {"jsonrpc": "2.0", "id": 94, "method": "tools/call",
+                   "params": {"name": "omada_site_dst_info", "arguments": {
+                       "site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"]["resource"], "site_dst_info")
+        self.assertEqual(response["result"]["structuredContent"]["data"][
+            "timestamps_unit_unspecified"], {"startTime": 123})
+        self.assertEqual(response["result"]["structuredContent"]["data"][
+            "timestamps_ms"], {"nextStart": 456})
+        self.assertEqual(self.fake.calls,
+                         [("site_dst_info", site_ref), ("site_dst_info", site_ref)])
 
     def test_http_and_mcp_expose_controller_experience_improvement(self) -> None:
         status, response = self.request(

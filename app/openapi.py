@@ -562,7 +562,7 @@ try:
     from .controller_retention import (
         ControllerRetentionError, project_controller_retention,
     )
-    from .controller_dst_info import ControllerDstError, project_controller_dst
+    from .controller_dst_info import ControllerDstError, project_controller_dst, project_site_dst
     from .controller_experience_improvement import (
         ControllerExperienceImprovementError,
         project_controller_experience_improvement,
@@ -771,7 +771,7 @@ except ImportError:  # direct execution in the image
     from controller_retention import (
         ControllerRetentionError, project_controller_retention,
     )
-    from controller_dst_info import ControllerDstError, project_controller_dst
+    from controller_dst_info import ControllerDstError, project_controller_dst, project_site_dst
     from controller_experience_improvement import (
         ControllerExperienceImprovementError,
         project_controller_experience_improvement,
@@ -1354,6 +1354,7 @@ class OmadaOpenApiClient:
     _CONTROLLER_UI_INTERFACE_PATH = "/openapi/v1/{controller_id}/controller/setting/ui-interface"
     _CONTROLLER_RETENTION_PATH = "/openapi/v1/{controller_id}/controller/setting/retention"
     _CONTROLLER_DST_PATH = "/openapi/v1/{controller_id}/dst-info"
+    _SITE_DST_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dst-info"
     _CONTROLLER_EXPERIENCE_PATH = "/openapi/v1/{controller_id}/global/controller/setting/exp-improve"
     _CONTROLLER_CLIENT_DETAIL_INFO_PATH = "/openapi/v1/{controller_id}/client-detail-information"
     _CONTROLLER_GENERAL_SETTINGS_PATH = "/openapi/v1/{controller_id}/global/controller/setting/general"
@@ -2486,6 +2487,9 @@ class OmadaOpenApiClient:
     _CONTROLLER_DST_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/dst-info"
     )
+    _SITE_DST_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/([A-Za-z0-9_-]{1,128})/dst-info"
+    )
     _CONTROLLER_EXPERIENCE_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/global/controller/setting/exp-improve"
     )
@@ -3256,6 +3260,7 @@ class OmadaOpenApiClient:
         ("controller_ui_interface", "GET /v1/controller/settings/ui-interface"),
         ("controller_retention", "GET /v1/controller/settings/retention"),
         ("controller_dst_info", "GET /v1/controller/dst-info"),
+        ("site_dst_info", "GET /v1/sites/{site_ref}/dst-info"),
         ("controller_experience_improvement", "GET /v1/controller/settings/experience-improvement"),
         ("controller_client_detail_info", "GET /v1/controller/client-detail-information"),
         ("controller_general_settings", "GET /v1/controller/settings/general"),
@@ -12807,6 +12812,20 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {"status": "ok", "resource": "controller_dst_info", **projected}
 
+    @_track_capability("site_dst_info")
+    def read_site_dst_info(self, site_ref: str) -> dict[str, object]:
+        """Read the selected site's documented DST fields."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_DST_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_site_dst(result)
+        except ControllerDstError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_dst_info",
+                "site_ref": site_ref, **projected}
+
     @_track_capability("controller_experience_improvement")
     def read_controller_experience_improvement(self) -> dict[str, object]:
         """Read the controller's user experience improvement participation flag."""
@@ -18295,6 +18314,7 @@ class OmadaOpenApiClient:
                                   self._controller_ui_interface_request_valid(path) or
                                   self._controller_retention_request_valid(path) or
                                   self._controller_dst_request_valid(path) or
+                                  self._site_dst_request_valid(path) or
                                   self._controller_experience_request_valid(path) or
                                   self._controller_client_detail_info_request_valid(path) or
                                   self._controller_general_settings_request_valid(path) or
@@ -20023,6 +20043,10 @@ class OmadaOpenApiClient:
 
     def _controller_dst_request_valid(self, path: str) -> bool:
         match = self._CONTROLLER_DST_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_dst_request_valid(self, path: str) -> bool:
+        match = self._SITE_DST_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
 
     def _controller_experience_request_valid(self, path: str) -> bool:

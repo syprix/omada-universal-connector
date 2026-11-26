@@ -1346,6 +1346,14 @@ document the same response; they state no specific permission. Fixture tests cov
 the exact GET, controller binding, validation and HTTP/MCP dispatch. No live
 response has been observed.
 
+`GET /v1/sites/{site_ref}/dst-info` is the separate documented site-scoped DST
+read. It binds the opaque site reference through the current site inventory and
+reuses the same bounded DST projector, including its timestamp and timezone
+validation. The exports describe `timeZone` as the site's timezone; they do not
+document inheritance from controller settings or a required permission. The
+result reports only the selected site's documented response fields. Fixture
+coverage exists; live support is unknown.
+
 
 Controller experience-improvement participation is available at
 `GET /v1/controller/settings/experience-improvement`. The route returns only
