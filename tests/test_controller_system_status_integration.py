@@ -24,6 +24,29 @@ class ControllerSystemStatusIntegrationTests(unittest.TestCase):
                             "controller_remote_binding", {"enable": False})
         self.assertFalse(result["data"]["enabled"])
 
+    def test_controller_adopt_tip_fixed_route_and_count_projection(self):
+        result = self._read(
+            "read_controller_device_adoption_tip_summary",
+            "/openapi/v1/ctrl/adopt-tip",
+            "controller_device_adoption_tip_summary",
+            {"adoptDeviceNum": 3, "recommendDeviceNum": 2,
+             "deviceList": [{"name": "private-device"}]})
+        self.assertEqual(result["data"], {
+            "adopted_device_count": 3, "recommended_device_count": 2,
+        })
+        self.assertEqual(result["unknown_field_count"], 1)
+        self.assertNotIn("private-device", repr(result))
+
+    def test_controller_adopt_tip_invalid_projection_is_redacted(self):
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={
+                    "result": {"adoptDeviceNum": None, "recommendDeviceNum": True}}):
+            result = self.client.read_controller_device_adoption_tip_summary()
+        self.assertEqual(result["data"], {})
+        self.assertEqual(result["invalid_field_count"], 2)
+        self.assertTrue(result["partial"])
+        self.assertNotIn("None", repr(result))
+
     def test_backup_result_fixed_route(self):
         result = self._read("read_controller_backup_result",
                             "/openapi/v1/ctrl/maintenance/backup/result",

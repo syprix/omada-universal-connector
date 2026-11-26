@@ -185,6 +185,13 @@ class FakeOpenApiClient:
                          "present_count": 3, "missing_count": 0,
                          "invalid_count": 0, "unknown_field_count": 0}, "partial": False}
 
+    def read_controller_device_adoption_tip_summary(self) -> dict[str, object]:
+        self.calls.append(("controller_device_adoption_tip_summary", None))
+        return {"status": "ok", "resource": "controller_device_adoption_tip_summary",
+                "data": {"adopted_device_count": 0, "recommended_device_count": 2},
+                "missing_field_count": 0, "invalid_field_count": 0,
+                "unknown_field_count": 0, "partial": False}
+
     def read_controller_backup_schedule(self) -> dict[str, object]:
         self.calls.append(("controller_backup_schedule", None))
         return {"status": "ok", "resource": "controller_backup_schedule",
@@ -7304,6 +7311,25 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(response["result"]["structuredContent"]["resource"],
                          "controller_device_access")
         self.assertEqual(self.fake.calls, [("controller_device_access", None)] * 2)
+
+    def test_http_and_mcp_expose_controller_device_adoption_tip_counts(self) -> None:
+        status, response = self.request(
+            "/v1/controller/device-adoption-tip/summary", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "controller_device_adoption_tip_summary")
+        self.assertEqual(response["data"], {
+            "adopted_device_count": 0, "recommended_device_count": 2,
+        })
+        request = {"jsonrpc": "2.0", "id": 98, "method": "tools/call",
+                   "params": {"name": "omada_controller_device_adoption_tip_summary",
+                              "arguments": {}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        structured = response["result"]["structuredContent"]
+        self.assertEqual(structured["resource"], "controller_device_adoption_tip_summary")
+        self.assertEqual(structured["data"]["adopted_device_count"], 0)
+        self.assertEqual(self.fake.calls,
+                         [("controller_device_adoption_tip_summary", None)] * 2)
 
     def test_http_and_mcp_expose_backup_schedule_summary(self) -> None:
         status, response = self.request("/v1/controller/settings/backup-schedule", self.token)
