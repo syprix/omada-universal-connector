@@ -60,6 +60,9 @@ class McpTests(unittest.TestCase):
         self.assertTrue(switch_anomalies["annotations"]["readOnlyHint"])
         self.assertFalse(switch_anomalies["annotations"]["destructiveHint"])
         self.assertIn("does not provide drop counts", switch_anomalies["description"])
+        self.assertIn("same portStatus fields and int64 txErrors/rxErrors",
+                      switch_anomalies["description"])
+        self.assertNotIn("only in the ER7212PC export", switch_anomalies["description"])
         outage_overlap = next(item for item in all_tools
                               if item["name"] == "omada_site_client_outage_overlap_summary")
         self.assertTrue(outage_overlap["annotations"]["readOnlyHint"])
