@@ -146,6 +146,20 @@ class ControllerSystemStatusTests(unittest.TestCase):
         for omitted in ("private-icon", "do-not-return", "icon", "privateExtra"):
             self.assertNotIn(omitted, repr(result))
 
+    def test_controller_client_correction_accepts_schema_valid_empty_and_padded_strings(self):
+        result = project_controller_client_correction_options({
+            "typeList": [{"key": "", "name": ""},
+                         {"key": "  padded key  ", "name": "  padded label  "}],
+            "vendorList": [],
+        })
+        self.assertEqual(result["data"]["type_options"], [
+            {"key": "", "label": ""},
+            {"key": "  padded key  ", "label": "  padded label  "},
+        ])
+        self.assertEqual(result["invalid_field_count"], 0)
+        self.assertEqual(result["missing_field_count"], 0)
+        self.assertFalse(result["partial"])
+
     def test_controller_client_correction_empty_lists_are_complete(self):
         result = project_controller_client_correction_options({
             "typeList": [], "vendorList": [],
@@ -189,9 +203,10 @@ class ControllerSystemStatusTests(unittest.TestCase):
             "vendorList": [],
         })
         self.assertEqual(result["data"]["type_options"], [
+            {"key": "", "label": "Empty key"},
             {"key": "valid", "label": "Bad icon"},
         ])
-        self.assertEqual(result["invalid_field_count"], 3)
+        self.assertEqual(result["invalid_field_count"], 2)
         self.assertEqual(result["missing_field_count"], 1)
         oversized = project_controller_client_correction_options({
             "typeList": [{"key": "k", "name": "n"}] * 129,

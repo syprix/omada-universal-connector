@@ -588,8 +588,6 @@ def project_controller_client_correction_options(result: Any) -> dict[str, objec
     def bounded_text(value: object, max_chars: int) -> bool:
         if not isinstance(value, str) or len(value) > max_chars:
             return False
-        if not value or value != value.strip():
-            return False
         try:
             value.encode("utf-8", errors="strict")
         except UnicodeEncodeError:
