@@ -533,6 +533,9 @@ try:
     from .site_wifi_calling_profiles_summary import (
         WifiCallingProfilesError, project_site_wifi_calling_profiles_summary,
     )
+    from .site_wifi_calling_top_ssid_summary import (
+        WifiCallingTopSsidError, project_site_wifi_calling_top_ssid_summary,
+    )
     from .site_client_filter_options_summary import (
         ClientFilterOptionsError, project_site_client_filter_options_summary,
     )
@@ -754,6 +757,9 @@ except ImportError:  # direct execution in the image
     )
     from site_wifi_calling_profiles_summary import (
         WifiCallingProfilesError, project_site_wifi_calling_profiles_summary,
+    )
+    from site_wifi_calling_top_ssid_summary import (
+        WifiCallingTopSsidError, project_site_wifi_calling_top_ssid_summary,
     )
     from site_client_filter_options_summary import (
         ClientFilterOptionsError, project_site_client_filter_options_summary,
@@ -3653,6 +3659,7 @@ class OmadaOpenApiClient:
         ("site_vlan_port_support_summary", "GET /v1/sites/{site_ref}/networks/{network_ref}/vlan-port-support/summary"),
         ("site_vlan_affected_ports_summary", "GET /v1/sites/{site_ref}/networks/{network_ref}/vlans/affected-ports-summary"),
         ("site_wifi_calling_profiles_summary", "GET /v1/sites/{site_ref}/wifi-calling/profiles/summary"),
+        ("site_wifi_calling_top_ssid_summary", "GET /v1/sites/{site_ref}/wifi-calling/top-ssid/summary"),
         ("site_client_filter_options_summary", "GET /v1/sites/{site_ref}/clients/filter-options/summary"),
         ("site_eap_dot1x_candidates_summary", "GET /v1/sites/{site_ref}/dot1x/eap-candidates/summary"),
         ("site_switch_dot1x_candidates_summary", "GET /v1/sites/{site_ref}/dot1x/switch-candidates/summary"),
@@ -7564,6 +7571,37 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {"status": "ok", "resource": "site_wifi_calling_profiles_summary",
                 "site_ref": site_ref, **summary}
+
+    @_track_capability("site_wifi_calling_top_ssid_summary")
+    def read_site_wifi_calling_top_ssid_summary(self, site_ref: str) -> dict[str, object]:
+        """Read only the documented top-SSID aggregate for the trailing 24h."""
+        site_id = self._resolve_site_ref(site_ref)
+        end_seconds = int(time.time())
+        start_seconds = end_seconds - 86_400
+        if not 0 < start_seconds < end_seconds <= 2**63 - 1:
+            raise OpenApiError("query_arguments_invalid")
+        query = urlencode((
+            ("filters.timeStart", str(start_seconds)),
+            ("filters.timeEnd", str(end_seconds)),
+            ("topK", "10"),
+            ("queryTopSsid", "true"),
+            ("queryTopEPDG", "false"),
+            ("queryClients", "false"),
+            ("queryClientsByMac", "false"),
+            ("page", "1"),
+            ("pageSize", "1"),
+        ))
+        path = (f"/openapi/v1/{self.config.controller_id}/sites/{site_id}/profiles/"
+                f"wifi-calling/grid/summary?{query}")
+        if not self._site_wifi_calling_top_ssid_request_valid(path):
+            raise OpenApiError("query_arguments_invalid")
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            summary = project_site_wifi_calling_top_ssid_summary(result)
+        except WifiCallingTopSsidError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_wifi_calling_top_ssid_summary",
+                **summary}
 
     @_track_capability("site_client_filter_options_summary")
     def read_site_client_filter_options_summary(self, site_ref: str) -> dict[str, object]:
@@ -18543,6 +18581,7 @@ class OmadaOpenApiClient:
                                   self._site_vlan_ssid_usage_request_valid(path) or
                                   self._site_vlan_device_usage_request_valid(path) or
                                   self._site_wifi_calling_profiles_request_valid(path) or
+                                  self._site_wifi_calling_top_ssid_request_valid(path) or
                                   self._site_client_filter_options_request_valid(path) or
                                   self._site_eap_dot1x_candidates_request_valid(path) or
                                   self._site_switch_dot1x_candidates_request_valid(path) or
@@ -21217,6 +21256,30 @@ class OmadaOpenApiClient:
             r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
             r"/profiles/wifi-calling", path)
         return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_wifi_calling_top_ssid_request_valid(self, path: str) -> bool:
+        parsed = urlsplit(path)
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+            r"/profiles/wifi-calling/grid/summary", parsed.path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        pairs = parse_qsl(parsed.query, keep_blank_values=True)
+        if len(pairs) != 9 or len({key for key, _ in pairs}) != 9:
+            return False
+        params = dict(pairs)
+        if any(params.get(key) != value for key, value in {
+                "topK": "10", "queryTopSsid": "true", "queryTopEPDG": "false",
+                "queryClients": "false", "queryClientsByMac": "false",
+                "page": "1", "pageSize": "1"}.items()):
+            return False
+        start_raw, end_raw = params.get("filters.timeStart"), params.get("filters.timeEnd")
+        if (not isinstance(start_raw, str) or not re.fullmatch(r"[1-9][0-9]{0,18}", start_raw) or
+                not isinstance(end_raw, str) or not re.fullmatch(r"[1-9][0-9]{0,18}", end_raw)):
+            return False
+        start, end = int(start_raw), int(end_raw)
+        return (start <= 2**63 - 1 and end <= 2**63 - 1 and
+                end > start and end - start == 86_400)
 
     def _site_client_filter_options_request_valid(self, path: str) -> bool:
         match = re.fullmatch(

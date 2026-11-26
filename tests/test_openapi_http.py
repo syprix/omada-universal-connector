@@ -1661,6 +1661,12 @@ class FakeOpenApiClient:
         return {"status": "ok", "resource": "site_wifi_calling_profiles_summary",
                 "profile_count": 2, "carrier_count": 1, "partial": False}
 
+    def read_site_wifi_calling_top_ssid_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_wifi_calling_top_ssid_summary", site_ref))
+        return {"status": "ok", "resource": "site_wifi_calling_top_ssid_summary",
+                "top_ssid_source_state": "present", "top_ssid_row_count": 1,
+                "documented_field_observed_count": 19, "partial": False}
+
     def read_site_client_filter_options_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_client_filter_options_summary", site_ref))
         return {"status": "ok", "resource": "site_client_filter_options_summary",
@@ -10695,6 +10701,25 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(body["resource"], "site_wifi_calling_profiles_summary")
         self.assertEqual(self.fake.calls[-1], ("site_wifi_calling_profiles_summary", site_ref))
+
+    def test_site_wifi_calling_top_ssid_summary_is_available_over_http_and_mcp(self) -> None:
+        site_ref = "a" * 24
+        status, body = self.request(
+            f"/v1/sites/{site_ref}/wifi-calling/top-ssid/summary", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(body["resource"], "site_wifi_calling_top_ssid_summary")
+        self.assertEqual(self.fake.calls[-1], ("site_wifi_calling_top_ssid_summary", site_ref))
+        status, response = self.request_post("/mcp", {
+            "jsonrpc": "2.0", "id": 394, "method": "tools/call",
+            "params": {"name": "omada_site_wifi_calling_top_ssid_summary",
+                       "arguments": {"site_ref": site_ref}},
+        }, self.token)
+        self.assertEqual(status, 200)
+        self.assertNotIn("isError", response)
+        self.assertEqual(response["result"]["structuredContent"]["resource"],
+                         "site_wifi_calling_top_ssid_summary")
+        self.assertEqual(self.fake.calls[-1],
+                         ("site_wifi_calling_top_ssid_summary", site_ref))
         status, response = self.request_post("/mcp", {
             "jsonrpc": "2.0", "id": 393, "method": "tools/call",
             "params": {"name": "omada_site_wifi_calling_profiles_summary",

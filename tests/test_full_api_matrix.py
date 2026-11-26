@@ -3317,6 +3317,29 @@ class FullApiMatrixTests(unittest.TestCase):
             self.assertEqual(operation["contract_review"]["tag"], "Application Control")
             self.assertIn("trailing 24-hour", operation["contract_review"]["query"]["dateEnd"])
 
+    def test_site_wifi_calling_top_ssid_reader_has_common_bounded_seconds_contract(self) -> None:
+        self.assertEqual(
+            IMPLEMENTED[("GET", "/openapi/v1/{controller_id}/sites/{site_id}/profiles/wifi-calling/grid/summary")],
+            "implemented_read",
+        )
+        path = Path(__file__).resolve().parents[1] / "docs/CONTRACT_MATRIX.json"
+        matrix = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(len(matrix["sources"]), 3)
+        for source in matrix["sources"]:
+            operation = source["operations"]["site_wifi_calling_top_ssid_summary"]
+            self.assertTrue(operation["documented"])
+            self.assertEqual(operation["live_support"], "unknown")
+            review = operation["contract_review"]
+            self.assertEqual(review["operation_id"], "getGridWifiCallingTrafficResult")
+            self.assertEqual(review["query"]["queryTopSsid"], True)
+            self.assertEqual(review["query"]["queryTopEPDG"], False)
+            self.assertEqual(review["query"]["queryClients"], False)
+            self.assertEqual(review["query"]["queryClientsByMac"], False)
+            self.assertIn("int64 Unix seconds", review["query"]["filters.timeStart"])
+            self.assertIn("topKSsids", review["response"])
+            self.assertIn("no unit stated", review["response"])
+            self.assertIn("No server-completeness", review["connector_projection"])
+
     def test_site_wan_lan_status_summary_matches_all_source_exports(self) -> None:
         matrix = json.loads((Path(__file__).resolve().parents[1] /
                              "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
