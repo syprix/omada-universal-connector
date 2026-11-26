@@ -271,7 +271,7 @@ def summarize_site_poe_schedule(
         "switches_scanned": len(selected_refs),
         "switches_omitted_device_limit": omitted,
         "ambiguous_switch_count": len(ambiguous),
-        "source_contract": "detailed_fields_are_resolved_only_in_ER7212PC_export",
+        "source_contract": "detailed_feed_fields_documented_in_all_three_exports; descriptions_and_numeric_wrappers_vary",
         "live_support": "unknown",
         "power_budget_units": "watts_documented_for_used_and_capacity_values_only",
         "port_measurement_units": "unspecified; values are not compared with rated capacity",

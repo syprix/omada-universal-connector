@@ -25,6 +25,9 @@ class SitePoeScheduleSummaryTests(unittest.TestCase):
               "nextExecute": 123}],
             [{"profileId": "profile-secret", "name": "secret profile"}],
         )
+        self.assertEqual(
+            result["source_contract"],
+            "detailed_feed_fields_documented_in_all_three_exports; descriptions_and_numeric_wrappers_vary")
         switch = result["data"]["switches"][0]
         self.assertEqual(switch["power_budget"], {
             "used_watts": 40, "rated_capacity_watts": 120, "available_watts": 80})

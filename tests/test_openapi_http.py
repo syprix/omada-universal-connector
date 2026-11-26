@@ -2079,7 +2079,9 @@ class FakeOpenApiClient:
     def read_site_poe_schedule_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_poe_schedule_summary", site_ref))
         return {"status": "ok", "resource": "site_poe_schedule_summary",
-                "site_ref": site_ref, "data": {"switches": []}, "partial": False}
+                "site_ref": site_ref,
+                "source_contract": "detailed_feed_fields_documented_in_all_three_exports; descriptions_and_numeric_wrappers_vary",
+                "data": {"switches": []}, "partial": False}
 
     def read_site_port_schedule_summary(self, site_ref: str, page_number: int,
                                         page_size: int) -> dict[str, object]:
@@ -8055,6 +8057,9 @@ class OpenApiHttpTests(unittest.TestCase):
         status, response = self.request(f"/v1/sites/{site_ref}/poe/schedule-summary", self.token)
         self.assertEqual(status, 200)
         self.assertEqual(response["resource"], "site_poe_schedule_summary")
+        self.assertEqual(
+            response["source_contract"],
+            "detailed_feed_fields_documented_in_all_three_exports; descriptions_and_numeric_wrappers_vary")
         request = {"jsonrpc": "2.0", "id": 139, "method": "tools/call",
                    "params": {"name": "omada_site_poe_schedule_summary",
                               "arguments": {"site_ref": site_ref}}}
@@ -8062,6 +8067,9 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(rpc["result"]["structuredContent"]["resource"],
                          "site_poe_schedule_summary")
+        self.assertEqual(
+            rpc["result"]["structuredContent"]["source_contract"],
+            "detailed_feed_fields_documented_in_all_three_exports; descriptions_and_numeric_wrappers_vary")
         self.assertEqual(self.fake.calls,
                          [("site_poe_schedule_summary", site_ref)] * 2)
 
