@@ -1801,6 +1801,21 @@ A synthetic 20-category source response and projection measured 695 → 150 seri
 
 The firmware-plan model summary (#79) reads the paginated `getGridPlanUpgradeModelList` route from all three exports. It counts model-type metadata presence and the documented good/critical and up-to-date/new-version status codes. Model names and firmware versions are omitted. Pagination is capped at 1,000 rows with coverage marked when the source total is larger. It does not trigger an update or imply compatibility. Live support is unknown.
 
+## Controller critical firmware-model count
+
+`GET /v1/controller/firmware-critical-model-count/summary` reads the documented
+controller-wide `GET /openapi/v1/{omadacId}/upgrade/overview/critical` route.
+Hardware Controller 6.3, CBC 6.3 and ER7212PC 6.2.14 document the route,
+`criticalNumber` as an int32, and `Site Manual Firmware Upgrade View Only`.
+The connector exposes only a valid nonnegative count and coverage fields; an
+explicit zero is complete, while a missing, invalid, or additional unknown
+field remains partial. The general error table associates `-1501` with the
+Omada Cloud Platform; the route-specific cause remains unspecified, and the
+standard connector error path retains the numeric code when returned. This
+count does not identify models or establish
+current firmware security, platform availability, or that an upgrade ran.
+Offline verified; live controller support is unknown.
+
 A synthetic 20-model source response and projection measured 789 → 117 serialized tokens (85.17% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; this fixture result is not billed agent usage.
 
 The selected S2S VPN peer summary (#80) first refreshes the selected site's documented VPN inventory, then resolves a unique opaque VPN reference before requesting its peer-status pages. It reports counts for the documented `status` filter meanings (0 disconnected, 1 connected); other or missing codes remain unknown. VPN and peer identities, names, addresses, ports and traffic counters are omitted. The inventory's separate `status` flag is not interpreted as tunnel connectivity. Live support is unknown.
