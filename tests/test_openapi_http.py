@@ -1059,6 +1059,14 @@ class FakeOpenApiClient:
                 "protocol_counts": {"igmp": 1, "mld": 0, "unknown": 0},
                 "configuration_only_no_multicast_traffic_inferred": True}
 
+    def read_site_hotspot_rate_limit_profiles_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_hotspot_rate_limit_profiles_summary", site_ref))
+        return {"status": "ok", "resource": "site_hotspot_rate_limit_profiles_summary",
+                "profile_count": 1,
+                "directional_coverage": {"downstream": {"enabled_limit_kbps": {
+                    "count": 1, "sum": 256, "min": 256, "max": 256}}},
+                "partial": False}
+
     def read_site_bandwidth_rules_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_bandwidth_rules_summary", site_ref))
         return {"status": "ok", "resource": "site_bandwidth_rules_summary",
@@ -5907,6 +5915,20 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(response["result"]["structuredContent"], direct)
         self.assertEqual(self.fake.calls,
                          [("site_bandwidth_rules_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_site_hotspot_rate_limit_profiles_summary(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/hotspot/rate-limit-profiles/summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        request = {"jsonrpc": "2.0", "id": 262, "method": "tools/call",
+                   "params": {"name": "omada_site_hotspot_rate_limit_profiles_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_hotspot_rate_limit_profiles_summary", site_ref)] * 2)
 
     def test_http_and_mcp_expose_site_log_notification_summary(self) -> None:
         site_ref = "a" * 24

@@ -80,6 +80,7 @@ OPERATIONS = {
     'site_iot_radio_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/setting/iot/radio'),
     'site_mesh_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/mesh'),
     'site_multicast_rate_limit_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/multicast-rate-limit'),
+    'site_hotspot_rate_limit_profiles_summary': ('GET', '/openapi/v1/{omadacId}/hotspot/sites/{siteId}/setting/profiles/rateLimits'),
     'site_beacon_control_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/beacon-control'),
     'site_iot_transmit_power_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/setting/iot/radio/transmit-power'),
     'site_bluetooth_advertising_v2_summary': ('GET', '/openapi/v2/{omadacId}/sites/{siteId}/setting/iot/devices/config'),

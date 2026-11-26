@@ -1593,6 +1593,8 @@ class OmadaOpenApiClient:
         "/openapi/v1/{controller_id}/upgrade/overview/mail/reminder")
     _SITE_LAN_MULTICASTS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/lan-multicasts"
     _SITE_BANDWIDTH_RULES_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/bandwidth-control/rules"
+    _SITE_HOTSPOT_RATE_LIMIT_PROFILES_PATH = (
+        "/openapi/v1/{controller_id}/hotspot/sites/{site_id}/setting/profiles/rateLimits")
     _SITE_LOG_NOTIFICATION_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/site/log-notification"
     _SITE_LAN_NETWORK_INTERFACES_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/lan-networks/interface"
     _SITE_OPEN_VPN_TUNNEL_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/open-vpn-tunnel-stats"
@@ -1924,6 +1926,10 @@ class OmadaOpenApiClient:
     _SITE_FIREWALL_DEFAULTS_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
         r"/firewall/timeout/default"
+    )
+    _SITE_HOTSPOT_RATE_LIMIT_PROFILES_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/hotspot/sites/([A-Za-z0-9_-]{1,128})/"
+        r"setting/profiles/rateLimits"
     )
     _SITE_BANDWIDTH_CONTROL_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/bandwidth-control"
@@ -3188,6 +3194,8 @@ class OmadaOpenApiClient:
         ("site_lan_switch_profile_assignments_summary", "GET /v1/sites/{site_ref}/lan-switch-profile-assignments/summary"),
         ("site_lan_multicast_summary", "GET /v1/sites/{site_ref}/lan-multicast-summary"),
         ("site_bandwidth_rules_summary", "GET /v1/sites/{site_ref}/bandwidth-control-rules/summary"),
+        ("site_hotspot_rate_limit_profiles_summary",
+         "GET /v1/sites/{site_ref}/hotspot/rate-limit-profiles/summary"),
         ("site_log_notification_summary", "GET /v1/sites/{site_ref}/log-notification-summary"),
         ("site_voucher_all_time_summary", "GET /v1/sites/{site_ref}/hotspot/vouchers/all-time-summary"),
         ("site_voucher_currency_options", "GET /v1/sites/{site_ref}/hotspot/voucher-currency-options"),
@@ -9947,6 +9955,28 @@ class OmadaOpenApiClient:
         projected["page_size"] = page_size
         return {**projected, "status": "ok", "resource": "site_lan_multicast_summary",
                 "site_ref": site_ref}
+
+    @_track_capability("site_hotspot_rate_limit_profiles_summary")
+    def read_site_hotspot_rate_limit_profiles_summary(self, site_ref: str) -> dict[str, object]:
+        """Aggregate Hotspot rate-limit profiles without returning profile data."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_HOTSPOT_RATE_LIMIT_PROFILES_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            from .site_hotspot_rate_limit_profiles_summary import (
+                SiteHotspotRateLimitProfilesError, summarize_hotspot_rate_limit_profiles,
+            )
+        except ImportError:  # direct execution in the image
+            from site_hotspot_rate_limit_profiles_summary import (
+                SiteHotspotRateLimitProfilesError, summarize_hotspot_rate_limit_profiles,
+            )
+        try:
+            projected = summarize_hotspot_rate_limit_profiles(payload.get("result"))
+        except SiteHotspotRateLimitProfilesError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {**projected, "status": "ok",
+                "resource": "site_hotspot_rate_limit_profiles_summary"}
 
     @_track_capability("site_bandwidth_rules_summary")
     def read_site_bandwidth_rules_summary(self, site_ref: str) -> dict[str, object]:
@@ -18155,6 +18185,7 @@ class OmadaOpenApiClient:
                                   self._site_alg_config_request_valid(path) or
                                   self._site_firewall_settings_request_valid(path) or
                                   self._site_firewall_defaults_request_valid(path) or
+                                  self._site_hotspot_rate_limit_profiles_request_valid(path) or
                                   self._site_bandwidth_control_request_valid(path) or
                                   self._site_wan_ports_request_valid(path) or
                                   self._site_wan_unsupported_functions_request_valid(path) or
@@ -19490,6 +19521,10 @@ class OmadaOpenApiClient:
 
     def _site_firewall_settings_request_valid(self, path: str) -> bool:
         match = self._SITE_FIREWALL_SETTINGS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_hotspot_rate_limit_profiles_request_valid(self, path: str) -> bool:
+        match = self._SITE_HOTSPOT_RATE_LIMIT_PROFILES_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
 
     def _site_bandwidth_control_request_valid(self, path: str) -> bool:
