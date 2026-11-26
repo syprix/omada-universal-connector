@@ -137,6 +137,8 @@ class OperationRegistryTests(unittest.TestCase):
              "/v1/controller/firmware-inventory-summary"),
             ("controller_firmware_critical_model_count",
              "/v1/controller/firmware-critical-model-count/summary"),
+            ("controller_firmware_pool_channel_counts",
+             "/v1/controller/firmware-pool-channel-counts/summary"),
             ("controller_firmware_email_reminder_status",
              "/v1/controller/firmware-email-reminder/status"),
         )
@@ -1232,6 +1234,7 @@ class OperationRegistryTests(unittest.TestCase):
             "controller_upgrade_model_list_summary",
             "controller_firmware_inventory_summary",
             "controller_firmware_critical_model_count",
+            "controller_firmware_pool_channel_counts",
             "controller_firmware_email_reminder_status",
             "site_internet_load_balance_summary",
             "site_internet_basic_port_summary",

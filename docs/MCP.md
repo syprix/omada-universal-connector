@@ -1183,6 +1183,17 @@ documented channels and selected-site associations. It omits IDs, names, models,
 schedule values and recurrence, and does not start an update. Both are
 fixture-tested over HTTP and MCP; live support is unknown.
 
+`omada_controller_firmware_pool_channel_counts` makes one fixed controller GET
+for stable channel 0, page 1 and page size 1. It reports only stable,
+release-candidate and beta quantities from the documented channel map. `reported_count`
+counts documented channel keys present, including keys with invalid values;
+`missing_count` counts only absent documented keys, `invalid_count` counts present
+keys with invalid values, and unknown keys are counted separately. Page metadata
+requires integer `currentPage` (int32) and `totalRows` (int64); returned rows cannot
+exceed the reported total. Firmware rows and identifiers are omitted, and no installed
+state, update availability or security status is inferred. HTTP/MCP fixture coverage
+exists; live support is unknown.
+
 `omada_controller_firmware_inventory_summary` reads at most ten pages of 100
 uploaded records and counts entry and metadata-field coverage only. It omits
 all firmware names, IDs, model values, descriptions and upload times, and does
