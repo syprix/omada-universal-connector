@@ -967,6 +967,11 @@ A synthetic single-record source response measured 32 tokens before projection a
 
 `omada_controller_upgrade_model_list_summary` is controller-scoped and reads up to 1,000 planned model rows. It returns only model metadata coverage and documented critical/upgrade status counts. Model names and firmware versions are omitted; it does not initiate updates or infer per-device compatibility. HTTP and MCP routing are fixture-tested; live support is unknown.
 
+`omada_controller_firmware_email_reminder_status` is a fixed controller-wide
+read of the firmware email-reminder `enable` Boolean. False is valid; missing,
+null or non-Boolean values remain incomplete. It reports configuration only
+and does not send mail or perform an upgrade.
+
 `omada_controller_try_beta_settings_summary` reads the documented preview-firmware enable switch and channel through two fixed controller GETs. Missing fields are marked incomplete; the selected channel does not confirm an update or firmware status. `omada_controller_auto_check_upgrade_summary` reads up to 10 pages of 100 plans and counts documented channels and site associations. It omits names, model details, IDs, schedule values and recurrence, and never starts an update. Both are fixture-tested over HTTP and MCP; live support is unknown.
 
 `omada_controller_firmware_inventory_summary` reads at most 10 pages of 100 uploaded firmware records and reports only entry totals and metadata-field coverage. It omits names, IDs, model values, descriptions and timestamps; it does not claim device compatibility or firmware suitability. `omada_site_agile_switch_general_config_summary` refreshes one site's switch inventory, requires one matching port-detail row with `es: true`, then summarizes only documented LED, jumbo-frame and power-alert settings. It omits names, locations, tags and device identifiers. Both operations are fixture-tested over HTTP and MCP; live support is unknown.

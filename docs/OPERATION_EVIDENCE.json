@@ -3,8 +3,8 @@
   "catalog_sha256": "b5ea3aeeac5c1c990fed6a4418f68e46530faa240308c7751206e15323eaeb9d",
   "operation_count": 2445,
   "connector_evidence_counts": {
-    "not_mapped": 1932,
-    "fixed_get_registry_route": 488,
+    "not_mapped": 1931,
+    "fixed_get_registry_route": 489,
     "manual_source_map_only": 25
   },
   "function_verification_performed": false,
@@ -25789,11 +25789,19 @@
         "hardware-controller-6.3.0",
         "omada-cbc-standard-6.3.0"
       ],
-      "connector_evidence": "not_mapped",
-      "operation_ids": [],
-      "public_templates": [],
+      "connector_evidence": "fixed_get_registry_route",
+      "operation_ids": [
+        "controller_firmware_email_reminder_status"
+      ],
+      "public_templates": [
+        "/v1/controller/firmware-email-reminder/status"
+      ],
       "source_map_label": null,
-      "static_test_references": [],
+      "static_test_references": [
+        "test_controller_firmware_email_reminder_status.py",
+        "test_openapi_http.py",
+        "test_operation_registry.py"
+      ],
       "test_execution": "not_assessed_by_this_report",
       "schema_review": "not_assessed_by_reduced_catalog",
       "function_verified": false,

@@ -144,6 +144,13 @@ class FakeOpenApiClient:
                          "missing_count": 0, "invalid_count": 0,
                          "unknown_field_count": 0}, "partial": False}
 
+    def read_controller_firmware_email_reminder_status(self) -> dict[str, object]:
+        self.calls.append(("controller_firmware_email_reminder_status", None))
+        return {"status": "ok", "resource": "controller_firmware_email_reminder_status",
+                "data": {"firmware_email_reminder_enabled": False, "present_count": 1,
+                         "missing_count": 0, "invalid_count": 0,
+                         "unknown_field_count": 0}, "partial": False}
+
     def read_controller_client_detail_info(self) -> dict[str, object]:
         self.calls.append(("controller_client_detail_info", None))
         return {"status": "ok", "resource": "controller_client_detail_info",
@@ -7109,6 +7116,22 @@ class OpenApiHttpTests(unittest.TestCase):
                          "controller_experience_improvement")
         self.assertEqual(self.fake.calls,
                          [("controller_experience_improvement", None)] * 2)
+
+    def test_http_and_mcp_expose_firmware_email_reminder_status(self) -> None:
+        status, response = self.request(
+            "/v1/controller/firmware-email-reminder/status", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "controller_firmware_email_reminder_status")
+        self.assertFalse(response["data"]["firmware_email_reminder_enabled"])
+        request = {"jsonrpc": "2.0", "id": 95, "method": "tools/call",
+                   "params": {"name": "omada_controller_firmware_email_reminder_status",
+                              "arguments": {}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"]["resource"],
+                         "controller_firmware_email_reminder_status")
+        self.assertEqual(self.fake.calls,
+                         [("controller_firmware_email_reminder_status", None)] * 2)
 
     def test_http_and_mcp_expose_controller_client_detail_info(self) -> None:
         status, response = self.request(
