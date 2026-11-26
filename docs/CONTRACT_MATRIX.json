@@ -33,7 +33,7 @@
     {
       "label": "Hardware Controller 6.3.0",
       "source_sha256": "3a6ec3a9741839ba06de3f11df3d6d67ddd3ac702fd98dce286b0268dc0a8f44",
-      "documented_operations": 1793,
+      "documented_operations": 1794,
       "operations": {
         "ap_available_channels_summary": {
           "documented": true,
@@ -3424,13 +3424,28 @@
             "response": "AllTimeVoucherSummaryOpenApiVO has optional current, inuse, expired, unused and created VoucherSummaryOpenApiVO objects and optional supportVoucherTrafficStat:boolean. Each category has optional count:int64, amount:string (single-voucher amount), duration:int64 (minutes), and currency:string.",
             "projection": "Reports separate voucher_counts and voucher_durations_minutes maps; missing values are null and missing_fields/invalid_fields identify each affected metric. Amount and currency source values are omitted. No voucher codes, user data, revenue, category arithmetic or traffic-volume inference."
           }
+        },
+        "site_oui_profile_list_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getOuiProfileList",
+            "permission": "Site Settings Manager View Only; Network Config Page View Only; Device Config Page View Only",
+            "query": {
+              "page": "required integer starting at 1",
+              "pageSize": "required integer, source range 1–1000"
+            },
+            "response": "Paged grid with totalRows, currentPage, currentSize and data. Each profile documents id (string), name (string, 1–64 characters), count (int32) and ouiCombine entries with oui (string) and description (string, up to 128 characters; empty is allowed).",
+            "connector_projection": "Fixed site-bound GET; requests only page 1 with pageSize at most 100. Returns profile/OUI-entry counts and type/field coverage only. Profile IDs/names, OUI values, descriptions and assignments are omitted. Reports omitted rows and partial coverage from reported totalRows; it does not use the separate /all operation.",
+            "live_support": "unknown"
+          }
         }
       }
     },
     {
       "label": "CBC Standard 6.3.0",
       "source_sha256": "15e5101bcb31437569735fde06b964b988538445782bada4fa4fb9fbea951063",
-      "documented_operations": 2448,
+      "documented_operations": 2449,
       "operations": {
         "ap_available_channels_summary": {
           "documented": true,
@@ -6792,13 +6807,28 @@
             "response": "AllTimeVoucherSummaryOpenApiVO has optional current, inuse, expired, unused and created VoucherSummaryOpenApiVO objects and optional supportVoucherTrafficStat:boolean. Each category has optional count:int64, amount:string (single-voucher amount), duration:int64 (minutes), and currency:string.",
             "projection": "Reports count and duration values independently; missing values are null and missing_fields/invalid_fields identify each affected metric. Amount and currency source values are omitted. No voucher codes, user data, revenue, category arithmetic or traffic-volume inference."
           }
+        },
+        "site_oui_profile_list_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getOuiProfileList",
+            "permission": "Site Settings Manager View Only; Network Config Page View Only; Device Config Page View Only",
+            "query": {
+              "page": "required integer starting at 1",
+              "pageSize": "required integer, source range 1–1000"
+            },
+            "response": "Paged grid with totalRows, currentPage, currentSize and data. Each profile documents id (string), name (string, 1–64 characters), count (int32) and ouiCombine entries with oui (string) and description (string, up to 128 characters; empty is allowed).",
+            "connector_projection": "Fixed site-bound GET; requests only page 1 with pageSize at most 100. Returns profile/OUI-entry counts and type/field coverage only. Profile IDs/names, OUI values, descriptions and assignments are omitted. Reports omitted rows and partial coverage from reported totalRows; it does not use the separate /all operation.",
+            "live_support": "unknown"
+          }
         }
       }
     },
     {
       "label": "ER7212PC 6.2.14",
       "source_sha256": "25a044099a4621594d7568fb90a775330436990a7db51c33fb112301c2442a00",
-      "documented_operations": 1767,
+      "documented_operations": 1768,
       "operations": {
         "ap_available_channels_summary": {
           "documented": true,
@@ -10068,6 +10098,22 @@
             "request_body": false,
             "response": "AllTimeVoucherSummaryOpenApiVO has optional current, inuse, expired, unused and created VoucherSummaryOpenApiVO objects and optional supportVoucherTrafficStat:boolean. Each category has optional count:int64, amount:string (single-voucher amount), duration:int64 (minutes), and currency:string.",
             "projection": "Reports count and duration values independently; missing values are null and missing_fields/invalid_fields identify each affected metric. Amount and currency source values are omitted. No voucher codes, user data, revenue, category arithmetic or traffic-volume inference."
+          }
+        },
+        "site_oui_profile_list_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getOuiProfileList",
+            "permission": "Site Settings Manager View Only; Network Config Page View Only; Device Config Page View Only",
+            "query": {
+              "page": "required integer starting at 1",
+              "pageSize": "required integer, source range 1–1000"
+            },
+            "response": "Paged grid with totalRows, currentPage, currentSize and data. Each profile documents id (string), name (string, 1–64 characters), count (int32) and ouiCombine entries with oui (string) and description (string, up to 128 characters; empty is allowed).",
+            "connector_projection": "Fixed site-bound GET; requests only page 1 with pageSize at most 100. Returns profile/OUI-entry counts and type/field coverage only. Profile IDs/names, OUI values, descriptions and assignments are omitted. Reports omitted rows and partial coverage from reported totalRows; it does not use the separate /all operation.",
+            "live_support": "unknown",
+            "platform_limit": "The source describes this operation as Omada Pro Controller only. This is recorded separately; it is not a live-support claim for this adapter."
           }
         }
       }

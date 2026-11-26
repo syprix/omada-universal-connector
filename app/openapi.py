@@ -517,6 +517,10 @@ try:
     from .site_ap_oui_vlan_rules_summary import (
         ApOuiVlanRulesError, project_site_ap_oui_vlan_rules_summary,
     )
+    from .site_oui_profile_list_summary import (
+        MAX_PROFILE_ROWS, SiteOuiProfileListError,
+        project_site_oui_profile_list_page,
+    )
     from .site_vlan_ssid_usage_summary import (
         VlanSsidUsageError, project_site_vlan_ssid_usage_summary,
     )
@@ -734,6 +738,10 @@ except ImportError:  # direct execution in the image
     from site_ap_group_summary import ApGroupSummaryError, project_site_ap_group_summary
     from site_ap_oui_vlan_rules_summary import (
         ApOuiVlanRulesError, project_site_ap_oui_vlan_rules_summary,
+    )
+    from site_oui_profile_list_summary import (
+        MAX_PROFILE_ROWS, SiteOuiProfileListError,
+        project_site_oui_profile_list_page,
     )
     from site_vlan_ssid_usage_summary import (
         VlanSsidUsageError, project_site_vlan_ssid_usage_summary,
@@ -1735,6 +1743,7 @@ class OmadaOpenApiClient:
     _SITE_AP_GROUP_INFO_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/ap-groups/{group_id}/info")
     _SITE_AP_OUI_VLAN_RULES_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/ap-oui-rules"
+    _SITE_OUI_PROFILE_LIST_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/oui-profiles"
     _SITE_SWITCH_SUPPORT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/switch-support"
     _RRM_INCOMPATIBLE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/rrm/incompatible"
     _SITE_DASHBOARD_CHANNELS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/channels"
@@ -3632,6 +3641,7 @@ class OmadaOpenApiClient:
         ("site_ap_group_assignment_summary", "GET /v1/sites/{site_ref}/ap-groups/aps/summary"),
         ("site_ap_group_info_summary", "GET /v1/sites/{site_ref}/ap-groups/{group_ref}/info-summary"),
         ("site_ap_oui_vlan_rules_summary", "GET /v1/sites/{site_ref}/ap-oui-rules/summary"),
+        ("site_oui_profile_list_summary", "GET /v1/sites/{site_ref}/oui-profiles/summary"),
         ("site_vlan_ssid_usage_summary", "GET /v1/sites/{site_ref}/networks/{network_ref}/vlan-ssids/summary"),
         ("site_vlan_device_usage_summary", "GET /v1/sites/{site_ref}/networks/{network_ref}/vlan-devices/summary"),
         ("site_vlan_port_support_summary", "GET /v1/sites/{site_ref}/networks/{network_ref}/vlan-port-support/summary"),
@@ -7405,6 +7415,23 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {"status": "ok", "resource": "site_ap_oui_vlan_rules_summary",
                 "site_ref": site_ref, **data}
+
+    @_track_capability("site_oui_profile_list_summary")
+    def read_site_oui_profile_list_summary(self, site_ref: str) -> dict[str, object]:
+        """Return redacted field coverage for the first site OUI profile page."""
+        site_id = self._resolve_site_ref(site_ref)
+        page_size = min(self.config.page_size, MAX_PROFILE_ROWS)
+        path = (self._SITE_OUI_PROFILE_LIST_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id) +
+            f"?page=1&pageSize={page_size}")
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            projected = project_site_oui_profile_list_page(
+                payload.get("result"), page_size=page_size)
+        except SiteOuiProfileListError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_oui_profile_list_summary",
+                "site_ref": site_ref, **projected}
 
     @_track_capability("site_vlan_ssid_usage_summary")
     def read_site_vlan_ssid_usage_summary(self, site_ref: str, network_ref: str,
@@ -18478,6 +18505,7 @@ class OmadaOpenApiClient:
                                   self._site_ap_group_assignment_request_valid(path) or
                                   self._site_ap_group_info_request_valid(path) or
                                   self._site_ap_oui_vlan_rules_request_valid(path) or
+                                  self._site_oui_profile_list_request_valid(path) or
                                   self._site_vlan_ssid_usage_request_valid(path) or
                                   self._site_vlan_device_usage_request_valid(path) or
                                   self._site_wifi_calling_profiles_request_valid(path) or
@@ -21104,6 +21132,19 @@ class OmadaOpenApiClient:
             return False
         return (page <= self.config.max_pages and page_size == self.config.page_size and
                 page_size <= 1000)
+
+    def _site_oui_profile_list_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+            r"[A-Za-z0-9_-]{1,128}/oui-profiles\?page=1&pageSize=([1-9][0-9]*)",
+            path)
+        if not match:
+            return False
+        try:
+            page_size = int(match.group(1))
+        except ValueError:
+            return False
+        return page_size == min(self.config.page_size, MAX_PROFILE_ROWS)
 
     def _site_vlan_ssid_usage_request_valid(self, path: str) -> bool:
         match = re.fullmatch(

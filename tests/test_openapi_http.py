@@ -1605,6 +1605,11 @@ class FakeOpenApiClient:
                 "total_rules": 1, "enabled_rules": 1, "vlan_assignment_count": 2,
                 "partial": False}
 
+    def read_site_oui_profile_list_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_oui_profile_list_summary", site_ref))
+        return {"status": "ok", "resource": "site_oui_profile_list_summary",
+                "profile_count": 1, "omitted_profile_count": 2, "partial": True}
+
     def read_site_vlan_ssid_usage_summary(self, site_ref: str, network_ref: str,
                                           vlan_id: int) -> dict[str, object]:
         self.calls.append(("site_vlan_ssid_usage_summary", site_ref, network_ref, vlan_id))
@@ -10410,6 +10415,22 @@ class OpenApiHttpTests(unittest.TestCase):
                          "site_ap_oui_vlan_rules_summary")
         self.assertEqual(self.fake.calls[-1], ("site_ap_oui_vlan_rules_summary", site_ref))
 
+    def test_site_oui_profile_list_is_available_over_http_and_mcp(self) -> None:
+        site_ref = "a" * 24
+        status, body = self.request(f"/v1/sites/{site_ref}/oui-profiles/summary", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(body["resource"], "site_oui_profile_list_summary")
+        self.assertEqual(self.fake.calls[-1], ("site_oui_profile_list_summary", site_ref))
+        status, response = self.request_post("/mcp", {
+            "jsonrpc": "2.0", "id": 399, "method": "tools/call",
+            "params": {"name": "omada_site_oui_profile_list_summary",
+                       "arguments": {"site_ref": site_ref}},
+        }, self.token)
+        self.assertEqual(status, 200)
+        self.assertNotIn("isError", response)
+        self.assertEqual(response["result"]["structuredContent"]["resource"],
+                         "site_oui_profile_list_summary")
+        self.assertEqual(self.fake.calls[-1], ("site_oui_profile_list_summary", site_ref))
     def test_site_vlan_ssid_usage_summary_is_available_over_http_and_mcp(self) -> None:
         site_ref, network_ref = "a" * 24, "b" * 24
         route = f"/v1/sites/{site_ref}/networks/{network_ref}/vlan-ssids/summary?vlan_id=52"
