@@ -1413,6 +1413,8 @@ class OmadaOpenApiClient:
     _CONTROLLER_BATCH_ADOPT_INFO_PATH = "/openapi/v1/{controller_id}/devices/batch/info"
     _SITE_RADIUS_USERS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/profiles/radius-server/users"
     _SITE_ENTITY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}"
+    _SITE_SESSION_LIMIT_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/session-limit")
     _SITE_REBOOT_SCHEDULE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/reboot-schedules"
     _SITE_UPNP_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/upnp"
     _SITE_IOT_AGING_TIME_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/iot/aging-time"
@@ -3385,6 +3387,8 @@ class OmadaOpenApiClient:
         ("site_template_iptv_summary", "GET /v1/site-templates/{site_template_ref}/services/iptv-summary"),
         ("site_template_iptv_settings_summary", "GET /v1/site-templates/{site_template_ref}/services/iptv-settings-summary"),
         ("site_entity_summary", "GET /v1/sites/{site_ref}/metadata/summary"),
+        ("site_session_limit_enable_state",
+         "GET /v1/sites/{site_ref}/session-limit/enable-state"),
         ("site_switch_qos_mode", "GET /v1/sites/{site_ref}/switches/qos-mode"),
         ("site_switch_qos_scheduler_summary", "GET /v1/sites/{site_ref}/switches/qos/scheduler-summary"),
         ("site_switch_qos_dscp_summary", "GET /v1/sites/{site_ref}/switches/qos/dscp-summary"),
@@ -6473,6 +6477,28 @@ class OmadaOpenApiClient:
         except SiteSettingExistenceError:
             raise OpenApiError("openapi_response_invalid") from None
         return {"status": "ok", "resource": "site_setting_existence",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_session_limit_enable_state")
+    def read_site_session_limit_enable_state(self, site_ref: str) -> dict[str, object]:
+        """Read only the documented site session-limit enable flag."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_SESSION_LIMIT_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .controller_system_status import (
+                ControllerSystemStatusError, project_controller_remote_binding,
+            )
+        except ImportError:  # direct execution in the image
+            from controller_system_status import (
+                ControllerSystemStatusError, project_controller_remote_binding,
+            )
+        try:
+            projected = project_controller_remote_binding(result)
+        except ControllerSystemStatusError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_session_limit_enable_state",
                 "site_ref": site_ref, **projected}
 
     @_track_capability("site_capabilities")
@@ -18172,6 +18198,7 @@ class OmadaOpenApiClient:
                                   self._site_6ghz_ap_presence_request_valid(path) or
                                   self._site_setting_existence_request_valid(path) or
                                   self._site_entity_request_valid(path) or
+                                  self._site_session_limit_request_valid(path) or
                                   self._site_reboot_schedule_request_valid(path) or
                                   self._site_upnp_request_valid(path) or
                                   self._site_iot_aging_time_request_valid(path) or
@@ -19308,6 +19335,12 @@ class OmadaOpenApiClient:
     def _site_entity_request_valid(self, path: str) -> bool:
         match = re.fullmatch(
             r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}", path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_session_limit_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/session-limit",
+            path)
         return bool(match and match.group(1) == self.config.controller_id)
 
     def _site_reboot_schedule_request_valid(self, path: str) -> bool:

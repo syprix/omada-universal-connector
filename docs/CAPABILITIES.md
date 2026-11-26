@@ -228,6 +228,16 @@ device totals. It omits all device and network identities. A completed
 configuration delivery does not establish that devices are reachable. Live
 support is unknown.
 
+`GET /v1/sites/{site_ref}/session-limit/enable-state` and MCP tool
+`omada_site_session_limit_enable_state` read the required site `enable` boolean
+from the fixed session-limit route bound to the selected site's current
+inventory. Explicit `false` is preserved; missing, invalid or unknown fields
+are reported as incomplete coverage. This reports configured state only and
+does not imply policy enforcement, client scope, device support or a numeric
+limit. All three supplied API exports document the GET with `Site Settings
+Manager View Only`, `Network Config Page View Only`, or `Site Device Manager
+View Only` permission; live support remains unknown.
+
 A synthetic delivery response with 20 device/stack entries measured 120 tokens
 before and 96 after projection (20% fewer) using `js-tiktoken` 1.0.21 /
 `o200k_base`; serialized payload only.

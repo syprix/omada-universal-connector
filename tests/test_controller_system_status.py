@@ -383,6 +383,22 @@ class ControllerSystemStatusTests(unittest.TestCase):
         self.assertNotIn("private", repr(result))
         self.assertTrue(result["partial"])
 
+    def test_enable_flag_projection_preserves_false_and_marks_invalid_coverage(self):
+        self.assertEqual(project_controller_remote_binding({"enable": False}), {
+            "data": {"enabled": False}, "missing_field_count": 0,
+            "invalid_field_count": 0, "unknown_field_count": 0, "partial": False,
+        })
+        self.assertEqual(project_controller_remote_binding({}), {
+            "data": {}, "missing_field_count": 1, "invalid_field_count": 0,
+            "unknown_field_count": 0, "partial": True,
+        })
+        invalid = project_controller_remote_binding({"enable": None})
+        self.assertEqual(invalid["data"], {})
+        self.assertEqual(invalid["invalid_field_count"], 1)
+        self.assertTrue(invalid["partial"])
+        with self.assertRaises(ControllerSystemStatusError):
+            project_controller_remote_binding({str(index): True for index in range(17)})
+
     def test_privacy_policy_returns_only_the_documented_enable_state(self):
         self.assertEqual(project_controller_privacy_policy({"status": 1}), {
             "data": {"enabled": True}, "missing_field_count": 0,
