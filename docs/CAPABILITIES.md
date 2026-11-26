@@ -259,6 +259,15 @@ or truncation marker; a local limit rejects responses over 512 rows, and a
 valid response therefore does not establish server-side completeness or any
 authorization decision. Live support remains unknown.
 
+`GET /v1/sites/{site_ref}/portals/coverage` and MCP tool
+`omada_site_portal_inventory_coverage` return only bounded list and activation
+coverage counts. They omit portal names, identifiers, URLs, authentication
+types, social-login settings and all RADIUS settings. Empty arrays are distinct
+from missing or invalid list fields. The API contract has no paging or
+truncation marker, so returned counts do not establish server completeness or
+active connections; this reader makes no policy or device-support inference.
+Live support remains unknown.
+
 A synthetic delivery response with 20 device/stack entries measured 120 tokens
 before and 96 after projection (20% fewer) using `js-tiktoken` 1.0.21 /
 `o200k_base`; serialized payload only.

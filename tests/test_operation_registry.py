@@ -76,6 +76,25 @@ class OperationRegistryTests(unittest.TestCase):
                 "site_device_model_whitelist_coverage"],
             "GET /v1/sites/{site_ref}/devices/model-whitelist-coverage")
 
+    def test_site_portal_inventory_coverage_is_fixed_site_capability(self):
+        from app.openapi import OmadaOpenApiClient
+
+        operation = REGISTRY.get("site_portal_inventory_coverage")
+        tool = _tool(operation)
+        site_ref = "a" * 24
+        self.assertEqual(tool["inputSchema"]["required"], ["site_ref"])
+        self.assertTrue(tool["annotations"]["readOnlyHint"])
+        route, bindings = REGISTRY.match(
+            "GET", f"/v1/sites/{site_ref}/portals/coverage")
+        self.assertEqual(route.operation_id, "site_portal_inventory_coverage")
+        self.assertEqual(route.upstream_template,
+                         "/openapi/v1/{controller_id}/sites/{site_id}/portals")
+        self.assertEqual(dict(bindings), {"site_ref": site_ref})
+        self.assertEqual(
+            dict(OmadaOpenApiClient.CAPABILITY_OPERATIONS)[
+                "site_portal_inventory_coverage"],
+            "GET /v1/sites/{site_ref}/portals/coverage")
+
     def test_site_device_model_whitelist_coverage_is_bound_to_selected_site(self):
         operation = REGISTRY.get("site_device_model_whitelist_coverage")
         tool = _tool(operation)
@@ -1215,6 +1234,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_session_limit_enable_state",
             "site_mac_filtering_general_state",
             "site_device_model_whitelist_coverage",
+            "site_portal_inventory_coverage",
             "site_switch_qos_mode",
             "site_switch_qos_scheduler_summary",
             "site_switch_qos_dscp_summary",
