@@ -212,6 +212,14 @@ class FakeOpenApiClient:
                 "coordinate_invalid_shape_count": 0, "empty": False,
                 "partial": True, "server_completeness_established": False}
 
+    def read_controller_unplaced_site_position_coverage(self) -> dict[str, object]:
+        self.calls.append(("controller_unplaced_site_position_coverage", None))
+        return {"status": "ok", "resource": "controller_unplaced_site_position_coverage",
+                "source_state": "present", "returned_count": 1,
+                "reported_total_rows": 1, "reported_unplaced_num": 1,
+                "omitted_count": 0, "page_truncated": False,
+                "documented_field_coverage": {}, "partial": False}
+
     def read_controller_client_correction_options_summary(self) -> dict[str, object]:
         self.calls.append(("controller_client_correction_options_summary", None))
         if self.correction_options_result is not None:
@@ -7560,6 +7568,24 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(structured["placed_site_row_count"], 2)
         self.assertEqual(self.fake.calls,
                          [("controller_placed_site_position_coverage", None)] * 2)
+
+    def test_http_and_mcp_expose_redacted_controller_unplaced_site_coverage(self) -> None:
+        path = "/v1/controller/unplaced-site-position-coverage"
+        status, response = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "controller_unplaced_site_position_coverage")
+        self.assertEqual(response["returned_count"], 1)
+        self.assertFalse(response["partial"])
+        request = {"jsonrpc": "2.0", "id": 104, "method": "tools/call",
+                   "params": {"name": "omada_controller_unplaced_site_position_coverage",
+                              "arguments": {}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        structured = response["result"]["structuredContent"]
+        self.assertEqual(structured["resource"], "controller_unplaced_site_position_coverage")
+        self.assertEqual(structured["reported_total_rows"], 1)
+        self.assertEqual(self.fake.calls,
+                         [("controller_unplaced_site_position_coverage", None)] * 2)
 
     def test_http_and_mcp_expose_controller_client_correction_options(self) -> None:
         source = {
