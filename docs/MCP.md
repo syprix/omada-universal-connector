@@ -134,6 +134,8 @@ HTTP/MCP framing or billed agent usage is included.
 
 `omada_site_hotspot_statistics_summary` reads hotspot authentication counts for a connector-fixed trailing 24-hour window. It sums new/existing client counts across up to 2,000 time buckets, returns raw time bounds, and includes aggregate authentication and hotspot type counts. Timestamp units are unspecified; no user-level data is returned. The three source schemas agree, while endpoint permission and live support are unstated.
 
+`omada_site_voucher_currency_options` reads the site's documented voucher currency short-code list and selected short code. It returns bounded strings as reported by the controller, tracks missing and invalid fields separately from a valid empty list, and reports duplicate/unknown-field counts. Codes are not classified as ISO currencies and no exchange rates, prices or voucher-setting changes are included. The source requires Site Hotspot Manager View Only; live support is unknown.
+
 A synthetic page with 20 client rows and 40 nested application rows measured with `js-tiktoken` 1.0.21 / `o200k_base` decreased from 3,775 source-envelope tokens to 127 projected HTTP JSON tokens (3,648 fewer; 96.64%). This fixture excludes billed agent usage and MCP framing.
 
 A synthetic 10-AP response measured with `js-tiktoken` 1.0.21 / `o200k_base` decreased from 473 source-envelope tokens to 91 projected HTTP JSON tokens (382 fewer; 80.76%). This fixture excludes billed agent usage and MCP framing.
