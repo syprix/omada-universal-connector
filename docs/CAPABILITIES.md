@@ -333,6 +333,21 @@ A synthetic 20-rule fixture measured 1,620 source tokens and 236 projected
 tokens (85.43% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; serialized
 payloads only.
 
+`GET /v1/sites/{site_ref}/rate-limit-profiles/summary` and its MCP tool read
+the separate site-wide rate-limit profile list. They return profile and
+default-state counts, directional enable coverage, and Kbps aggregates only
+for limits whose direction is enabled and whose value is a strict signed
+`int64`. Profile IDs, names and raw limit values are omitted; disabled-side
+numbers are not counted. The manufacturer contract documents no profile
+pagination or truncation marker, so server completeness remains unknown.
+
+This route is distinct from
+`GET /v1/sites/{site_ref}/hotspot/rate-limit-profiles/summary`. The Hotspot
+reader uses another path and a different profile shape (`id`/`site`/`isDefault`)
+with its own documented 1–10,485,760 Kbps constraint. Neither reader infers
+that the profile lists, assignments or client applicability are shared. Live
+support for the site-wide route remains unknown.
+
 ## Log notification settings
 
 `GET /v1/sites/{site_ref}/log-notification-summary` and its MCP tool read the
