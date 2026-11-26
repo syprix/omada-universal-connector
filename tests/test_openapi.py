@@ -1067,6 +1067,24 @@ class OpenApiClientTests(unittest.TestCase):
         self.assertEqual(result["resource"], "controller_audit_log_window_summary")
         self.assertIn("/openapi/v1/controller_1/audit-logs?", request.call_args.args[1])
 
+    def test_controller_adopt_tip_uses_exact_fixed_controller_route(self) -> None:
+        path = "/openapi/v1/controller_1/adopt-tip"
+        connection = self.respond({"errorCode": 0, "result": {
+            "adoptDeviceNum": 0, "recommendDeviceNum": 2,
+        }})
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_connection", return_value=connection):
+            result = self.client.read_controller_device_adoption_tip_summary()
+        self.assertEqual(result["data"], {
+            "adopted_device_count": 0, "recommended_device_count": 2,
+        })
+        self.assertEqual(connection.calls[0][0:2], ("GET", path))
+        with patch.object(self.client, "_connection") as connect:
+            with self.assertRaisesRegex(OpenApiError, "openapi_path_rejected"):
+                self.client._request_json(
+                    "GET", "/openapi/v1/other-controller/adopt-tip", token="token")
+        connect.assert_not_called()
+
     def test_audit_read_is_bounded_and_marks_truncation(self) -> None:
         site_ref = "a" * 24
         self.client._site_ids_by_ref[site_ref] = "site-1"

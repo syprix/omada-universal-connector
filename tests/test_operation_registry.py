@@ -5,6 +5,20 @@ from app.mcp import _tool
 
 
 class OperationRegistryTests(unittest.TestCase):
+    def test_controller_device_adoption_tip_is_fixed_controller_read(self):
+        operation = REGISTRY.get("controller_device_adoption_tip_summary")
+        tool = _tool(operation)
+        self.assertEqual(tool["name"], "omada_controller_device_adoption_tip_summary")
+        self.assertEqual(tool["inputSchema"]["required"], [])
+        self.assertEqual(tool["inputSchema"]["additionalProperties"], False)
+        self.assertTrue(tool["annotations"]["readOnlyHint"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/controller/device-adoption-tip/summary")
+        self.assertEqual(route.operation_id, "controller_device_adoption_tip_summary")
+        self.assertEqual(route.upstream_method, "GET")
+        self.assertEqual(route.upstream_template, "/openapi/v1/{controller_id}/adopt-tip")
+        self.assertEqual(dict(bindings), {})
+
     def test_topology_snapshot_and_gateway_qos_profiles_are_site_bound(self):
         site_ref = "a" * 24
         cases = (
@@ -1066,6 +1080,7 @@ class OperationRegistryTests(unittest.TestCase):
             "controller_client_detail_info",
             "controller_general_settings",
             "controller_device_access",
+            "controller_device_adoption_tip_summary",
             "controller_backup_schedule",
             "controller_cloud_access",
             "controller_device_management",

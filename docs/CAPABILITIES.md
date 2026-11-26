@@ -1504,6 +1504,18 @@ is documented for Hardware Controller 6.3.0 and CBC Standard 6.3.0, with
 present in the ER7212PC 6.2.14 export. Projection, path binding, HTTP and MCP
 fixtures are tested. Live controller behavior remains unknown.
 
+The controller-wide adoption tip is a separate count-only read at
+`GET /v1/controller/device-adoption-tip/summary`. It maps the documented
+controller `GET /openapi/v1/{omadacId}/adopt-tip` and returns only the bounded
+`adopted_device_count` and `recommended_device_count` fields. Explicit zero is
+valid; missing, invalid, or unknown fields are reported through coverage
+counts. This is distinct from the MSP adoption-tip route and does not describe
+site membership, pending hardware, future device support, or caller permission.
+The route and both fields are documented in the supplied ER7212PC 6.2.14,
+Hardware Controller 6.3.0, and CBC Standard 6.3.0 exports. Offline HTTP/MCP and
+projection fixtures cover the fixed GET; live controller behavior remains
+unknown.
+
 ### RadSec compatibility summary
 
 `GET /v1/sites/{site_ref}/devices/radsec-support` reports only the documented

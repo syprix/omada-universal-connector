@@ -14,6 +14,7 @@ from app.controller_system_status import (
     project_msp_dashboard_overall,
     project_msp_cluster_nodes,
     project_msp_adopt_tip,
+    project_controller_adopt_tip,
     project_msp_roles,
     project_controller_privacy_policy, project_controller_remote_binding,
     project_controller_restore_result,
@@ -84,6 +85,39 @@ class ControllerSystemStatusTests(unittest.TestCase):
         })
         self.assertEqual(result["invalid_field_count"], 2)
         self.assertTrue(result["partial"])
+
+    def test_controller_adopt_tip_returns_only_documented_bounded_counts(self):
+        result = project_controller_adopt_tip({
+            "adoptDeviceNum": 0, "recommendDeviceNum": 2_147_483_647,
+            "deviceList": [{"name": "private-device"}],
+        })
+        self.assertEqual(result["data"], {
+            "adopted_device_count": 0,
+            "recommended_device_count": 2_147_483_647,
+        })
+        self.assertEqual(result["missing_field_count"], 0)
+        self.assertEqual(result["invalid_field_count"], 0)
+        self.assertEqual(result["unknown_field_count"], 1)
+        self.assertTrue(result["partial"])
+        self.assertNotIn("private-device", repr(result))
+
+    def test_controller_adopt_tip_tracks_missing_null_and_invalid_fields(self):
+        self.assertEqual(project_controller_adopt_tip({}), {
+            "data": {}, "missing_field_count": 2, "invalid_field_count": 0,
+            "unknown_field_count": 0, "partial": True,
+        })
+        result = project_controller_adopt_tip({
+            "adoptDeviceNum": None, "recommendDeviceNum": True,
+        })
+        self.assertEqual(result["data"], {})
+        self.assertEqual(result["missing_field_count"], 0)
+        self.assertEqual(result["invalid_field_count"], 2)
+        self.assertTrue(result["partial"])
+        overrange = project_controller_adopt_tip({
+            "adoptDeviceNum": 2_147_483_648, "recommendDeviceNum": 1.5,
+        })
+        self.assertEqual(overrange["invalid_field_count"], 2)
+        self.assertNotIn("2147483648", repr(overrange))
 
     def test_msp_roles_aggregates_privilege_levels_without_role_identity(self):
         result = project_msp_roles([

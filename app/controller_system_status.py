@@ -539,8 +539,8 @@ def project_msp_cluster_nodes(result: Any) -> dict[str, object]:
             "partial": bool(missing or invalid or unknown)}
 
 
-def project_msp_adopt_tip(result: Any) -> dict[str, object]:
-    """Project the documented MSP adoption tip as two bounded int32 counts."""
+def _project_adopt_tip_counts(result: Any) -> dict[str, object]:
+    """Project documented adoption-tip counts without exposing device records."""
     if not isinstance(result, dict) or len(result) > 8:
         raise ControllerSystemStatusError("response_invalid")
     fields = {"adoptDeviceNum": "adopted_device_count",
@@ -560,6 +560,16 @@ def project_msp_adopt_tip(result: Any) -> dict[str, object]:
     return {"data": data, "missing_field_count": missing,
             "invalid_field_count": invalid, "unknown_field_count": unknown,
             "partial": bool(missing or invalid or unknown)}
+
+
+def project_msp_adopt_tip(result: Any) -> dict[str, object]:
+    """Project the documented MSP adoption tip as two bounded int32 counts."""
+    return _project_adopt_tip_counts(result)
+
+
+def project_controller_adopt_tip(result: Any) -> dict[str, object]:
+    """Project the documented controller adoption tip as two bounded int32 counts."""
+    return _project_adopt_tip_counts(result)
 
 
 def project_msp_roles(result: Any) -> dict[str, object]:
