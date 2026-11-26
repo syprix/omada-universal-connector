@@ -142,6 +142,59 @@ class OpenApiClientTests(unittest.TestCase):
         self.assertEqual(result["status"], "ok")
         self.assertEqual(result["profile_count"], 0)
 
+    def test_qos_service_reference_inventory_uses_separate_fixed_get(self) -> None:
+        site_ref = "d" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={
+                    "errorCode": 0,
+                    "result": {"data": [
+                        {"id": "private-id", "name": "private-name"},
+                        {"id": "duplicate", "name": "private-name-2"},
+                        {"id": "duplicate", "name": "private-name-3",
+                         "futureField": "private-value"},
+                    ]},
+                }) as request:
+            result = self.client.read_site_gateway_qos_service_reference_inventory(site_ref)
+        self.assertEqual(result["resource"], "site_gateway_qos_service_reference_inventory")
+        self.assertEqual(result["row_count"], 3)
+        self.assertEqual(result["id_valid_count"], 3)
+        self.assertEqual(result["id_unique_count"], 2)
+        self.assertEqual(result["duplicate_reference_count"], 1)
+        self.assertEqual(result["name_valid_count"], 3)
+        self.assertEqual(result["unknown_field_count"], 1)
+        for secret in ("private-id", "private-name", "private-value"):
+            self.assertNotIn(secret, json.dumps(result))
+        self.assertNotIn(site_ref, json.dumps(result))
+        request.assert_called_once_with(
+            "GET", "/openapi/v1/controller_1/sites/site-1/profiles/service-type-summary",
+            token="token")
+        self.assertEqual(
+            dict(OmadaOpenApiClient.CAPABILITY_OPERATIONS)[
+                "site_gateway_qos_service_reference_inventory"],
+            "GET /v1/sites/{site_ref}/gateway-qos/service-references/summary")
+
+    def test_qos_service_reference_inventory_fails_closed_on_bad_data_shape(self) -> None:
+        site_ref = "e" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        for payload in (
+                {"errorCode": 0, "result": {}},
+                {"errorCode": 0, "result": {"data": None}},
+                {"errorCode": -1, "result": {"data": []}},
+        ):
+            with self.subTest(payload=payload), \
+                    patch.object(self.client, "_access_token", return_value="token"), \
+                    patch.object(self.client, "_request_json", return_value=payload), \
+                    self.assertRaisesRegex(OpenApiError, "openapi_response_invalid"):
+                self.client.read_site_gateway_qos_service_reference_inventory(site_ref)
+        self.assertTrue(self.client._site_gateway_qos_service_reference_inventory_request_valid(
+            "/openapi/v1/controller_1/sites/site-1/profiles/service-type-summary"))
+        for path in (
+                "/openapi/v1/other/sites/site-1/profiles/service-type-summary",
+                "/openapi/v1/controller_1/sites/site-1/profiles/service-type-summary?x=1"):
+            self.assertFalse(
+                self.client._site_gateway_qos_service_reference_inventory_request_valid(path))
+
     def test_site_upnp_template_comparison_uses_selected_inventories(self) -> None:
         site_ref, template_ref = "a" * 24, "b" * 24
         self.client._site_ids_by_ref[site_ref] = "site-1"

@@ -138,6 +138,8 @@ class OperationRegistryTests(unittest.TestCase):
              f"/v1/sites/{site_ref}/topology/snapshot-summary"),
             ("site_gateway_qos_service_profiles_summary",
              f"/v1/sites/{site_ref}/gateway-qos/service-profiles/summary"),
+            ("site_gateway_qos_service_reference_inventory",
+             f"/v1/sites/{site_ref}/gateway-qos/service-references/summary"),
         )
         for operation_id, path in cases:
             operation = REGISTRY.get(operation_id)
@@ -1459,6 +1461,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_switch_general_config_summary",
             "site_topology_snapshot_summary",
             "site_gateway_qos_service_profiles_summary",
+            "site_gateway_qos_service_reference_inventory",
             "site_switch_oui_vlan_summary",
             "controller_sdwan_group_summary",
             "controller_sdwan_group_devices_summary",

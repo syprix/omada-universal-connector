@@ -734,6 +734,18 @@ class FakeOpenApiClient:
         return {"status": "ok", "resource": "site_gateway_qos_service_profiles_summary",
                 "site_ref": site_ref, "partial": False, "profile_count": 0}
 
+    def read_site_gateway_qos_service_reference_inventory(
+            self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_gateway_qos_service_reference_inventory", site_ref))
+        return {"status": "ok", "resource": "site_gateway_qos_service_reference_inventory",
+                "partial": False, "source_scope": "single_unpaginated_response",
+                "server_completeness_established": False, "row_count": 2, "empty": False,
+                "id_present_count": 2, "id_missing_count": 0, "id_invalid_count": 0,
+                "id_valid_count": 2, "id_unique_count": 2,
+                "duplicate_reference_count": 0, "name_present_count": 2,
+                "name_missing_count": 0, "name_invalid_count": 0,
+                "name_valid_count": 2, "unknown_field_count": 0}
+
     def read_site_reboot_schedule_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_reboot_schedule_summary", site_ref))
         return {"status": "ok", "resource": "site_reboot_schedule_summary",
@@ -8990,6 +9002,28 @@ class OpenApiHttpTests(unittest.TestCase):
                          [{"model_id": 0, "model_name": ""}])
         self.assertEqual(self.fake.calls,
                          [("site_gateway_supported_model_references", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_gateway_qos_service_reference_inventory(self) -> None:
+        site_ref = "f" * 24
+        path = f"/v1/sites/{site_ref}/gateway-qos/service-references/summary"
+        status, response = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_gateway_qos_service_reference_inventory")
+        self.assertEqual(response["row_count"], 2)
+        self.assertNotIn("private-id", json.dumps(response))
+        self.assertNotIn(site_ref, json.dumps(response))
+        request = {"jsonrpc": "2.0", "id": 168, "method": "tools/call",
+                   "params": {"name": "omada_site_gateway_qos_service_reference_inventory",
+                              "arguments": {"site_ref": site_ref}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"]["row_count"], 2)
+        self.assertNotIn("private-id", json.dumps(rpc))
+        self.assertNotIn(site_ref, json.dumps(rpc))
+        self.assertEqual(self.fake.calls, [
+            ("site_gateway_qos_service_reference_inventory", site_ref),
+            ("site_gateway_qos_service_reference_inventory", site_ref),
+        ])
 
     def test_http_and_mcp_expose_site_category_application_summary(self) -> None:
         site_ref, family_id = "a" * 24, "17"

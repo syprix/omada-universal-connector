@@ -161,6 +161,22 @@ class FullApiMatrixTests(unittest.TestCase):
         self.assertEqual(row["connector_source_status"], "implemented_read")
         self.assertEqual(row["live_status"], "unknown_not_checked_by_this_offline_tool")
 
+    def test_gateway_qos_service_reference_inventory_is_distinct_and_documented(self) -> None:
+        matrix = json.loads((Path(__file__).resolve().parents[1] /
+                             "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
+        self.assertEqual(len(matrix["sources"]), 3)
+        for source in matrix["sources"]:
+            operation = source["operations"]["site_gateway_qos_service_reference_inventory"]
+            self.assertTrue(operation["documented"])
+            self.assertEqual(operation["live_support"], "unknown")
+            self.assertEqual(operation["source_operation_id"], "getServiceTypeSummary")
+            self.assertIn("unpaginated array", operation["response_contract"])
+            self.assertIn("id:string and name:string", operation["response_contract"])
+            self.assertIn("Omits IDs and names", operation["projection"])
+            profiles = source["operations"]["site_gateway_qos_service_profiles_summary"]
+            self.assertEqual(profiles["source_operation_id"], "listServiceType")
+            self.assertNotEqual(operation["source_operation_id"], profiles["source_operation_id"])
+
     def test_site_ap_group_summary_contract_presence_and_live_state(self) -> None:
         matrix = json.loads((Path(__file__).resolve().parents[1] /
                              "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))

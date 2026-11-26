@@ -3439,6 +3439,13 @@
             "connector_projection": "Fixed site-bound GET; requests only page 1 with pageSize at most 100. Returns profile/OUI-entry counts and type/field coverage only. Profile IDs/names, OUI values, descriptions and assignments are omitted. Reports omitted rows and partial coverage from reported totalRows; it does not use the separate /all operation.",
             "live_support": "unknown"
           }
+        },
+        "site_gateway_qos_service_reference_inventory": {
+          "documented": true,
+          "live_support": "unknown",
+          "source_operation_id": "getServiceTypeSummary",
+          "response_contract": "GET returns result.data as an unpaginated array of GatewayQosServiceSummaryOpenApiVO rows. The only documented row fields are id:string and name:string; no total or pagination metadata is defined.",
+          "projection": "Reports bounded row count, ID/name field coverage, duplicate-reference count and an explicit empty-list flag. Omits IDs and names. One unpaginated response does not establish server-side completeness or profile use."
         }
       }
     },
@@ -6822,6 +6829,13 @@
             "connector_projection": "Fixed site-bound GET; requests only page 1 with pageSize at most 100. Returns profile/OUI-entry counts and type/field coverage only. Profile IDs/names, OUI values, descriptions and assignments are omitted. Reports omitted rows and partial coverage from reported totalRows; it does not use the separate /all operation.",
             "live_support": "unknown"
           }
+        },
+        "site_gateway_qos_service_reference_inventory": {
+          "documented": true,
+          "live_support": "unknown",
+          "source_operation_id": "getServiceTypeSummary",
+          "response_contract": "GET returns result.data as an unpaginated array of GatewayQosServiceSummaryOpenApiVO rows. The only documented row fields are id:string and name:string; no total or pagination metadata is defined.",
+          "projection": "Reports bounded row count, ID/name field coverage, duplicate-reference count and an explicit empty-list flag. Omits IDs and names. One unpaginated response does not establish server-side completeness or profile use."
         }
       }
     },
@@ -10115,6 +10129,13 @@
             "live_support": "unknown",
             "platform_limit": "The source describes this operation as Omada Pro Controller only. This is recorded separately; it is not a live-support claim for this adapter."
           }
+        },
+        "site_gateway_qos_service_reference_inventory": {
+          "documented": true,
+          "live_support": "unknown",
+          "source_operation_id": "getServiceTypeSummary",
+          "response_contract": "GET returns result.data as an unpaginated array of GatewayQosServiceSummaryOpenApiVO rows. The only documented row fields are id:string and name:string; no total or pagination metadata is defined.",
+          "projection": "Reports bounded row count, ID/name field coverage, duplicate-reference count and an explicit empty-list flag. Omits IDs and names. One unpaginated response does not establish server-side completeness or profile use."
         }
       }
     }
