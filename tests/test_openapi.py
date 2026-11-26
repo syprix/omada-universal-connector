@@ -1138,6 +1138,33 @@ class OpenApiClientTests(unittest.TestCase):
                     "GET", "/openapi/v1/other-controller/adopt-tip", token="token")
         connect.assert_not_called()
 
+    def test_controller_placed_site_position_coverage_uses_fixed_route_and_redacts(self) -> None:
+        path = "/openapi/v1/controller_1/placed-site-position"
+        connection = self.respond({"errorCode": 0, "result": [{
+            "id": "private-id", "region": "private-region", "name": "private-name",
+            "longitude": 12.5, "latitude": -7.0, "address": "private-address",
+        }]})
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_connection", return_value=connection):
+            result = self.client.read_controller_placed_site_position_coverage()
+        self.assertEqual(result["resource"], "controller_placed_site_position_coverage")
+        self.assertEqual(result["placed_site_row_count"], 1)
+        self.assertEqual(result["documented_field_observed_count"], 6)
+        self.assertEqual(result["coordinate_number_value_count"], 2)
+        self.assertFalse(result["server_completeness_established"])
+        self.assertEqual(connection.calls[0][0:2], ("GET", path))
+        for private in ("private-id", "private-region", "private-name", "private-address"):
+            self.assertNotIn(private, json.dumps(result))
+        with patch.object(self.client, "_connection") as connect:
+            for invalid in (
+                "/openapi/v1/other-controller/placed-site-position",
+                path + "?page=1",
+                path + "/extra",
+            ):
+                with self.assertRaisesRegex(OpenApiError, "openapi_path_rejected"):
+                    self.client._request_json("GET", invalid, token="token")
+        connect.assert_not_called()
+
     def test_controller_client_correction_options_uses_exact_fixed_route(self) -> None:
         path = "/openapi/v1/controller_1/correction-list"
         connection = self.respond({"errorCode": 0, "result": {
@@ -1178,6 +1205,9 @@ class OpenApiClientTests(unittest.TestCase):
         self.assertEqual(
             capability_routes["controller_client_correction_options_summary"],
             "GET /v1/controller/client-correction-options/summary")
+        self.assertEqual(
+            capability_routes["controller_placed_site_position_coverage"],
+            "GET /v1/controller/placed-site-position-coverage")
 
     def test_site_session_limit_enable_state_uses_inventory_bound_fixed_get(self) -> None:
         site_ref = "a" * 24
