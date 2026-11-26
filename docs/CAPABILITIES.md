@@ -16,6 +16,16 @@ category. Profile names, IDs, port values and descriptions are omitted.
 Unrecognized codes remain unclassified. Hardware Controller, CBC and
 ER7212PC document this operation; live support is unknown.
 
+`GET /v1/sites/{site_ref}/gateway-qos/service-references/summary` and MCP tool
+`omada_site_gateway_qos_service_reference_inventory` read the separate,
+unpaginated `service-type-summary` reference list. They report row counts and
+the presence, validity and duplication of documented string IDs, plus name
+field coverage, while omitting all IDs and names. Unknown fields mark the
+result partial. The response has no total or pagination metadata, so the
+summary does not claim server-side completeness or describe profile use.
+Hardware Controller, CBC and ER7212PC document the source; live support is
+unknown.
+
 `GET /v1/sites/{site_ref}/static-route-summary` and MCP tool
 `omada_site_policy_route_summary` provides a bounded, read-only summary of documented policy-routing rows for one selected site. It counts source, destination and interface types, enabled state and opaque reference occurrences; it marks unknown values and index quality. It does not disclose IDs or names, infer precedence, or claim that a route is carrying traffic.
 

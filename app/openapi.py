@@ -1660,6 +1660,8 @@ class OmadaOpenApiClient:
     _SITE_TOPOLOGY_SNAPSHOT_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/topology"
     _SITE_GATEWAY_QOS_SERVICE_TYPES_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/profiles/service-type")
+    _SITE_GATEWAY_QOS_SERVICE_REFERENCE_INVENTORY_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/profiles/service-type-summary")
     _SITE_HEALTH_TIMELINE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/health/timeline"
     _SITE_LONGEST_CLIENT_UPTIME_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/longest-uptime")
@@ -2758,6 +2760,9 @@ class OmadaOpenApiClient:
     _SITE_GATEWAY_QOS_SERVICE_TYPES_REQUEST = re.compile(
         r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/profiles/service-type"
         r"\?page=([1-9][0-9]*)&pageSize=(1000|[1-9][0-9]{0,2})")
+    _SITE_GATEWAY_QOS_SERVICE_REFERENCE_INVENTORY_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/"
+        r"profiles/service-type-summary")
     _SITE_HEALTH_TIMELINE_REQUEST = re.compile(
         r"/openapi/v1/[A-Za-z0-9_-]{1,128}/sites/[A-Za-z0-9_-]{1,128}/health/timeline"
         r"\?start=[0-9]{1,16}&end=[0-9]{1,16}"
@@ -3304,6 +3309,7 @@ class OmadaOpenApiClient:
         ("site_switch_general_config_summary", "GET /v1/sites/{site_ref}/switches/{switch_ref}/general-config-summary"),
         ("site_topology_snapshot_summary", "GET /v1/sites/{site_ref}/topology/snapshot-summary"),
         ("site_gateway_qos_service_profiles_summary", "GET /v1/sites/{site_ref}/gateway-qos/service-profiles/summary"),
+        ("site_gateway_qos_service_reference_inventory", "GET /v1/sites/{site_ref}/gateway-qos/service-references/summary"),
         ("site_stack_vlan_interface_summary", "GET /v1/sites/{site_ref}/stacks/{stack_ref}/vlan-interfaces/summary"),
         ("site_switch_oui_vlan_summary", "GET /v1/sites/{site_ref}/switches/oui-vlan-rules/summary"),
         ("controller_sdwan_group_summary", "GET /v1/controller/sdwan-groups/summary"),
@@ -17239,6 +17245,33 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {"site_ref": site_ref, **projected}
 
+    @_track_capability("site_gateway_qos_service_reference_inventory")
+    def read_site_gateway_qos_service_reference_inventory(
+            self, site_ref: str) -> dict[str, object]:
+        """Read bounded id/name coverage from the separate service-reference list."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_GATEWAY_QOS_SERVICE_REFERENCE_INVENTORY_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            from .site_gateway_qos_service_reference_inventory import (
+                GatewayQosServiceReferenceInventoryError,
+                project_gateway_qos_service_reference_inventory,
+            )
+        except ImportError:  # direct execution in the image
+            from site_gateway_qos_service_reference_inventory import (
+                GatewayQosServiceReferenceInventoryError,
+                project_gateway_qos_service_reference_inventory,
+            )
+        try:
+            projected = project_gateway_qos_service_reference_inventory(
+                payload.get("result"))
+        except GatewayQosServiceReferenceInventoryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return projected
+
     @_track_capability("site_longest_client_uptime_summary")
     def read_site_longest_client_uptime_summary(self, site_ref: str) -> dict[str, object]:
         """Read documented wired/wireless client counts from the site dashboard."""
@@ -18481,6 +18514,7 @@ class OmadaOpenApiClient:
                                   self._site_topology_vlan_summary_request_valid(path) or
                                   self._site_topology_snapshot_request_valid(path) or
                                   self._site_gateway_qos_service_types_request_valid(path) or
+                                  self._site_gateway_qos_service_reference_inventory_request_valid(path) or
                                   self._site_unresolved_incident_count_request_valid(path) or
                                   self._site_incident_overview_request_valid(path) or
                                   self._site_incident_distribution_request_valid(path) or
@@ -20916,6 +20950,10 @@ class OmadaOpenApiClient:
             path)
         return bool(match and match.group(1) == self.config.controller_id and
                     int(match.group(2)) <= 10 and 1 <= int(match.group(3)) <= 1000)
+
+    def _site_gateway_qos_service_reference_inventory_request_valid(self, path: str) -> bool:
+        match = self._SITE_GATEWAY_QOS_SERVICE_REFERENCE_INVENTORY_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
 
     def _site_unresolved_incident_count_request_valid(self, path: str) -> bool:
         match = re.fullmatch(
