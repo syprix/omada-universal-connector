@@ -12,6 +12,7 @@ from urllib.parse import urlencode
 from unittest.mock import patch
 
 from app import main
+from app.controller_system_status import project_controller_client_correction_options
 from app.change_journal import ChangePlanJournal, derive_controller_binding
 from app.device_upgrade_result import DeviceUpgradeResultError, project_device_upgrade_result
 from app.openapi import OmadaOpenApiClient, OpenApiConfig, OpenApiError
@@ -31,6 +32,8 @@ class FakeOpenApiClient:
     def __init__(self) -> None:
         self.calls: list[tuple[str, str | None]] = []
         self.diagnostic_payloads = _complete_payloads("a" * 24)
+        self.correction_options_result: dict[str, object] | None = None
+        self.controller_scenarios_result: dict[str, object] | None = None
 
     def list_sites(self) -> dict[str, object]:
         self.calls.append(("sites", None))
@@ -43,6 +46,8 @@ class FakeOpenApiClient:
 
     def read_controller_scenarios(self) -> dict[str, object]:
         self.calls.append(("controller_scenarios", None))
+        if self.controller_scenarios_result is not None:
+            return self.controller_scenarios_result
         return {"status": "ok", "resource": "controller_scenarios",
                 "scenario_count": 2, "items": ["Wireless", "Switching"],
                 "partial": False}
@@ -194,6 +199,8 @@ class FakeOpenApiClient:
 
     def read_controller_client_correction_options_summary(self) -> dict[str, object]:
         self.calls.append(("controller_client_correction_options_summary", None))
+        if self.correction_options_result is not None:
+            return self.correction_options_result
         return {"status": "ok", "resource": "controller_client_correction_options_summary",
                 "data": {"type_options": [{"key": "type-a", "label": "Type A"}],
                          "vendor_options": [], "type_option_count": 1,
@@ -3369,7 +3376,10 @@ class OpenApiHttpTests(unittest.TestCase):
         headers = {"Authorization": "Bearer " + token} if token is not None else {}
         connection.request("GET", path, headers=headers)
         response = connection.getresponse()
-        body = json.loads(response.read())
+        raw_body = response.read()
+        self.last_response_bytes = len(raw_body)
+        self.last_response_raw = raw_body
+        body = json.loads(raw_body)
         connection.close()
         return response.status, body
 
@@ -3383,7 +3393,10 @@ class OpenApiHttpTests(unittest.TestCase):
             headers["Origin"] = origin
         connection.request("POST", path, body=json.dumps(body), headers=headers)
         response = connection.getresponse()
-        payload = json.loads(response.read())
+        raw_body = response.read()
+        self.last_response_bytes = len(raw_body)
+        self.last_response_raw = raw_body
+        payload = json.loads(raw_body)
         connection.close()
         return response.status, payload
 
@@ -7498,12 +7511,26 @@ class OpenApiHttpTests(unittest.TestCase):
                          [("controller_device_adoption_tip_summary", None)] * 2)
 
     def test_http_and_mcp_expose_controller_client_correction_options(self) -> None:
+        source = {
+            "typeList": [{"key": f"type-{index}-\\\"", "name": f"Modèle 🛠 {index}"}
+                         for index in range(140)],
+            "vendorList": [{"key": f"vendor-{index}-\\\"", "name": f"Fábric 🛠 {index}"}
+                           for index in range(1100)],
+        }
+        self.fake.correction_options_result = {
+            "status": "ok", "resource": "controller_client_correction_options_summary",
+            **project_controller_client_correction_options(source),
+        }
         status, response = self.request(
             "/v1/controller/client-correction-options/summary", self.token)
         self.assertEqual(status, 200)
         self.assertEqual(response["resource"], "controller_client_correction_options_summary")
-        self.assertEqual(response["data"]["type_options"],
-                         [{"key": "type-a", "label": "Type A"}])
+        self.assertEqual(response["data"]["type_option_count"], 140)
+        self.assertEqual(response["data"]["vendor_option_count"], 1100)
+        http_response_bytes = self.last_response_bytes
+        self.correction_http_response_bytes = http_response_bytes
+        self.assertNotIn("🛠".encode(), self.last_response_raw)
+        self.assertLess(http_response_bytes, main._MAX_HTTP_RESPONSE_BYTES)
         request = {"jsonrpc": "2.0", "id": 144, "method": "tools/call",
                    "params": {"name": "omada_controller_client_correction_options_summary",
                               "arguments": {}}}
@@ -7511,9 +7538,117 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(status, 200)
         structured = response["result"]["structuredContent"]
         self.assertEqual(structured["resource"], "controller_client_correction_options_summary")
-        self.assertEqual(structured["data"]["vendor_option_count"], 0)
+        self.assertEqual(structured["data"]["type_option_count"], 140)
+        self.assertEqual(structured["data"]["vendor_option_count"], 1100)
+        mcp_response_bytes = self.last_response_bytes
+        self.correction_mcp_response_bytes = mcp_response_bytes
+        self.assertLess(mcp_response_bytes, main._MAX_HTTP_RESPONSE_BYTES)
+        self.assertGreater(mcp_response_bytes, http_response_bytes)
+        self.assertEqual(self.last_response_raw.count("🛠".encode()), 2 * (140 + 1100))
+        self.assertNotIn("icon", repr(response))
+        self.assertNotIn("icon", repr(structured))
+        self.assertEqual(json.loads(response["result"]["content"][0]["text"]), structured)
         self.assertEqual(self.fake.calls,
                          [("controller_client_correction_options_summary", None)] * 2)
+
+    def test_controller_client_correction_mcp_transport_limit_for_unicode_rich_rows(self) -> None:
+        for count in (300, 350, 485):
+            source = {
+                "typeList": [{"key": f"key-{index}", "name": "🛠" * 128}
+                             for index in range(count)],
+                "vendorList": [],
+            }
+            upstream_bytes = len(json.dumps(source, ensure_ascii=False,
+                                             separators=(",", ":")).encode("utf-8"))
+            self.assertLess(upstream_bytes, 262_144)
+            if count == 485:
+                self.assertGreater(upstream_bytes, 261_000)
+            self.fake.correction_options_result = {
+                "status": "ok", "resource": "controller_client_correction_options_summary",
+                **project_controller_client_correction_options(source),
+            }
+            if count == 350:
+                original_send = main.Handler._send
+
+                def ascii_only_send(handler, response_status, body, *, ensure_ascii=True):
+                    return original_send(handler, response_status, body, ensure_ascii=True)
+
+                with patch.object(main.Handler, "_send", ascii_only_send):
+                    old_status, old_response = self.request_post(
+                        "/mcp",
+                        {"jsonrpc": "2.0", "id": count - 1, "method": "tools/call",
+                         "params": {"name": "omada_controller_client_correction_options_summary",
+                                    "arguments": {}}},
+                        self.token,
+                    )
+                self.assertEqual(old_status, 502)
+                self.assertEqual(old_response,
+                                 {"error": "response_too_large", "status": "error"})
+            status, response = self.request_post(
+                "/mcp",
+                {"jsonrpc": "2.0", "id": count, "method": "tools/call",
+                 "params": {"name": "omada_controller_client_correction_options_summary",
+                            "arguments": {}}},
+                self.token,
+            )
+            self.assertEqual(status, 200)
+            self.assertGreater(self.last_response_bytes, 300_000 if count == 300 else 0)
+            self.assertLessEqual(self.last_response_bytes, main._MAX_HTTP_RESPONSE_BYTES)
+            self.assertEqual(self.last_response_raw.count("🛠".encode()), 2 * count * 128)
+            self.assertEqual(json.loads(response["result"]["content"][0]["text"]),
+                             response["result"]["structuredContent"])
+
+        escape_heavy = {
+            "typeList": [{"key": f"key-{index}", "name": '"\\' * 64}
+                         for index in range(920)],
+            "vendorList": [],
+        }
+        upstream_bytes = len(json.dumps(escape_heavy, ensure_ascii=False,
+                                        separators=(",", ":")).encode("utf-8"))
+        self.assertGreater(upstream_bytes, 261_000)
+        self.assertLess(upstream_bytes, 262_144)
+        self.fake.correction_options_result = {
+            "status": "ok", "resource": "controller_client_correction_options_summary",
+            **project_controller_client_correction_options(escape_heavy),
+        }
+        status, response = self.request_post(
+            "/mcp",
+            {"jsonrpc": "2.0", "id": 920, "method": "tools/call",
+             "params": {"name": "omada_controller_client_correction_options_summary",
+                        "arguments": {}}},
+            self.token,
+        )
+        self.assertEqual(status, 200)
+        self.assertLessEqual(self.last_response_bytes, main._MAX_HTTP_RESPONSE_BYTES)
+        self.assertEqual(json.loads(response["result"]["content"][0]["text"]),
+                         response["result"]["structuredContent"])
+
+    def test_other_mcp_tools_keep_ascii_escaped_outer_response(self) -> None:
+        self.fake.controller_scenarios_result = {
+            "status": "ok", "resource": "controller_scenarios",
+            "scenario_count": 1, "items": ["🛠"], "partial": False,
+        }
+        request = {"jsonrpc": "2.0", "id": 201, "method": "tools/call",
+                   "params": {"name": "omada_controller_scenarios", "arguments": {}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertNotIn("🛠".encode(), self.last_response_raw)
+        structured = response["result"]["structuredContent"]
+        self.assertEqual(json.loads(response["result"]["content"][0]["text"]), structured)
+
+        self.fake.correction_options_result = {
+            "status": "error", "resource": "controller_client_correction_options_summary",
+            "diagnostic": "🛠",
+        }
+        correction_request = {
+            "jsonrpc": "2.0", "id": 202, "method": "tools/call",
+            "params": {"name": "omada_controller_client_correction_options_summary",
+                       "arguments": {}},
+        }
+        status, response = self.request_post("/mcp", correction_request, self.token)
+        self.assertEqual(status, 200)
+        self.assertIs(response["result"]["isError"], True)
+        self.assertNotIn("🛠".encode(), self.last_response_raw)
 
     def test_http_and_mcp_expose_backup_schedule_summary(self) -> None:
         status, response = self.request("/v1/controller/settings/backup-schedule", self.token)

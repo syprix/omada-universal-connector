@@ -782,8 +782,10 @@ def _in_doubt_status(code: str) -> HTTPStatus:
 class Handler(BaseHTTPRequestHandler):
     server_version = "omada-universal-connector/" + VERSION
 
-    def _send(self, status: int, body: dict[str, object]) -> None:
-        encoded = json.dumps(body, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    def _send(self, status: int, body: dict[str, object], *,
+              ensure_ascii: bool = True) -> None:
+        encoded = json.dumps(body, sort_keys=True, separators=(",", ":"),
+                             ensure_ascii=ensure_ascii).encode("utf-8")
         if len(encoded) > _MAX_HTTP_RESPONSE_BYTES:
             status = HTTPStatus.BAD_GATEWAY
             encoded = b'{"error":"response_too_large","status":"error"}'
@@ -1673,7 +1675,19 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
-        self._send(HTTPStatus.OK, response)
+        params = request.get("params") if isinstance(request, dict) else None
+        result = response.get("result") if isinstance(response, dict) else None
+        correction_options_success = (
+            isinstance(request, dict) and request.get("method") == "tools/call" and
+            isinstance(params, dict) and
+            params.get("name") == "omada_controller_client_correction_options_summary" and
+            isinstance(response, dict) and "error" not in response and
+            isinstance(result, dict) and result.get("isError") is False and
+            isinstance(result.get("structuredContent"), dict) and
+            result["structuredContent"].get("status") == "ok"
+        )
+        self._send(HTTPStatus.OK, response,
+                   ensure_ascii=not correction_options_success)
 
     def _mcp_read(self, operation_id: str, arguments: dict[str, str]) -> dict[str, object]:
         if operation_id == "change_journal_summary":

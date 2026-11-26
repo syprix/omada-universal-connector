@@ -1,3 +1,4 @@
+import json
 import unittest
 
 from app.controller_system_status import (
@@ -208,13 +209,38 @@ class ControllerSystemStatusTests(unittest.TestCase):
         ])
         self.assertEqual(result["invalid_field_count"], 2)
         self.assertEqual(result["missing_field_count"], 1)
+        at_limit = project_controller_client_correction_options({
+            "typeList": [{"key": f"k-{index}", "name": "n"}
+                         for index in range(1200)],
+            "vendorList": [],
+        })
+        self.assertEqual(at_limit["data"]["type_option_count"], 1200)
+        self.assertFalse(at_limit["partial"])
         oversized = project_controller_client_correction_options({
-            "typeList": [{"key": "k", "name": "n"}] * 129,
+            "typeList": [{"key": f"k-{index}", "name": "n"}
+                         for index in range(1201)],
             "vendorList": [],
         })
         self.assertEqual(oversized["data"]["type_options"], [])
         self.assertEqual(oversized["invalid_field_count"], 1)
         self.assertTrue(oversized["partial"])
+
+    def test_controller_client_correction_projects_observed_list_sizes_with_unicode(self):
+        source = {
+            "typeList": [{"key": f"t-{index}-\\\"", "name": f"Mødel 🛠 {index}"}
+                         for index in range(140)],
+            "vendorList": [{"key": f"v-{index}-\\\"", "name": f"Fabríc 🛠 {index}"}
+                           for index in range(1100)],
+        }
+        upstream_body_bytes = len(json.dumps(source, ensure_ascii=False,
+                                             separators=(",", ":")).encode("utf-8"))
+        self.assertLess(upstream_body_bytes, 262_144)
+        result = project_controller_client_correction_options(source)
+        self.assertEqual(result["data"]["type_option_count"], 140)
+        self.assertEqual(result["data"]["vendor_option_count"], 1100)
+        self.assertEqual(result["invalid_field_count"], 0)
+        self.assertFalse(result["partial"])
+        self.assertNotIn("icon", repr(result))
 
     def test_controller_client_correction_ignores_invalid_omitted_icon_metadata(self):
         result = project_controller_client_correction_options({
