@@ -940,6 +940,7 @@ class Handler(BaseHTTPRequestHandler):
                                              "/v1/controller/firmware-upgrade-models/summary", \
                                              "/v1/controller/firmware-inventory-summary", \
                                              "/v1/controller/firmware-critical-model-count/summary", \
+                                             "/v1/controller/firmware-email-reminder/status", \
                                              "/v1/controller/sdwan-groups/summary"} or \
                 urlsplit(self.path).path.startswith("/v1/controller/firmware-upgrades/") or \
                 self.path.startswith("/v1/controller/sdwan-groups/") or \
@@ -3102,6 +3103,8 @@ class Handler(BaseHTTPRequestHandler):
                     result = client.read_controller_firmware_inventory_summary()
                 elif registry_operation == "controller_firmware_critical_model_count":
                     result = client.read_controller_firmware_critical_model_count()
+                elif registry_operation == "controller_firmware_email_reminder_status":
+                    result = client.read_controller_firmware_email_reminder_status()
                 elif registry_operation == "controller_scenarios":
                     result = client.read_controller_scenarios()
                 elif registry_operation == "controller_scenario_differences":

@@ -1816,6 +1816,12 @@ count does not identify models or establish
 current firmware security, platform availability, or that an upgrade ran.
 Offline verified; live controller support is unknown.
 
+`GET /v1/controller/firmware-email-reminder/status` reads the documented
+controller-wide firmware email-reminder `enable` Boolean. Missing, null or
+non-Boolean values remain incomplete; false is valid. The result reports the
+configured switch only and makes no claim about delivery, recipients,
+authorization or upgrades. It sends no mail and performs no upgrade.
+
 A synthetic 20-model source response and projection measured 789 → 117 serialized tokens (85.17% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`; this fixture result is not billed agent usage.
 
 The selected S2S VPN peer summary (#80) first refreshes the selected site's documented VPN inventory, then resolves a unique opaque VPN reference before requesting its peer-status pages. It reports counts for the documented `status` filter meanings (0 disconnected, 1 connected); other or missing codes remain unknown. VPN and peer identities, names, addresses, ports and traffic counters are omitted. The inventory's separate `status` flag is not interpreted as tunnel connectivity. Live support is unknown.
