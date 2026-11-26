@@ -3310,6 +3310,8 @@ class OmadaOpenApiClient:
         ("controller_client_detail_info", "GET /v1/controller/client-detail-information"),
         ("controller_general_settings", "GET /v1/controller/settings/general"),
         ("controller_device_access", "GET /v1/controller/settings/device-access"),
+        ("controller_device_adoption_tip_summary",
+         "GET /v1/controller/device-adoption-tip/summary"),
         ("controller_backup_schedule", "GET /v1/controller/settings/backup-schedule"),
         ("controller_cloud_access", "GET /v1/controller/cloud-access"),
         ("controller_device_management", "GET /v1/controller/settings/device-management"),
