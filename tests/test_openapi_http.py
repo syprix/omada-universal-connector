@@ -1373,6 +1373,15 @@ class FakeOpenApiClient:
                 "missing_field_count": 0, "invalid_field_count": 0,
                 "unknown_field_count": 0, "partial": False}
 
+    def read_site_mac_filtering_general_state(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_mac_filtering_general_state", site_ref))
+        return {"status": "ok", "resource": "site_mac_filtering_general_state",
+                "site_ref": site_ref,
+                "data": {"direction_present": False, "enabled": False},
+                "missing_field_count": 0, "invalid_field_count": 0,
+                "unknown_field_count": 0, "direction_invalid_field_count": 0,
+                "direction_unknown_field_count": 0, "partial": False}
+
     def read_site_capabilities(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_capabilities", site_ref))
         return {"status": "ok", "resource": "site_capabilities", "site_ref": site_ref,
@@ -6289,6 +6298,27 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertFalse(response["result"]["structuredContent"]["data"]["enabled"])
         self.assertEqual(self.fake.calls,
                          [("site_session_limit_enable_state", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_site_mac_filtering_general_state(self) -> None:
+        site_ref = "a" * 24
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/mac-filtering/general-state", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_mac_filtering_general_state")
+        self.assertEqual(response["data"], {
+            "direction_present": False, "enabled": False,
+        })
+        request = {"jsonrpc": "2.0", "id": 155, "method": "tools/call",
+                   "params": {"name": "omada_site_mac_filtering_general_state",
+                              "arguments": {"site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"]["resource"],
+                         "site_mac_filtering_general_state")
+        self.assertFalse(
+            response["result"]["structuredContent"]["data"]["enabled"])
+        self.assertEqual(self.fake.calls,
+                         [("site_mac_filtering_general_state", site_ref)] * 2)
 
     def test_http_and_mcp_expose_site_capabilities(self) -> None:
         path = f"/v1/sites/{'a' * 24}/capabilities"

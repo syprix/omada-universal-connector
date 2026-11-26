@@ -49,6 +49,21 @@ class OperationRegistryTests(unittest.TestCase):
                          "/openapi/v1/{controller_id}/sites/{site_id}/session-limit")
         self.assertEqual(dict(bindings), {"site_ref": site_ref})
 
+    def test_site_mac_filtering_general_state_is_bound_to_selected_site(self):
+        operation = REGISTRY.get("site_mac_filtering_general_state")
+        tool = _tool(operation)
+        site_ref = "a" * 24
+        self.assertEqual(tool["inputSchema"]["required"], ["site_ref"])
+        self.assertEqual(tool["inputSchema"]["additionalProperties"], False)
+        self.assertTrue(tool["annotations"]["readOnlyHint"])
+        route, bindings = REGISTRY.match(
+            "GET", f"/v1/sites/{site_ref}/mac-filtering/general-state")
+        self.assertEqual(route.operation_id, "site_mac_filtering_general_state")
+        self.assertEqual(route.upstream_method, "GET")
+        self.assertEqual(route.upstream_template,
+                         "/openapi/v1/{controller_id}/sites/{site_id}/mac-filter")
+        self.assertEqual(dict(bindings), {"site_ref": site_ref})
+
     def test_topology_snapshot_and_gateway_qos_profiles_are_site_bound(self):
         site_ref = "a" * 24
         cases = (
@@ -1171,6 +1186,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_template_iptv_settings_summary",
             "site_entity_summary",
             "site_session_limit_enable_state",
+            "site_mac_filtering_general_state",
             "site_switch_qos_mode",
             "site_switch_qos_scheduler_summary",
             "site_switch_qos_dscp_summary",
