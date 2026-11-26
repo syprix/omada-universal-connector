@@ -168,6 +168,17 @@ class OperationRegistryTests(unittest.TestCase):
         self.assertEqual(route.operation_id, "site_agile_switch_general_config_summary")
         self.assertEqual(dict(bindings), {"site_ref": site_ref, "switch_ref": switch_ref})
 
+    def test_site_hotspot_rate_limit_profiles_summary_is_site_bound(self):
+        operation = REGISTRY.get("site_hotspot_rate_limit_profiles_summary")
+        self.assertEqual(operation.upstream_method, "GET")
+        self.assertEqual(operation.upstream_template,
+                         "/openapi/v1/{controller_id}/hotspot/sites/{site_id}/setting/profiles/rateLimits")
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/hotspot/rate-limit-profiles/summary")
+        self.assertEqual(route.operation_id, "site_hotspot_rate_limit_profiles_summary")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
+        self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
+
     def test_site_bandwidth_rules_summary_is_site_bound(self):
         operation = REGISTRY.get("site_bandwidth_rules_summary")
         self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
@@ -1206,6 +1217,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_lan_switch_profile_assignments_summary",
             "site_lan_multicast_summary",
             "site_bandwidth_rules_summary",
+            "site_hotspot_rate_limit_profiles_summary",
             "site_log_notification_summary",
             "site_voucher_all_time_summary",
             "site_voucher_currency_options",
