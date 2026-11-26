@@ -55,6 +55,9 @@ class SiteSwitchPortAnomalySummaryTests(unittest.TestCase):
         self.assertFalse(result["partial"])
         self.assertEqual(result["resource"], "site_switch_port_anomaly_summary")
         self.assertEqual(result["interpretation"], "review_signals_not_diagnoses")
+        self.assertEqual(
+            result["source_contract"],
+            "port_status_and_tx_rx_errors_documented_in_all_three_exports; status_codes_uninterpreted")
         self.assertEqual(result["live_support"], "unknown")
         self.assertEqual(result["drop_counters"],
                          "not_available_in_documented_port_counter_response")

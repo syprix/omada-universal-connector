@@ -512,8 +512,9 @@ _SITE_SWITCH_PORT_ANOMALY_SUMMARY_TOOL = {
         "Compare current switch port status codes with cumulative transmit/receive error counters "
         "for up to 32 inventoried switches. Nonzero counters are review signals, not fault diagnoses. "
         "Status codes remain uninterpreted. The available port counter schema does not provide "
-        "drop counts; one snapshot cannot establish a rate or trend. Field-level schemas are specific "
-        "only in the ER7212PC export; live support remains unknown."
+        "drop counts; one snapshot cannot establish a rate or trend. Hardware Controller and CBC "
+        "document the same portStatus fields and int64 txErrors/rxErrors as ER7212PC; some other "
+        "numeric field wrappers differ. Live support remains unknown."
     ),
     "inputSchema": {
         "type": "object",

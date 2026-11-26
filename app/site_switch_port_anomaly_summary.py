@@ -215,7 +215,7 @@ def summarize_site_switch_port_anomalies(
         "resource": "site_switch_port_anomaly_summary",
         "interpretation": "review_signals_not_diagnoses",
         "switch_limit": _MAX_SWITCHES,
-        "source_contract": "port_status_and_error_fields_are_fully_described_only_in_ER7212PC_export",
+        "source_contract": "port_status_and_tx_rx_errors_documented_in_all_three_exports; status_codes_uninterpreted",
         "live_support": "unknown",
         "switches_scanned": len(selected_refs),
         "switches_omitted_device_limit": omitted,

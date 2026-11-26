@@ -10491,6 +10491,7 @@ class OpenApiHttpTests(unittest.TestCase):
             calls.append(ref)
             return {"status": "ok", "resource": "site_switch_port_anomaly_summary",
                     "partial": True, "drop_counters": "not_available_in_documented_port_counter_response",
+                    "source_contract": "port_status_and_tx_rx_errors_documented_in_all_three_exports; status_codes_uninterpreted",
                     "data": {"switches": []}}
 
         self.fake.read_site_switch_port_anomaly_summary = report
@@ -10503,6 +10504,9 @@ class OpenApiHttpTests(unittest.TestCase):
             f"/v1/sites/{site_ref}/switches/port-anomalies", self.token)
         self.assertEqual(status, 200)
         self.assertEqual(response["resource"], "site_switch_port_anomaly_summary")
+        self.assertEqual(
+            response["source_contract"],
+            "port_status_and_tx_rx_errors_documented_in_all_three_exports; status_codes_uninterpreted")
         self.assertEqual(calls, [site_ref])
 
         status, response = self.request_post("/mcp", {
@@ -10513,6 +10517,9 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(response["result"]["structuredContent"]["resource"],
                          "site_switch_port_anomaly_summary")
+        self.assertEqual(
+            response["result"]["structuredContent"]["source_contract"],
+            "port_status_and_tx_rx_errors_documented_in_all_three_exports; status_codes_uninterpreted")
         self.assertEqual(calls, [site_ref, site_ref])
     def test_http_and_mcp_expose_site_stack_connections_summary(self) -> None:
         site_ref = "a" * 24
