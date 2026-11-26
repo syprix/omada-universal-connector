@@ -3337,6 +3337,8 @@ class OmadaOpenApiClient:
         ("ssid_ap_groups", "GET /v1/sites/{site_ref}/ssids/{ssid_ref}/ap-groups"),
         ("site_beacon_control_summary", "GET /v1/sites/{site_ref}/beacon-control-summary"),
         ("site_iot_transmit_power_summary", "GET /v1/sites/{site_ref}/iot/transmit-power-summary"),
+        ("site_bluetooth_advertising_v2_summary",
+         "GET /v1/sites/{site_ref}/bluetooth-advertising-v2-summary"),
         ("site_remember_setting_summary", "GET /v1/sites/{site_ref}/remember-setting-summary"),
         ("site_client_connection_summary", "GET /v1/sites/{site_ref}/client-connection-summary"),
         ("site_poe_usage_summary", "GET /v1/sites/{site_ref}/poe-usage-summary"),
