@@ -3158,7 +3158,12 @@ class FakeOpenApiClient:
                 "site_ref": site_ref, "client_ref": client_ref,
                 "window_start_ms": 1, "window_end_ms": 86_400_001,
                 "health_version": 2, "score": 80, "dimensions": {},
-                "dimension_count": 0, "partial": False}
+                "dimension_count": 0, "partial": False,
+                "series_point_coverage": {
+                    "inspected_structurally_valid_count": 2,
+                    "past_num_missing_count": 1,
+                    "past_num_explicit_null_count": 1,
+                    "past_num_present_non_null_count": 0}}
 
     def read_client_health(self, site_ref: str, client_ref: str) -> dict[str, object]:
         self.calls.append(("client_health", site_ref + ":" + client_ref))
@@ -3329,7 +3334,11 @@ class OpenApiHttpTests(unittest.TestCase):
             f"/openapi/v1/other/sites/site_1/switches/{mac}/ddm/info"))
         inventory_rows = [{"deviceId": "switch-1", "mac": mac,
                            "deviceType": "switch", "name": "private switch"}]
+        # Fixed synthetic key makes the expected opaque inventory reference
+        # contain the same digits as the raw QoS port marker.
+        client._ref_key = b"ddm-collision-40"
         device_ref = client._opaque_ref("device", "site_1:switch-1")
+        self.assertIn("443", device_ref)
         calls = []
 
         def upstream(method, path, **kwargs):
@@ -3353,12 +3362,28 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(qos["by_documented_queue"]["3"], 1)
         self.assertEqual(ddm["reported_controller_flags"]["lossOfSignal"]["reported_loss"], 1)
         self.assertEqual(inventory.call_count, 1)
+        self.assertEqual(ddm["device_ref"], device_ref)
         self.assertEqual(calls, [
             ("GET", "/openapi/v1/ctrl/sites/site_1/switch-qos/qos-rule?page=1&pageSize=100"),
             ("GET", f"/openapi/v1/ctrl/sites/site_1/switches/{mac}/ddm/info")])
-        for secret in ("private qos", "private-id", "443", "8443", mac,
-                       "1/0/7", "0.42", "0.81", "51.5"):
-            self.assertNotIn(secret, json.dumps(qos) + json.dumps(ddm))
+        markers = ("private qos", "private-id", "443", "8443", mac,
+                   "1/0/7", "0.42", "0.81", "51.5")
+
+        def assert_redacted(qos_result, ddm_result):
+            self.assertEqual(ddm_result.get("device_ref"), device_ref)
+            # The opaque reference is verified separately; only that exact
+            # token is excluded from raw-value marker searches.
+            ddm_without_verified_ref = {
+                key: value for key, value in ddm_result.items() if key != "device_ref"}
+            serialized = json.dumps(qos_result) + json.dumps(ddm_without_verified_ref)
+            for marker in markers:
+                self.assertNotIn(marker, serialized)
+
+        assert_redacted(qos, ddm)
+        # A raw port value remains detectable even when the opaque token itself
+        # contains the same digits.
+        with self.assertRaises(AssertionError):
+            assert_redacted(qos, {**ddm, "raw_port_marker": "443"})
 
     def test_switch_ddm_refuses_duplicate_fresh_inventory_match(self) -> None:
         site_ref = "a" * 24
@@ -10733,6 +10758,7 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(body["resource"], "client_health_detail_v2")
         self.assertEqual(body["health_version"], 2)
+        self.assertEqual(body["series_point_coverage"]["past_num_explicit_null_count"], 1)
         self.assertEqual(self.fake.calls[-1],
                          ("client_health_detail_v2", site_ref + ":" + client_ref))
         status, response = self.request_post("/mcp", {
@@ -10744,6 +10770,9 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertNotIn("isError", response)
         self.assertEqual(response["result"]["structuredContent"]["resource"],
                          "client_health_detail_v2")
+        self.assertEqual(
+            response["result"]["structuredContent"]["series_point_coverage"][
+                "past_num_missing_count"], 1)
         self.assertEqual(self.fake.calls[-1],
                          ("client_health_detail_v2", site_ref + ":" + client_ref))
 

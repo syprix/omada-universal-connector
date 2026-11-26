@@ -113,6 +113,51 @@ class ClientHealthDetailV2ProjectionTests(unittest.TestCase):
         self.assertNotIn("pastNum", str(result))
         self.assertNotIn("1000", str(result))
 
+    def test_series_coverage_distinguishes_missing_null_and_non_null_without_changing_projection(self) -> None:
+        result = project_client_health_detail_v2({
+            "snr": {"pastNums": [
+                {"time": 1000},
+                {"time": 2000, "pastNum": None},
+                {"time": 3000, "pastNum": 0},
+                {"time": 4000, "pastNum": "malformed"},
+                {"time": "bad", "pastNum": None},
+                {"time": 5000, "pastNum": None, "unexpected": True},
+            ]},
+        })
+        self.assertTrue(result["partial"])
+        self.assertEqual(result["invalid_entry_or_field_count"], 6)
+        self.assertEqual(result["dimensions"]["snr"]["series"]["values"], {
+            "sample_count": 1, "first_time_ms": 3000, "last_time_ms": 3000,
+            "minimum": 0, "maximum": 0, "average": 0,
+        })
+        self.assertEqual(result["series_point_coverage"], {
+            "inspected_structurally_valid_count": 4,
+            "past_num_missing_count": 1,
+            "past_num_explicit_null_count": 1,
+            "past_num_present_non_null_count": 2,
+        })
+        self.assertNotIn("malformed", str(result))
+        self.assertNotIn("1000", str(result))
+
+    def test_series_coverage_stops_at_existing_64_point_cap(self) -> None:
+        for sample_count, omitted in ((64, 0), (65, 1)):
+            with self.subTest(sample_count=sample_count):
+                result = project_client_health_detail_v2({
+                    "snr": {"pastNums": [
+                        {"time": index + 1, "pastNum": None}
+                        for index in range(sample_count)]},
+                })
+                self.assertEqual(result["series_point_coverage"], {
+                    "inspected_structurally_valid_count": 64,
+                    "past_num_missing_count": 0,
+                    "past_num_explicit_null_count": 64,
+                    "past_num_present_non_null_count": 0,
+                })
+                self.assertEqual(result["omitted_series_limit"], omitted)
+                self.assertTrue(result["partial"])
+                self.assertEqual(result["dimensions"]["snr"]["series"]["values"],
+                                 {"sample_count": 0})
+
     def test_bounds_series_and_incidents_and_marks_partial(self) -> None:
         projection = project_client_health_detail_v2({
             "snr": {"pastNums": [
