@@ -1163,6 +1163,58 @@ class OpenApiClientTests(unittest.TestCase):
         self.assertEqual(ctx.exception.code, "openapi_rejected")
         self.assertEqual(ctx.exception.upstream_error_code, -7)
 
+    def test_site_mac_filtering_general_state_uses_fixed_site_get_and_redacts_selectors(self) -> None:
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site_1"
+        self.assertEqual(
+            dict(OmadaOpenApiClient.CAPABILITY_OPERATIONS)[
+                "site_mac_filtering_general_state"],
+            "GET /v1/sites/{site_ref}/mac-filtering/general-state")
+        path = "/openapi/v1/controller_1/sites/site_1/mac-filter"
+        connection = self.respond({"errorCode": 0, "result": {
+            "enable": False, "filterMode": 1,
+            "direction": {"lanToWan": True, "wanInIds": ["private-wan"]},
+            "future": "private-value",
+        }})
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_connection", return_value=connection):
+            result = self.client.read_site_mac_filtering_general_state(site_ref)
+        self.assertEqual(result["resource"], "site_mac_filtering_general_state")
+        self.assertEqual(result["data"], {
+            "direction_present": True,
+            "enabled": False,
+            "filter_mode": "deny",
+            "direction": {"lan_to_wan": True, "wan_selector_count": 1},
+        })
+        self.assertEqual(connection.calls[0][0:2], ("GET", path))
+        self.assertNotIn("private-wan", repr(result))
+        self.assertNotIn("private-value", repr(result))
+
+        with patch.object(self.client, "_connection") as connect:
+            with self.assertRaisesRegex(OpenApiError, "openapi_path_rejected"):
+                self.client._request_json(
+                    "GET", "/openapi/v1/other-controller/sites/site_1/mac-filter",
+                    token="token")
+        connect.assert_not_called()
+
+        with patch.object(self.client, "_access_token") as token, \
+                patch.object(self.client, "_request_json") as request:
+            with self.assertRaisesRegex(OpenApiError, "site_ref_unknown"):
+                self.client.read_site_mac_filtering_general_state("b" * 24)
+        token.assert_not_called()
+        request.assert_not_called()
+
+    def test_site_mac_filtering_general_state_preserves_sanitized_controller_error(self) -> None:
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site_1"
+        error = OpenApiError("openapi_rejected", upstream_error_code=-7)
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", side_effect=error):
+            with self.assertRaises(OpenApiError) as ctx:
+                self.client.read_site_mac_filtering_general_state(site_ref)
+        self.assertEqual(ctx.exception.code, "openapi_rejected")
+        self.assertEqual(ctx.exception.upstream_error_code, -7)
+
     def test_audit_read_is_bounded_and_marks_truncation(self) -> None:
         site_ref = "a" * 24
         self.client._site_ids_by_ref[site_ref] = "site-1"

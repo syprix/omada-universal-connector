@@ -409,6 +409,9 @@ except ImportError:  # direct execution in the image
 try:
     from .switch_static_routes import SwitchStaticRoutesError, summarize_switch_static_routes
     from .site_setting_existence import SiteSettingExistenceError, project_site_setting_existence
+    from .site_mac_filtering import (
+        SiteMacFilteringError, project_site_mac_filtering_general_state,
+    )
     from .site_entity_summary import SiteEntitySummaryError, summarize_site_entity
     from .site_reboot_schedule_summary import (
         SiteRebootScheduleError, summarize_site_reboot_schedules,
@@ -618,6 +621,9 @@ try:
 except ImportError:  # direct execution in the image
     from switch_static_routes import SwitchStaticRoutesError, summarize_switch_static_routes
     from site_setting_existence import SiteSettingExistenceError, project_site_setting_existence
+    from site_mac_filtering import (
+        SiteMacFilteringError, project_site_mac_filtering_general_state,
+    )
     from site_entity_summary import SiteEntitySummaryError, summarize_site_entity
     from site_reboot_schedule_summary import (
         SiteRebootScheduleError, summarize_site_reboot_schedules,
@@ -1415,6 +1421,8 @@ class OmadaOpenApiClient:
     _SITE_ENTITY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}"
     _SITE_SESSION_LIMIT_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/session-limit")
+    _SITE_MAC_FILTERING_GENERAL_STATE_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/mac-filter")
     _SITE_REBOOT_SCHEDULE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/reboot-schedules"
     _SITE_UPNP_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/upnp"
     _SITE_IOT_AGING_TIME_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/iot/aging-time"
@@ -3389,6 +3397,8 @@ class OmadaOpenApiClient:
         ("site_entity_summary", "GET /v1/sites/{site_ref}/metadata/summary"),
         ("site_session_limit_enable_state",
          "GET /v1/sites/{site_ref}/session-limit/enable-state"),
+        ("site_mac_filtering_general_state",
+         "GET /v1/sites/{site_ref}/mac-filtering/general-state"),
         ("site_switch_qos_mode", "GET /v1/sites/{site_ref}/switches/qos-mode"),
         ("site_switch_qos_scheduler_summary", "GET /v1/sites/{site_ref}/switches/qos/scheduler-summary"),
         ("site_switch_qos_dscp_summary", "GET /v1/sites/{site_ref}/switches/qos/dscp-summary"),
@@ -6499,6 +6509,20 @@ class OmadaOpenApiClient:
         except ControllerSystemStatusError:
             raise OpenApiError("openapi_response_invalid") from None
         return {"status": "ok", "resource": "site_session_limit_enable_state",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_mac_filtering_general_state")
+    def read_site_mac_filtering_general_state(self, site_ref: str) -> dict[str, object]:
+        """Read the fixed site MAC-filter setting without selector identities."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_MAC_FILTERING_GENERAL_STATE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            projected = project_site_mac_filtering_general_state(result)
+        except SiteMacFilteringError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_mac_filtering_general_state",
                 "site_ref": site_ref, **projected}
 
     @_track_capability("site_capabilities")
@@ -18199,6 +18223,7 @@ class OmadaOpenApiClient:
                                   self._site_setting_existence_request_valid(path) or
                                   self._site_entity_request_valid(path) or
                                   self._site_session_limit_request_valid(path) or
+                                  self._site_mac_filtering_general_state_request_valid(path) or
                                   self._site_reboot_schedule_request_valid(path) or
                                   self._site_upnp_request_valid(path) or
                                   self._site_iot_aging_time_request_valid(path) or
@@ -19340,6 +19365,12 @@ class OmadaOpenApiClient:
     def _site_session_limit_request_valid(self, path: str) -> bool:
         match = re.fullmatch(
             r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/session-limit",
+            path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_mac_filtering_general_state_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/mac-filter",
             path)
         return bool(match and match.group(1) == self.config.controller_id)
 

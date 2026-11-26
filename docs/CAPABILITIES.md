@@ -238,6 +238,18 @@ limit. All three supplied API exports document the GET with `Site Settings
 Manager View Only`, `Network Config Page View Only`, or `Site Device Manager
 View Only` permission; live support remains unknown.
 
+`GET /v1/sites/{site_ref}/mac-filtering/general-state` and MCP tool
+`omada_site_mac_filtering_general_state` read the fixed site MAC-filter
+setting. The projection preserves the required `enable` boolean and optional
+documented mode and direction fields; selector IDs are never returned, only
+bounded counts. Missing optional fields remain absent, while missing required
+or invalid/unknown values are reported as incomplete coverage. This describes
+configuration only and does not infer enforcement, traffic, device support or
+defaults. The source marks direction as Gateway-only; an absent direction stays
+absent without inferring a target type. All three supplied API exports document
+the GET with `Site Settings Manager View Only`, `Device Config Page View Only`,
+or `Site Device Manager View Only` permission; live support remains unknown.
+
 A synthetic delivery response with 20 device/stack entries measured 120 tokens
 before and 96 after projection (20% fewer) using `js-tiktoken` 1.0.21 /
 `o200k_base`; serialized payload only.

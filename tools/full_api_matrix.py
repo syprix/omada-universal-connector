@@ -33,6 +33,7 @@ IMPLEMENTED: dict[tuple[str, str], str] = {
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/audit-logs"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/setting/wan-ports"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/session-limit"): "implemented_read",
+    ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/mac-filter"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/audit-logs"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/adopt-tip"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/correction-list"): "implemented_read",
