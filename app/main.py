@@ -4090,6 +4090,9 @@ class Handler(BaseHTTPRequestHandler):
                 elif registry_operation == "site_wifi_calling_profiles_summary":
                     result = client.read_site_wifi_calling_profiles_summary(
                         registry_bindings["site_ref"])
+                elif registry_operation == "site_wifi_calling_top_ssid_summary":
+                    result = client.read_site_wifi_calling_top_ssid_summary(
+                        registry_bindings["site_ref"])
                 elif registry_operation == "site_client_filter_options_summary":
                     result = client.read_site_client_filter_options_summary(
                         registry_bindings["site_ref"])

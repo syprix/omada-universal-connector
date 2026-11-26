@@ -750,6 +750,10 @@ class OperationRegistryTests(unittest.TestCase):
         self.assertEqual(op.operation_id, "site_wifi_calling_profiles_summary")
         self.assertEqual(bindings, (("site_ref", "0123456789abcdef01234567"),))
         op, bindings = REGISTRY.match(
+            "GET", "/v1/sites/0123456789abcdef01234567/wifi-calling/top-ssid/summary")
+        self.assertEqual(op.operation_id, "site_wifi_calling_top_ssid_summary")
+        self.assertEqual(bindings, (("site_ref", "0123456789abcdef01234567"),))
+        op, bindings = REGISTRY.match(
             "GET", "/v1/sites/0123456789abcdef01234567/networks/abcdef0123456789abcdef01/vlan-devices/summary")
         self.assertEqual(op.operation_id, "site_vlan_device_usage_summary")
         self.assertEqual(dict(op.path_bindings)["vlan_id"], "vlan_id")
@@ -1509,6 +1513,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_port_schedule_summary",
             "site_routing_table_summary",
             "site_wifi_calling_profiles_summary",
+            "site_wifi_calling_top_ssid_summary",
             "site_client_filter_options_summary",
             "site_eap_dot1x_candidates_summary",
             "site_switch_dot1x_candidates_summary",
