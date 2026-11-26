@@ -34,6 +34,13 @@ empty list is not evidence that the controller has no placed sites and the
 tool does not claim complete server-side coverage. This is separate from the
 site inventory and unplaced-site positions.
 
+`omada_controller_unplaced_site_position_coverage` reads one fixed first page
+of unplaced-site positions (`page=1`, `pageSize=100`) without a search filter.
+It reports redacted field-coverage counts for the documented `id`, `region`,
+`name` and `type` fields and keeps `totalRows` separate from `unplacedNum`.
+It does not interpret `type` codes or return site values, identifiers or raw
+rows. A truncated page or an unreported total remains partial.
+
 On synthetic fixtures, `js-tiktoken` 1.0.21 with `o200k_base` counted 533
 tokens in a 20-row static-route interface response and 128 in its projection
 (75.98% fewer). A selected-SSID flow fixture (inventory, group membership and

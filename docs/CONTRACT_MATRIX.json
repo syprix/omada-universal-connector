@@ -3488,6 +3488,28 @@
             "connector_projection": "Fixed controller-bound GET without query or follow-up inventory. Returns only bounded row count, documented-field coverage/type counts, invalid/missing counts, and whether the response array is explicitly empty. Never returns identifiers, names, regions, addresses, coordinate values, unknown field names or raw rows. Coordinate object members are not inspected. No pagination/total is documented, so server-side completeness is not claimed.",
             "live_support": "unknown"
           }
+        },
+        "controller_unplaced_site_position_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getUnplacedSitePositions",
+            "method": "GET",
+            "path": "/openapi/v1/{omadacId}/unplaced-site-position",
+            "permission": "Global Dashboard Manager View Only",
+            "path_parameters": [
+              "omadacId required"
+            ],
+            "query": {
+              "page": "required int32; reader fixes this to 1",
+              "pageSize": "required int32; reader fixes this to 100",
+              "searchKey": "optional string in the source contract; this reader does not supply it"
+            },
+            "request_body": false,
+            "response": "result is a paginated object with int64 totalRows and unplacedNum, int32 currentPage and currentSize, and data[] rows with string id/region/name and int32 type. The outer response documents errorCode as int32 and msg as string.",
+            "connector_projection": "One fixed controller-bound page request (page=1&pageSize=100), no searchKey and no follow-up request. Returns only the separately reported totalRows/unplacedNum and bounded counts for documented field presence/type plus invalid, missing and unknown fields. The two counters are not compared and type codes are not interpreted. A page shorter than totalRows is marked truncated/partial; if totalRows is not reported, page completeness is unknown. Never returns site identifiers, names, regions, type values or raw rows.",
+            "live_support": "unknown"
+          }
         }
       }
     },
@@ -6920,6 +6942,28 @@
             "connector_projection": "Fixed controller-bound GET without query or follow-up inventory. Returns only bounded row count, documented-field coverage/type counts, invalid/missing counts, and whether the response array is explicitly empty. Never returns identifiers, names, regions, addresses, coordinate values, unknown field names or raw rows. Coordinate object members are not inspected. No pagination/total is documented, so server-side completeness is not claimed.",
             "live_support": "unknown"
           }
+        },
+        "controller_unplaced_site_position_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getUnplacedSitePositions",
+            "method": "GET",
+            "path": "/openapi/v1/{omadacId}/unplaced-site-position",
+            "permission": "Global Dashboard Manager View Only",
+            "path_parameters": [
+              "omadacId required"
+            ],
+            "query": {
+              "page": "required int32; reader fixes this to 1",
+              "pageSize": "required int32; reader fixes this to 100",
+              "searchKey": "optional string in the source contract; this reader does not supply it"
+            },
+            "request_body": false,
+            "response": "result is a paginated object with int64 totalRows and unplacedNum, int32 currentPage and currentSize, and data[] rows with string id/region/name and int32 type. The outer response documents errorCode as int32 and msg as string.",
+            "connector_projection": "One fixed controller-bound page request (page=1&pageSize=100), no searchKey and no follow-up request. Returns only the separately reported totalRows/unplacedNum and bounded counts for documented field presence/type plus invalid, missing and unknown fields. The two counters are not compared and type codes are not interpreted. A page shorter than totalRows is marked truncated/partial; if totalRows is not reported, page completeness is unknown. Never returns site identifiers, names, regions, type values or raw rows.",
+            "live_support": "unknown"
+          }
         }
       }
     },
@@ -10260,6 +10304,28 @@
             "request_body": false,
             "response": "result is an array; each documented row has string fields id, region, name and address; longitude and latitude are object (opaque; nested reference not interpreted). The outer response also documents errorCode as int32 and msg as string.",
             "connector_projection": "Fixed controller-bound GET without query or follow-up inventory. Returns only bounded row count, documented-field coverage/type counts, invalid/missing counts, and whether the response array is explicitly empty. Never returns identifiers, names, regions, addresses, coordinate values, unknown field names or raw rows. Coordinate object members are not inspected. No pagination/total is documented, so server-side completeness is not claimed.",
+            "live_support": "unknown"
+          }
+        },
+        "controller_unplaced_site_position_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getUnplacedSitePositions",
+            "method": "GET",
+            "path": "/openapi/v1/{omadacId}/unplaced-site-position",
+            "permission": "Global Dashboard Manager View Only",
+            "path_parameters": [
+              "omadacId required"
+            ],
+            "query": {
+              "page": "required int32; reader fixes this to 1",
+              "pageSize": "required int32; reader fixes this to 100",
+              "searchKey": "optional string in the source contract; this reader does not supply it"
+            },
+            "request_body": false,
+            "response": "result is a paginated object with int64 totalRows and unplacedNum, int32 currentPage and currentSize, and data[] rows with string id/region/name and int32 type. The outer response documents errorCode as int32 and msg as string.",
+            "connector_projection": "One fixed controller-bound page request (page=1&pageSize=100), no searchKey and no follow-up request. Returns only the separately reported totalRows/unplacedNum and bounded counts for documented field presence/type plus invalid, missing and unknown fields. The two counters are not compared and type codes are not interpreted. A page shorter than totalRows is marked truncated/partial; if totalRows is not reported, page completeness is unknown. Never returns site identifiers, names, regions, type values or raw rows.",
             "live_support": "unknown"
           }
         }

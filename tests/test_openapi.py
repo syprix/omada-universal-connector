@@ -1165,6 +1165,37 @@ class OpenApiClientTests(unittest.TestCase):
                     self.client._request_json("GET", invalid, token="token")
         connect.assert_not_called()
 
+    def test_controller_unplaced_site_position_uses_exact_first_page_and_redacts(self) -> None:
+        path = "/openapi/v1/controller_1/unplaced-site-position?page=1&pageSize=100"
+        row = {"id": "private-id", "region": "private-region",
+               "name": "private-name", "type": 17}
+        connection = self.respond({"errorCode": 0, "result": {
+            "totalRows": 3, "currentPage": 1, "currentSize": 100,
+            "data": [row], "unplacedNum": 8,
+        }})
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_connection", return_value=connection):
+            result = self.client.read_controller_unplaced_site_position_coverage()
+        self.assertEqual(result["resource"], "controller_unplaced_site_position_coverage")
+        self.assertEqual(result["returned_count"], 1)
+        self.assertEqual(result["reported_total_rows"], 3)
+        self.assertEqual(result["reported_unplaced_num"], 8)
+        self.assertEqual(result["omitted_count"], 2)
+        self.assertTrue(result["page_truncated"])
+        self.assertEqual(connection.calls[0][0:2], ("GET", path))
+        for private in row.values():
+            self.assertNotIn(str(private), json.dumps(result))
+        with patch.object(self.client, "_connection") as connect:
+            for invalid in (
+                "/openapi/v1/controller_1/unplaced-site-position",
+                path + "&searchKey=private",
+                path.replace("pageSize=100", "pageSize=101"),
+                path.replace("controller_1", "other-controller"),
+            ):
+                with self.assertRaisesRegex(OpenApiError, "openapi_path_rejected"):
+                    self.client._request_json("GET", invalid, token="token")
+        connect.assert_not_called()
+
     def test_controller_client_correction_options_uses_exact_fixed_route(self) -> None:
         path = "/openapi/v1/controller_1/correction-list"
         connection = self.respond({"errorCode": 0, "result": {
@@ -1208,6 +1239,9 @@ class OpenApiClientTests(unittest.TestCase):
         self.assertEqual(
             capability_routes["controller_placed_site_position_coverage"],
             "GET /v1/controller/placed-site-position-coverage")
+        self.assertEqual(
+            capability_routes["controller_unplaced_site_position_coverage"],
+            "GET /v1/controller/unplaced-site-position-coverage")
 
     def test_site_session_limit_enable_state_uses_inventory_bound_fixed_get(self) -> None:
         site_ref = "a" * 24

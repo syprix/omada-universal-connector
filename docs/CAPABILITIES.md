@@ -94,6 +94,19 @@ completeness metadata, so the result makes no claim that all placed sites are
 covered. This is distinct from the paginated site inventory and unplaced-site
 position list. Live support is unknown.
 
+## Controller unplaced-site position coverage
+
+`GET /v1/controller/unplaced-site-position-coverage` and
+`omada_controller_unplaced_site_position_coverage` read one fixed first page
+from `getUnplacedSitePositions` (`page=1`, `pageSize=100`, with no search
+filter). The reader returns counts for the documented `id`, `region`, `name`
+and `type` field shapes, plus the separately reported `totalRows` and
+`unplacedNum` counters. It does not compare those counters or interpret `type`
+codes. A page shorter than `totalRows` is marked partial; when `totalRows` is
+not reported, overall completeness remains unknown. Site values, identifiers
+and raw rows are never returned. The single page does not guarantee a stable
+controller snapshot. Live support is unknown.
+
 ## WAN-port availability by function
 
 ## Site-to-site VPN status codes

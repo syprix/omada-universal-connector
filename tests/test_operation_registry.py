@@ -34,6 +34,21 @@ class OperationRegistryTests(unittest.TestCase):
                          "/openapi/v1/{controller_id}/placed-site-position")
         self.assertEqual(dict(bindings), {})
 
+    def test_controller_unplaced_site_position_coverage_is_fixed_page_read(self):
+        operation = REGISTRY.get("controller_unplaced_site_position_coverage")
+        tool = _tool(operation)
+        self.assertEqual(tool["name"], "omada_controller_unplaced_site_position_coverage")
+        self.assertEqual(tool["inputSchema"]["required"], [])
+        self.assertEqual(tool["inputSchema"]["additionalProperties"], False)
+        self.assertTrue(tool["annotations"]["readOnlyHint"])
+        self.assertEqual(operation.max_response_bytes, 262_144)
+        self.assertEqual(operation.max_items, 100)
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/controller/unplaced-site-position-coverage")
+        self.assertEqual(route.upstream_template,
+                         "/openapi/v1/{controller_id}/unplaced-site-position")
+        self.assertEqual(dict(bindings), {})
+
     def test_controller_client_correction_options_is_fixed_controller_read(self):
         operation = REGISTRY.get("controller_client_correction_options_summary")
         tool = _tool(operation)
@@ -1233,6 +1248,7 @@ class OperationRegistryTests(unittest.TestCase):
             "controller_device_access",
             "controller_device_adoption_tip_summary",
             "controller_placed_site_position_coverage",
+            "controller_unplaced_site_position_coverage",
             "controller_client_correction_options_summary",
             "controller_backup_schedule",
             "controller_cloud_access",

@@ -768,6 +768,26 @@ class FullApiMatrixTests(unittest.TestCase):
         self.assertIn("object (opaque", er["operations"][
             "controller_placed_site_position_coverage"]["contract_review"]["response"])
 
+    def test_controller_unplaced_site_position_contract_matrix_is_documented_and_redacted(self):
+        matrix = json.loads((Path(__file__).resolve().parents[1] /
+                             "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
+        self.assertEqual(
+            IMPLEMENTED[("GET", "/openapi/v1/{controller_id}/unplaced-site-position")],
+            "implemented_read")
+        for source in matrix["sources"]:
+            operation = source["operations"]["controller_unplaced_site_position_coverage"]
+            review = operation["contract_review"]
+            self.assertTrue(operation["documented"])
+            self.assertEqual(review["operation_id"], "getUnplacedSitePositions")
+            self.assertEqual(review["method"], "GET")
+            self.assertIn("page", review["query"])
+            self.assertIn("pageSize", review["query"])
+            self.assertIn("totalRows", review["response"])
+            self.assertIn("unplacedNum", review["response"])
+            self.assertIn("string id/region/name", review["response"])
+            self.assertIn("int32 type", review["response"])
+            self.assertIn("never returns", review["connector_projection"].lower())
+
     def test_controller_client_correction_options_route_matches_source_contract(self):
         spec = document()
         path = "/openapi/v1/{omadacId}/correction-list"
