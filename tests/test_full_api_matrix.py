@@ -780,6 +780,19 @@ class FullApiMatrixTests(unittest.TestCase):
         self.assertEqual(row["connector_source_status"], "implemented_read")
         self.assertEqual(row["live_status"], "unknown_not_checked_by_this_offline_tool")
 
+    def test_site_rate_limit_profiles_summary_route_matches_source_contract(self):
+        spec = document()
+        path = "/openapi/v1/{omadacId}/sites/{siteId}/rate-limit-profiles"
+        self.assertEqual(
+            IMPLEMENTED[("GET", "/openapi/v1/{controller_id}/sites/{site_id}/rate-limit-profiles")],
+            "implemented_read")
+        spec["paths"] = {path: {"get": {"operationId": "getRateLimitProfileList",
+                                         "responses": {"200": {}}}}}
+        archive = self.write_zip("site_rate_limit_profiles_summary.zip", spec)
+        row = build_matrix([("hardware-controller", archive)])["operations"][0]
+        self.assertEqual(row["connector_source_status"], "implemented_read")
+        self.assertEqual(row["live_status"], "unknown_not_checked_by_this_offline_tool")
+
     def test_msp_role_summary_route_matches_source_contract(self):
         spec = document()
         path = "/openapi/v1/msp/{mspId}/roles"

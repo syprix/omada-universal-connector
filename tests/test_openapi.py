@@ -1346,6 +1346,70 @@ class OpenApiClientTests(unittest.TestCase):
         self.assertEqual(ctx.exception.code, "openapi_rejected")
         self.assertEqual(ctx.exception.upstream_error_code, -7)
 
+    def test_site_rate_limit_profiles_summary_is_site_bound_and_redacted(self) -> None:
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site_1"
+        self.assertEqual(
+            dict(OmadaOpenApiClient.CAPABILITY_OPERATIONS)["site_rate_limit_profiles_summary"],
+            "GET /v1/sites/{site_ref}/rate-limit-profiles/summary")
+        path = "/openapi/v1/controller_1/sites/site_1/rate-limit-profiles"
+        connection = self.respond({"errorCode": 0, "result": [{
+            "profileId": "PROFILE-ID-PRIVATE", "name": "PROFILE-NAME-PRIVATE",
+            "downLimitEnable": True, "downLimit": 20_000_000,
+            "upLimitEnable": False, "upLimit": 55_000_000,
+            "defaultProfile": True, "resource": 0,
+        }]})
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_connection", return_value=connection):
+            result = self.client.read_site_rate_limit_profiles_summary(site_ref)
+        self.assertEqual(result["resource"], "site_rate_limit_profiles_summary")
+        self.assertEqual(connection.calls[0][0:2], ("GET", path))
+        self.assertEqual(result["profile_count"], 1)
+        self.assertEqual(
+            result["directional_coverage"]["downstream"]["enabled_limit_kbps"]["sum"],
+            20_000_000)
+        self.assertEqual(
+            result["directional_coverage"]["upstream"]["enable_counts"]["disabled"], 1)
+        for private in ("PROFILE-ID-PRIVATE", "PROFILE-NAME-PRIVATE", "downLimit",
+                        "upLimit"):
+            self.assertNotIn(private, repr(result))
+
+        with patch.object(self.client, "_connection") as connect:
+            with self.assertRaisesRegex(OpenApiError, "openapi_path_rejected"):
+                self.client._request_json(
+                    "GET", "/openapi/v1/other/sites/site_1/rate-limit-profiles",
+                    token="token")
+        connect.assert_not_called()
+        with patch.object(self.client, "_access_token") as token, \
+                patch.object(self.client, "_request_json") as request:
+            with self.assertRaisesRegex(OpenApiError, "site_ref_unknown"):
+                self.client.read_site_rate_limit_profiles_summary("b" * 24)
+        token.assert_not_called()
+        request.assert_not_called()
+
+    def test_site_rate_limit_profiles_preserve_empty_invalid_and_controller_errors(self) -> None:
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site_1"
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={"result": []}):
+            result = self.client.read_site_rate_limit_profiles_summary(site_ref)
+        self.assertEqual(result["profile_count"], 0)
+        self.assertTrue(result["empty"])
+        self.assertFalse(result["partial"])
+
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={"result": None}):
+            with self.assertRaisesRegex(OpenApiError, "openapi_response_invalid"):
+                self.client.read_site_rate_limit_profiles_summary(site_ref)
+
+        error = OpenApiError("openapi_rejected", upstream_error_code=-33000)
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", side_effect=error):
+            with self.assertRaises(OpenApiError) as ctx:
+                self.client.read_site_rate_limit_profiles_summary(site_ref)
+        self.assertEqual(ctx.exception.code, "openapi_rejected")
+        self.assertEqual(ctx.exception.upstream_error_code, -33000)
+
     def test_audit_read_is_bounded_and_marks_truncation(self) -> None:
         site_ref = "a" * 24
         self.client._site_ids_by_ref[site_ref] = "site-1"
