@@ -220,6 +220,22 @@ class FullApiMatrixTests(unittest.TestCase):
             self.assertTrue(row["documented"])
             self.assertEqual(row["live_support"], "unknown")
 
+    def test_site_oui_profile_list_contract_records_er7212_pro_limit(self) -> None:
+        matrix = json.loads((Path(__file__).resolve().parents[1] /
+                             "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
+        for source in matrix["sources"]:
+            row = source["operations"]["site_oui_profile_list_summary"]
+            self.assertTrue(row["documented"])
+            self.assertEqual(row["live_support"], "unknown")
+            self.assertEqual(row["contract_review"]["operation_id"], "getOuiProfileList")
+            self.assertIn("page 1", row["contract_review"]["connector_projection"])
+        er7212 = matrix["sources"][2]["operations"]["site_oui_profile_list_summary"]
+        self.assertIn("Omada Pro", er7212["contract_review"]["platform_limit"])
+
+    def test_site_oui_profile_list_path_is_mapped_as_read(self) -> None:
+        path = "/openapi/v1/{controller_id}/sites/{site_id}/oui-profiles"
+        self.assertEqual(IMPLEMENTED[("GET", path)], "implemented_read")
+
     def test_site_vlan_ssid_usage_contract_is_common_and_live_unknown(self) -> None:
         matrix = json.loads((Path(__file__).resolve().parents[1] /
                              "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
