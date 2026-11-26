@@ -15,6 +15,7 @@ from app.controller_system_status import (
     project_msp_cluster_nodes,
     project_msp_adopt_tip,
     project_controller_adopt_tip,
+    project_controller_client_correction_options,
     project_msp_roles,
     project_controller_privacy_policy, project_controller_remote_binding,
     project_controller_restore_result,
@@ -118,6 +119,104 @@ class ControllerSystemStatusTests(unittest.TestCase):
         })
         self.assertEqual(overrange["invalid_field_count"], 2)
         self.assertNotIn("2147483648", repr(overrange))
+
+    def test_controller_client_correction_options_projects_only_bounded_keys_and_labels(self):
+        result = project_controller_client_correction_options({
+            "typeList": [
+                {"key": "model", "name": "Model", "icon": "private-icon"},
+                {"key": "os", "name": "Operating system", "icon": ""},
+            ],
+            "vendorList": [{"key": "vendor-a", "name": "Vendor A",
+                            "icon": "private-icon"}],
+            "privateExtra": "do-not-return",
+        })
+        self.assertEqual(result["data"]["type_options"], [
+            {"key": "model", "label": "Model"},
+            {"key": "os", "label": "Operating system"},
+        ])
+        self.assertEqual(result["data"]["vendor_options"], [
+            {"key": "vendor-a", "label": "Vendor A"},
+        ])
+        self.assertEqual(result["data"]["type_option_count"], 2)
+        self.assertEqual(result["data"]["vendor_option_count"], 1)
+        self.assertEqual(result["missing_field_count"], 0)
+        self.assertEqual(result["invalid_field_count"], 0)
+        self.assertEqual(result["unknown_field_count"], 1)
+        self.assertTrue(result["partial"])
+        for omitted in ("private-icon", "do-not-return", "icon", "privateExtra"):
+            self.assertNotIn(omitted, repr(result))
+
+    def test_controller_client_correction_empty_lists_are_complete(self):
+        result = project_controller_client_correction_options({
+            "typeList": [], "vendorList": [],
+        })
+        self.assertEqual(result["data"]["type_options"], [])
+        self.assertEqual(result["data"]["vendor_options"], [])
+        self.assertEqual(result["data"]["ambiguous_option_count"], 0)
+        self.assertFalse(result["partial"])
+
+    def test_controller_client_correction_tracks_missing_null_and_ambiguous_options(self):
+        missing = project_controller_client_correction_options({
+            "typeList": [],
+        })
+        self.assertEqual(missing["missing_field_count"], 1)
+        self.assertTrue(missing["partial"])
+        null = project_controller_client_correction_options({
+            "typeList": None, "vendorList": [],
+        })
+        self.assertEqual(null["invalid_field_count"], 1)
+        self.assertTrue(null["partial"])
+        duplicate = project_controller_client_correction_options({
+            "typeList": [
+                {"key": "same", "name": "First"},
+                {"key": "same", "name": "Second"},
+            ],
+            "vendorList": [],
+        })
+        self.assertEqual(duplicate["data"]["type_options"], [])
+        self.assertEqual(duplicate["data"]["ambiguous_option_count"], 2)
+        self.assertTrue(duplicate["partial"])
+
+    def test_controller_client_correction_rejects_bad_values_and_oversized_lists(self):
+        result = project_controller_client_correction_options({
+            "typeList": [
+                {"key": "", "name": "Empty key"},
+                {"key": "valid", "name": "Bad\nlabel"},
+                {"key": "valid", "name": "x" * 129},
+                {"key": "valid", "name": "Bad icon", "icon": "i" * 257},
+                {"name": "Missing key"},
+            ],
+            "vendorList": [],
+        })
+        self.assertEqual(result["data"]["type_options"], [
+            {"key": "valid", "label": "Bad icon"},
+        ])
+        self.assertEqual(result["invalid_field_count"], 3)
+        self.assertEqual(result["missing_field_count"], 1)
+        oversized = project_controller_client_correction_options({
+            "typeList": [{"key": "k", "name": "n"}] * 129,
+            "vendorList": [],
+        })
+        self.assertEqual(oversized["data"]["type_options"], [])
+        self.assertEqual(oversized["invalid_field_count"], 1)
+        self.assertTrue(oversized["partial"])
+
+    def test_controller_client_correction_ignores_invalid_omitted_icon_metadata(self):
+        result = project_controller_client_correction_options({
+            "typeList": [{"key": "stable-key", "name": "Stable label",
+                          "icon": "i" * 100_000}],
+            "vendorList": [{"key": "vendor-key", "name": "Vendor",
+                            "icon": {"future": "opaque"}}],
+        })
+        self.assertEqual(result["data"]["type_options"], [
+            {"key": "stable-key", "label": "Stable label"},
+        ])
+        self.assertEqual(result["data"]["vendor_options"], [
+            {"key": "vendor-key", "label": "Vendor"},
+        ])
+        self.assertEqual(result["invalid_field_count"], 0)
+        self.assertFalse(result["partial"])
+        self.assertNotIn("opaque", repr(result))
 
     def test_msp_roles_aggregates_privilege_levels_without_role_identity(self):
         result = project_msp_roles([

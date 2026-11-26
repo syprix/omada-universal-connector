@@ -1085,6 +1085,47 @@ class OpenApiClientTests(unittest.TestCase):
                     "GET", "/openapi/v1/other-controller/adopt-tip", token="token")
         connect.assert_not_called()
 
+    def test_controller_client_correction_options_uses_exact_fixed_route(self) -> None:
+        path = "/openapi/v1/controller_1/correction-list"
+        connection = self.respond({"errorCode": 0, "result": {
+            "typeList": [{"key": "type-a", "name": "Type A", "icon": "private-icon"}],
+            "vendorList": [],
+        }})
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_connection", return_value=connection):
+            result = self.client.read_controller_client_correction_options_summary()
+        self.assertEqual(result["resource"], "controller_client_correction_options_summary")
+        self.assertEqual(result["data"]["type_options"],
+                         [{"key": "type-a", "label": "Type A"}])
+        self.assertNotIn("private-icon", repr(result))
+        self.assertEqual(connection.calls[0][0:2], ("GET", path))
+        with patch.object(self.client, "_connection") as connect:
+            with self.assertRaisesRegex(OpenApiError, "openapi_path_rejected"):
+                self.client._request_json(
+                    "GET", "/openapi/v1/other-controller/correction-list", token="token")
+        connect.assert_not_called()
+
+    def test_controller_client_correction_options_preserves_sanitized_upstream_error(self) -> None:
+        self.respond({"errorCode": -1, "msg": "private controller detail"},
+                     200, "application/json")
+        connection = self.connections[-1]
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_connection", return_value=connection):
+            with self.assertRaises(OpenApiError) as ctx:
+                self.client.read_controller_client_correction_options_summary()
+        self.assertEqual(ctx.exception.code, "openapi_rejected")
+        self.assertEqual(ctx.exception.upstream_error_code, -1)
+        self.assertNotIn("private controller detail", str(ctx.exception))
+
+    def test_controller_adoption_and_client_options_capabilities_match_registry(self) -> None:
+        capability_routes = dict(OmadaOpenApiClient.CAPABILITY_OPERATIONS)
+        self.assertEqual(
+            capability_routes["controller_device_adoption_tip_summary"],
+            "GET /v1/controller/device-adoption-tip/summary")
+        self.assertEqual(
+            capability_routes["controller_client_correction_options_summary"],
+            "GET /v1/controller/client-correction-options/summary")
+
     def test_audit_read_is_bounded_and_marks_truncation(self) -> None:
         site_ref = "a" * 24
         self.client._site_ids_by_ref[site_ref] = "site-1"

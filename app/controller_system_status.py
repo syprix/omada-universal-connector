@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import re
+import unicodedata
+from collections import Counter
 from typing import Any
 
 
@@ -570,6 +572,66 @@ def project_msp_adopt_tip(result: Any) -> dict[str, object]:
 def project_controller_adopt_tip(result: Any) -> dict[str, object]:
     """Project the documented controller adoption tip as two bounded int32 counts."""
     return _project_adopt_tip_counts(result)
+
+
+def project_controller_client_correction_options(result: Any) -> dict[str, object]:
+    """Project only the documented client correction option keys and labels."""
+    if not isinstance(result, dict) or len(result) > 16:
+        raise ControllerSystemStatusError("response_invalid")
+
+    data: dict[str, object] = {"type_options": [], "vendor_options": []}
+    missing = invalid = unknown = ambiguous = 0
+    fields = (("typeList", "type_options"), ("vendorList", "vendor_options"))
+    known_result_fields = {source for source, _ in fields}
+    unknown += len(set(result) - known_result_fields)
+
+    def bounded_text(value: object, max_chars: int) -> bool:
+        if not isinstance(value, str) or len(value) > max_chars:
+            return False
+        if not value or value != value.strip():
+            return False
+        try:
+            value.encode("utf-8", errors="strict")
+        except UnicodeEncodeError:
+            return False
+        return not any(unicodedata.category(char) in {"Cc", "Cf", "Cs"}
+                       for char in value)
+
+    for source, target in fields:
+        if source not in result:
+            missing += 1
+            continue
+        rows = result[source]
+        if not isinstance(rows, list) or len(rows) > 128:
+            invalid += 1
+            continue
+        candidates: list[dict[str, str]] = []
+        for row in rows:
+            if not isinstance(row, dict) or len(row) > 16:
+                invalid += 1
+                continue
+            unknown += len(set(row) - {"name", "key", "icon"})
+            valid_row = True
+            for field in ("name", "key"):
+                if field not in row:
+                    missing += 1
+                    valid_row = False
+                elif not bounded_text(row[field], 128 if field == "name" else 64):
+                    invalid += 1
+                    valid_row = False
+            if valid_row:
+                candidates.append({"key": row["key"], "label": row["name"]})
+
+        key_counts = Counter(item["key"] for item in candidates)
+        ambiguous += sum(count for count in key_counts.values() if count > 1)
+        data[target] = [item for item in candidates if key_counts[item["key"]] == 1]
+
+    data["type_option_count"] = len(data["type_options"])
+    data["vendor_option_count"] = len(data["vendor_options"])
+    data["ambiguous_option_count"] = ambiguous
+    return {"data": data, "missing_field_count": missing,
+            "invalid_field_count": invalid, "unknown_field_count": unknown,
+            "partial": bool(missing or invalid or unknown or ambiguous)}
 
 
 def project_msp_roles(result: Any) -> dict[str, object]:

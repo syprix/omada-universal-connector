@@ -1393,6 +1393,8 @@ class OmadaOpenApiClient:
     _MSP_CLUSTER_NODES_PATH = "/openapi/v1/msp/{msp_id}/cluster/nodes/info"
     _MSP_ADOPT_TIP_PATH = "/openapi/v1/msp/{msp_id}/adopt-tip"
     _CONTROLLER_ADOPT_TIP_PATH = "/openapi/v1/{controller_id}/adopt-tip"
+    _CONTROLLER_CLIENT_CORRECTION_OPTIONS_PATH = (
+        "/openapi/v1/{controller_id}/correction-list")
     _MSP_ROLES_PATH = "/openapi/v1/msp/{msp_id}/roles"
     _CONTROLLER_REMOTE_LOGGING_PATH = "/openapi/v1/{controller_id}/global/controller/setting/syslog"
     _CONTROLLER_REMOTE_LOGGING_TIP_PATH = "/openapi/v1/{controller_id}/global/controller/setting/syslog/tip"
@@ -2542,6 +2544,9 @@ class OmadaOpenApiClient:
     _CONTROLLER_ADOPT_TIP_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/adopt-tip"
     )
+    _CONTROLLER_CLIENT_CORRECTION_OPTIONS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/correction-list"
+    )
     _CONTROLLER_BACKUP_SCHEDULE_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/backupschedule/task"
     )
@@ -3312,6 +3317,8 @@ class OmadaOpenApiClient:
         ("controller_device_access", "GET /v1/controller/settings/device-access"),
         ("controller_device_adoption_tip_summary",
          "GET /v1/controller/device-adoption-tip/summary"),
+        ("controller_client_correction_options_summary",
+         "GET /v1/controller/client-correction-options/summary"),
         ("controller_backup_schedule", "GET /v1/controller/settings/backup-schedule"),
         ("controller_cloud_access", "GET /v1/controller/cloud-access"),
         ("controller_device_management", "GET /v1/controller/settings/device-management"),
@@ -13020,6 +13027,14 @@ class OmadaOpenApiClient:
             "controller_device_adoption_tip_summary", self._CONTROLLER_ADOPT_TIP_PATH,
             "project_controller_adopt_tip")
 
+    @_track_capability("controller_client_correction_options_summary")
+    def read_controller_client_correction_options_summary(self) -> dict[str, object]:
+        """Read only bounded client-correction option keys and labels."""
+        return self._read_controller_system_status(
+            "controller_client_correction_options_summary",
+            self._CONTROLLER_CLIENT_CORRECTION_OPTIONS_PATH,
+            "project_controller_client_correction_options")
+
     @_track_capability("controller_backup_schedule")
     def read_controller_backup_schedule(self) -> dict[str, object]:
         """Read a bounded backup schedule summary without storage credentials or paths."""
@@ -18545,6 +18560,7 @@ class OmadaOpenApiClient:
                                   self._controller_general_settings_request_valid(path) or
                                   self._controller_device_access_request_valid(path) or
                                   self._controller_adopt_tip_request_valid(path) or
+                                  self._controller_client_correction_options_request_valid(path) or
                                   self._controller_backup_schedule_request_valid(path) or
                                   self._controller_cloud_access_request_valid(path) or
                                   self._controller_device_management_request_valid(path) or
@@ -20317,6 +20333,10 @@ class OmadaOpenApiClient:
 
     def _controller_adopt_tip_request_valid(self, path: str) -> bool:
         match = self._CONTROLLER_ADOPT_TIP_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_client_correction_options_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_CLIENT_CORRECTION_OPTIONS_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
 
     def _controller_backup_schedule_request_valid(self, path: str) -> bool:

@@ -192,6 +192,14 @@ class FakeOpenApiClient:
                 "missing_field_count": 0, "invalid_field_count": 0,
                 "unknown_field_count": 0, "partial": False}
 
+    def read_controller_client_correction_options_summary(self) -> dict[str, object]:
+        self.calls.append(("controller_client_correction_options_summary", None))
+        return {"status": "ok", "resource": "controller_client_correction_options_summary",
+                "data": {"type_options": [{"key": "type-a", "label": "Type A"}],
+                         "vendor_options": [], "type_option_count": 1,
+                         "vendor_option_count": 0, "ambiguous_option_count": 0},
+                "partial": False}
+
     def read_controller_backup_schedule(self) -> dict[str, object]:
         self.calls.append(("controller_backup_schedule", None))
         return {"status": "ok", "resource": "controller_backup_schedule",
@@ -7330,6 +7338,24 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(structured["data"]["adopted_device_count"], 0)
         self.assertEqual(self.fake.calls,
                          [("controller_device_adoption_tip_summary", None)] * 2)
+
+    def test_http_and_mcp_expose_controller_client_correction_options(self) -> None:
+        status, response = self.request(
+            "/v1/controller/client-correction-options/summary", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "controller_client_correction_options_summary")
+        self.assertEqual(response["data"]["type_options"],
+                         [{"key": "type-a", "label": "Type A"}])
+        request = {"jsonrpc": "2.0", "id": 144, "method": "tools/call",
+                   "params": {"name": "omada_controller_client_correction_options_summary",
+                              "arguments": {}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        structured = response["result"]["structuredContent"]
+        self.assertEqual(structured["resource"], "controller_client_correction_options_summary")
+        self.assertEqual(structured["data"]["vendor_option_count"], 0)
+        self.assertEqual(self.fake.calls,
+                         [("controller_client_correction_options_summary", None)] * 2)
 
     def test_http_and_mcp_expose_backup_schedule_summary(self) -> None:
         status, response = self.request("/v1/controller/settings/backup-schedule", self.token)

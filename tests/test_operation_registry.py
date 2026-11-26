@@ -19,6 +19,21 @@ class OperationRegistryTests(unittest.TestCase):
         self.assertEqual(route.upstream_template, "/openapi/v1/{controller_id}/adopt-tip")
         self.assertEqual(dict(bindings), {})
 
+    def test_controller_client_correction_options_is_fixed_controller_read(self):
+        operation = REGISTRY.get("controller_client_correction_options_summary")
+        tool = _tool(operation)
+        self.assertEqual(tool["name"], "omada_controller_client_correction_options_summary")
+        self.assertEqual(tool["inputSchema"]["required"], [])
+        self.assertEqual(tool["inputSchema"]["additionalProperties"], False)
+        self.assertTrue(tool["annotations"]["readOnlyHint"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/controller/client-correction-options/summary")
+        self.assertEqual(route.operation_id, "controller_client_correction_options_summary")
+        self.assertEqual(route.upstream_method, "GET")
+        self.assertEqual(route.upstream_template,
+                         "/openapi/v1/{controller_id}/correction-list")
+        self.assertEqual(dict(bindings), {})
+
     def test_topology_snapshot_and_gateway_qos_profiles_are_site_bound(self):
         site_ref = "a" * 24
         cases = (
@@ -1081,6 +1096,7 @@ class OperationRegistryTests(unittest.TestCase):
             "controller_general_settings",
             "controller_device_access",
             "controller_device_adoption_tip_summary",
+            "controller_client_correction_options_summary",
             "controller_backup_schedule",
             "controller_cloud_access",
             "controller_device_management",

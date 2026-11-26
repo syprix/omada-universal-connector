@@ -1516,6 +1516,18 @@ Hardware Controller 6.3.0, and CBC Standard 6.3.0 exports. Offline HTTP/MCP and
 projection fixtures cover the fixed GET; live controller behavior remains
 unknown.
 
+The controller client-correction option catalog is a separate fixed GET at
+`GET /v1/controller/client-correction-options/summary`, mapped to the
+documented `/openapi/v1/{omadacId}/correction-list`. It exposes only bounded
+`key` and `label` pairs from the documented `typeList` and `vendorList`; icons
+and unknown fields are omitted. Missing, malformed, duplicate, or oversized
+options are reported as incomplete coverage. It does not correct clients or
+read client resources. The GET is documented in the supplied ER7212PC 6.2.14,
+Hardware Controller 6.3.0, and CBC Standard 6.3.0 exports with controller ID
+as its only parameter and `Site Clients Manager View Only` permission. Offline
+HTTP/MCP and projection fixtures cover the fixed route; live controller
+behavior remains unknown.
+
 ### RadSec compatibility summary
 
 `GET /v1/sites/{site_ref}/devices/radsec-support` reports only the documented
