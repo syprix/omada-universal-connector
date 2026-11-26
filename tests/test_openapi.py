@@ -1126,6 +1126,43 @@ class OpenApiClientTests(unittest.TestCase):
             capability_routes["controller_client_correction_options_summary"],
             "GET /v1/controller/client-correction-options/summary")
 
+    def test_site_session_limit_enable_state_uses_inventory_bound_fixed_get(self) -> None:
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site_1"
+        path = "/openapi/v1/controller_1/sites/site_1/session-limit"
+        connection = self.respond({"errorCode": 0, "result": {"enable": False}})
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_connection", return_value=connection):
+            result = self.client.read_site_session_limit_enable_state(site_ref)
+        self.assertEqual(result["resource"], "site_session_limit_enable_state")
+        self.assertEqual(result["data"], {"enabled": False})
+        self.assertEqual(connection.calls[0][0:2], ("GET", path))
+
+        with patch.object(self.client, "_connection") as connect:
+            with self.assertRaisesRegex(OpenApiError, "openapi_path_rejected"):
+                self.client._request_json(
+                    "GET", "/openapi/v1/other-controller/sites/site_1/session-limit",
+                    token="token")
+        connect.assert_not_called()
+
+        with patch.object(self.client, "_access_token") as token, \
+                patch.object(self.client, "_request_json") as request:
+            with self.assertRaisesRegex(OpenApiError, "site_ref_unknown"):
+                self.client.read_site_session_limit_enable_state("b" * 24)
+        token.assert_not_called()
+        request.assert_not_called()
+
+    def test_site_session_limit_preserves_upstream_error_without_body_details(self) -> None:
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site_1"
+        upstream_error = OpenApiError("openapi_rejected", upstream_error_code=-7)
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", side_effect=upstream_error):
+            with self.assertRaises(OpenApiError) as ctx:
+                self.client.read_site_session_limit_enable_state(site_ref)
+        self.assertEqual(ctx.exception.code, "openapi_rejected")
+        self.assertEqual(ctx.exception.upstream_error_code, -7)
+
     def test_audit_read_is_bounded_and_marks_truncation(self) -> None:
         site_ref = "a" * 24
         self.client._site_ids_by_ref[site_ref] = "site-1"

@@ -24,6 +24,45 @@ class ControllerSystemStatusIntegrationTests(unittest.TestCase):
                             "controller_remote_binding", {"enable": False})
         self.assertFalse(result["data"]["enabled"])
 
+    def test_site_session_limit_enable_state_fixed_site_route(self):
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={
+                    "result": {"enable": True, "future": "omit"}}) as request:
+            result = self.client.read_site_session_limit_enable_state(site_ref)
+        request.assert_called_once_with(
+            "GET", "/openapi/v1/ctrl/sites/site-1/session-limit", token="token")
+        self.assertEqual(result["resource"], "site_session_limit_enable_state")
+        self.assertEqual(result["data"], {"enabled": True})
+        self.assertEqual(result["unknown_field_count"], 1)
+        self.assertTrue(result["partial"])
+        self.assertNotIn("future", repr(result))
+
+    def test_site_session_limit_missing_and_invalid_flags_are_partial(self):
+        for source, expected in (({}, "missing_field_count"),
+                                 ({"enable": None}, "invalid_field_count"),
+                                 ({"enable": 1}, "invalid_field_count")):
+            with self.subTest(source=source):
+                site_ref = "a" * 24
+                self.client._site_ids_by_ref[site_ref] = "site-1"
+                with patch.object(self.client, "_access_token", return_value="token"), \
+                        patch.object(self.client, "_request_json", return_value={
+                            "result": source}):
+                    result = self.client.read_site_session_limit_enable_state(site_ref)
+                self.assertEqual(result[expected], 1)
+                self.assertEqual(result["data"], {})
+                self.assertTrue(result["partial"])
+
+    def test_site_session_limit_rejects_oversized_projection(self):
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={
+                    "result": {str(index): True for index in range(17)}}):
+            with self.assertRaisesRegex(OpenApiError, "openapi_response_invalid"):
+                self.client.read_site_session_limit_enable_state(site_ref)
+
     def test_controller_adopt_tip_fixed_route_and_count_projection(self):
         result = self._read(
             "read_controller_device_adoption_tip_summary",
