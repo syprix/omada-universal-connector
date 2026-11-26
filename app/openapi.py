@@ -1529,6 +1529,8 @@ class OmadaOpenApiClient:
     _SITE_SWITCH_DASHBOARD_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/switch-summary"
     _SITE_AP_INTERFERENCE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/top-interference"
     _SITE_APPLICATION_CATEGORY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/categoryInfo"
+    _SITE_APPLICATION_FAMILIES_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/applicationControl/families")
     _SITE_CATEGORY_APPLICATION_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/categoryAppInfo/{family_id}"
     _SITE_CATEGORY_CLIENT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/categoryUserInfo/{family_id}"
     _SITE_ACTIVE_APPLICATION_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/mostActiveAppTraffic"
@@ -1816,6 +1818,10 @@ class OmadaOpenApiClient:
     _SITE_APPLICATION_CATEGORY_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
         r"/dashboard/categoryInfo\?start=([0-9]{1,16})&end=([0-9]{1,16})&page=1&pageSize=100"
+    )
+    _SITE_APPLICATION_FAMILIES_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/applicationControl/families"
     )
     _SITE_CATEGORY_APPLICATION_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
@@ -3445,6 +3451,7 @@ class OmadaOpenApiClient:
         ("site_switch_dashboard_summary", "GET /v1/sites/{site_ref}/switch-dashboard-summary"),
         ("site_ap_interference_summary", "GET /v1/sites/{site_ref}/ap-interference-summary"),
         ("site_application_category_summary", "GET /v1/sites/{site_ref}/application-category-summary"),
+        ("site_application_family_inventory", "GET /v1/sites/{site_ref}/application-families"),
         ("site_category_application_summary", "GET /v1/sites/{site_ref}/application-category-summary/{family_id}/applications"),
         ("site_category_client_summary", "GET /v1/sites/{site_ref}/application-category-summary/{family_id}/clients"),
         ("site_active_application_summary", "GET /v1/sites/{site_ref}/active-application-summary"),
@@ -15748,6 +15755,30 @@ class OmadaOpenApiClient:
         return {"status": "ok", "resource": "site_application_category_summary",
                 "site_ref": site_ref, **projected}
 
+    @_track_capability("site_application_family_inventory")
+    def read_site_application_family_inventory(self, site_ref: str) -> dict[str, object]:
+        """Read bounded family selectors for the selected site."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_APPLICATION_FAMILIES_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_application_family_inventory import (
+                SiteApplicationFamilyInventoryError,
+                project_site_application_family_inventory,
+            )
+        except ImportError:  # direct execution in the image
+            from site_application_family_inventory import (
+                SiteApplicationFamilyInventoryError,
+                project_site_application_family_inventory,
+            )
+        try:
+            projected = project_site_application_family_inventory(result)
+        except SiteApplicationFamilyInventoryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_application_family_inventory",
+                "site_ref": site_ref, **projected}
+
     @_track_capability("site_category_application_summary")
     def read_site_category_application_summary(
             self, site_ref: str, family_id: str) -> dict[str, object]:
@@ -18046,6 +18077,7 @@ class OmadaOpenApiClient:
                                   self._site_switch_dashboard_request_valid(path) or
                                   self._site_ap_interference_request_valid(path) or
                                   self._site_application_category_request_valid(path) or
+                                  self._site_application_families_request_valid(path) or
                                   self._site_category_application_request_valid(path) or
                                   self._site_category_client_request_valid(path) or
                                   self._site_active_application_request_valid(path) or
@@ -19544,6 +19576,10 @@ class OmadaOpenApiClient:
             return int(match.group(3)) - int(match.group(2)) == 86_400
         except (ValueError, OverflowError):
             return False
+
+    def _site_application_families_request_valid(self, path: str) -> bool:
+        match = self._SITE_APPLICATION_FAMILIES_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
 
     def _site_category_application_request_valid(self, path: str) -> bool:
         match = self._SITE_CATEGORY_APPLICATION_REQUEST.fullmatch(path)

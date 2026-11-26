@@ -2770,6 +2770,15 @@ class FakeOpenApiClient:
                 "total_category_count": 12, "has_more_category_rows": True},
                 "partial": True}
 
+    def read_site_application_family_inventory(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_application_family_inventory", site_ref))
+        return {"status": "ok", "resource": "site_application_family_inventory",
+                "site_ref": site_ref,
+                "data": {"family_refs": ["0", "2147483647"],
+                         "family_ref_count": 2, "family_row_count": 2,
+                         "invalid_row_count": 0, "duplicate_family_id_count": 0,
+                         "unknown_field_count": 0}, "partial": False}
+
     def read_site_category_application_summary(self, site_ref: str,
                                                family_id: str) -> dict[str, object]:
         self.calls.append(("site_category_application_summary", site_ref, family_id))
@@ -8515,6 +8524,21 @@ class OpenApiHttpTests(unittest.TestCase):
                          "site_application_category_summary")
         self.assertEqual(self.fake.calls,
                          [("site_application_category_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_site_application_family_inventory(self) -> None:
+        site_ref = "a" * 24
+        status, response = self.request(f"/v1/sites/{site_ref}/application-families", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["data"]["family_refs"], ["0", "2147483647"])
+        request = {"jsonrpc": "2.0", "id": 158, "method": "tools/call",
+                   "params": {"name": "omada_site_application_family_inventory",
+                              "arguments": {"site_ref": site_ref}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"]["data"]["family_refs"],
+                         ["0", "2147483647"])
+        self.assertEqual(self.fake.calls,
+                         [("site_application_family_inventory", site_ref)] * 2)
 
     def test_http_and_mcp_expose_site_category_application_summary(self) -> None:
         site_ref, family_id = "a" * 24, "17"
