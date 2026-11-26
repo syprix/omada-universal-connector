@@ -1412,6 +1412,7 @@ class OmadaOpenApiClient:
         "/openapi/v1/{controller_id}/sites/{site_id}/hotspot/vouchers/statistics/summary"
     )
     _SITE_IOT_TRANSMIT_POWER_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/iot/radio/transmit-power"
+    _SITE_BLUETOOTH_ADVERTISING_V2_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/setting/iot/devices/config"
     _SITE_REMEMBER_SETTING_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/remember-device"
     _SITE_CLIENT_CONNECTION_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/client-ssid-distribution"
     _SITE_POE_USAGE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/poe-usage"
@@ -1730,6 +1731,10 @@ class OmadaOpenApiClient:
     _SITE_IOT_TRANSMIT_POWER_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
         r"/setting/iot/radio/transmit-power\?page=1&pageSize=100"
+    )
+    _SITE_BLUETOOTH_ADVERTISING_V2_REQUEST = re.compile(
+        r"/openapi/v2/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/setting/iot/devices/config\?page=1&pageSize=100"
     )
     _SITE_CLIENT_ASSOCIATION_TIME_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
@@ -13608,6 +13613,28 @@ class OmadaOpenApiClient:
         return {"status": "ok", "resource": "site_iot_transmit_power_summary",
                 "site_ref": site_ref, **projected}
 
+    @_track_capability("site_bluetooth_advertising_v2_summary")
+    def read_site_bluetooth_advertising_v2_summary(self, site_ref: str) -> dict[str, object]:
+        """Read one fixed Bluetooth Advertising v2 page as redacted counts."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = (self._SITE_BLUETOOTH_ADVERTISING_V2_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id) + "?page=1&pageSize=100")
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_bluetooth_advertising_v2 import (
+                SiteBluetoothAdvertisingV2Error, project_site_bluetooth_advertising_v2,
+            )
+        except ImportError:  # direct execution in the image
+            from site_bluetooth_advertising_v2 import (
+                SiteBluetoothAdvertisingV2Error, project_site_bluetooth_advertising_v2,
+            )
+        try:
+            projected = project_site_bluetooth_advertising_v2(result)
+        except SiteBluetoothAdvertisingV2Error:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_bluetooth_advertising_v2_summary",
+                "site_ref": site_ref, **projected}
+
     @_track_capability("site_remember_setting_summary")
     def read_site_remember_setting_summary(self, site_ref: str) -> dict[str, object]:
         """Read whether the site remember-device setting is enabled."""
@@ -17838,6 +17865,7 @@ class OmadaOpenApiClient:
                                   self._site_iot_aging_time_request_valid(path) or
                                   self._site_iot_radio_request_valid(path) or
                                   self._site_iot_transmit_power_request_valid(path) or
+                                  self._site_bluetooth_advertising_v2_request_valid(path) or
                                   self._site_remember_setting_request_valid(path) or
                                   self._site_client_connection_request_valid(path) or
                                   self._site_poe_usage_request_valid(path) or
@@ -18982,6 +19010,10 @@ class OmadaOpenApiClient:
 
     def _site_iot_transmit_power_request_valid(self, path: str) -> bool:
         match = self._SITE_IOT_TRANSMIT_POWER_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_bluetooth_advertising_v2_request_valid(self, path: str) -> bool:
+        match = self._SITE_BLUETOOTH_ADVERTISING_V2_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
 
     def _site_remember_setting_request_valid(self, path: str) -> bool:
