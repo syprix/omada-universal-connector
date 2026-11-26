@@ -7962,211 +7962,17 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {**data, "site_ref": site_ref, "device_ref": device_ref}
 
-    @_track_capability("ap_uplink_config")
-    def read_ap_uplink_config(self, site_ref: str, device_ref: str) -> dict[str, object]:
-        """Read only auto-uplink state and the documented port identifier."""
-        site_id, mac = self._known_ap_mac(site_ref, device_ref)
-        path = self._AP_UPLINK_CONFIG_PATH.format(
-            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
-        result = self._request_json("GET", path, token=self._access_token()).get("result")
-        try:
-            data = project_ap_uplink_config(result)
-        except ApUplinkConfigError:
-            raise OpenApiError("openapi_response_invalid") from None
-        return {**data, "site_ref": site_ref, "device_ref": device_ref}
 
-    @_track_capability("ap_lldp_config")
-    def read_ap_lldp_config(self, site_ref: str, device_ref: str) -> dict[str, object]:
-        """Read documented LLDP setting and support state for an inventoried AP."""
-        site_id, mac = self._known_ap_mac(site_ref, device_ref)
-        path = self._AP_LLDP_PATH.format(
-            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
-        result = self._request_json("GET", path, token=self._access_token()).get("result")
-        try:
-            data = project_ap_lldp(result)
-        except ApLldpError:
-            raise OpenApiError("openapi_response_invalid") from None
-        return {**data, "site_ref": site_ref, "device_ref": device_ref}
 
-    @_track_capability("ap_port_vlans")
-    def read_ap_port_vlans(self, site_ref: str, device_ref: str) -> dict[str, object]:
-        """Summarize documented AP VLAN rows while omitting network names and addresses."""
-        site_id, mac = self._known_ap_mac(site_ref, device_ref)
-        base = self._AP_PORT_VLANS_PATH.format(
-            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
-        rows: list[object] = []
-        expected_total: int | None = None
-        token = self._access_token()
-        final_grid: dict[str, object] | None = None
-        for page in range(1, self.config.max_pages + 1):
-            query = urlencode({"page": page, "pageSize": 1000})
-            payload = self._request_json("GET", base + "?" + query, token=token)
-            result = payload.get("result")
-            if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
-                raise OpenApiError("openapi_response_invalid")
-            if not isinstance(result, dict) or len(result) > 8:
-                raise OpenApiError("openapi_response_invalid")
-            data = result.get("data")
-            total, current_page = result.get("totalRows"), result.get("currentPage")
-            current_size = result.get("currentSize")
-            if (not isinstance(data, list) or len(data) > 1000 or
-                    type(total) is not int or total < 0 or
-                    type(current_page) is not int or current_page != page or
-                    type(current_size) is not int or current_size not in (len(data), 1000)):
-                raise OpenApiError("openapi_response_invalid")
-            if expected_total is None:
-                expected_total = total
-            elif expected_total != total:
-                raise OpenApiError("openapi_response_invalid")
-            rows.extend(data)
-            if len(rows) > total:
-                raise OpenApiError("openapi_response_invalid")
-            final_grid = {"data": rows, "totalRows": total,
-                          "currentPage": page, "currentSize": len(data)}
-            if len(rows) == total or not data:
-                break
-        if final_grid is None or len(rows) != expected_total:
-            raise OpenApiError("openapi_response_invalid")
-        try:
-            summary = summarize_ap_port_vlans(final_grid)
-        except ApPortVlansError:
-            raise OpenApiError("openapi_response_invalid") from None
-        return {**summary, "site_ref": site_ref, "device_ref": device_ref}
 
-    @_track_capability("ap_bridge_config")
-    def read_ap_bridge_config(self, site_ref: str, device_ref: str) -> dict[str, object]:
-        """Summarize P2P bridge state without exposing credentials or AP identities."""
-        site_id, mac = self._known_ap_mac(site_ref, device_ref)
-        path = self._AP_BRIDGE_PATH.format(
-            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
-        payload = self._request_json("GET", path, token=self._access_token())
-        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
-            raise OpenApiError("openapi_response_invalid")
-        try:
-            data = summarize_ap_bridge_config(payload.get("result"))
-        except ApBridgeConfigError:
-            raise OpenApiError("openapi_response_invalid") from None
-        return {**data, "site_ref": site_ref, "device_ref": device_ref}
 
-    @_track_capability("ap_general_config")
-    def read_ap_general_config(self, site_ref: str, device_ref: str) -> dict[str, object]:
-        """Read an inventoried AP's projected general settings."""
-        site_id, mac = self._known_ap_mac(site_ref, device_ref)
-        path = self._AP_GENERAL_CONFIG_PATH.format(
-            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
-        payload = self._request_json("GET", path, token=self._access_token())
-        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
-            raise OpenApiError("openapi_response_invalid")
-        try:
-            result = summarize_ap_general_config(payload.get("result"))
-        except ApGeneralConfigError:
-            raise OpenApiError("openapi_response_invalid") from None
-        return {**result, "site_ref": site_ref, "device_ref": device_ref}
 
-    @_track_capability("ap_ip_setting")
-    def read_ap_ip_setting(self, site_ref: str, device_ref: str) -> dict[str, object]:
-        """Read AP management-IP mode without returning address values."""
-        site_id, mac = self._known_ap_mac(site_ref, device_ref)
-        path = self._AP_IP_SETTING_PATH.format(
-            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
-        payload = self._request_json("GET", path, token=self._access_token())
-        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
-            raise OpenApiError("openapi_response_invalid")
-        try:
-            result = summarize_ap_ip_setting(payload.get("result"))
-        except ApIpSettingError:
-            raise OpenApiError("openapi_response_invalid") from None
-        return {**result, "site_ref": site_ref, "device_ref": device_ref}
 
-    @_track_capability("ap_ipv6_setting")
-    def read_ap_ipv6_setting(self, site_ref: str, device_ref: str) -> dict[str, object]:
-        """Read AP IPv6 mode and enablement without returning addresses."""
-        site_id, mac = self._known_ap_mac(site_ref, device_ref)
-        path = self._AP_IPV6_SETTING_PATH.format(
-            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
-        payload = self._request_json("GET", path, token=self._access_token())
-        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
-            raise OpenApiError("openapi_response_invalid")
-        try:
-            result = summarize_ap_ipv6_setting(payload.get("result"))
-        except ApIpv6SettingError:
-            raise OpenApiError("openapi_response_invalid") from None
-        return {**result, "site_ref": site_ref, "device_ref": device_ref}
 
-    @_track_capability("ap_p2p_info")
-    def read_ap_p2p_info(self, site_ref: str, device_ref: str) -> dict[str, object]:
-        """Summarize P2P group membership without AP identities."""
-        site_id, mac = self._known_ap_mac(site_ref, device_ref)
-        path = self._AP_P2P_INFO_PATH.format(
-            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
-        payload = self._request_json("GET", path, token=self._access_token())
-        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
-            raise OpenApiError("openapi_response_invalid")
-        try:
-            result = summarize_ap_p2p_info(payload.get("result"))
-        except ApP2pInfoError:
-            raise OpenApiError("openapi_response_invalid") from None
-        return {**result, "site_ref": site_ref, "device_ref": device_ref}
 
-    @_track_capability("ap_l3_access")
-    def read_ap_l3_access(self, site_ref: str, device_ref: str) -> dict[str, object]:
-        """Read AP layer-3 access enablement and support."""
-        site_id, mac = self._known_ap_mac(site_ref, device_ref)
-        path = self._AP_L3_ACCESS_PATH.format(
-            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
-        payload = self._request_json("GET", path, token=self._access_token())
-        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
-            raise OpenApiError("openapi_response_invalid")
-        try:
-            result = summarize_ap_l3_access(payload.get("result"))
-        except ApL3AccessError:
-            raise OpenApiError("openapi_response_invalid") from None
-        return {**result, "site_ref": site_ref, "device_ref": device_ref}
 
-    @_track_capability("ap_paring_window")
-    def read_ap_paring_window(self, site_ref: str, device_ref: str) -> dict[str, object]:
-        """Read redacted status of an already saved AP pairing window."""
-        site_id, mac = self._known_ap_mac(site_ref, device_ref)
-        path = self._AP_PARING_WINDOW_PATH.format(
-            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
-        payload = self._request_json("GET", path, token=self._access_token())
-        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
-            raise OpenApiError("openapi_response_invalid")
-        try:
-            result = summarize_ap_paring_window(payload.get("result"))
-        except ApParingWindowError:
-            raise OpenApiError("openapi_response_invalid") from None
-        return {**result, "site_ref": site_ref, "device_ref": device_ref}
 
-    @_track_capability("ap_management_ssid")
-    def read_ap_management_ssid(self, site_ref: str, device_ref: str) -> dict[str, object]:
-        """Read safe management-WLAN settings without returning names or secrets."""
-        site_id, mac = self._known_ap_mac(site_ref, device_ref)
-        path = self._AP_MANAGEMENT_SSID_PATH.format(
-            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
-        payload = self._request_json("GET", path, token=self._access_token())
-        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
-            raise OpenApiError("openapi_response_invalid")
-        try:
-            result = summarize_ap_management_ssid(payload.get("result"))
-        except ApManagementSsidError:
-            raise OpenApiError("openapi_response_invalid") from None
-        return {**result, "site_ref": site_ref, "device_ref": device_ref}
 
-    @_track_capability("ap_snmp_config")
-    def read_ap_snmp_config(self, site_ref: str, device_ref: str) -> dict[str, object]:
-        """Read AP SNMP setting mode without returning contact/location text."""
-        site_id, mac = self._known_ap_mac(site_ref, device_ref)
-        path = self._AP_SNMP_CONFIG_PATH.format(
-            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
-        payload = self._request_json("GET", path, token=self._access_token())
-        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
-            raise OpenApiError("openapi_response_invalid")
-        try:
-            result = summarize_ap_snmp_config(payload.get("result"))
-        except ApSnmpConfigError:
-            raise OpenApiError("openapi_response_invalid") from None
-        return {**result, "site_ref": site_ref, "device_ref": device_ref}
 
     @_track_capability("ap_uplink_config")
     def read_ap_uplink_config(self, site_ref: str, device_ref: str) -> dict[str, object]:
@@ -8486,35 +8292,7 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {**data, "site_ref": site_ref, "device_ref": device_ref}
 
-    @_track_capability("ap_vlan_v1")
-    def read_ap_vlan_v1(self, site_ref: str, device_ref: str) -> dict[str, object]:
-        """Read the distinct v1 AP management-VLAN response safely."""
-        site_id, mac = self._known_ap_mac(site_ref, device_ref)
-        path = self._AP_VLAN_V1_PATH.format(
-            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
-        payload = self._request_json("GET", path, token=self._access_token())
-        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
-            raise OpenApiError("openapi_response_invalid")
-        try:
-            data = summarize_ap_vlan_v1(payload.get("result"))
-        except ApVlanV1Error:
-            raise OpenApiError("openapi_response_invalid") from None
-        return {**data, "site_ref": site_ref, "device_ref": device_ref}
 
-    @_track_capability("ap_wlan_overrides")
-    def read_ap_wlan_overrides(self, site_ref: str, device_ref: str) -> dict[str, object]:
-        """Read bounded override status without returning WLAN identifiers/secrets."""
-        site_id, mac = self._known_ap_mac(site_ref, device_ref)
-        path = self._AP_WLAN_OVERRIDES_PATH.format(
-            controller_id=self.config.controller_id, site_id=site_id, ap_mac=mac)
-        payload = self._request_json("GET", path, token=self._access_token())
-        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
-            raise OpenApiError("openapi_response_invalid")
-        try:
-            data = summarize_ap_wlan_overrides(payload.get("result"))
-        except ApWlanOverridesError:
-            raise OpenApiError("openapi_response_invalid") from None
-        return {**data, "site_ref": site_ref, "device_ref": device_ref}
 
     @_track_capability("ap_vlan_v1")
     def read_ap_vlan_v1(self, site_ref: str, device_ref: str) -> dict[str, object]:
