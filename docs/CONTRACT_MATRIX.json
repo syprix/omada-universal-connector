@@ -3470,6 +3470,24 @@
             "response": "The result includes topKSsids as an array of Wi-Fi Calling traffic rows; the three exports declare 19 optional fields with matching string/int32/int64 types. Row startTime/endTime are int64 but have no unit stated. The operation also declares separate data and topKEPDGs sources.",
             "connector_projection": "Requests a fixed 24-hour seconds window with the top-SSID source enabled and client, client-by-MAC, and ePDG sources disabled. Uses topKSsids only, bounded to topK 10; returns source state and aggregate documented-field coverage/type counts. All row values and identities are omitted. No server-completeness or service-quality claim."
           }
+        },
+        "controller_placed_site_position_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getPlacedSitePositions",
+            "method": "GET",
+            "path": "/openapi/v1/{omadacId}/placed-site-position",
+            "permission": "Global Dashboard Manager View Only",
+            "path_parameters": [
+              "omadacId required"
+            ],
+            "query": {},
+            "request_body": false,
+            "response": "result is an array; each documented row has string fields id, region, name and address; longitude and latitude are number (double). The outer response also documents errorCode as int32 and msg as string.",
+            "connector_projection": "Fixed controller-bound GET without query or follow-up inventory. Returns only bounded row count, documented-field coverage/type counts, invalid/missing counts, and whether the response array is explicitly empty. Never returns identifiers, names, regions, addresses, coordinate values, unknown field names or raw rows. Coordinate object members are not inspected. No pagination/total is documented, so server-side completeness is not claimed.",
+            "live_support": "unknown"
+          }
         }
       }
     },
@@ -6884,6 +6902,24 @@
             "response": "The result includes topKSsids as an array of Wi-Fi Calling traffic rows; the three exports declare 19 optional fields with matching string/int32/int64 types. Row startTime/endTime are int64 but have no unit stated. The operation also declares separate data and topKEPDGs sources.",
             "connector_projection": "Requests a fixed 24-hour seconds window with the top-SSID source enabled and client, client-by-MAC, and ePDG sources disabled. Uses topKSsids only, bounded to topK 10; returns source state and aggregate documented-field coverage/type counts. All row values and identities are omitted. No server-completeness or service-quality claim."
           }
+        },
+        "controller_placed_site_position_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getPlacedSitePositions",
+            "method": "GET",
+            "path": "/openapi/v1/{omadacId}/placed-site-position",
+            "permission": "Global Dashboard Manager View Only",
+            "path_parameters": [
+              "omadacId required"
+            ],
+            "query": {},
+            "request_body": false,
+            "response": "result is an array; each documented row has string fields id, region, name and address; longitude and latitude are number (double). The outer response also documents errorCode as int32 and msg as string.",
+            "connector_projection": "Fixed controller-bound GET without query or follow-up inventory. Returns only bounded row count, documented-field coverage/type counts, invalid/missing counts, and whether the response array is explicitly empty. Never returns identifiers, names, regions, addresses, coordinate values, unknown field names or raw rows. Coordinate object members are not inspected. No pagination/total is documented, so server-side completeness is not claimed.",
+            "live_support": "unknown"
+          }
         }
       }
     },
@@ -10207,6 +10243,24 @@
             "request_body": false,
             "response": "The result includes topKSsids as an array of Wi-Fi Calling traffic rows; the three exports declare 19 optional fields with matching string/int32/int64 types. Row startTime/endTime are int64 but have no unit stated. The operation also declares separate data and topKEPDGs sources.",
             "connector_projection": "Requests a fixed 24-hour seconds window with the top-SSID source enabled and client, client-by-MAC, and ePDG sources disabled. Uses topKSsids only, bounded to topK 10; returns source state and aggregate documented-field coverage/type counts. All row values and identities are omitted. No server-completeness or service-quality claim."
+          }
+        },
+        "controller_placed_site_position_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getPlacedSitePositions",
+            "method": "GET",
+            "path": "/openapi/v1/{omadacId}/placed-site-position",
+            "permission": "Global Dashboard Manager View Only",
+            "path_parameters": [
+              "omadacId required"
+            ],
+            "query": {},
+            "request_body": false,
+            "response": "result is an array; each documented row has string fields id, region, name and address; longitude and latitude are object (opaque; nested reference not interpreted). The outer response also documents errorCode as int32 and msg as string.",
+            "connector_projection": "Fixed controller-bound GET without query or follow-up inventory. Returns only bounded row count, documented-field coverage/type counts, invalid/missing counts, and whether the response array is explicitly empty. Never returns identifiers, names, regions, addresses, coordinate values, unknown field names or raw rows. Coordinate object members are not inspected. No pagination/total is documented, so server-side completeness is not claimed.",
+            "live_support": "unknown"
           }
         }
       }

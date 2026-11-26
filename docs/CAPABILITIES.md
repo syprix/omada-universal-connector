@@ -81,6 +81,19 @@ projection and 82 after (768 fewer; 90.35%) with `js-tiktoken` 1.0.21 /
 `o200k_base`. This is serialized payload only; it excludes tool schemas, MCP
 framing, live responses and billed agent usage.
 
+## Controller placed-site position coverage
+
+`GET /v1/controller/placed-site-position-coverage` and
+`omada_controller_placed_site_position_coverage` use the separate,
+controller-wide `getPlacedSitePositions` list. They report bounded row and
+documented-field coverage counts only. No site identifiers, names, regions,
+addresses, coordinate values or raw rows are returned. Hardware Controller
+and CBC describe numeric coordinate fields; ER7212PC describes opaque object
+shapes, which the reader does not inspect. The list has no pagination or
+completeness metadata, so the result makes no claim that all placed sites are
+covered. This is distinct from the paginated site inventory and unplaced-site
+position list. Live support is unknown.
+
 ## WAN-port availability by function
 
 ## Site-to-site VPN status codes

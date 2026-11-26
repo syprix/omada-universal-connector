@@ -76,6 +76,14 @@ try:
 except ImportError:  # direct execution in the image
     from device_adoption_summary import DeviceAdoptionSummaryError, summarize_adoption_devices
 try:
+    from .controller_placed_site_position_summary import (
+        ControllerPlacedSitePositionError, summarize_placed_site_positions,
+    )
+except ImportError:  # direct execution in the image
+    from controller_placed_site_position_summary import (
+        ControllerPlacedSitePositionError, summarize_placed_site_positions,
+    )
+try:
     from .site_log_window_summary import (
         SiteLogWindowError, resolve_local_site_log_window, summarize_site_log_window,
         validate_site_log_window,
@@ -1425,6 +1433,7 @@ class OmadaOpenApiClient:
     _MSP_CLUSTER_NODES_PATH = "/openapi/v1/msp/{msp_id}/cluster/nodes/info"
     _MSP_ADOPT_TIP_PATH = "/openapi/v1/msp/{msp_id}/adopt-tip"
     _CONTROLLER_ADOPT_TIP_PATH = "/openapi/v1/{controller_id}/adopt-tip"
+    _CONTROLLER_PLACED_SITE_POSITION_PATH = "/openapi/v1/{controller_id}/placed-site-position"
     _CONTROLLER_CLIENT_CORRECTION_OPTIONS_PATH = (
         "/openapi/v1/{controller_id}/correction-list")
     _MSP_ROLES_PATH = "/openapi/v1/msp/{msp_id}/roles"
@@ -2591,6 +2600,9 @@ class OmadaOpenApiClient:
     _CONTROLLER_ADOPT_TIP_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/adopt-tip"
     )
+    _CONTROLLER_PLACED_SITE_POSITION_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/placed-site-position"
+    )
     _CONTROLLER_CLIENT_CORRECTION_OPTIONS_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/correction-list"
     )
@@ -3370,6 +3382,8 @@ class OmadaOpenApiClient:
         ("controller_device_access", "GET /v1/controller/settings/device-access"),
         ("controller_device_adoption_tip_summary",
          "GET /v1/controller/device-adoption-tip/summary"),
+        ("controller_placed_site_position_coverage",
+         "GET /v1/controller/placed-site-position-coverage"),
         ("controller_client_correction_options_summary",
          "GET /v1/controller/client-correction-options/summary"),
         ("controller_backup_schedule", "GET /v1/controller/settings/backup-schedule"),
@@ -13224,6 +13238,20 @@ class OmadaOpenApiClient:
             "controller_device_adoption_tip_summary", self._CONTROLLER_ADOPT_TIP_PATH,
             "project_controller_adopt_tip")
 
+    @_track_capability("controller_placed_site_position_coverage")
+    def read_controller_placed_site_position_coverage(self) -> dict[str, object]:
+        """Read one fixed controller list and return field-shape counts only."""
+        path = self._CONTROLLER_PLACED_SITE_POSITION_PATH.format(
+            controller_id=self.config.controller_id)
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            summary = summarize_placed_site_positions(
+                payload.get("result"), result_present="result" in payload)
+        except ControllerPlacedSitePositionError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "controller_placed_site_position_coverage",
+                **summary}
+
     @_track_capability("controller_client_correction_options_summary")
     def read_controller_client_correction_options_summary(self) -> dict[str, object]:
         """Read only bounded client-correction option keys and labels."""
@@ -18792,6 +18820,7 @@ class OmadaOpenApiClient:
                                   self._controller_general_settings_request_valid(path) or
                                   self._controller_device_access_request_valid(path) or
                                   self._controller_adopt_tip_request_valid(path) or
+                                  self._controller_placed_site_position_request_valid(path) or
                                   self._controller_client_correction_options_request_valid(path) or
                                   self._controller_backup_schedule_request_valid(path) or
                                   self._controller_cloud_access_request_valid(path) or
@@ -20593,6 +20622,10 @@ class OmadaOpenApiClient:
 
     def _controller_adopt_tip_request_valid(self, path: str) -> bool:
         match = self._CONTROLLER_ADOPT_TIP_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _controller_placed_site_position_request_valid(self, path: str) -> bool:
+        match = self._CONTROLLER_PLACED_SITE_POSITION_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
 
     def _controller_client_correction_options_request_valid(self, path: str) -> bool:

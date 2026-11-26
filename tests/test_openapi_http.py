@@ -197,6 +197,21 @@ class FakeOpenApiClient:
                 "missing_field_count": 0, "invalid_field_count": 0,
                 "unknown_field_count": 0, "partial": False}
 
+    def read_controller_placed_site_position_coverage(self) -> dict[str, object]:
+        self.calls.append(("controller_placed_site_position_coverage", None))
+        return {"status": "ok", "resource": "controller_placed_site_position_coverage",
+                "source_state": "present", "placed_site_row_count": 2,
+                "documented_field_count": 6, "documented_field_observed_count": 10,
+                "documented_field_presence_count": 10,
+                "documented_field_missing_count": 2,
+                "documented_field_type_valid_count": 10,
+                "documented_field_type_invalid_count": 0,
+                "rows_with_all_documented_fields_count": 1,
+                "unknown_field_count": 0, "coordinate_number_value_count": 4,
+                "coordinate_object_shape_count": 0,
+                "coordinate_invalid_shape_count": 0, "empty": False,
+                "partial": True, "server_completeness_established": False}
+
     def read_controller_client_correction_options_summary(self) -> dict[str, object]:
         self.calls.append(("controller_client_correction_options_summary", None))
         if self.correction_options_result is not None:
@@ -7527,6 +7542,24 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(structured["data"]["adopted_device_count"], 0)
         self.assertEqual(self.fake.calls,
                          [("controller_device_adoption_tip_summary", None)] * 2)
+
+    def test_http_and_mcp_expose_redacted_controller_placed_site_coverage(self) -> None:
+        path = "/v1/controller/placed-site-position-coverage"
+        status, response = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "controller_placed_site_position_coverage")
+        self.assertEqual(response["placed_site_row_count"], 2)
+        self.assertFalse(response["server_completeness_established"])
+        request = {"jsonrpc": "2.0", "id": 103, "method": "tools/call",
+                   "params": {"name": "omada_controller_placed_site_position_coverage",
+                              "arguments": {}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        structured = response["result"]["structuredContent"]
+        self.assertEqual(structured["resource"], "controller_placed_site_position_coverage")
+        self.assertEqual(structured["placed_site_row_count"], 2)
+        self.assertEqual(self.fake.calls,
+                         [("controller_placed_site_position_coverage", None)] * 2)
 
     def test_http_and_mcp_expose_controller_client_correction_options(self) -> None:
         source = {

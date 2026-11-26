@@ -747,6 +747,27 @@ class FullApiMatrixTests(unittest.TestCase):
         row = build_matrix([("hardware-controller", archive)])["operations"][0]
         self.assertEqual(row["connector_source_status"], "implemented_read")
 
+    def test_controller_placed_site_position_contract_matrix_is_documented_and_redacted(self):
+        matrix = json.loads((Path(__file__).resolve().parents[1] /
+                             "docs/CONTRACT_MATRIX.json").read_text(encoding="utf-8"))
+        self.assertEqual(
+            IMPLEMENTED[("GET", "/openapi/v1/{controller_id}/placed-site-position")],
+            "implemented_read")
+        for source in matrix["sources"]:
+            operation = source["operations"]["controller_placed_site_position_coverage"]
+            review = operation["contract_review"]
+            self.assertTrue(operation["documented"])
+            self.assertEqual(review["operation_id"], "getPlacedSitePositions")
+            self.assertEqual(review["method"], "GET")
+            self.assertEqual(review["query"], {})
+            self.assertFalse(review["request_body"])
+            self.assertIn("No pagination/total", review["connector_projection"])
+            self.assertIn("Never returns identifiers", review["connector_projection"])
+        er = next(source for source in matrix["sources"]
+                  if source["label"] == "ER7212PC 6.2.14")
+        self.assertIn("object (opaque", er["operations"][
+            "controller_placed_site_position_coverage"]["contract_review"]["response"])
+
     def test_controller_client_correction_options_route_matches_source_contract(self):
         spec = document()
         path = "/openapi/v1/{omadacId}/correction-list"

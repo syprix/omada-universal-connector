@@ -26,6 +26,14 @@ unknown. A synthetic 20-row response measured 4,328 tokens before projection
 and 458 after (89.42% fewer) with `js-tiktoken` 1.0.21 and `o200k_base`.
 These are serialized JSON response bodies only, not live or billed usage.
 
+`omada_controller_placed_site_position_coverage` reads the separate fixed
+controller-wide placed-site list and returns bounded row and field-coverage
+counts only. It never returns site identifiers, names, regions, addresses,
+coordinate values or raw rows. The source has no pagination or total, so an
+empty list is not evidence that the controller has no placed sites and the
+tool does not claim complete server-side coverage. This is separate from the
+site inventory and unplaced-site positions.
+
 On synthetic fixtures, `js-tiktoken` 1.0.21 with `o200k_base` counted 533
 tokens in a 20-row static-route interface response and 128 in its projection
 (75.98% fewer). A selected-SSID flow fixture (inventory, group membership and

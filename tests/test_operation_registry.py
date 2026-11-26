@@ -19,6 +19,21 @@ class OperationRegistryTests(unittest.TestCase):
         self.assertEqual(route.upstream_template, "/openapi/v1/{controller_id}/adopt-tip")
         self.assertEqual(dict(bindings), {})
 
+    def test_controller_placed_site_position_coverage_is_fixed_redacted_read(self):
+        operation = REGISTRY.get("controller_placed_site_position_coverage")
+        tool = _tool(operation)
+        self.assertEqual(tool["name"], "omada_controller_placed_site_position_coverage")
+        self.assertEqual(tool["inputSchema"]["required"], [])
+        self.assertEqual(tool["inputSchema"]["additionalProperties"], False)
+        self.assertTrue(tool["annotations"]["readOnlyHint"])
+        self.assertEqual(operation.max_response_bytes, 262_144)
+        self.assertEqual(operation.max_items, 10_000)
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/controller/placed-site-position-coverage")
+        self.assertEqual(route.upstream_template,
+                         "/openapi/v1/{controller_id}/placed-site-position")
+        self.assertEqual(dict(bindings), {})
+
     def test_controller_client_correction_options_is_fixed_controller_read(self):
         operation = REGISTRY.get("controller_client_correction_options_summary")
         tool = _tool(operation)
@@ -1217,6 +1232,7 @@ class OperationRegistryTests(unittest.TestCase):
             "controller_general_settings",
             "controller_device_access",
             "controller_device_adoption_tip_summary",
+            "controller_placed_site_position_coverage",
             "controller_client_correction_options_summary",
             "controller_backup_schedule",
             "controller_cloud_access",
