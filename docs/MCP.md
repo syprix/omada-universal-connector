@@ -1182,3 +1182,11 @@ result rows keep their existing redacted fields; codes have no inferred
 manufacturer meaning.
 One OC200 request for a selected category returned a partial result through
 HTTP and MCP. Other category codes and ER7212PC remain unverified.
+
+`omada_client_health_detail_v2` returns bounded, redacted version-two health
+metrics for a current same-site client reference. Its `series_point_coverage`
+aggregate counts inspected structurally valid points and distinguishes
+`pastNum` absent, explicitly null, or present and non-null. It counts no more
+than 64 points per series; null values remain invalid for the existing numeric
+projection, and points beyond the cap remain unclassified. These counts do
+not assign meaning to null and do not change partial status.

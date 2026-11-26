@@ -25,21 +25,33 @@ def _series(
     end_ms: int | None,
     number_min: int,
     number_max: int,
-) -> tuple[dict[str, object] | None, bool, int]:
+) -> tuple[dict[str, object] | None, bool, int, dict[str, int]]:
     if not isinstance(value, list):
-        return None, True, 0
+        return None, True, 0, _empty_series_coverage()
     partial = len(value) > MAX_POINTS_PER_SERIES
     points: list[tuple[int, int]] = []
     invalid = 0
+    coverage = _empty_series_coverage()
     for item in value[:MAX_POINTS_PER_SERIES]:
         if not isinstance(item, dict) or len(item) > 4:
             invalid += 1
             partial = True
             continue
-        if set(item) - {"time", "pastNum"}:
+        unknown_fields = set(item) - {"time", "pastNum"}
+        if unknown_fields:
             invalid += 1
             partial = True
         timestamp, number = item.get("time"), item.get("pastNum")
+        if (not unknown_fields and _integer(timestamp, 0, _MAX_INT64) and
+                (start_ms is None or timestamp >= start_ms) and
+                (end_ms is None or timestamp <= end_ms)):
+            coverage["inspected_structurally_valid_count"] += 1
+            if "pastNum" not in item:
+                coverage["past_num_missing_count"] += 1
+            elif number is None:
+                coverage["past_num_explicit_null_count"] += 1
+            else:
+                coverage["past_num_present_non_null_count"] += 1
         if (not _integer(timestamp, 0, _MAX_INT64) or
                 not _integer(number, number_min, number_max)):
             invalid += 1
@@ -52,7 +64,7 @@ def _series(
             continue
         points.append((timestamp, number))
     if not points:
-        return {"sample_count": 0}, partial, invalid
+        return {"sample_count": 0}, partial, invalid, coverage
     values = [point[1] for point in points]
     times = [point[0] for point in points]
     return {
@@ -62,7 +74,16 @@ def _series(
         "minimum": min(values),
         "maximum": max(values),
         "average": sum(values) // len(values),
-    }, partial, invalid
+    }, partial, invalid, coverage
+
+
+def _empty_series_coverage() -> dict[str, int]:
+    return {
+        "inspected_structurally_valid_count": 0,
+        "past_num_missing_count": 0,
+        "past_num_explicit_null_count": 0,
+        "past_num_present_non_null_count": 0,
+    }
 
 
 def _dimension(
@@ -72,9 +93,9 @@ def _dimension(
     scalar_fields: dict[str, tuple[str, int, int]],
     start_ms: int | None,
     end_ms: int | None,
-) -> tuple[dict[str, object], bool, int, int, int]:
+) -> tuple[dict[str, object], bool, int, int, int, dict[str, int]]:
     if not isinstance(raw, dict) or len(raw) > 96:
-        return {}, True, 1, 0, 0
+        return {}, True, 1, 0, 0, _empty_series_coverage()
     allowed = {"summaryScore", "support", "incidents", *series_fields, *scalar_fields}
     partial = bool(set(raw) - allowed)
     invalid = len(set(raw) - allowed)
@@ -105,17 +126,20 @@ def _dimension(
                 partial = True
 
     series_output: dict[str, object] = {}
+    series_coverage = _empty_series_coverage()
     for source, target in series_fields.items():
         if source not in raw or raw[source] is None:
             continue
         number_min, number_max = (
             (-2**63, _MAX_INT64) if source in _LONG_TIME_VALUE_FIELDS
             else (-2**31, 2**31 - 1))
-        projected, series_partial, series_invalid = _series(
+        projected, series_partial, series_invalid, coverage = _series(
             raw[source], start_ms=start_ms, end_ms=end_ms,
             number_min=number_min, number_max=number_max)
         partial |= series_partial
         invalid += series_invalid
+        for key, count in coverage.items():
+            series_coverage[key] += count
         if projected is not None:
             series_output[target] = projected
     if series_output:
@@ -162,7 +186,8 @@ def _dimension(
             output["incident_entry_count"] = incident_entries
             output["incident_occurrence_count"] = (
                 incident_occurrences if occurrences_complete else None)
-    return (output, partial, invalid, incident_entries, incident_omitted)
+    return (output, partial, invalid, incident_entries, incident_omitted,
+            series_coverage)
 
 
 _DIMENSIONS: dict[str, tuple[str, dict[str, str], dict[str, tuple[str, int, int]]]] = {
@@ -234,10 +259,12 @@ def project_client_health_detail_v2(
     dimensions: dict[str, object] = {}
     incident_entries = 0
     incident_omitted = 0
+    series_coverage = _empty_series_coverage()
     for source, (target, series, scalars) in _DIMENSIONS.items():
         if source not in result or result[source] is None:
             continue
-        projected, dim_partial, dim_invalid, dim_incident_entries, dim_incident_omitted = _dimension(
+        (projected, dim_partial, dim_invalid, dim_incident_entries,
+         dim_incident_omitted, dim_series_coverage) = _dimension(
             result[source], series_fields=series, scalar_fields=scalars,
             start_ms=start_ms, end_ms=end_ms)
         dimensions[target] = projected
@@ -245,6 +272,8 @@ def project_client_health_detail_v2(
         invalid += dim_invalid
         incident_entries += dim_incident_entries
         incident_omitted += dim_incident_omitted
+        for key, count in dim_series_coverage.items():
+            series_coverage[key] += count
     data["dimensions"] = dimensions
 
     return {
@@ -265,5 +294,6 @@ def project_client_health_detail_v2(
             for field in series
             if isinstance(result[source].get(field), list)
         ),
+        "series_point_coverage": series_coverage,
         "source_contract_scope": "hardware_controller_and_cbc_6_3_only",
     }

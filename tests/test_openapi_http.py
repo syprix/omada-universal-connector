@@ -3158,7 +3158,12 @@ class FakeOpenApiClient:
                 "site_ref": site_ref, "client_ref": client_ref,
                 "window_start_ms": 1, "window_end_ms": 86_400_001,
                 "health_version": 2, "score": 80, "dimensions": {},
-                "dimension_count": 0, "partial": False}
+                "dimension_count": 0, "partial": False,
+                "series_point_coverage": {
+                    "inspected_structurally_valid_count": 2,
+                    "past_num_missing_count": 1,
+                    "past_num_explicit_null_count": 1,
+                    "past_num_present_non_null_count": 0}}
 
     def read_client_health(self, site_ref: str, client_ref: str) -> dict[str, object]:
         self.calls.append(("client_health", site_ref + ":" + client_ref))
@@ -10733,6 +10738,7 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(body["resource"], "client_health_detail_v2")
         self.assertEqual(body["health_version"], 2)
+        self.assertEqual(body["series_point_coverage"]["past_num_explicit_null_count"], 1)
         self.assertEqual(self.fake.calls[-1],
                          ("client_health_detail_v2", site_ref + ":" + client_ref))
         status, response = self.request_post("/mcp", {
@@ -10744,6 +10750,9 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertNotIn("isError", response)
         self.assertEqual(response["result"]["structuredContent"]["resource"],
                          "client_health_detail_v2")
+        self.assertEqual(
+            response["result"]["structuredContent"]["series_point_coverage"][
+                "past_num_missing_count"], 1)
         self.assertEqual(self.fake.calls[-1],
                          ("client_health_detail_v2", site_ref + ":" + client_ref))
 
