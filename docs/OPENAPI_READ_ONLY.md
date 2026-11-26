@@ -1043,8 +1043,8 @@ not ER7212PC 6.2.14. Fixture coverage does not establish live support.
 `GET /openapi/v1/{omadacId}/sites/{siteId}/anomaly/overview/incident-distribution`
 with millisecond start/end filters fixed to the preceding 24 hours. The
 response contains `incidentCounts` time buckets with int32 severity/category
-counts and an int64 `time` timestamp in seconds. The projection limits the
-response to 128 buckets, validates each value, and omits unknown fields and
+counts and an int64 `time` timestamp in seconds. The projection accepts up to
+256 buckets, validates each value, and omits unknown fields and
 incident records. The source permission is `Incidents Page View Only`.
 Hardware Controller 6.3.0 and CBC Standard 6.3.0 document the route; ER7212PC
 6.2.14 does not. Fixture coverage does not establish live support.

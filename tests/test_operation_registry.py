@@ -647,6 +647,7 @@ class OperationRegistryTests(unittest.TestCase):
         op, bindings = REGISTRY.match(
             "GET", "/v1/sites/0123456789abcdef01234567/incidents/distribution")
         self.assertEqual(op.operation_id, "site_incident_distribution")
+        self.assertEqual(op.max_items, 256)
         self.assertEqual(bindings, (("site_ref", "0123456789abcdef01234567"),))
         op, bindings = REGISTRY.match(
             "GET", "/v1/sites/0123456789abcdef01234567/incidents/categories")
