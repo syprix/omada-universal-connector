@@ -2779,6 +2779,16 @@ class FakeOpenApiClient:
                          "invalid_row_count": 0, "duplicate_family_id_count": 0,
                          "unknown_field_count": 0}, "partial": False}
 
+    def read_site_gateway_supported_model_references(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_gateway_supported_model_references", site_ref))
+        return {"status": "ok", "resource": "site_gateway_supported_model_references",
+                "site_ref": site_ref,
+                "data": {"model_references": [{"model_id": 0, "model_name": ""}],
+                         "model_reference_count": 1, "source_list_present": True,
+                         "model_row_count": 1, "missing_field_count": 0,
+                         "invalid_row_count": 0, "duplicate_model_id_count": 0,
+                         "unknown_field_count": 0}, "partial": False}
+
     def read_site_category_application_summary(self, site_ref: str,
                                                family_id: str) -> dict[str, object]:
         self.calls.append(("site_category_application_summary", site_ref, family_id))
@@ -8539,6 +8549,23 @@ class OpenApiHttpTests(unittest.TestCase):
                          ["0", "2147483647"])
         self.assertEqual(self.fake.calls,
                          [("site_application_family_inventory", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_site_gateway_supported_model_references(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/gateway-supported-model-references"
+        status, response = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["data"]["model_references"],
+                         [{"model_id": 0, "model_name": ""}])
+        request = {"jsonrpc": "2.0", "id": 159, "method": "tools/call",
+                   "params": {"name": "omada_site_gateway_supported_model_references",
+                              "arguments": {"site_ref": site_ref}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"]["data"]["model_references"],
+                         [{"model_id": 0, "model_name": ""}])
+        self.assertEqual(self.fake.calls,
+                         [("site_gateway_supported_model_references", site_ref)] * 2)
 
     def test_http_and_mcp_expose_site_category_application_summary(self) -> None:
         site_ref, family_id = "a" * 24, "17"

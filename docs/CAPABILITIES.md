@@ -1803,6 +1803,17 @@ entries make the result partial, and lists over 100 rows are rejected. The
 manufacturer documents view-only site permissions and requires a DPI-capable
 gateway; live support is unknown.
 
+## Site gateway model reference list
+
+`GET /v1/sites/{site_ref}/gateway-supported-model-references` reads the
+documented site list of gateway model IDs and names offered for
+pre-configuration. It returns only validated, unique reference pairs, bounded
+to 100 entries with names up to 128 characters. Duplicate or invalid rows make
+the result partial; a missing `supportModels` field is not treated as an empty
+list. The result is reference data only and does not describe installed devices
+or imply current gateway support. The manufacturer documents Site Settings
+Manager View Only or Network Config Page View Only; live support is unknown.
+
 ## All-time hotspot voucher summary
 
 `GET /v1/sites/{site_ref}/hotspot/vouchers/all-time-summary` reads the selected site's documented all-time hotspot voucher summary. It reports independent `voucher_counts` and `voucher_durations_minutes` maps for `current`, `inuse`, `expired`, `unused` and `created`. Missing values are `null`; `missing_fields` and `invalid_fields` identify each affected metric. Amount and currency source values are omitted. The output contains no voucher codes or user data and does not report revenue or derive relationships among category totals. `supportVoucherTrafficStat` is reported only as the documented capability flag; it is not a traffic measurement. Live support is unknown.
