@@ -6,6 +6,7 @@ from typing import Any
 MAX_POINTS_PER_SERIES = 64
 MAX_INCIDENTS_PER_DIMENSION = 32
 _MAX_INT64 = 2**63 - 1
+_LONG_TIME_VALUE_FIELDS = frozenset({"pastTxRate", "pastRxRate"})
 
 
 class ClientHealthDetailV2Error(ValueError):
@@ -22,6 +23,8 @@ def _series(
     *,
     start_ms: int | None,
     end_ms: int | None,
+    number_min: int,
+    number_max: int,
 ) -> tuple[dict[str, object] | None, bool, int]:
     if not isinstance(value, list):
         return None, True, 0
@@ -37,7 +40,8 @@ def _series(
             invalid += 1
             partial = True
         timestamp, number = item.get("time"), item.get("pastNum")
-        if not _integer(timestamp, 0, _MAX_INT64) or not _integer(number):
+        if (not _integer(timestamp, 0, _MAX_INT64) or
+                not _integer(number, number_min, number_max)):
             invalid += 1
             partial = True
             continue
@@ -104,8 +108,12 @@ def _dimension(
     for source, target in series_fields.items():
         if source not in raw or raw[source] is None:
             continue
+        number_min, number_max = (
+            (-2**63, _MAX_INT64) if source in _LONG_TIME_VALUE_FIELDS
+            else (-2**31, 2**31 - 1))
         projected, series_partial, series_invalid = _series(
-            raw[source], start_ms=start_ms, end_ms=end_ms)
+            raw[source], start_ms=start_ms, end_ms=end_ms,
+            number_min=number_min, number_max=number_max)
         partial |= series_partial
         invalid += series_invalid
         if projected is not None:
