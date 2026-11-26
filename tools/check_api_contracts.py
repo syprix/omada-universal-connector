@@ -82,6 +82,7 @@ OPERATIONS = {
     'site_multicast_rate_limit_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/multicast-rate-limit'),
     'site_beacon_control_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/beacon-control'),
     'site_iot_transmit_power_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/setting/iot/radio/transmit-power'),
+    'site_bluetooth_advertising_v2_summary': ('GET', '/openapi/v2/{omadacId}/sites/{siteId}/setting/iot/devices/config'),
     'site_remember_setting_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/remember-device'),
     'site_client_connection_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/dashboard/client-ssid-distribution'),
     'site_poe_usage_summary': ('GET', '/openapi/v1/{omadacId}/sites/{siteId}/dashboard/poe-usage'),

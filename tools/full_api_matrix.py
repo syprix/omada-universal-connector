@@ -117,6 +117,7 @@ IMPLEMENTED: dict[tuple[str, str], str] = {
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/multicast-rate-limit"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/beacon-control"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/setting/iot/radio/transmit-power"): "implemented_read",
+    ("GET", "/openapi/v2/{controller_id}/sites/{site_id}/setting/iot/devices/config"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/remember-device"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/client-ssid-distribution"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/poe-usage"): "implemented_read",

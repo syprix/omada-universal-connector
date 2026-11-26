@@ -2055,6 +2055,11 @@ class FakeOpenApiClient:
                 "data": {"observed_row_count": 2,
                          "transmit_power_device_counts_dbm": {"5": 2}}, "partial": False}
 
+    def read_site_bluetooth_advertising_v2_summary(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_bluetooth_advertising_v2_summary", site_ref))
+        return {"status": "ok", "resource": "site_bluetooth_advertising_v2_summary",
+                "site_ref": site_ref, "data": {"observed_row_count": 1}, "partial": False}
+
     def read_site_remember_setting_summary(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_remember_setting_summary", site_ref))
         return {"status": "ok", "resource": "site_remember_setting_summary",
@@ -8030,6 +8035,41 @@ class OpenApiHttpTests(unittest.TestCase):
                          "site_iot_transmit_power_summary")
         self.assertEqual(self.fake.calls,
                          [("site_iot_transmit_power_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_site_bluetooth_advertising_v2_summary(self) -> None:
+        site_ref = "a" * 24
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/bluetooth-advertising-v2-summary", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["data"]["observed_row_count"], 1)
+        request = {"jsonrpc": "2.0", "id": 136, "method": "tools/call",
+                   "params": {"name": "omada_site_bluetooth_advertising_v2_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"]["resource"],
+                         "site_bluetooth_advertising_v2_summary")
+        self.assertEqual(self.fake.calls,
+                         [("site_bluetooth_advertising_v2_summary", site_ref)] * 2)
+
+    def test_site_bluetooth_advertising_v2_errors_stay_public_and_redacted(self) -> None:
+        site_ref = "a" * 24
+        failure = OpenApiError("openapi_response_invalid")
+        with patch.object(self.fake, "read_site_bluetooth_advertising_v2_summary",
+                          side_effect=failure):
+            status, response = self.request(
+                f"/v1/sites/{site_ref}/bluetooth-advertising-v2-summary", self.token)
+            self.assertEqual(status, 502)
+            self.assertEqual(response["error"], "openapi_response_invalid")
+            status, rpc = self.request_post("/mcp", {
+                "jsonrpc": "2.0", "id": 137, "method": "tools/call",
+                "params": {"name": "omada_site_bluetooth_advertising_v2_summary",
+                           "arguments": {"site_ref": site_ref}},
+            }, self.token)
+        self.assertEqual(status, 200)
+        self.assertTrue(rpc["result"]["isError"])
+        self.assertEqual(rpc["result"]["structuredContent"]["error"],
+                         "openapi_response_invalid")
 
     def test_http_and_mcp_expose_site_remember_setting_summary(self) -> None:
         site_ref = "a" * 24
