@@ -3139,6 +3139,8 @@ class Handler(BaseHTTPRequestHandler):
                     result = client.read_controller_retention()
                 elif registry_operation == "controller_dst_info":
                     result = client.read_controller_dst_info()
+                elif registry_operation == "site_dst_info":
+                    result = client.read_site_dst_info(registry_bindings["site_ref"])
                 elif registry_operation == "controller_experience_improvement":
                     result = client.read_controller_experience_improvement()
                 elif registry_operation == "controller_client_detail_info":

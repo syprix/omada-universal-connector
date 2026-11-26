@@ -523,6 +523,14 @@ offset codes, schedule rules, timestamps and time zone. It is a fixed GET;
 timestamps remain raw milliseconds and no local-time conversion is inferred.
 Fixture coverage exists, with live support still unknown.
 
+`omada_site_dst_info` reads the separate site-scoped DST response after resolving
+the selected site reference from the current inventory. It reuses the bounded
+DST validation. `startTime` and `endTime` are returned as raw integers under
+`timestamps_unit_unspecified`, because the site schemas do not state their
+unit; the documented next/last transition times remain under `timestamps_ms`.
+It makes no claim about inheritance from controller settings. It is read-only;
+live support is unknown.
+
 `omada_controller_experience_improvement` reads the documented controller
 experience-improvement participation Boolean through a fixed GET. It does not
 change the preference; fixture coverage exists, with live support still unknown.

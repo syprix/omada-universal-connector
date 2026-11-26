@@ -105,3 +105,17 @@ def project_controller_dst(result: Any) -> dict[str, object]:
         },
         "partial": partial or bool(set(result) - KNOWN_FIELDS),
     }
+
+
+def project_site_dst(result: Any) -> dict[str, object]:
+    """Project site DST fields without assigning undocumented timestamp units."""
+    projected = project_controller_dst(result)
+    data = dict(projected["data"])
+    timestamps_ms = dict(data["timestamps_ms"])
+    timestamps_unspecified_unit = {}
+    for name in ("startTime", "endTime"):
+        if name in timestamps_ms:
+            timestamps_unspecified_unit[name] = timestamps_ms.pop(name)
+    data["timestamps_ms"] = timestamps_ms
+    data["timestamps_unit_unspecified"] = timestamps_unspecified_unit
+    return {**projected, "data": data}
