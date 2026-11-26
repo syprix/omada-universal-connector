@@ -1814,6 +1814,16 @@ list. The result is reference data only and does not describe installed devices
 or imply current gateway support. The manufacturer documents Site Settings
 Manager View Only or Network Config Page View Only; live support is unknown.
 
+## Site portal domain setting state
+
+`GET /v1/sites/{site_ref}/portal-domain-setting-summary` reads the
+documented `autoRefresh` state and, only when it is explicitly false, reports
+whether a nonempty URL value was present. No URL string, host, address, path or
+credential is returned. The URL field is ignored when auto-refresh is enabled
+or unknown. Missing and invalid states remain distinct; the read changes no
+portal setting. The source requires Network Config Page View Only; live
+support is unknown.
+
 ## Site voucher currency options
 
 `GET /v1/sites/{site_ref}/hotspot/voucher-currency-options` reads the

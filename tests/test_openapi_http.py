@@ -2319,6 +2319,16 @@ class FakeOpenApiClient:
         return {"status": "ok", "resource": "site_portal_logout_domain",
                 "site_ref": site_ref, "data": {"domain": ""}}
 
+    def read_site_portal_domain_setting_state(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_portal_domain_setting_state", site_ref))
+        return {"status": "ok", "resource": "site_portal_domain_setting_state",
+                "site_ref": site_ref,
+                "data": {"auto_refresh_enabled": False, "auto_refresh_state": "present",
+                         "url_applicable": True, "url_state": "present",
+                         "url_configured": True, "missing_field_count": 0,
+                         "invalid_field_count": 0, "unknown_field_count": 0},
+                "partial": False}
+
     def read_site_wids_config(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_wids_config", site_ref))
         return {"status": "ok", "resource": "site_wids_config",
@@ -8859,6 +8869,22 @@ class OpenApiHttpTests(unittest.TestCase):
                          "site_portal_logout_domain")
         self.assertEqual(self.fake.calls,
                          [("site_portal_logout_domain", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_redacted_site_portal_domain_setting_state(self) -> None:
+        site_ref = "e" * 24
+        status, direct = self.request(
+            f"/v1/sites/{site_ref}/portal-domain-setting-summary", self.token)
+        self.assertEqual(status, 200)
+        self.assertTrue(direct["data"]["url_configured"])
+        self.assertNotIn("url", direct["data"])
+        request = {"jsonrpc": "2.0", "id": 186, "method": "tools/call",
+                   "params": {"name": "omada_site_portal_domain_setting_state",
+                              "arguments": {"site_ref": site_ref}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_portal_domain_setting_state", site_ref)] * 2)
 
     def test_http_and_mcp_expose_site_wids_config(self) -> None:
         site_ref = "9" * 24

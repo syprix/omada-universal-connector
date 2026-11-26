@@ -1156,6 +1156,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_disaster_mode_status",
             "site_specification_summary",
             "site_portal_logout_domain",
+            "site_portal_domain_setting_state",
             "site_wids_config",
             "site_wips_config",
             "site_acl_config_mode",
@@ -1558,6 +1559,13 @@ class OperationRegistryTests(unittest.TestCase):
         operation, bindings = REGISTRY.match(
             "GET", f"/v1/sites/{site_ref}/portal-logout-domain")
         self.assertEqual(operation.operation_id, "site_portal_logout_domain")
+        self.assertEqual(bindings, (("site_ref", site_ref),))
+
+    def test_site_portal_domain_setting_state_route_is_separate_and_site_bound(self):
+        site_ref = "0123456789abcdef01234567"
+        operation, bindings = REGISTRY.match(
+            "GET", f"/v1/sites/{site_ref}/portal-domain-setting-summary")
+        self.assertEqual(operation.operation_id, "site_portal_domain_setting_state")
         self.assertEqual(bindings, (("site_ref", site_ref),))
 
     def test_site_wids_config_route_uses_opaque_site_reference(self):

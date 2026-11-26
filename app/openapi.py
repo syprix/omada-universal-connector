@@ -1459,6 +1459,8 @@ class OmadaOpenApiClient:
         "/openapi/v1/{controller_id}/sites/{site_id}/setting/disaster")
     _SITE_SPECIFICATION_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/specification"
     _SITE_PORTAL_LOGOUT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/portal-logout"
+    _SITE_PORTAL_DOMAIN_SETTING_STATE_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/portal/setting/domain")
     _SITE_WIDS_CONFIG_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/network-security/wireless-ids"
     _SITE_WIPS_CONFIG_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/network-security/wireless-ips"
     _SITE_ACL_CONFIG_MODE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/acls/osg-config-mode"
@@ -1888,6 +1890,10 @@ class OmadaOpenApiClient:
     )
     _SITE_PORTAL_LOGOUT_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/portal-logout"
+    )
+    _SITE_PORTAL_DOMAIN_SETTING_STATE_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/portal/setting/domain"
     )
     _SITE_WIDS_CONFIG_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
@@ -3417,6 +3423,8 @@ class OmadaOpenApiClient:
         ("site_disaster_mode_status", "GET /v1/sites/{site_ref}/disaster-mode-status"),
         ("site_specification_summary", "GET /v1/sites/{site_ref}/specification-summary"),
         ("site_portal_logout_domain", "GET /v1/sites/{site_ref}/portal-logout-domain"),
+        ("site_portal_domain_setting_state",
+         "GET /v1/sites/{site_ref}/portal-domain-setting-summary"),
         ("site_wids_config", "GET /v1/sites/{site_ref}/wireless-ids-config"),
         ("site_wips_config", "GET /v1/sites/{site_ref}/wireless-ips-config"),
         ("site_acl_config_mode", "GET /v1/sites/{site_ref}/acl-config-mode"),
@@ -14532,6 +14540,30 @@ class OmadaOpenApiClient:
         return {"status": "ok", "resource": "site_portal_logout_domain",
                 "site_ref": site_ref, "data": projected}
 
+    @_track_capability("site_portal_domain_setting_state")
+    def read_site_portal_domain_setting_state(self, site_ref: str) -> dict[str, object]:
+        """Read portal auto-refresh state and URL presence without exposing the URL."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_PORTAL_DOMAIN_SETTING_STATE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        result = self._request_json("GET", path, token=self._access_token()).get("result")
+        try:
+            from .site_portal_domain_setting_state import (
+                SitePortalDomainSettingStateError,
+                project_site_portal_domain_setting_state,
+            )
+        except ImportError:  # direct execution in the image
+            from site_portal_domain_setting_state import (
+                SitePortalDomainSettingStateError,
+                project_site_portal_domain_setting_state,
+            )
+        try:
+            projected = project_site_portal_domain_setting_state(result)
+        except SitePortalDomainSettingStateError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_portal_domain_setting_state",
+                "site_ref": site_ref, **projected}
+
     @_track_capability("site_wids_config")
     def read_site_wids_config(self, site_ref: str) -> dict[str, object]:
         """Read the common wireless IDS fields without imposing disputed enum values."""
@@ -18065,6 +18097,7 @@ class OmadaOpenApiClient:
                                   self._site_disaster_mode_status_request_valid(path) or
                                   self._site_specification_request_valid(path) or
                                   self._site_portal_logout_request_valid(path) or
+                                  self._site_portal_domain_setting_state_request_valid(path) or
                                   self._site_wids_config_request_valid(path) or
                                   self._site_wips_config_request_valid(path) or
                                   self._site_acl_config_mode_request_valid(path) or
@@ -19375,6 +19408,10 @@ class OmadaOpenApiClient:
 
     def _site_portal_logout_request_valid(self, path: str) -> bool:
         match = self._SITE_PORTAL_LOGOUT_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_portal_domain_setting_state_request_valid(self, path: str) -> bool:
+        match = self._SITE_PORTAL_DOMAIN_SETTING_STATE_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
 
     def _site_wids_config_request_valid(self, path: str) -> bool:
