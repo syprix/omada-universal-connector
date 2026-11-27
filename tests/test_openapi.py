@@ -776,6 +776,50 @@ class OpenApiClientTests(unittest.TestCase):
         self.assertTrue(request.call_args.args[1].endswith(
             "/sites/site-1/hotspot/vouchers/statistics/summary"))
 
+    def test_voucher_history_statistics_uses_fixed_seconds_and_redacts_usage_values(self):
+        from unittest.mock import patch
+
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        payload = {"errorCode": 0, "result": {
+            "summary": {"count": 7, "duration": 90, "amount": "private-money",
+                        "currency": "private-currency"},
+            "usage": [{"count": 2, "timeInterval": 60,
+                       "time": 1_700_000_000_000, "amount": "private-row-money",
+                       "currency": "private-row-currency"}]}}
+        connection = self.respond(payload)
+        with patch("time.time", return_value=1_700_086_400), \
+                patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_connection", return_value=connection):
+            projected = self.client.read_site_hotspot_voucher_history_statistics_summary(site_ref)
+        self.assertEqual(projected["voucher_count"], 7)
+        self.assertEqual(projected["voucher_duration_minutes"], 90)
+        self.assertEqual(projected["usage_coverage"]["row_count"], 1)
+        sent_path = connection.calls[0][1]
+        self.assertEqual(sent_path,
+                         "/openapi/v1/controller_1/sites/site-1/hotspot/vouchers/statistics/"
+                         "history?filters.timeStart=1700000000&filters.timeEnd=1700086400")
+        for secret in ("private-money", "private-currency", "1700000000000", "60"):
+            self.assertNotIn(secret, json.dumps(projected))
+        self.assertTrue(self.client._site_voucher_history_statistics_request_valid(sent_path))
+        self.assertFalse(self.client._site_voucher_history_statistics_request_valid(
+            sent_path + "&page=1"))
+        self.assertFalse(self.client._site_voucher_history_statistics_request_valid(
+            sent_path.replace("1700086400", "1700086401")))
+        self.assertFalse(self.client._site_voucher_history_statistics_request_valid(
+            sent_path.replace("1700000000", "0")))
+        self.assertFalse(self.client._site_voucher_history_statistics_request_valid(
+            sent_path.replace("1700086400", str(2**63))))
+
+    def test_voucher_history_statistics_rejects_boolean_controller_status(self):
+        site_ref = "b" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-2"
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={
+                    "errorCode": False, "result": {"summary": {}, "usage": []}}):
+            with self.assertRaisesRegex(OpenApiError, "openapi_response_invalid"):
+                self.client.read_site_hotspot_voucher_history_statistics_summary(site_ref)
+
     def test_site_lan_network_interface_read_redacts_values_and_allows_type_zero(self):
         site_ref = "a" * 24
         self.client._site_ids_by_ref[site_ref] = "site-1"

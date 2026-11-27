@@ -3460,6 +3460,23 @@
             "projection": "Reports separate voucher_counts and voucher_durations_minutes maps; missing values are null and missing_fields/invalid_fields identify each affected metric. Amount and currency source values are omitted. No voucher codes, user data, revenue, category arithmetic or traffic-volume inference."
           }
         },
+        "site_hotspot_voucher_history_statistics_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getVoucherHistoryStatistics",
+            "permission": "Site Hotspot Manager View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/hotspot/vouchers/statistics/history",
+            "query": {
+              "filters.timeStart": "required Unix seconds int64",
+              "filters.timeEnd": "required Unix seconds int64"
+            },
+            "request_body": false,
+            "response": "VoucherStatisticsHistoryOpenApiVO has summary: VoucherSummaryOpenApiVO (count:int64, duration:int64 in minutes, amount:string, currency:string) and usage[] rows with count:int32, timeInterval:int32 (unit unnamed), time:int64 (milliseconds), amount:string and currency:string.",
+            "platform_difference": "Hardware Controller and CBC use */* response media; ER7212PC uses application/json. All three document the same route, second-based filters and summary/usage field types.",
+            "connector_projection": "Fixed trailing 24-hour window; callers cannot select a window, add filters or request pages. Exposes only summary count/duration and field-state coverage plus bounded usage row/presence/type counts. Omits amount/currency, usage values, timestamps, interval values, identities and raw rows. Maximum 500 usage rows and 262,144 upstream response bytes. Missing/null/zero/empty remain distinct. No derived sums or server-completeness claim."
+          }
+        },
         "site_hotspot_voucher_group_options_coverage": {
           "documented": true,
           "live_support": "unknown",
@@ -7023,6 +7040,23 @@
             "projection": "Reports count and duration values independently; missing values are null and missing_fields/invalid_fields identify each affected metric. Amount and currency source values are omitted. No voucher codes, user data, revenue, category arithmetic or traffic-volume inference."
           }
         },
+        "site_hotspot_voucher_history_statistics_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getVoucherHistoryStatistics",
+            "permission": "Site Hotspot Manager View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/hotspot/vouchers/statistics/history",
+            "query": {
+              "filters.timeStart": "required Unix seconds int64",
+              "filters.timeEnd": "required Unix seconds int64"
+            },
+            "request_body": false,
+            "response": "VoucherStatisticsHistoryOpenApiVO has summary: VoucherSummaryOpenApiVO (count:int64, duration:int64 in minutes, amount:string, currency:string) and usage[] rows with count:int32, timeInterval:int32 (unit unnamed), time:int64 (milliseconds), amount:string and currency:string.",
+            "platform_difference": "Hardware Controller and CBC use */* response media; ER7212PC uses application/json. All three document the same route, second-based filters and summary/usage field types.",
+            "connector_projection": "Fixed trailing 24-hour window; callers cannot select a window, add filters or request pages. Exposes only summary count/duration and field-state coverage plus bounded usage row/presence/type counts. Omits amount/currency, usage values, timestamps, interval values, identities and raw rows. Maximum 500 usage rows and normal response-byte cap. Missing/null/zero/empty remain distinct. No derived sums or server-completeness claim."
+          }
+        },
         "site_hotspot_voucher_group_options_coverage": {
           "documented": true,
           "live_support": "unknown",
@@ -10494,6 +10528,23 @@
             "request_body": false,
             "response": "AllTimeVoucherSummaryOpenApiVO has optional current, inuse, expired, unused and created VoucherSummaryOpenApiVO objects and optional supportVoucherTrafficStat:boolean. Each category has optional count:int64, amount:string (single-voucher amount), duration:int64 (minutes), and currency:string.",
             "projection": "Reports count and duration values independently; missing values are null and missing_fields/invalid_fields identify each affected metric. Amount and currency source values are omitted. No voucher codes, user data, revenue, category arithmetic or traffic-volume inference."
+          }
+        },
+        "site_hotspot_voucher_history_statistics_summary": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getVoucherHistoryStatistics",
+            "permission": "Site Hotspot Manager View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/hotspot/vouchers/statistics/history",
+            "query": {
+              "filters.timeStart": "required Unix seconds int64",
+              "filters.timeEnd": "required Unix seconds int64"
+            },
+            "request_body": false,
+            "response": "VoucherStatisticsHistoryOpenApiVO has summary: VoucherSummaryOpenApiVO (count:int64, duration:int64 in minutes, amount:string, currency:string) and usage[] rows with count:int32, timeInterval:int32 (unit unnamed), time:int64 (milliseconds), amount:string and currency:string.",
+            "platform_difference": "Hardware Controller and CBC use */* response media; ER7212PC uses application/json. All three document the same route, second-based filters and summary/usage field types.",
+            "connector_projection": "Fixed trailing 24-hour window; callers cannot select a window, add filters or request pages. Exposes only summary count/duration and field-state coverage plus bounded usage row/presence/type counts. Omits amount/currency, usage values, timestamps, interval values, identities and raw rows. Maximum 500 usage rows and normal response-byte cap. Missing/null/zero/empty remain distinct. No derived sums or server-completeness claim."
           }
         },
         "site_hotspot_voucher_group_options_coverage": {

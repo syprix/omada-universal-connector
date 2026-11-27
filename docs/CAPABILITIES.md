@@ -2059,6 +2059,25 @@ unknown.
 
 A synthetic complete five-category response measured 124 source JSON tokens and 98 tokens in the full connector result (20.97% fewer) with `js-tiktoken` 1.0.21 / `o200k_base`. This fixture measurement is not billed agent usage.
 
+## Site hotspot voucher history statistics summary
+
+`GET /v1/sites/{site_ref}/hotspot/vouchers/history-statistics/summary` reads
+the separate documented `getVoucherHistoryStatistics` route with a fixed
+trailing 24-hour window. The connector sends only `filters.timeStart` and
+`filters.timeEnd` as Unix seconds; callers cannot choose dates, add filters or
+request pages. It returns the documented summary count and duration in minutes
+with field-state coverage. For `usage`, it returns a bounded row count and
+presence/type coverage for the documented `count`, `timeInterval` and `time`
+fields, never their values. Amounts, currencies, timestamps, interval values,
+identities, raw rows and derived sums are omitted. The first response is
+bounded to 500 usage rows and 262,144 upstream response bytes. A full
+local projection does not claim server-side history completeness. Missing,
+null, explicit zero, and an explicitly empty usage list remain distinct. The
+source requires Site Hotspot Manager View Only. Hardware Controller and CBC
+document `*/*` response media; ER7212PC documents `application/json`; all
+three agree on the route, second-based int64 filters, int64 summary counters,
+minute duration, and usage field types. Live support is unknown.
+
 ## Controller upgrade-log summary
 
 `GET /v1/controller/firmware-upgrades/summary` reads only the first 100 rows from the authenticated controller's documented upgrade log. It reports source total and sample coverage plus counts of rollbacked entries, rows with reported failed devices, and rows with an upgrade time. It returns no dates, device/model details, site names, operator names, versions, or identifiers. It never starts or changes an upgrade. Live support is unknown.
