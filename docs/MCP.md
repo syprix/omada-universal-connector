@@ -772,6 +772,14 @@ result says nothing about effective rules or enforcement. The three supplied
 exports document the fixed list and its read-only permission requirements;
 live support remains unknown.
 
+`omada_site_access_control_policy_coverage` reads the separate fixed
+`getAccessControl` site route. It returns the two documented enable booleans
+and presence, array form and counts for the two policy lists. Policy entries
+are never inspected or returned; each count is capped at 500 and over-limit
+responses are marked partial. This describes configured state only, not
+effective access or enforcement. The supplied exports document view-only
+permissions; live support remains unknown.
+
 
 The tools `omada_controller_device_batch_adopt_summary` and
 `omada_site_pending_devices_summary` expose bounded summaries for global

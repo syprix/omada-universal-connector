@@ -286,6 +286,17 @@ absent without inferring a target type. All three supplied API exports document
 the GET with `Site Settings Manager View Only`, `Device Config Page View Only`,
 or `Site Device Manager View Only` permission; live support remains unknown.
 
+`GET /v1/sites/{site_ref}/access-control/policy-coverage` and MCP tool
+`omada_site_access_control_policy_coverage` read the separate fixed site
+`getAccessControl` route. The projection returns its two documented enable
+booleans and only presence, list form and entry counts for the two documented
+policy arrays. It never inspects or returns policy entries. Each count is
+bounded at 500; missing, malformed and over-limit fields remain distinct.
+This reports configuration only and makes no claim about effective access or
+enforcement. All three supplied API exports document the GET with `Site
+Settings Manager View Only` or `Network Config Page View Only` permission;
+live support remains unknown.
+
 `GET /v1/sites/{site_ref}/devices/model-whitelist-coverage` and MCP tool
 `omada_site_device_model_whitelist_coverage` summarize only returned record
 counts and coverage of the documented `model` and `hwVersion` strings. They

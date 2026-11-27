@@ -3511,6 +3511,18 @@
             "live_support": "unknown"
           }
         },
+        "site_access_control_policy_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getAccessControl",
+            "permission": "Site Settings Manager View Only; Network Config Page View Only",
+            "query": {},
+            "response": "Object with required preAuthAccessEnable and freeAuthClientEnable booleans and the documented preAuthAccessPolicies and freeAuthClientPolicies arrays; policy-item schemas are not included in this projection review.",
+            "connector_projection": "Fixed site-bound parameterless GET returns the two boolean values plus each policy array presence, list form and entry count. Policy entries are never iterated, indexed or returned. Counts are bounded at 500; missing, malformed and over-limit states remain distinct. Configuration coverage only; no access-effect or enforcement claim.",
+            "live_support": "unknown"
+          }
+        },
         "site_group_profiles_coverage": {
           "documented": true,
           "live_support": "unknown",
@@ -6977,6 +6989,18 @@
             "live_support": "unknown"
           }
         },
+        "site_access_control_policy_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getAccessControl",
+            "permission": "Site Settings Manager View Only; Network Config Page View Only",
+            "query": {},
+            "response": "Object with required preAuthAccessEnable and freeAuthClientEnable booleans and the documented preAuthAccessPolicies and freeAuthClientPolicies arrays; policy-item schemas are not included in this projection review.",
+            "connector_projection": "Fixed site-bound parameterless GET returns the two boolean values plus each policy array presence, list form and entry count. Policy entries are never iterated, indexed or returned. Counts are bounded at 500; missing, malformed and over-limit states remain distinct. Configuration coverage only; no access-effect or enforcement claim.",
+            "live_support": "unknown"
+          }
+        },
         "site_group_profiles_coverage": {
           "documented": true,
           "live_support": "unknown",
@@ -10350,6 +10374,18 @@
             "request_body": false,
             "response": "result is a paginated object with int64 totalRows and unplacedNum, int32 currentPage and currentSize, and data[] rows with string id/region/name and int32 type. The outer response documents errorCode as int32 and msg as string.",
             "connector_projection": "One fixed controller-bound page request (page=1&pageSize=100), no searchKey and no follow-up request. Returns only the separately reported totalRows/unplacedNum and bounded counts for documented field presence/type plus invalid, missing and unknown fields. The two counters are not compared and type codes are not interpreted. A page shorter than totalRows is marked truncated/partial; if totalRows is not reported, page completeness is unknown. Never returns site identifiers, names, regions, type values or raw rows.",
+            "live_support": "unknown"
+          }
+        },
+        "site_access_control_policy_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getAccessControl",
+            "permission": "Site Settings Manager View Only; Network Config Page View Only",
+            "query": {},
+            "response": "Object with required preAuthAccessEnable and freeAuthClientEnable booleans and the documented preAuthAccessPolicies and freeAuthClientPolicies arrays; policy-item schemas are not included in this projection review.",
+            "connector_projection": "Fixed site-bound parameterless GET returns the two boolean values plus each policy array presence, list form and entry count. Policy entries are never iterated, indexed or returned. Counts are bounded at 500; missing, malformed and over-limit states remain distinct. Configuration coverage only; no access-effect or enforcement claim.",
             "live_support": "unknown"
           }
         },

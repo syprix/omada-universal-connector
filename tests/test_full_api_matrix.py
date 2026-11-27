@@ -47,6 +47,25 @@ class FullApiMatrixTests(unittest.TestCase):
             self.assertIn("500 rows", review["connector_projection"])
             self.assertIn("no completeness marker", review["connector_projection"])
 
+    def test_site_access_control_policy_coverage_matches_three_source_contract(self):
+        path = Path(__file__).resolve().parents[1] / "docs/CONTRACT_MATRIX.json"
+        matrix = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(len(matrix["sources"]), 3)
+        for source in matrix["sources"]:
+            operation = source["operations"]["site_access_control_policy_coverage"]
+            self.assertTrue(operation["documented"])
+            self.assertEqual(operation["live_support"], "unknown")
+            review = operation["contract_review"]
+            self.assertEqual(review["operation_id"], "getAccessControl")
+            self.assertEqual(review["query"], {})
+            self.assertIn("preAuthAccessEnable", review["response"])
+            self.assertIn("freeAuthClientEnable", review["response"])
+            self.assertIn("preAuthAccessPolicies", review["response"])
+            self.assertIn("freeAuthClientPolicies", review["response"])
+            self.assertIn("never iterated", review["connector_projection"])
+            self.assertIn("500", review["connector_projection"])
+            self.assertIn("enforcement", review["connector_projection"])
+
     def test_upgrade_failure_and_stack_cable_log_reads_match_three_source_contracts(self):
         path = Path(__file__).resolve().parents[1] / "docs/CONTRACT_MATRIX.json"
         matrix = json.loads(path.read_text(encoding="utf-8"))
@@ -863,6 +882,19 @@ class FullApiMatrixTests(unittest.TestCase):
         spec["paths"] = {path: {"get": {"operationId": "getPortalList",
                                          "responses": {"200": {}}}}}
         archive = self.write_zip("site_portal_inventory_coverage.zip", spec)
+        row = build_matrix([("hardware-controller", archive)])["operations"][0]
+        self.assertEqual(row["connector_source_status"], "implemented_read")
+        self.assertEqual(row["live_status"], "unknown_not_checked_by_this_offline_tool")
+
+    def test_site_access_control_policy_coverage_route_matches_source_contract(self):
+        path = "/openapi/v1/{omadacId}/sites/{siteId}/setting/access-control"
+        self.assertEqual(
+            IMPLEMENTED[("GET", "/openapi/v1/{controller_id}/sites/{site_id}/setting/access-control")],
+            "implemented_read")
+        spec = document()
+        spec["paths"] = {path: {"get": {"operationId": "getAccessControl",
+                                          "responses": {"200": {}}}}}
+        archive = self.write_zip("site_access_control_policy_coverage.zip", spec)
         row = build_matrix([("hardware-controller", archive)])["operations"][0]
         self.assertEqual(row["connector_source_status"], "implemented_read")
         self.assertEqual(row["live_status"], "unknown_not_checked_by_this_offline_tool")

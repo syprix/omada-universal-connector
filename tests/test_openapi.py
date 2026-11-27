@@ -1332,6 +1332,53 @@ class OpenApiClientTests(unittest.TestCase):
         self.assertEqual(ctx.exception.code, "openapi_rejected")
         self.assertEqual(ctx.exception.upstream_error_code, -7)
 
+    def test_site_access_control_policy_coverage_uses_fixed_site_get_and_omits_policy_entries(self) -> None:
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site_1"
+        self.assertEqual(
+            dict(OmadaOpenApiClient.CAPABILITY_OPERATIONS)[
+                "site_access_control_policy_coverage"],
+            "GET /v1/sites/{site_ref}/access-control/policy-coverage")
+        path = "/openapi/v1/controller_1/sites/site_1/setting/access-control"
+        connection = self.respond({"errorCode": 0, "result": {
+            "preAuthAccessEnable": False, "freeAuthClientEnable": True,
+            "preAuthAccessPolicies": [{"identity": "private-policy-id",
+                                       "value": "private-network-value"}],
+            "freeAuthClientPolicies": [],
+        }})
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_connection", return_value=connection):
+            result = self.client.read_site_access_control_policy_coverage(site_ref)
+        self.assertEqual(result["resource"], "site_access_control_policy_coverage")
+        self.assertEqual(result["data"], {
+            "pre_auth_access_enabled": False, "free_auth_client_enabled": True,
+        })
+        self.assertEqual(
+            result["policy_list_coverage"]["pre_auth_access_policies"]["entry_count"], 1)
+        self.assertEqual(
+            result["policy_list_coverage"]["free_auth_client_policies"]["state"], "empty")
+        self.assertNotIn("site_ref", result)
+        for private in ("private-policy-id", "private-network-value"):
+            self.assertNotIn(private, repr(result))
+
+        with patch.object(self.client, "_connection") as connect:
+            for invalid_path in (
+                path + "?type=1",
+                path + "/policies",
+                "/openapi/v1/other-controller/sites/site_1/setting/access-control",
+            ):
+                with self.subTest(path=invalid_path):
+                    with self.assertRaisesRegex(OpenApiError, "openapi_path_rejected"):
+                        self.client._request_json("GET", invalid_path, token="token")
+        connect.assert_not_called()
+
+        with patch.object(self.client, "_access_token") as token, \
+                patch.object(self.client, "_request_json") as request:
+            with self.assertRaisesRegex(OpenApiError, "site_ref_unknown"):
+                self.client.read_site_access_control_policy_coverage("b" * 24)
+        token.assert_not_called()
+        request.assert_not_called()
+
     def test_site_device_model_whitelist_coverage_is_site_bound_and_redacted(self) -> None:
         site_ref = "a" * 24
         self.client._site_ids_by_ref[site_ref] = "site_1"
