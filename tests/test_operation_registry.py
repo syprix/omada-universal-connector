@@ -1581,6 +1581,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_ap_oui_vlan_rules_summary",
             "site_oui_profile_list_summary",
             "site_group_profiles_coverage",
+            "site_access_control_policy_coverage",
             "site_vlan_ssid_usage_summary",
             "site_vlan_device_usage_summary",
             "site_vlan_port_support_summary",
