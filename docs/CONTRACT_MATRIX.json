@@ -843,6 +843,23 @@
             "connector_projection": "fixed site-bound GET for page 1 only, page size capped at 100, no search/family filter or follow-up page. Emits pagination and applicationId type/presence/duplicate counts only; no IDs, names, descriptions or family labels. Missing totalRows is null and partial; empty is complete only with reported total zero."
           }
         },
+        "site_application_control_filter_inventory_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getFilters",
+            "tag": "Application Control",
+            "permission": "Site Settings Manager View Only, Network Config Page View Only, or Site Device Manager View Only",
+            "query": {
+              "page": "required int32, starts at 1; connector fixes page 1",
+              "pageSize": "required int32, source range 1–1000; connector uses the configured size capped at 100",
+              "searchKey": "optional filter-name search; omitted by connector"
+            },
+            "response": "paged GridVOFilterEntity with int64 totalRows, int32 currentPage/currentSize and FilterEntity rows. filterId is int32, filterName and description are strings, rules is an array of RuleEntity. The exports do not mark the FilterEntity properties required. Errors: -35112 gateway missing and -35113 gateway does not support DPI.",
+            "connector_projection": "fixed site-bound GET page 1 only, page size capped at 100, no search, follow-up page or detail route. Emits pagination and per-row field presence/type counts only. Rules are opaque and not iterated. Omits filter IDs, names, descriptions, unknown field names and rule contents. Missing totalRows remains null/partial; explicit total zero with an empty list is complete.",
+            "route_scope": "site getFilters is a paginated list; site /filters/{filterId} documents PUT editFilters and DELETE deleteFilters only, no single-filter GET. POST addFilter creates filters. This reader is distinct from getApplications and makes no write call."
+          }
+        },
         "site_application_traffic_summary": {
           "documented": true,
           "live_support": "unknown",
@@ -4384,6 +4401,23 @@
             "connector_projection": "fixed site-bound GET for page 1 only, page size capped at 100, no search/family filter or follow-up page. Emits pagination and applicationId type/presence/duplicate counts only; no IDs, names, descriptions or family labels. Missing totalRows is null and partial; empty is complete only with reported total zero."
           }
         },
+        "site_application_control_filter_inventory_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getFilters",
+            "tag": "Application Control",
+            "permission": "Site Settings Manager View Only, Network Config Page View Only, or Site Device Manager View Only",
+            "query": {
+              "page": "required int32, starts at 1; connector fixes page 1",
+              "pageSize": "required int32, source range 1–1000; connector uses the configured size capped at 100",
+              "searchKey": "optional filter-name search; omitted by connector"
+            },
+            "response": "paged GridVOFilterEntity with int64 totalRows, int32 currentPage/currentSize and FilterEntity rows. filterId is int32, filterName and description are strings, rules is an array of RuleEntity. The exports do not mark the FilterEntity properties required. Errors: -35112 gateway missing and -35113 gateway does not support DPI.",
+            "connector_projection": "fixed site-bound GET page 1 only, page size capped at 100, no search, follow-up page or detail route. Emits pagination and per-row field presence/type counts only. Rules are opaque and not iterated. Omits filter IDs, names, descriptions, unknown field names and rule contents. Missing totalRows remains null/partial; explicit total zero with an empty list is complete.",
+            "route_scope": "site getFilters is a paginated list; site /filters/{filterId} documents PUT editFilters and DELETE deleteFilters only, no single-filter GET. POST addFilter creates filters. This reader is distinct from getApplications and makes no write call."
+          }
+        },
         "site_application_traffic_summary": {
           "documented": true,
           "live_support": "unknown",
@@ -7885,6 +7919,24 @@
             "response": "paged GridVOApplicationEntity with int64 totalRows, int32 currentPage/currentSize and ApplicationEntity rows. applicationId is int32; applicationName, description and family are strings. The exports do not mark these row properties required. Documented errors: -35107 DPI protocols updating, -35112 gateway missing, -35113 gateway does not support DPI.",
             "selector_compatibility": "not established: getApplications documents applicationId as int32, while getSpecificAppInfo takes a string path parameter described as Application Id; none of the three exports explicitly says catalog IDs select that traffic-detail route.",
             "connector_projection": "fixed site-bound GET for page 1 only, page size capped at 100, no search/family filter or follow-up page. Emits pagination and applicationId type/presence/duplicate counts only; no IDs, names, descriptions or family labels. Missing totalRows is null and partial; empty is complete only with reported total zero."
+          }
+        },
+        "site_application_control_filter_inventory_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getFilters",
+            "tag": "Application Control",
+            "permission": "Site Settings Manager View Only, Network Config Page View Only, or Site Device Manager View Only",
+            "query": {
+              "page": "required int32, starts at 1; connector fixes page 1",
+              "pageSize": "required int32, source range 1–1000; connector uses the configured size capped at 100",
+              "searchKey": "optional filter-name search; omitted by connector"
+            },
+            "response": "paged GridVOFilterEntity with int64 totalRows, int32 currentPage/currentSize and FilterEntity rows. filterId is int32, filterName and description are strings, rules is an array of RuleEntity. The exports do not mark the FilterEntity properties required. Errors: -35112 gateway missing and -35113 gateway does not support DPI.",
+            "source_example_deviation": "ER7212PC 6.2.14 example reports totalRows=0/currentPage=0/currentSize=0 with a nonempty row; connector rejects this inconsistent combination.",
+            "connector_projection": "fixed site-bound GET page 1 only, page size capped at 100, no search, follow-up page or detail route. Emits pagination and per-row field presence/type counts only. Rules are opaque and not iterated. Omits filter IDs, names, descriptions, unknown field names and rule contents. Missing totalRows remains null/partial; explicit total zero with an empty list is complete.",
+            "route_scope": "site getFilters is a paginated list; site /filters/{filterId} documents PUT editFilters and DELETE deleteFilters only, no single-filter GET. POST addFilter creates filters. This reader is distinct from getApplications and makes no write call."
           }
         },
         "site_application_traffic_summary": {
