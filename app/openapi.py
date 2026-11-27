@@ -1626,6 +1626,8 @@ class OmadaOpenApiClient:
     _SITE_APPLICATION_CATEGORY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/categoryInfo"
     _SITE_APPLICATION_FAMILIES_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/applicationControl/families")
+    _SITE_APPLICATION_CONTROL_APPLICATIONS_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/applicationControl/applications")
     _SITE_GATEWAY_SUPPORTED_MODEL_REFERENCES_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/internet/models")
     _SITE_CATEGORY_APPLICATION_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/categoryAppInfo/{family_id}"
@@ -1930,6 +1932,10 @@ class OmadaOpenApiClient:
     _SITE_APPLICATION_FAMILIES_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
         r"/applicationControl/families"
+    )
+    _SITE_APPLICATION_CONTROL_APPLICATIONS_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/applicationControl/applications\?page=1&pageSize=([1-9][0-9]{0,2})"
     )
     _SITE_GATEWAY_SUPPORTED_MODEL_REFERENCES_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
@@ -3626,6 +3632,8 @@ class OmadaOpenApiClient:
         ("site_ap_interference_summary", "GET /v1/sites/{site_ref}/ap-interference-summary"),
         ("site_application_category_summary", "GET /v1/sites/{site_ref}/application-category-summary"),
         ("site_application_family_inventory", "GET /v1/sites/{site_ref}/application-families"),
+        ("site_application_control_application_catalog",
+         "GET /v1/sites/{site_ref}/application-control/application-catalog"),
         ("site_gateway_supported_model_references",
          "GET /v1/sites/{site_ref}/gateway-supported-model-references"),
         ("site_category_application_summary", "GET /v1/sites/{site_ref}/application-category-summary/{family_id}/applications"),
@@ -16298,6 +16306,40 @@ class OmadaOpenApiClient:
         return {"status": "ok", "resource": "site_application_family_inventory",
                 "site_ref": site_ref, **projected}
 
+    @_track_capability("site_application_control_application_catalog")
+    def read_site_application_control_application_catalog(
+            self, site_ref: str) -> dict[str, object]:
+        """Read one fixed page of application-ID coverage without catalog values."""
+        try:
+            from .site_application_control_application_catalog import (
+                MAX_APPLICATION_CATALOG_PAGE_SIZE,
+                MISSING_APPLICATION_CATALOG_RESULT,
+                SiteApplicationControlApplicationCatalogError,
+                project_site_application_control_application_catalog,
+            )
+        except ImportError:  # direct execution in the image
+            from site_application_control_application_catalog import (
+                MAX_APPLICATION_CATALOG_PAGE_SIZE,
+                MISSING_APPLICATION_CATALOG_RESULT,
+                SiteApplicationControlApplicationCatalogError,
+                project_site_application_control_application_catalog,
+            )
+        site_id = self._resolve_site_ref(site_ref)
+        page_size = min(self.config.page_size, MAX_APPLICATION_CATALOG_PAGE_SIZE)
+        path = self._SITE_APPLICATION_CONTROL_APPLICATIONS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        path += f"?page=1&pageSize={page_size}"
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            projected = project_site_application_control_application_catalog(
+                payload.get("result", MISSING_APPLICATION_CATALOG_RESULT), page_size=page_size)
+        except SiteApplicationControlApplicationCatalogError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_application_control_application_catalog",
+                "site_ref": site_ref, **projected}
+
     @_track_capability("site_gateway_supported_model_references")
     def read_site_gateway_supported_model_references(
             self, site_ref: str) -> dict[str, object]:
@@ -18659,6 +18701,7 @@ class OmadaOpenApiClient:
                                   self._site_ap_interference_request_valid(path) or
                                   self._site_application_category_request_valid(path) or
                                   self._site_application_families_request_valid(path) or
+                                  self._site_application_control_applications_request_valid(path) or
                                   self._site_gateway_supported_model_references_request_valid(path) or
                                   self._site_category_application_request_valid(path) or
                                   self._site_category_client_request_valid(path) or
@@ -20212,6 +20255,16 @@ class OmadaOpenApiClient:
     def _site_application_families_request_valid(self, path: str) -> bool:
         match = self._SITE_APPLICATION_FAMILIES_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
+
+    def _site_application_control_applications_request_valid(self, path: str) -> bool:
+        match = self._SITE_APPLICATION_CONTROL_APPLICATIONS_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            page_size = int(match.group(2))
+        except ValueError:
+            return False
+        return page_size == min(self.config.page_size, 100)
 
     def _site_gateway_supported_model_references_request_valid(self, path: str) -> bool:
         match = self._SITE_GATEWAY_SUPPORTED_MODEL_REFERENCES_REQUEST.fullmatch(path)

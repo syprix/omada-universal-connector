@@ -1953,6 +1953,23 @@ entries make the result partial, and lists over 100 rows are rejected. The
 manufacturer documents view-only site permissions and requires a DPI-capable
 gateway; live support is unknown.
 
+## Site application-control catalog coverage
+
+`GET /v1/sites/{site_ref}/application-control/application-catalog` reads only
+the fixed first page of the documented `getApplications` catalog. Its page
+size is capped at 100 and the request does not send a search term or family
+filter. The response reports pagination and `applicationId` type/validity
+counts only; names, descriptions, family labels, IDs and source rows are
+omitted. A missing `totalRows` stays null and makes the result partial. An
+empty list is complete only when the reported total is zero. Although the
+catalog documents `applicationId` as int32 and the separate traffic-detail
+route takes an “Application Id” path value, the exports do not explicitly
+declare that one selects the other, so catalog IDs are not returned as
+selectors. The API lists Site Settings Manager, Network Config Page or Site
+Device Manager View Only and documents DPI-specific errors for updating
+protocols (`-35107`), a missing gateway (`-35112`), or a gateway without DPI
+support (`-35113`). Live support is unknown.
+
 ## Site gateway model reference list
 
 `GET /v1/sites/{site_ref}/gateway-supported-model-references` reads the
