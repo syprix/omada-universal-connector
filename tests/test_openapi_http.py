@@ -1652,6 +1652,11 @@ class FakeOpenApiClient:
         return {"status": "ok", "resource": "site_oui_profile_list_summary",
                 "profile_count": 1, "omitted_profile_count": 2, "partial": True}
 
+    def read_site_group_profiles_coverage(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_group_profiles_coverage", site_ref))
+        return {"status": "ok", "resource": "site_group_profiles_coverage",
+                "source_state": "empty", "row_count": 0, "partial": False}
+
     def read_site_vlan_ssid_usage_summary(self, site_ref: str, network_ref: str,
                                           vlan_id: int) -> dict[str, object]:
         self.calls.append(("site_vlan_ssid_usage_summary", site_ref, network_ref, vlan_id))
@@ -10665,6 +10670,27 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(response["result"]["structuredContent"]["resource"],
                          "site_oui_profile_list_summary")
         self.assertEqual(self.fake.calls[-1], ("site_oui_profile_list_summary", site_ref))
+
+    def test_site_group_profiles_coverage_is_available_over_http_and_mcp(self) -> None:
+        site_ref = "a" * 24
+        status, body = self.request(
+            f"/v1/sites/{site_ref}/group-profiles/coverage", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(body["resource"], "site_group_profiles_coverage")
+        self.assertEqual(self.fake.calls[-1],
+                         ("site_group_profiles_coverage", site_ref))
+        status, response = self.request_post("/mcp", {
+            "jsonrpc": "2.0", "id": 400, "method": "tools/call",
+            "params": {"name": "omada_site_group_profiles_coverage",
+                       "arguments": {"site_ref": site_ref}},
+        }, self.token)
+        self.assertEqual(status, 200)
+        self.assertNotIn("isError", response)
+        self.assertEqual(response["result"]["structuredContent"]["resource"],
+                         "site_group_profiles_coverage")
+        self.assertEqual(self.fake.calls[-1],
+                         ("site_group_profiles_coverage", site_ref))
+
     def test_site_vlan_ssid_usage_summary_is_available_over_http_and_mcp(self) -> None:
         site_ref, network_ref = "a" * 24, "b" * 24
         route = f"/v1/sites/{site_ref}/networks/{network_ref}/vlan-ssids/summary?vlan_id=52"
