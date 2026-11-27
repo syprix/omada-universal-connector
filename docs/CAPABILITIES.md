@@ -2021,6 +2021,18 @@ counted. The result does not classify ISO currencies, provide exchange rates or
 prices, or change voucher settings. The source requires Site Hotspot Manager
 View Only; live support is unknown.
 
+## Site hotspot voucher-group option coverage
+
+`GET /v1/sites/{site_ref}/hotspot/voucher-group-options/coverage` reads only
+the documented first page of `getVoucherGroupOptions` (page 1, page size capped
+at 100). It reports row and pagination counts plus presence and string-type
+counts for `groupId` and `name`. Group IDs, names and voucher codes are never
+returned. Missing `totalRows` remains null and partial; an explicit zero with
+an empty page is complete, while an incomplete page remains partial. The source
+requires Site Hotspot Manager View Only and documents errors `-33000`, `-33004`,
+`-44111` and `-44112`. It makes no claim about group use, permissions beyond
+the documented role, or voucher behavior. Live support is unknown.
+
 ## All-time hotspot voucher summary
 
 `GET /v1/sites/{site_ref}/hotspot/vouchers/all-time-summary` reads the selected site's documented all-time hotspot voucher summary. It reports independent `voucher_counts` and `voucher_durations_minutes` maps for `current`, `inuse`, `expired`, `unused` and `created`. Missing values are `null`; `missing_fields` and `invalid_fields` identify each affected metric. Amount and currency source values are omitted. The output contains no voucher codes or user data and does not report revenue or derive relationships among category totals. `supportVoucherTrafficStat` is reported only as the documented capability flag; it is not a traffic measurement. Live support is unknown.

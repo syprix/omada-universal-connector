@@ -39,6 +39,8 @@ class FakeOpenApiClient:
             "data": [], "supportIpAddress": False,
         }
         self.filter_inventory_total: int | None = None
+        self.voucher_group_options_source: dict[str, object] = {
+            "totalRows": 0, "currentPage": 1, "currentSize": 0, "data": []}
 
     def list_sites(self) -> dict[str, object]:
         self.calls.append(("sites", None))
@@ -1175,6 +1177,17 @@ class FakeOpenApiClient:
                          "selected_currency_code": "Y2", "missing_field_count": 0,
                          "invalid_value_count": 0, "duplicate_currency_code_count": 0,
                          "unknown_field_count": 0}, "partial": False}
+
+    def read_site_hotspot_voucher_group_options_coverage(self, site_ref: str) -> dict[str, object]:
+        from app.site_hotspot_voucher_group_options_coverage import (
+            project_site_hotspot_voucher_group_options_coverage,
+        )
+
+        self.calls.append(("site_hotspot_voucher_group_options_coverage", site_ref))
+        return {"status": "ok", "resource": "site_hotspot_voucher_group_options_coverage",
+                "site_ref": site_ref,
+                **project_site_hotspot_voucher_group_options_coverage(
+                    self.voucher_group_options_source)}
 
     def read_site_lan_network_interface_summary(self, site_ref: str,
                                                 interface_type: int | None = None) -> dict[str, object]:
@@ -6196,6 +6209,42 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(rpc["result"]["structuredContent"], direct)
         self.assertEqual(self.fake.calls,
                          [("site_voucher_currency_options", site_ref)] * 2)
+
+    def test_http_and_mcp_preserve_missing_voucher_group_total_vs_zero(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/hotspot/voucher-group-options/coverage"
+        request = {"jsonrpc": "2.0", "id": 269, "method": "tools/call",
+                   "params": {"name": "omada_site_hotspot_voucher_group_options_coverage",
+                              "arguments": {"site_ref": site_ref}}}
+
+        self.fake.voucher_group_options_source = {
+            "currentPage": 1, "currentSize": 0, "data": []}
+        status, missing = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertIsNone(missing["reported_total_row_count"])
+        self.assertTrue(missing["partial"])
+        status, missing_rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        missing_structured = missing_rpc["result"]["structuredContent"]
+        self.assertIsNone(missing_structured["reported_total_row_count"])
+        self.assertTrue(missing_structured["partial"])
+
+        self.fake.voucher_group_options_source = {
+            "totalRows": 0, "currentPage": 1, "currentSize": 0, "data": []}
+        request["id"] = 270
+        status, zero = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(zero["reported_total_row_count"], 0)
+        self.assertFalse(zero["partial"])
+        status, zero_rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        zero_structured = zero_rpc["result"]["structuredContent"]
+        self.assertEqual(zero_structured["reported_total_row_count"], 0)
+        self.assertFalse(zero_structured["partial"])
+        for value in (missing, missing_structured, zero, zero_structured):
+            json.dumps(value, allow_nan=False)
+        self.assertEqual(self.fake.calls,
+                         [("site_hotspot_voucher_group_options_coverage", site_ref)] * 4)
 
     def test_http_and_mcp_expose_lan_network_interface_summary_and_optional_filter(self) -> None:
         site_ref = "a" * 24

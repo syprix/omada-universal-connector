@@ -112,6 +112,23 @@ class FullApiMatrixTests(unittest.TestCase):
             self.assertIn("duration:int64", review["response"])
             self.assertIn("Amount and currency source values are omitted", review["projection"])
 
+    def test_hotspot_voucher_group_options_coverage_matches_three_source_contracts(self):
+        path = Path(__file__).resolve().parents[1] / "docs/CONTRACT_MATRIX.json"
+        matrix = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(len(matrix["sources"]), 3)
+        for source in matrix["sources"]:
+            operation = source["operations"]["site_hotspot_voucher_group_options_coverage"]
+            self.assertTrue(operation["documented"])
+            self.assertEqual(operation["live_support"], "unknown")
+            review = operation["contract_review"]
+            self.assertEqual(review["operation_id"], "getVoucherGroupOptions")
+            self.assertEqual(review["permission"], "Site Hotspot Manager View Only")
+            self.assertEqual(review["query"], {"page": 1, "pageSize": 100})
+            self.assertIn("groupId:string", review["response"])
+            self.assertIn("name:string", review["response"])
+            self.assertIn("values, names and voucher codes", review["connector_projection"])
+            self.assertIn("Missing totalRows is null", review["connector_projection"])
+
     def test_lan_switch_assignment_and_v2_ssid_topology_contracts_are_distinct(self):
         path = Path(__file__).resolve().parents[1] / "docs/CONTRACT_MATRIX.json"
         matrix = json.loads(path.read_text(encoding="utf-8"))

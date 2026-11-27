@@ -3460,6 +3460,23 @@
             "projection": "Reports separate voucher_counts and voucher_durations_minutes maps; missing values are null and missing_fields/invalid_fields identify each affected metric. Amount and currency source values are omitted. No voucher codes, user data, revenue, category arithmetic or traffic-volume inference."
           }
         },
+        "site_hotspot_voucher_group_options_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getVoucherGroupOptions",
+            "permission": "Site Hotspot Manager View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/hotspot/voucher-group-options",
+            "query": {
+              "page": 1,
+              "pageSize": 100
+            },
+            "request_body": false,
+            "response": "OperationResponseGridVOVoucherGroupOptionOpenApiVO defines totalRows:int64, currentPage/currentSize:int32, and data[] rows with groupId:string and name:string.",
+            "platform_difference": "The three supplied exports document the same route, permission, pagination and row fields. Hardware Controller and CBC use */* response media; ER7212PC uses application/json.",
+            "connector_projection": "Fixed site-bound GET for page 1 only, with effective page size capped at 100 and no other query or next-page request. Returns row/pagination counts and presence/string-type counts for groupId and name. Omits all group values, names and voucher codes. Missing totalRows is null and partial; explicit zero with an empty page is complete; incomplete pages are partial. No group usage, permissions beyond the documented role, or voucher behavior is inferred."
+          }
+        },
         "site_oui_profile_list_summary": {
           "documented": true,
           "live_support": "unknown",
@@ -6989,6 +7006,23 @@
             "projection": "Reports count and duration values independently; missing values are null and missing_fields/invalid_fields identify each affected metric. Amount and currency source values are omitted. No voucher codes, user data, revenue, category arithmetic or traffic-volume inference."
           }
         },
+        "site_hotspot_voucher_group_options_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getVoucherGroupOptions",
+            "permission": "Site Hotspot Manager View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/hotspot/voucher-group-options",
+            "query": {
+              "page": 1,
+              "pageSize": 100
+            },
+            "request_body": false,
+            "response": "OperationResponseGridVOVoucherGroupOptionOpenApiVO defines totalRows:int64, currentPage/currentSize:int32, and data[] rows with groupId:string and name:string.",
+            "platform_difference": "The three supplied exports document the same route, permission, pagination and row fields. Hardware Controller and CBC use */* response media; ER7212PC uses application/json.",
+            "connector_projection": "Fixed site-bound GET for page 1 only, with effective page size capped at 100 and no other query or next-page request. Returns row/pagination counts and presence/string-type counts for groupId and name. Omits all group values, names and voucher codes. Missing totalRows is null and partial; explicit zero with an empty page is complete; incomplete pages are partial. No group usage, permissions beyond the documented role, or voucher behavior is inferred."
+          }
+        },
         "site_oui_profile_list_summary": {
           "documented": true,
           "live_support": "unknown",
@@ -10426,6 +10460,23 @@
             "request_body": false,
             "response": "AllTimeVoucherSummaryOpenApiVO has optional current, inuse, expired, unused and created VoucherSummaryOpenApiVO objects and optional supportVoucherTrafficStat:boolean. Each category has optional count:int64, amount:string (single-voucher amount), duration:int64 (minutes), and currency:string.",
             "projection": "Reports count and duration values independently; missing values are null and missing_fields/invalid_fields identify each affected metric. Amount and currency source values are omitted. No voucher codes, user data, revenue, category arithmetic or traffic-volume inference."
+          }
+        },
+        "site_hotspot_voucher_group_options_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getVoucherGroupOptions",
+            "permission": "Site Hotspot Manager View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/hotspot/voucher-group-options",
+            "query": {
+              "page": 1,
+              "pageSize": 100
+            },
+            "request_body": false,
+            "response": "OperationResponseGridVOVoucherGroupOptionOpenApiVO defines totalRows:int64, currentPage/currentSize:int32, and data[] rows with groupId:string and name:string.",
+            "platform_difference": "The three supplied exports document the same route, permission, pagination and row fields. Hardware Controller and CBC use */* response media; ER7212PC uses application/json.",
+            "connector_projection": "Fixed site-bound GET for page 1 only, with effective page size capped at 100 and no other query or next-page request. Returns row/pagination counts and presence/string-type counts for groupId and name. Omits all group values, names and voucher codes. Missing totalRows is null and partial; explicit zero with an empty page is complete; incomplete pages are partial. No group usage, permissions beyond the documented role, or voucher behavior is inferred."
           }
         },
         "site_oui_profile_list_summary": {
