@@ -1180,14 +1180,19 @@ class FakeOpenApiClient:
 
     def read_site_hotspot_voucher_group_options_coverage(self, site_ref: str) -> dict[str, object]:
         from app.site_hotspot_voucher_group_options_coverage import (
+            SiteHotspotVoucherGroupOptionsCoverageError,
             project_site_hotspot_voucher_group_options_coverage,
         )
 
         self.calls.append(("site_hotspot_voucher_group_options_coverage", site_ref))
+        try:
+            projected = project_site_hotspot_voucher_group_options_coverage(
+                self.voucher_group_options_source)
+        except SiteHotspotVoucherGroupOptionsCoverageError:
+            raise OpenApiError("openapi_response_invalid") from None
         return {"status": "ok", "resource": "site_hotspot_voucher_group_options_coverage",
                 "site_ref": site_ref,
-                **project_site_hotspot_voucher_group_options_coverage(
-                    self.voucher_group_options_source)}
+                **projected}
 
     def read_site_lan_network_interface_summary(self, site_ref: str,
                                                 interface_type: int | None = None) -> dict[str, object]:
@@ -6245,6 +6250,50 @@ class OpenApiHttpTests(unittest.TestCase):
             json.dumps(value, allow_nan=False)
         self.assertEqual(self.fake.calls,
                          [("site_hotspot_voucher_group_options_coverage", site_ref)] * 4)
+
+    def test_http_and_mcp_preserve_inconsistent_voucher_group_total_as_partial(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/hotspot/voucher-group-options/coverage"
+        request = {"jsonrpc": "2.0", "id": 271, "method": "tools/call",
+                   "params": {"name": "omada_site_hotspot_voucher_group_options_coverage",
+                              "arguments": {"site_ref": site_ref}}}
+        self.fake.voucher_group_options_source = {
+            "totalRows": 0, "currentPage": 1, "currentSize": 100,
+            "data": [{"groupId": "private-group-id", "name": "private-group-name"}],
+        }
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(direct["page_state"], "first_page_inconsistent_total")
+        self.assertEqual(direct["reported_total_row_count"], 0)
+        self.assertEqual(direct["returned_row_count"], 1)
+        self.assertIsNone(direct["reported_remaining_row_count"])
+        self.assertIsNone(direct["first_page_covers_reported_total"])
+        self.assertTrue(direct["partial"])
+
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"], direct)
+        for encoded in (json.dumps(direct), json.dumps(rpc)):
+            self.assertNotIn("private-group-id", encoded)
+            self.assertNotIn("private-group-name", encoded)
+        for encoded in (direct, rpc["result"]["structuredContent"]):
+            json.dumps(encoded, allow_nan=False)
+        self.assertEqual(self.fake.calls,
+                         [("site_hotspot_voucher_group_options_coverage", site_ref)] * 2)
+
+        # The documented ER example's page zero is still rejected over both surfaces.
+        self.fake.voucher_group_options_source = {
+            "totalRows": 0, "currentPage": 0, "currentSize": 0,
+            "data": [{"groupId": "private-group-id", "name": "private-group-name"}],
+        }
+        status, failure = self.request(path, self.token)
+        self.assertEqual(status, 502)
+        self.assertEqual(failure["error"], "openapi_response_invalid")
+        status, failure_rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertTrue(failure_rpc["result"]["isError"])
+        self.assertEqual(failure_rpc["result"]["structuredContent"]["error"],
+                         "openapi_response_invalid")
 
     def test_http_and_mcp_expose_lan_network_interface_summary_and_optional_filter(self) -> None:
         site_ref = "a" * 24
