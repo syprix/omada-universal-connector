@@ -856,6 +856,25 @@ class OpenApiClientTests(unittest.TestCase):
             self.assertFalse(
                 self.client._site_voucher_history_duration_distribution_request_valid(rejected))
 
+    def test_voucher_unit_price_distribution_uses_fixed_seconds_and_only_coverage(self):
+        site_ref = "e" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-price"
+        payload = {"errorCode": 0, "result": {"totalRows": 1, "currentPage": 1,
+                   "currentSize": 1, "data": [{"unitPrice": "private", "totalAmount": "private",
+                   "currency": "private", "usedCount": 2}]}}
+        connection = self.respond(payload)
+        with patch("time.time", return_value=1_700_086_400), \
+                patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_connection", return_value=connection):
+            result = self.client.read_site_hotspot_voucher_history_unit_price_distribution_coverage(site_ref)
+        sent = connection.calls[0][1]
+        self.assertEqual(sent, "/openapi/v1/controller_1/sites/site-price/hotspot/vouchers/statistics/history/distribution/unit-price?filters.timeStart=1700000000&filters.timeEnd=1700086400")
+        self.assertEqual(result["window_seconds"], 86400)
+        self.assertEqual(result["row_count"], 1)
+        self.assertNotIn("private", json.dumps(result))
+        for bad in (sent + "&page=1", sent.replace("1700086400", "1700086401")):
+            self.assertFalse(self.client._site_voucher_history_unit_price_distribution_request_valid(bad))
+
     def test_voucher_duration_distribution_preserves_missing_and_null_result_states(self):
         site_ref = "d" * 24
         self.client._site_ids_by_ref[site_ref] = "site-duration"

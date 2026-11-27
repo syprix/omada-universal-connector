@@ -1551,6 +1551,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_voucher_all_time_summary",
             "site_hotspot_voucher_history_statistics_summary",
             "site_hotspot_voucher_history_duration_distribution_coverage",
+            "site_hotspot_voucher_history_unit_price_distribution_coverage",
             "site_voucher_currency_options",
             "site_hotspot_voucher_group_options_coverage",
             "site_hotspot_voucher_group_inventory_coverage",

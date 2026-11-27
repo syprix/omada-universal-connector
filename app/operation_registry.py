@@ -969,6 +969,12 @@ REGISTRY = OperationRegistry((
               "distribution/duration",
               (("controller_id", "$config"), ("site_id", "site_ref")),
               max_response_bytes=262_144, max_items=500),
+    Operation("site_hotspot_voucher_history_unit_price_distribution_coverage", "GET",
+              "/v1/sites/{site_ref}/hotspot/vouchers/history-unit-price-distribution/coverage", "GET",
+              "/openapi/v1/{controller_id}/sites/{site_id}/hotspot/vouchers/statistics/history/"
+              "distribution/unit-price",
+              (("controller_id", "$config"), ("site_id", "site_ref")),
+              max_response_bytes=262_144, max_items=500),
     Operation("site_voucher_currency_options", "GET",
               "/v1/sites/{site_ref}/hotspot/voucher-currency-options", "GET",
               "/openapi/v1/{controller_id}/sites/{site_id}/hotspot/voucher-groups/currency-list",

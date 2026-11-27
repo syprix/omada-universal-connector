@@ -3653,6 +3653,23 @@
             "connector_projection": "Fixed site-bound GET requests only page=1 with pageSize capped at 100. Returns row/page totals and documented field-presence/type counts, including supportIpAddress presence/type. Rule values, IDs, names, IPs, source-list contents and limits are omitted; list entries are not inspected. Missing, empty, malformed and partial page shapes stay distinct. No rule semantics, enforcement, or server-side completeness is inferred.",
             "live_support": "unknown"
           }
+        },
+        "site_hotspot_voucher_history_unit_price_distribution_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getVoucherDistributionByPrice",
+            "permission": "Site Hotspot Manager View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/hotspot/vouchers/statistics/history/distribution/unit-price",
+            "query": {
+              "filters.timeStart": "required Unix seconds int64",
+              "filters.timeEnd": "required Unix seconds int64"
+            },
+            "request_body": false,
+            "response": "GridVOVoucherUnitPriceDistributionOpenApiVO documents totalRows:int64, currentPage:int32, currentSize:int32, and data[]. VoucherUnitPriceDistributionOpenApiVO documents unitPrice:string, totalAmount:string, currency:string and usedCount:int32.",
+            "platform_difference": "Hardware Controller and CBC use */* response media; ER7212PC uses application/json. All three document the same route, required second-based int64 filters, Grid metadata and four row-field types.",
+            "connector_projection": "Fixed trailing 24-hour window; only required time filters, no page or group selector. Returns redacted Grid and delivered-row field presence/type counts. Omits price, amount, currency values, identities and rows; no arithmetic or server-completeness claim."
+          }
         }
       }
     },
@@ -7250,6 +7267,23 @@
             "connector_projection": "Fixed site-bound GET requests only page=1 with pageSize capped at 100. Returns row/page totals and documented field-presence/type counts, including supportIpAddress presence/type. Rule values, IDs, names, IPs, source-list contents and limits are omitted; list entries are not inspected. Missing, empty, malformed and partial page shapes stay distinct. No rule semantics, enforcement, or server-side completeness is inferred.",
             "live_support": "unknown"
           }
+        },
+        "site_hotspot_voucher_history_unit_price_distribution_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getVoucherDistributionByPrice",
+            "permission": "Site Hotspot Manager View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/hotspot/vouchers/statistics/history/distribution/unit-price",
+            "query": {
+              "filters.timeStart": "required Unix seconds int64",
+              "filters.timeEnd": "required Unix seconds int64"
+            },
+            "request_body": false,
+            "response": "GridVOVoucherUnitPriceDistributionOpenApiVO documents totalRows:int64, currentPage:int32, currentSize:int32, and data[]. VoucherUnitPriceDistributionOpenApiVO documents unitPrice:string, totalAmount:string, currency:string and usedCount:int32.",
+            "platform_difference": "Hardware Controller and CBC use */* response media; ER7212PC uses application/json. All three document the same route, required second-based int64 filters, Grid metadata and four row-field types.",
+            "connector_projection": "Fixed trailing 24-hour window; only required time filters, no page or group selector. Returns redacted Grid and delivered-row field presence/type counts. Omits price, amount, currency values, identities and rows; no arithmetic or server-completeness claim."
+          }
         }
       }
     },
@@ -10757,6 +10791,23 @@
             "platform_difference": "featureDescription is documented in Hardware Controller 6.3 and CBC Standard 6.3, but is absent from the ER7212PC 6.2.14 schema; the connector treats it as optional.",
             "connector_projection": "Fixed site-bound GET requests only page=1 with pageSize capped at 100. Returns row/page totals and documented field-presence/type counts, including supportIpAddress presence/type. Rule values, IDs, names, IPs, source-list contents and limits are omitted; list entries are not inspected. Missing, empty, malformed and partial page shapes stay distinct. No rule semantics, enforcement, or server-side completeness is inferred.",
             "live_support": "unknown"
+          }
+        },
+        "site_hotspot_voucher_history_unit_price_distribution_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getVoucherDistributionByPrice",
+            "permission": "Site Hotspot Manager View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/hotspot/vouchers/statistics/history/distribution/unit-price",
+            "query": {
+              "filters.timeStart": "required Unix seconds int64",
+              "filters.timeEnd": "required Unix seconds int64"
+            },
+            "request_body": false,
+            "response": "GridVOVoucherUnitPriceDistributionOpenApiVO documents totalRows:int64, currentPage:int32, currentSize:int32, and data[]. VoucherUnitPriceDistributionOpenApiVO documents unitPrice:string, totalAmount:string, currency:string and usedCount:int32.",
+            "platform_difference": "Hardware Controller and CBC use */* response media; ER7212PC uses application/json. All three document the same route, required second-based int64 filters, Grid metadata and four row-field types.",
+            "connector_projection": "Fixed trailing 24-hour window; only required time filters, no page or group selector. Returns redacted Grid and delivered-row field presence/type counts. Omits price, amount, currency values, identities and rows; no arithmetic or server-completeness claim."
           }
         }
       }
