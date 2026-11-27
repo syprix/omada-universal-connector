@@ -148,6 +148,27 @@ class OperationRegistryTests(unittest.TestCase):
             "site_group_profiles_coverage"],
             "GET /v1/sites/{site_ref}/group-profiles/coverage")
 
+    def test_site_access_control_policy_coverage_is_a_fixed_site_read(self):
+        from app.openapi import OmadaOpenApiClient
+
+        operation = REGISTRY.get("site_access_control_policy_coverage")
+        tool = _tool(operation)
+        site_ref = "a" * 24
+        self.assertEqual(tool["name"], "omada_site_access_control_policy_coverage")
+        self.assertEqual(tool["inputSchema"]["required"], ["site_ref"])
+        self.assertEqual(tool["inputSchema"]["additionalProperties"], False)
+        self.assertTrue(tool["annotations"]["readOnlyHint"])
+        route, bindings = REGISTRY.match(
+            "GET", f"/v1/sites/{site_ref}/access-control/policy-coverage")
+        self.assertEqual(route.operation_id, "site_access_control_policy_coverage")
+        self.assertEqual(route.upstream_method, "GET")
+        self.assertEqual(route.upstream_template,
+                         "/openapi/v1/{controller_id}/sites/{site_id}/setting/access-control")
+        self.assertEqual(dict(bindings), {"site_ref": site_ref})
+        self.assertEqual(dict(OmadaOpenApiClient.CAPABILITY_OPERATIONS)[
+            "site_access_control_policy_coverage"],
+            "GET /v1/sites/{site_ref}/access-control/policy-coverage")
+
     def test_site_portal_inventory_coverage_is_fixed_site_capability(self):
         from app.openapi import OmadaOpenApiClient
 
@@ -1560,6 +1581,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_ap_oui_vlan_rules_summary",
             "site_oui_profile_list_summary",
             "site_group_profiles_coverage",
+            "site_access_control_policy_coverage",
             "site_vlan_ssid_usage_summary",
             "site_vlan_device_usage_summary",
             "site_vlan_port_support_summary",

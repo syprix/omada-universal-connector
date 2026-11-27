@@ -541,6 +541,10 @@ try:
         MISSING_GROUP_PROFILES_RESULT, SiteGroupProfilesCoverageError,
         project_site_group_profiles_coverage,
     )
+    from .site_access_control_policy_coverage import (
+        MISSING_ACCESS_CONTROL_RESULT, SiteAccessControlPolicyCoverageError,
+        project_site_access_control_policy_coverage,
+    )
     from .site_vlan_ssid_usage_summary import (
         VlanSsidUsageError, project_site_vlan_ssid_usage_summary,
     )
@@ -769,6 +773,10 @@ except ImportError:  # direct execution in the image
     from site_group_profiles_coverage import (
         MISSING_GROUP_PROFILES_RESULT, SiteGroupProfilesCoverageError,
         project_site_group_profiles_coverage,
+    )
+    from site_access_control_policy_coverage import (
+        MISSING_ACCESS_CONTROL_RESULT, SiteAccessControlPolicyCoverageError,
+        project_site_access_control_policy_coverage,
     )
     from site_vlan_ssid_usage_summary import (
         VlanSsidUsageError, project_site_vlan_ssid_usage_summary,
@@ -1533,6 +1541,8 @@ class OmadaOpenApiClient:
     _SITE_WIDS_CONFIG_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/network-security/wireless-ids"
     _SITE_WIPS_CONFIG_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/network-security/wireless-ips"
     _SITE_ACL_CONFIG_MODE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/acls/osg-config-mode"
+    _SITE_ACCESS_CONTROL_POLICY_COVERAGE_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/setting/access-control")
     _SITE_ATTACK_DEFENSE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/attack-defense"
     _SITE_ATTACK_DEFENSE_DEFAULTS_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/attack-defense/default"
     _SITE_ALG_CONFIG_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/nat/alg"
@@ -3694,6 +3704,8 @@ class OmadaOpenApiClient:
         ("site_ap_oui_vlan_rules_summary", "GET /v1/sites/{site_ref}/ap-oui-rules/summary"),
         ("site_oui_profile_list_summary", "GET /v1/sites/{site_ref}/oui-profiles/summary"),
         ("site_group_profiles_coverage", "GET /v1/sites/{site_ref}/group-profiles/coverage"),
+        ("site_access_control_policy_coverage",
+         "GET /v1/sites/{site_ref}/access-control/policy-coverage"),
         ("site_vlan_ssid_usage_summary", "GET /v1/sites/{site_ref}/networks/{network_ref}/vlan-ssids/summary"),
         ("site_vlan_device_usage_summary", "GET /v1/sites/{site_ref}/networks/{network_ref}/vlan-devices/summary"),
         ("site_vlan_port_support_summary", "GET /v1/sites/{site_ref}/networks/{network_ref}/vlan-port-support/summary"),
@@ -15007,6 +15019,21 @@ class OmadaOpenApiClient:
         return {"status": "ok", "resource": "site_acl_config_mode",
                 "site_ref": site_ref, **projected}
 
+    @_track_capability("site_access_control_policy_coverage")
+    def read_site_access_control_policy_coverage(self, site_ref: str) -> dict[str, object]:
+        """Read two documented flags and bounded policy-list coverage only."""
+        site_id = self._resolve_site_ref(site_ref)
+        path = self._SITE_ACCESS_CONTROL_POLICY_COVERAGE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        payload = self._request_json("GET", path, token=self._access_token())
+        try:
+            projected = project_site_access_control_policy_coverage(
+                payload.get("result", MISSING_ACCESS_CONTROL_RESULT))
+        except SiteAccessControlPolicyCoverageError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_access_control_policy_coverage",
+                **projected}
+
     @_track_capability("site_attack_defense_summary")
     def read_site_attack_defense_summary(self, site_ref: str) -> dict[str, object]:
         """Read the source-common typed attack-defense configuration fields."""
@@ -18481,6 +18508,7 @@ class OmadaOpenApiClient:
                                   self._site_entity_request_valid(path) or
                                   self._site_session_limit_request_valid(path) or
                                   self._site_mac_filtering_general_state_request_valid(path) or
+                                  self._site_access_control_policy_coverage_request_valid(path) or
                                   self._site_device_model_whitelist_request_valid(path) or
                                   self._site_portal_inventory_request_valid(path) or
                                   self._site_reboot_schedule_request_valid(path) or
@@ -21321,6 +21349,11 @@ class OmadaOpenApiClient:
         return bool(re.fullmatch(
             rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
             r"[A-Za-z0-9_-]{1,128}/profiles/groups", path))
+
+    def _site_access_control_policy_coverage_request_valid(self, path: str) -> bool:
+        return bool(re.fullmatch(
+            rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+            r"[A-Za-z0-9_-]{1,128}/setting/access-control", path))
 
     def _site_vlan_ssid_usage_request_valid(self, path: str) -> bool:
         match = re.fullmatch(
