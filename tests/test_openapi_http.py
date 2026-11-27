@@ -45,6 +45,7 @@ class FakeOpenApiClient:
             "totalRows": 0, "currentPage": 1, "currentSize": 0, "data": []}
         self.voucher_history_statistics_result: dict[str, object] | None = None
         self.voucher_duration_distribution_result: dict[str, object] | None = None
+        self.voucher_unit_price_distribution_result: dict[str, object] | None = None
 
     def list_sites(self) -> dict[str, object]:
         self.calls.append(("sites", None))
@@ -1204,6 +1205,18 @@ class FakeOpenApiClient:
                 "window_seconds": 86400,
                 **project_voucher_duration_distribution({
                     "totalRows": 0, "currentPage": 0, "currentSize": 0, "data": []})}
+
+    def read_site_hotspot_voucher_history_unit_price_distribution_coverage(
+            self, site_ref: str) -> dict[str, object]:
+        from app.site_hotspot_voucher_history_unit_price_distribution import (
+            project_voucher_unit_price_distribution)
+        self.calls.append(("site_hotspot_voucher_history_unit_price_distribution_coverage", site_ref))
+        projected = project_voucher_unit_price_distribution(
+            self.voucher_unit_price_distribution_result or {
+                "totalRows": 0, "currentPage": 1, "currentSize": 0, "data": []})
+        return {"status": "ok", "resource":
+                "site_hotspot_voucher_history_unit_price_distribution_coverage",
+                "window_seconds": 86400, **projected}
 
     def read_site_voucher_currency_options(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_voucher_currency_options", site_ref))
@@ -6309,6 +6322,24 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(self.fake.calls,
                          [("site_hotspot_voucher_history_duration_distribution_coverage",
                            site_ref)] * 2)
+
+    def test_http_and_mcp_expose_redacted_unit_price_distribution_coverage(self) -> None:
+        site_ref = "b" * 24
+        self.fake.voucher_unit_price_distribution_result = {
+            "totalRows": 1, "currentPage": 1, "currentSize": 1,
+            "data": [{"unitPrice": "private-price", "totalAmount": "private-total",
+                      "currency": "private-currency", "usedCount": 2}]}
+        path = f"/v1/sites/{site_ref}/hotspot/vouchers/history-unit-price-distribution/coverage"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(direct["resource"], "site_hotspot_voucher_history_unit_price_distribution_coverage")
+        self.assertNotIn("private-", json.dumps(direct))
+        request = {"jsonrpc":"2.0", "id":280, "method":"tools/call",
+                   "params":{"name":"omada_site_hotspot_voucher_history_unit_price_distribution_coverage",
+                             "arguments":{"site_ref":site_ref}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"], direct)
 
     def test_http_and_mcp_expose_site_voucher_currency_options(self) -> None:
         site_ref = "a" * 24

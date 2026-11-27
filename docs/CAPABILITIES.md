@@ -2096,6 +2096,17 @@ source requires Site Hotspot Manager View Only. Hardware Controller 6.3, CBC
 6.3 and ER7212PC 6.2.14 document the same route, required int64 Unix-second
 filters, Grid shape and four row fields. Live support is unknown.
 
+## Site hotspot voucher history unit-price distribution coverage
+
+`GET /v1/sites/{site_ref}/hotspot/vouchers/history-unit-price-distribution/coverage`
+reads `getVoucherDistributionByPrice` for the trailing 24 hours. The upstream
+request sends only the two required Unix-second filters. The connector
+returns delivered-row and field coverage counts for `unitPrice`,
+`totalAmount`, `currency`, `usedCount` and Grid metadata. It omits source
+values and does not assert server completeness. The limits are 500 rows and
+262,144 upstream bytes. The route requires Site Hotspot Manager View Only.
+Live support is unknown.
+
 ## Controller upgrade-log summary
 
 `GET /v1/controller/firmware-upgrades/summary` reads only the first 100 rows from the authenticated controller's documented upgrade log. It reports source total and sample coverage plus counts of rollbacked entries, rows with reported failed devices, and rows with an upgrade time. It returns no dates, device/model details, site names, operator names, versions, or identifiers. It never starts or changes an upgrade. Live support is unknown.
