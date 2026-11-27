@@ -43,6 +43,7 @@ class FakeOpenApiClient:
             "totalRows": 0, "currentPage": 1, "currentSize": 0, "data": []}
         self.voucher_group_inventory_source: dict[str, object] = {
             "totalRows": 0, "currentPage": 1, "currentSize": 0, "data": []}
+        self.voucher_history_statistics_result: dict[str, object] | None = None
 
     def list_sites(self) -> dict[str, object]:
         self.calls.append(("sites", None))
@@ -1168,6 +1169,23 @@ class FakeOpenApiClient:
                 "voucher_durations_minutes": {},
                 "voucher_traffic_statistics_supported": None,
                 "missing_fields": [], "invalid_fields": [], "partial": False}
+
+    def read_site_hotspot_voucher_history_statistics_summary(
+            self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_hotspot_voucher_history_statistics_summary", site_ref))
+        if self.voucher_history_statistics_result is not None:
+            return {"status": "ok", "resource":
+                    "site_hotspot_voucher_history_statistics_summary",
+                    "site_ref": site_ref, **self.voucher_history_statistics_result}
+        return {"status": "ok", "resource":
+                "site_hotspot_voucher_history_statistics_summary", "site_ref": site_ref,
+                "window_seconds": 86400, "summary_state": "present",
+                "summary_field_states": {"voucher_count": "present",
+                                          "voucher_duration_minutes": "present"},
+                "voucher_count": 3, "voucher_duration_minutes": 60,
+                "usage_state": "empty", "usage_coverage": {"row_count": 0},
+                "missing_fields": [], "invalid_fields": [], "unknown_field_count": 0,
+                "partial": False, "server_completeness": "not_asserted"}
 
     def read_site_voucher_currency_options(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_voucher_currency_options", site_ref))
@@ -6214,6 +6232,32 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(rpc["result"]["structuredContent"], direct)
         self.assertEqual(self.fake.calls,
                          [("site_voucher_all_time_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_fixed_voucher_history_statistics_summary(self) -> None:
+        from app.site_hotspot_voucher_history_statistics import (
+            summarize_voucher_history_statistics)
+
+        site_ref = "a" * 24
+        self.fake.voucher_history_statistics_result = summarize_voucher_history_statistics({
+            "summary": {"duration": None}, "usage": []})
+        path = f"/v1/sites/{site_ref}/hotspot/vouchers/history-statistics/summary"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(direct["window_seconds"], 86400)
+        self.assertEqual(direct["server_completeness"], "not_asserted")
+        self.assertTrue(direct["partial"])
+        self.assertEqual(direct["summary_field_states"]["voucher_count"], "missing")
+        self.assertEqual(direct["summary_field_states"][
+            "voucher_duration_minutes"], "null")
+        request = {"jsonrpc": "2.0", "id": 269, "method": "tools/call",
+                   "params": {"name": "omada_site_hotspot_voucher_history_statistics_summary",
+                              "arguments": {"site_ref": site_ref}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"], direct)
+        self.assertTrue(rpc["result"]["structuredContent"]["partial"])
+        self.assertEqual(self.fake.calls,
+                         [("site_hotspot_voucher_history_statistics_summary", site_ref)] * 2)
 
     def test_http_and_mcp_expose_site_voucher_currency_options(self) -> None:
         site_ref = "a" * 24

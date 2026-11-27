@@ -443,6 +443,21 @@ class OperationRegistryTests(unittest.TestCase):
         self.assertEqual(route.operation_id, "site_voucher_all_time_summary")
         self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
 
+    def test_voucher_history_statistics_is_fixed_site_bound_read(self):
+        operation = REGISTRY.get("site_hotspot_voucher_history_statistics_summary")
+        tool = _tool(operation)
+        self.assertEqual(tool["inputSchema"]["required"], ["site_ref"])
+        self.assertEqual(tool["inputSchema"]["additionalProperties"], False)
+        self.assertTrue(tool["annotations"]["readOnlyHint"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 +
+            "/hotspot/vouchers/history-statistics/summary")
+        self.assertEqual(route.operation_id,
+                         "site_hotspot_voucher_history_statistics_summary")
+        self.assertEqual(route.max_items, 500)
+        self.assertEqual(route.max_response_bytes, 262_144)
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24})
+
     def test_site_voucher_currency_options_is_site_bound(self):
         operation = REGISTRY.get("site_voucher_currency_options")
         self.assertEqual(_tool(operation)["inputSchema"]["required"], ["site_ref"])
@@ -1518,6 +1533,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_rate_limit_profiles_summary",
             "site_log_notification_summary",
             "site_voucher_all_time_summary",
+            "site_hotspot_voucher_history_statistics_summary",
             "site_voucher_currency_options",
             "site_hotspot_voucher_group_options_coverage",
             "site_hotspot_voucher_group_inventory_coverage",
