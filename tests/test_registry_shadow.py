@@ -72,6 +72,13 @@ class FakeClient:
                 "returned_row_count": 0, "partial": False,
                 "voucher_group_values_returned": False}
 
+    def read_site_hotspot_voucher_group_inventory_coverage(self, ref):
+        self.calls.append(("site_hotspot_voucher_group_inventory_coverage", ref))
+        return {"status": "ok", "resource": "site_hotspot_voucher_group_inventory_coverage",
+                "page_number": 1, "page_size": 100, "reported_total_row_count": 0,
+                "returned_row_count": 0, "partial": False,
+                "voucher_group_values_returned": False}
+
     def read_site_health_timeline(self, ref):
         self.calls.append(("site_health_timeline", ref))
         return {"status": "ok", "resource": "site_health_timeline", "site_ref": ref, "items": []}
@@ -216,6 +223,8 @@ class RegistryShadowTests(unittest.TestCase):
                 ("site_hotspot_rate_limit_profiles_summary", ref),
             f"/v1/sites/{ref}/hotspot/voucher-group-options/coverage":
                 ("site_hotspot_voucher_group_options_coverage", ref),
+            f"/v1/sites/{ref}/hotspot/voucher-groups/coverage":
+                ("site_hotspot_voucher_group_inventory_coverage", ref),
             f"/v1/sites/{ref}/health/summary": ("site_overview", ref),
             f"/v1/sites/{ref}/health/timeline": ("site_health_timeline", ref),
             f"/v1/sites/{ref}/health/client/timeline": ("site_client_health_timeline", ref),
@@ -261,7 +270,7 @@ class RegistryShadowTests(unittest.TestCase):
                 self.assertEqual(body["resource"], call[0])
                 self.assertEqual(self.fake.calls[-1], call)
         # The fake is the only client supplied; no real upstream transport is constructed.
-        self.assertEqual(len(self.fake.calls), 28)
+        self.assertEqual(len(self.fake.calls), 29)
 
     def test_invalid_refs_queries_and_methods_are_rejected_by_both_layers(self):
         paths = (

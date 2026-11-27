@@ -2037,6 +2037,22 @@ Manager View Only and documents errors `-33000`, `-33004`, `-44111` and `-44112`
 It makes no claim about group use, permissions beyond the documented role, or
 voucher behavior. Live support is unknown.
 
+## Site hotspot voucher-group inventory coverage
+
+`GET /v1/sites/{site_ref}/hotspot/voucher-groups/coverage` reads page 1 of the
+separate `getGridVoucherGroups` inventory, with the effective page size capped
+at 100 and no optional sort, search or time filters. It reports paging and row
+counts plus presence and int32-type counts for `unusedCount`, `usedCount`,
+`inUseCount`, `expiredCount` and `totalCount`. Counter values, group IDs/names,
+voucher codes, prices, currencies and portal values are omitted. Other row
+fields are examined by key name only for unknown-field counts; their values are
+not read. Missing `totalRows` remains null and partial, while a coherent empty
+zero-total page is complete. Inconsistent paging metadata, including more
+returned rows than `totalRows`, is rejected. The reader does not reuse the
+options endpoint's response exception and makes no group-use or enforcement
+inference. The source requires Site Hotspot Manager View Only; live support is
+unknown.
+
 ## All-time hotspot voucher summary
 
 `GET /v1/sites/{site_ref}/hotspot/vouchers/all-time-summary` reads the selected site's documented all-time hotspot voucher summary. It reports independent `voucher_counts` and `voucher_durations_minutes` maps for `current`, `inuse`, `expired`, `unused` and `created`. Missing values are `null`; `missing_fields` and `invalid_fields` identify each affected metric. Amount and currency source values are omitted. The output contains no voucher codes or user data and does not report revenue or derive relationships among category totals. `supportVoucherTrafficStat` is reported only as the documented capability flag; it is not a traffic measurement. Live support is unknown.

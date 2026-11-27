@@ -481,6 +481,28 @@ class OperationRegistryTests(unittest.TestCase):
             "site_hotspot_voucher_group_options_coverage"],
             "GET /v1/sites/{site_ref}/hotspot/voucher-group-options/coverage")
 
+    def test_site_hotspot_voucher_group_inventory_coverage_is_fixed_site_read(self):
+        from app.openapi import OmadaOpenApiClient
+
+        operation = REGISTRY.get("site_hotspot_voucher_group_inventory_coverage")
+        tool = _tool(operation)
+        self.assertEqual(tool["name"], "omada_site_hotspot_voucher_group_inventory_coverage")
+        self.assertEqual(tool["inputSchema"]["required"], ["site_ref"])
+        self.assertEqual(tool["inputSchema"]["additionalProperties"], False)
+        self.assertTrue(tool["annotations"]["readOnlyHint"])
+        site_ref = "a" * 24
+        route, bindings = REGISTRY.match(
+            "GET", f"/v1/sites/{site_ref}/hotspot/voucher-groups/coverage")
+        self.assertEqual(route.operation_id, "site_hotspot_voucher_group_inventory_coverage")
+        self.assertEqual(route.upstream_method, "GET")
+        self.assertEqual(route.upstream_template,
+                         "/openapi/v1/{controller_id}/sites/{site_id}/hotspot/voucher-groups")
+        self.assertEqual(route.max_items, 100)
+        self.assertEqual(dict(bindings), {"site_ref": site_ref})
+        self.assertEqual(dict(OmadaOpenApiClient.CAPABILITY_OPERATIONS)[
+            "site_hotspot_voucher_group_inventory_coverage"],
+            "GET /v1/sites/{site_ref}/hotspot/voucher-groups/coverage")
+
     def test_site_lan_network_interface_summary_exposes_only_optional_type_zero(self):
         operation = REGISTRY.get("site_lan_network_interface_summary")
         self.assertEqual(operation.optional_arguments, ("interface_type",))
@@ -1498,6 +1520,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_voucher_all_time_summary",
             "site_voucher_currency_options",
             "site_hotspot_voucher_group_options_coverage",
+            "site_hotspot_voucher_group_inventory_coverage",
             "site_lan_network_interface_summary",
             "controller_upgrade_plans_summary",
             "controller_try_beta_settings_summary",

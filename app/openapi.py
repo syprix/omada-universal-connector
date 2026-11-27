@@ -1513,6 +1513,8 @@ class OmadaOpenApiClient:
         "/openapi/v1/{controller_id}/sites/{site_id}/hotspot/voucher-groups/currency-list")
     _SITE_HOTSPOT_VOUCHER_GROUP_OPTIONS_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/hotspot/voucher-group-options")
+    _SITE_HOTSPOT_VOUCHER_GROUP_INVENTORY_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/hotspot/voucher-groups")
     _SITE_IOT_TRANSMIT_POWER_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/setting/iot/radio/transmit-power"
     _SITE_BLUETOOTH_ADVERTISING_V2_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/setting/iot/devices/config"
     _SITE_REMEMBER_SETTING_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/remember-device"
@@ -2121,6 +2123,10 @@ class OmadaOpenApiClient:
     _SITE_HOTSPOT_VOUCHER_GROUP_OPTIONS_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
         r"/hotspot/voucher-group-options\?page=1&pageSize=([1-9][0-9]{0,2})"
+    )
+    _SITE_HOTSPOT_VOUCHER_GROUP_INVENTORY_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/hotspot/voucher-groups\?page=1&pageSize=([1-9][0-9]{0,2})"
     )
     _SITE_ES_NETWORK_OVERVIEW_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
@@ -3337,6 +3343,8 @@ class OmadaOpenApiClient:
         ("site_voucher_currency_options", "GET /v1/sites/{site_ref}/hotspot/voucher-currency-options"),
         ("site_hotspot_voucher_group_options_coverage",
          "GET /v1/sites/{site_ref}/hotspot/voucher-group-options/coverage"),
+        ("site_hotspot_voucher_group_inventory_coverage",
+         "GET /v1/sites/{site_ref}/hotspot/voucher-groups/coverage"),
         ("site_lan_network_interface_summary", "GET /v1/sites/{site_ref}/lan-network-interfaces/summary"),
         ("controller_upgrade_plans_summary", "GET /v1/controller/firmware-upgrade-plans/summary"),
         ("controller_try_beta_settings_summary", "GET /v1/controller/firmware-preview-settings/summary"),
@@ -10465,6 +10473,41 @@ class OmadaOpenApiClient:
         except SiteHotspotVoucherGroupOptionsCoverageError:
             raise OpenApiError("openapi_response_invalid") from None
         return {"status": "ok", "resource": "site_hotspot_voucher_group_options_coverage",
+                "site_ref": site_ref, **projected}
+
+    @_track_capability("site_hotspot_voucher_group_inventory_coverage")
+    def read_site_hotspot_voucher_group_inventory_coverage(
+            self, site_ref: str) -> dict[str, object]:
+        """Read one fixed voucher-group inventory page without returning source values."""
+        try:
+            from .site_hotspot_voucher_group_inventory_coverage import (
+                MAX_SITE_VOUCHER_GROUP_PAGE_SIZE,
+                MISSING_SITE_VOUCHER_GROUP_RESULT,
+                SiteVoucherGroupInventoryCoverageError,
+                project_site_voucher_group_inventory_coverage,
+            )
+        except ImportError:  # direct execution in the image
+            from site_hotspot_voucher_group_inventory_coverage import (
+                MAX_SITE_VOUCHER_GROUP_PAGE_SIZE,
+                MISSING_SITE_VOUCHER_GROUP_RESULT,
+                SiteVoucherGroupInventoryCoverageError,
+                project_site_voucher_group_inventory_coverage,
+            )
+        site_id = self._resolve_site_ref(site_ref)
+        page_size = min(self.config.page_size, MAX_SITE_VOUCHER_GROUP_PAGE_SIZE)
+        path = self._SITE_HOTSPOT_VOUCHER_GROUP_INVENTORY_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        path += f"?page=1&pageSize={page_size}"
+        payload = self._request_json("GET", path, token=self._access_token())
+        if (not isinstance(payload, Mapping) or type(payload.get("errorCode")) is not int or
+                payload["errorCode"] != 0):
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            projected = project_site_voucher_group_inventory_coverage(
+                payload.get("result", MISSING_SITE_VOUCHER_GROUP_RESULT), page_size=page_size)
+        except SiteVoucherGroupInventoryCoverageError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_hotspot_voucher_group_inventory_coverage",
                 "site_ref": site_ref, **projected}
 
     @_track_capability("site_lan_network_interface_summary")
@@ -18735,6 +18778,7 @@ class OmadaOpenApiClient:
                                   self._site_voucher_all_time_request_valid(path) or
                                   self._site_voucher_currency_options_request_valid(path) or
                                   self._site_hotspot_voucher_group_options_request_valid(path) or
+                                  self._site_hotspot_voucher_group_inventory_request_valid(path) or
                                   self._site_switch_port_detail_request_valid(path) or
                                   self._site_es_network_overview_request_valid(path) or
                                   self._site_es_general_config_request_valid(path) or
@@ -20197,6 +20241,11 @@ class OmadaOpenApiClient:
 
     def _site_hotspot_voucher_group_options_request_valid(self, path: str) -> bool:
         match = self._SITE_HOTSPOT_VOUCHER_GROUP_OPTIONS_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id and
+                    1 <= int(match.group(2)) <= 100)
+
+    def _site_hotspot_voucher_group_inventory_request_valid(self, path: str) -> bool:
+        match = self._SITE_HOTSPOT_VOUCHER_GROUP_INVENTORY_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id and
                     1 <= int(match.group(2)) <= 100)
 
