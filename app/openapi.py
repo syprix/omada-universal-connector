@@ -545,6 +545,11 @@ try:
         MISSING_ACCESS_CONTROL_RESULT, SiteAccessControlPolicyCoverageError,
         project_site_access_control_policy_coverage,
     )
+    from .site_session_limit_rule_coverage import (
+        MISSING_SESSION_LIMIT_RULE_RESULT, SESSION_LIMIT_RULE_PAGE_SIZE,
+        SiteSessionLimitRuleCoverageError,
+        project_site_session_limit_rule_coverage,
+    )
     from .site_vlan_ssid_usage_summary import (
         VlanSsidUsageError, project_site_vlan_ssid_usage_summary,
     )
@@ -777,6 +782,11 @@ except ImportError:  # direct execution in the image
     from site_access_control_policy_coverage import (
         MISSING_ACCESS_CONTROL_RESULT, SiteAccessControlPolicyCoverageError,
         project_site_access_control_policy_coverage,
+    )
+    from site_session_limit_rule_coverage import (
+        MISSING_SESSION_LIMIT_RULE_RESULT, SESSION_LIMIT_RULE_PAGE_SIZE,
+        SiteSessionLimitRuleCoverageError,
+        project_site_session_limit_rule_coverage,
     )
     from site_vlan_ssid_usage_summary import (
         VlanSsidUsageError, project_site_vlan_ssid_usage_summary,
@@ -1482,6 +1492,8 @@ class OmadaOpenApiClient:
     _SITE_ENTITY_PATH = "/openapi/v1/{controller_id}/sites/{site_id}"
     _SITE_SESSION_LIMIT_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/session-limit")
+    _SITE_SESSION_LIMIT_RULE_COVERAGE_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/session-limit/rules")
     _SITE_MAC_FILTERING_GENERAL_STATE_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/mac-filter")
     _SITE_DEVICE_MODEL_WHITELIST_PATH = (
@@ -3489,6 +3501,8 @@ class OmadaOpenApiClient:
         ("site_entity_summary", "GET /v1/sites/{site_ref}/metadata/summary"),
         ("site_session_limit_enable_state",
          "GET /v1/sites/{site_ref}/session-limit/enable-state"),
+        ("site_session_limit_rule_coverage",
+         "GET /v1/sites/{site_ref}/session-limit/rules/coverage"),
         ("site_mac_filtering_general_state",
          "GET /v1/sites/{site_ref}/mac-filtering/general-state"),
         ("site_device_model_whitelist_coverage",
@@ -6611,6 +6625,26 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from None
         return {"status": "ok", "resource": "site_session_limit_enable_state",
                 "site_ref": site_ref, **projected}
+
+    @_track_capability("site_session_limit_rule_coverage")
+    def read_site_session_limit_rule_coverage(self, site_ref: str) -> dict[str, object]:
+        """Read only redacted coverage for the first session-limit rule page."""
+        site_id = self._resolve_site_ref(site_ref)
+        page_size = min(self.config.page_size, SESSION_LIMIT_RULE_PAGE_SIZE)
+        base_path = self._SITE_SESSION_LIMIT_RULE_COVERAGE_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        path = f"{base_path}?page=1&pageSize={page_size}"
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            raw_result = payload.get("result", MISSING_SESSION_LIMIT_RULE_RESULT)
+            projected = project_site_session_limit_rule_coverage(
+                raw_result, page_size=page_size)
+        except SiteSessionLimitRuleCoverageError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_session_limit_rule_coverage",
+                **projected}
 
     @_track_capability("site_mac_filtering_general_state")
     def read_site_mac_filtering_general_state(self, site_ref: str) -> dict[str, object]:
@@ -18507,6 +18541,7 @@ class OmadaOpenApiClient:
                                   self._site_setting_existence_request_valid(path) or
                                   self._site_entity_request_valid(path) or
                                   self._site_session_limit_request_valid(path) or
+                                  self._site_session_limit_rule_coverage_request_valid(path) or
                                   self._site_mac_filtering_general_state_request_valid(path) or
                                   self._site_access_control_policy_coverage_request_valid(path) or
                                   self._site_device_model_whitelist_request_valid(path) or
@@ -18690,6 +18725,7 @@ class OmadaOpenApiClient:
                                   self._site_ap_oui_vlan_rules_request_valid(path) or
                                   self._site_oui_profile_list_request_valid(path) or
                                   self._site_group_profiles_coverage_request_valid(path) or
+                                  self._site_session_limit_rule_coverage_request_valid(path) or
                                   self._site_vlan_ssid_usage_request_valid(path) or
                                   self._site_vlan_device_usage_request_valid(path) or
                                   self._site_wifi_calling_profiles_request_valid(path) or
@@ -21354,6 +21390,19 @@ class OmadaOpenApiClient:
         return bool(re.fullmatch(
             rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
             r"[A-Za-z0-9_-]{1,128}/setting/access-control", path))
+
+    def _site_session_limit_rule_coverage_request_valid(self, path: str) -> bool:
+        match = re.fullmatch(
+            rf"/openapi/v1/{re.escape(self.config.controller_id)}/sites/"
+            r"[A-Za-z0-9_-]{1,128}/session-limit/rules\?page=1&pageSize=([1-9][0-9]*)",
+            path)
+        if not match:
+            return False
+        try:
+            page_size = int(match.group(1))
+        except ValueError:
+            return False
+        return page_size == min(self.config.page_size, SESSION_LIMIT_RULE_PAGE_SIZE)
 
     def _site_vlan_ssid_usage_request_valid(self, path: str) -> bool:
         match = re.fullmatch(

@@ -274,6 +274,17 @@ limit. All three supplied API exports document the GET with `Site Settings
 Manager View Only`, `Network Config Page View Only`, or `Site Device Manager
 View Only` permission; live support remains unknown.
 
+`GET /v1/sites/{site_ref}/session-limit/rules/coverage` and MCP tool
+`omada_site_session_limit_rule_coverage` read only the first documented page
+of session-limit rules (at most 100 rows). The result reports pagination and
+documented field-presence/type counts, including the `supportIpAddress`
+boolean's presence and type. It never returns rule values, IDs, names, IPs,
+source lists or limits, and does not inspect list entries or infer rule
+meaning or enforcement. Empty, missing, malformed and partial pages remain
+distinct. Hardware Controller and CBC document `featureDescription`; the
+ER7212PC export omits it, so its absence is optional. All three exports
+document the read-only permission; live support remains unknown.
+
 `GET /v1/sites/{site_ref}/mac-filtering/general-state` and MCP tool
 `omada_site_mac_filtering_general_state` read the fixed site MAC-filter
 setting. The projection preserves the required `enable` boolean and optional

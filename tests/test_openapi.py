@@ -1379,6 +1379,44 @@ class OpenApiClientTests(unittest.TestCase):
         token.assert_not_called()
         request.assert_not_called()
 
+    def test_site_session_limit_rule_coverage_uses_one_fixed_first_page(self) -> None:
+        site_ref = "c" * 24
+        self.client._site_ids_by_ref[site_ref] = "site_1"
+        path = "/openapi/v1/controller_1/sites/site_1/session-limit/rules?page=1&pageSize=2"
+        connection = self.respond({"errorCode": 0, "result": {
+            "totalRows": 3, "currentPage": 1, "currentSize": 1,
+            "data": [{"id": "synthetic-id", "name": "synthetic-name",
+                      "status": True, "sourceType": 2, "sourceIds": ["synthetic-ref"],
+                      "ip": "synthetic-address", "maxSession": 14,
+                      "existIpAddress": False,
+                      "featureDescription": [{"feature": "synthetic-feature"}]}],
+            "supportIpAddress": True,
+        }})
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_connection", return_value=connection):
+            result = self.client.read_site_session_limit_rule_coverage(site_ref)
+        self.assertEqual(connection.calls[0][0:2], ("GET", path))
+        self.assertEqual(len(connection.calls), 1)
+        self.assertEqual(result["page_state"], "first_page_partial")
+        self.assertEqual(result["reported_remaining_row_count"], 2)
+        self.assertEqual(result["support_ip_address_coverage"]["type_valid"], 1)
+        for private in ("synthetic-id", "synthetic-name", "synthetic-ref",
+                        "synthetic-address", "synthetic-feature", '"maxSession": 14'):
+            self.assertNotIn(private, json.dumps(result))
+        self.assertNotIn("site_ref", result)
+
+        with patch.object(self.client, "_connection") as connect:
+            for bad_path in (
+                path.replace("page=1", "page=2"),
+                path.replace("pageSize=2", "pageSize=3"),
+                path + "&sourceType=2",
+                path.replace("page=1&pageSize=2", "pageSize=2&page=1"),
+            ):
+                with self.subTest(path=bad_path):
+                    with self.assertRaisesRegex(OpenApiError, "openapi_path_rejected"):
+                        self.client._request_json("GET", bad_path, token="token")
+        connect.assert_not_called()
+
     def test_site_device_model_whitelist_coverage_is_site_bound_and_redacted(self) -> None:
         site_ref = "a" * 24
         self.client._site_ids_by_ref[site_ref] = "site_1"
