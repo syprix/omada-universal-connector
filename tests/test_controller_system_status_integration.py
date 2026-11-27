@@ -39,6 +39,52 @@ class ControllerSystemStatusIntegrationTests(unittest.TestCase):
         self.assertTrue(result["partial"])
         self.assertNotIn("future", repr(result))
 
+    def test_site_session_limit_rule_coverage_reads_one_fixed_page(self):
+        site_ref = "a" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        payload = {"errorCode": 0, "result": {
+            "totalRows": 135, "currentPage": 1, "currentSize": 1,
+            "data": [{"id": "synthetic-rule-id", "name": "synthetic-rule",
+                      "status": False, "sourceType": 3, "sourceIds": ["synthetic-ref"],
+                      "ip": "synthetic-address", "maxSession": 17,
+                      "existIpAddress": True}],
+            "supportIpAddress": False,
+        }}
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value=payload) as request:
+            result = self.client.read_site_session_limit_rule_coverage(site_ref)
+        request.assert_called_once_with(
+            "GET", "/openapi/v1/ctrl/sites/site-1/session-limit/rules?page=1&pageSize=100",
+            token="token")
+        self.assertEqual(result["resource"], "site_session_limit_rule_coverage")
+        self.assertEqual(result["page_number"], 1)
+        self.assertEqual(result["reported_total_row_count"], 135)
+        self.assertEqual(result["returned_row_count"], 1)
+        self.assertEqual(result["reported_remaining_row_count"], 134)
+        self.assertTrue(result["partial"])
+        for private in ("synthetic-rule-id", "synthetic-rule", "synthetic-ref",
+                        "synthetic-address", '"maxSession": 17'):
+            self.assertNotIn(private, repr(result))
+
+    def test_site_session_limit_rule_coverage_missing_result_is_partial(self):
+        site_ref = "b" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-2"
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={"errorCode": 0}):
+            result = self.client.read_site_session_limit_rule_coverage(site_ref)
+        self.assertEqual(result["source_state"], "result_missing")
+        self.assertTrue(result["partial"])
+
+    def test_site_session_limit_rule_coverage_rejects_invalid_envelope_code(self):
+        site_ref = "c" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-3"
+        for payload in ({"result": {}}, {"errorCode": -1, "result": {}}):
+            with self.subTest(payload_keys=tuple(payload)):
+                with patch.object(self.client, "_access_token", return_value="token"), \
+                        patch.object(self.client, "_request_json", return_value=payload):
+                    with self.assertRaisesRegex(OpenApiError, "openapi_response_invalid"):
+                        self.client.read_site_session_limit_rule_coverage(site_ref)
+
     def test_site_session_limit_missing_and_invalid_flags_are_partial(self):
         for source, expected in (({}, "missing_field_count"),
                                  ({"enable": None}, "invalid_field_count"),

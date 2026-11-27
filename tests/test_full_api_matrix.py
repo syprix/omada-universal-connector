@@ -66,6 +66,21 @@ class FullApiMatrixTests(unittest.TestCase):
             self.assertIn("500", review["connector_projection"])
             self.assertIn("enforcement", review["connector_projection"])
 
+    def test_site_session_limit_rule_coverage_matches_three_source_contract(self):
+        path = Path(__file__).resolve().parents[1] / "docs/CONTRACT_MATRIX.json"
+        matrix = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(len(matrix["sources"]), 3)
+        for source in matrix["sources"]:
+            operation = source["operations"]["site_session_limit_rule_coverage"]
+            self.assertTrue(operation["documented"])
+            self.assertEqual(operation["live_support"], "unknown")
+            review = operation["contract_review"]
+            self.assertEqual(review["operation_id"], "getGridSessionLimitRule")
+            self.assertEqual(review["query"], {"page": 1, "pageSize": 100})
+            self.assertIn("supportIpAddress", review["response"])
+            self.assertIn("featureDescription", review["platform_difference"])
+            self.assertIn("list entries are not inspected", review["connector_projection"])
+
     def test_upgrade_failure_and_stack_cable_log_reads_match_three_source_contracts(self):
         path = Path(__file__).resolve().parents[1] / "docs/CONTRACT_MATRIX.json"
         matrix = json.loads(path.read_text(encoding="utf-8"))
@@ -895,6 +910,19 @@ class FullApiMatrixTests(unittest.TestCase):
         spec["paths"] = {path: {"get": {"operationId": "getAccessControl",
                                           "responses": {"200": {}}}}}
         archive = self.write_zip("site_access_control_policy_coverage.zip", spec)
+        row = build_matrix([("hardware-controller", archive)])["operations"][0]
+        self.assertEqual(row["connector_source_status"], "implemented_read")
+        self.assertEqual(row["live_status"], "unknown_not_checked_by_this_offline_tool")
+
+    def test_site_session_limit_rule_coverage_route_matches_source_contract(self):
+        path = "/openapi/v1/{omadacId}/sites/{siteId}/session-limit/rules"
+        self.assertEqual(
+            IMPLEMENTED[("GET", "/openapi/v1/{controller_id}/sites/{site_id}/session-limit/rules")],
+            "implemented_read")
+        spec = document()
+        spec["paths"] = {path: {"get": {"operationId": "getGridSessionLimitRule",
+                                          "responses": {"200": {}}}}}
+        archive = self.write_zip("site_session_limit_rule_coverage.zip", spec)
         row = build_matrix([("hardware-controller", archive)])["operations"][0]
         self.assertEqual(row["connector_source_status"], "implemented_read")
         self.assertEqual(row["live_status"], "unknown_not_checked_by_this_offline_tool")

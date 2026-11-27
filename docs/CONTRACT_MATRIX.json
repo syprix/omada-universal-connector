@@ -3534,6 +3534,22 @@
             "connector_projection": "Fixed site-bound GET with no query or filter; inspects at most 500 rows and returns only row counts and documented field-presence/type counts. IDs, labels, values and list elements are omitted and list elements are not inspected. Missing, empty and malformed results are distinguished. The unpaged contract supplies no completeness marker; no effective-rule or enforcement claim is made.",
             "live_support": "unknown"
           }
+        },
+        "site_session_limit_rule_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridSessionLimitRule",
+            "permission": "Site Settings Manager View Only; Network Config Page View Only; Site Device Manager View Only",
+            "query": {
+              "page": 1,
+              "pageSize": 100
+            },
+            "response": "Paginated result: totalRows:int64, currentPage/currentSize:int32, data[] rows, and supportIpAddress:boolean. Documented row fields: id/name/ip:string; index/sourceType/maxSession:int32; status/existIpAddress:boolean; sourceIds:string[]; Hardware Controller and CBC also document featureDescription:FeatureInfoVO[]. Required row fields are name, status, sourceType and maxSession.",
+            "platform_difference": "featureDescription is documented in Hardware Controller 6.3 and CBC Standard 6.3, but is absent from the ER7212PC 6.2.14 schema; the connector treats it as optional.",
+            "connector_projection": "Fixed site-bound GET requests only page=1 with pageSize capped at 100. Returns row/page totals and documented field-presence/type counts, including supportIpAddress presence/type. Rule values, IDs, names, IPs, source-list contents and limits are omitted; list entries are not inspected. Missing, empty, malformed and partial page shapes stay distinct. No rule semantics, enforcement, or server-side completeness is inferred.",
+            "live_support": "unknown"
+          }
         }
       }
     },
@@ -7012,6 +7028,22 @@
             "connector_projection": "Fixed site-bound GET with no query or filter; inspects at most 500 rows and returns only row counts and documented field-presence/type counts. IDs, labels, values and list elements are omitted and list elements are not inspected. Missing, empty and malformed results are distinguished. The unpaged contract supplies no completeness marker; no effective-rule or enforcement claim is made.",
             "live_support": "unknown"
           }
+        },
+        "site_session_limit_rule_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridSessionLimitRule",
+            "permission": "Site Settings Manager View Only; Network Config Page View Only; Site Device Manager View Only",
+            "query": {
+              "page": 1,
+              "pageSize": 100
+            },
+            "response": "Paginated result: totalRows:int64, currentPage/currentSize:int32, data[] rows, and supportIpAddress:boolean. Documented row fields: id/name/ip:string; index/sourceType/maxSession:int32; status/existIpAddress:boolean; sourceIds:string[]; Hardware Controller and CBC also document featureDescription:FeatureInfoVO[]. Required row fields are name, status, sourceType and maxSession.",
+            "platform_difference": "featureDescription is documented in Hardware Controller 6.3 and CBC Standard 6.3, but is absent from the ER7212PC 6.2.14 schema; the connector treats it as optional.",
+            "connector_projection": "Fixed site-bound GET requests only page=1 with pageSize capped at 100. Returns row/page totals and documented field-presence/type counts, including supportIpAddress presence/type. Rule values, IDs, names, IPs, source-list contents and limits are omitted; list entries are not inspected. Missing, empty, malformed and partial page shapes stay distinct. No rule semantics, enforcement, or server-side completeness is inferred.",
+            "live_support": "unknown"
+          }
         }
       }
     },
@@ -10398,6 +10430,22 @@
             "query": {},
             "response": "List of GroupOpenApiVO rows. The documented fields are groupId (string), name (string), type and count (int32), buildIn (boolean), portType (int32), description (string), and the documented address, port, MAC, country and domain list fields.",
             "connector_projection": "Fixed site-bound GET with no query or filter; inspects at most 500 rows and returns only row counts and documented field-presence/type counts. IDs, labels, values and list elements are omitted and list elements are not inspected. Missing, empty and malformed results are distinguished. The unpaged contract supplies no completeness marker; no effective-rule or enforcement claim is made.",
+            "live_support": "unknown"
+          }
+        },
+        "site_session_limit_rule_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridSessionLimitRule",
+            "permission": "Site Settings Manager View Only; Network Config Page View Only; Site Device Manager View Only",
+            "query": {
+              "page": 1,
+              "pageSize": 100
+            },
+            "response": "Paginated result: totalRows:int64, currentPage/currentSize:int32, data[] rows, and supportIpAddress:boolean. Documented row fields: id/name/ip:string; index/sourceType/maxSession:int32; status/existIpAddress:boolean; sourceIds:string[]; Hardware Controller and CBC also document featureDescription:FeatureInfoVO[]. Required row fields are name, status, sourceType and maxSession.",
+            "platform_difference": "featureDescription is documented in Hardware Controller 6.3 and CBC Standard 6.3, but is absent from the ER7212PC 6.2.14 schema; the connector treats it as optional.",
+            "connector_projection": "Fixed site-bound GET requests only page=1 with pageSize capped at 100. Returns row/page totals and documented field-presence/type counts, including supportIpAddress presence/type. Rule values, IDs, names, IPs, source-list contents and limits are omitted; list entries are not inspected. Missing, empty, malformed and partial page shapes stay distinct. No rule semantics, enforcement, or server-side completeness is inferred.",
             "live_support": "unknown"
           }
         }

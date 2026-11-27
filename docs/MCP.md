@@ -772,6 +772,16 @@ result says nothing about effective rules or enforcement. The three supplied
 exports document the fixed list and its read-only permission requirements;
 live support remains unknown.
 
+`omada_site_session_limit_rule_coverage` reads one fixed first page of the
+selected site's session-limit rules, capped at 100 rows. It returns only
+page/row counts and documented field-presence/type coverage, including the
+presence and type of `supportIpAddress`. Rule values, IDs, names, IPs, source
+lists, limits and list entries are omitted. Empty, missing, malformed and
+partial pages are distinguished. `featureDescription` is optional because it
+is documented by Hardware Controller and CBC but absent from the ER7212PC
+export. The endpoint does not imply policy enforcement or server-side
+completeness; live support is unknown.
+
 `omada_site_access_control_policy_coverage` reads the separate fixed
 `getAccessControl` site route. It returns the two documented enable booleans
 and presence, array form and counts for the two policy lists. Policy entries

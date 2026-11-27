@@ -34,6 +34,10 @@ class FakeOpenApiClient:
         self.diagnostic_payloads = _complete_payloads("a" * 24)
         self.correction_options_result: dict[str, object] | None = None
         self.controller_scenarios_result: dict[str, object] | None = None
+        self.session_limit_rule_coverage_source: dict[str, object] = {
+            "totalRows": 0, "currentPage": 0, "currentSize": 0,
+            "data": [], "supportIpAddress": False,
+        }
 
     def list_sites(self) -> dict[str, object]:
         self.calls.append(("sites", None))
@@ -1425,6 +1429,15 @@ class FakeOpenApiClient:
                 "site_ref": site_ref, "data": {"enabled": False},
                 "missing_field_count": 0, "invalid_field_count": 0,
                 "unknown_field_count": 0, "partial": False}
+
+    def read_site_session_limit_rule_coverage(self, site_ref: str) -> dict[str, object]:
+        from app.site_session_limit_rule_coverage import project_site_session_limit_rule_coverage
+
+        self.calls.append(("site_session_limit_rule_coverage", site_ref))
+        projected = project_site_session_limit_rule_coverage(
+            self.session_limit_rule_coverage_source)
+        return {"status": "ok", "resource": "site_session_limit_rule_coverage",
+                **projected}
 
     def read_site_mac_filtering_general_state(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_mac_filtering_general_state", site_ref))
@@ -6440,6 +6453,66 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertFalse(response["result"]["structuredContent"]["data"]["enabled"])
         self.assertEqual(self.fake.calls,
                          [("site_session_limit_enable_state", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_site_session_limit_rule_coverage(self) -> None:
+        site_ref = "a" * 24
+        status, response = self.request(
+            f"/v1/sites/{site_ref}/session-limit/rules/coverage", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_session_limit_rule_coverage")
+        self.assertEqual(response["page_state"], "empty")
+        self.assertNotIn("site_ref", response)
+        request = {"jsonrpc": "2.0", "id": 159, "method": "tools/call",
+                   "params": {"name": "omada_site_session_limit_rule_coverage",
+                              "arguments": {"site_ref": site_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        content = response["result"]["structuredContent"]
+        self.assertEqual(content["resource"], "site_session_limit_rule_coverage")
+        self.assertEqual(content["support_ip_address_coverage"]["type_valid"], 1)
+        self.assertNotIn("site_ref", content)
+        self.assertEqual(self.fake.calls,
+                         [("site_session_limit_rule_coverage", site_ref)] * 2)
+
+    def test_http_and_mcp_serialize_missing_and_explicit_total_distinctly(self) -> None:
+        site_ref = "a" * 24
+        sources = (
+            {"currentPage": 1, "currentSize": 0, "data": [],
+             "supportIpAddress": False},
+            {"currentPage": 1, "currentSize": 1, "data": [{
+                "name": "synthetic-rule", "status": True,
+                "sourceType": 1, "maxSession": 5}],
+             "supportIpAddress": True},
+            {"totalRows": 0, "currentPage": 0, "currentSize": 0, "data": [],
+             "supportIpAddress": False},
+        )
+        for request_id, source in enumerate(sources, start=201):
+            with self.subTest(request_id=request_id):
+                self.fake.session_limit_rule_coverage_source = source
+                status, response = self.request(
+                    f"/v1/sites/{site_ref}/session-limit/rules/coverage", self.token)
+                self.assertEqual(status, 200)
+                self.assertIn("reported_total_row_count", response)
+                if "totalRows" in source:
+                    self.assertEqual(response["reported_total_row_count"], 0)
+                    self.assertFalse(response["partial"])
+                else:
+                    self.assertIsNone(response["reported_total_row_count"])
+                    self.assertTrue(response["partial"])
+
+                status, response = self.request_post("/mcp", {
+                    "jsonrpc": "2.0", "id": request_id, "method": "tools/call",
+                    "params": {"name": "omada_site_session_limit_rule_coverage",
+                               "arguments": {"site_ref": site_ref}}}, self.token)
+                self.assertEqual(status, 200)
+                structured = response["result"]["structuredContent"]
+                self.assertIn("reported_total_row_count", structured)
+                if "totalRows" in source:
+                    self.assertEqual(structured["reported_total_row_count"], 0)
+                    self.assertFalse(structured["partial"])
+                else:
+                    self.assertIsNone(structured["reported_total_row_count"])
+                    self.assertTrue(structured["partial"])
 
     def test_http_and_mcp_expose_site_mac_filtering_general_state(self) -> None:
         site_ref = "a" * 24
