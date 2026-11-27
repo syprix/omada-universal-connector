@@ -2977,6 +2977,22 @@ class FakeOpenApiClient:
                          "invalid_row_count": 0, "duplicate_family_id_count": 0,
                          "unknown_field_count": 0}, "partial": False}
 
+    def read_site_application_control_application_catalog(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_application_control_application_catalog", site_ref))
+        return {"status": "ok", "resource": "site_application_control_application_catalog",
+                "site_ref": site_ref, "source_state": "empty_total_unknown",
+                "page_number": 1, "page_size": 100, "page_state": "empty_total_unknown",
+                "reported_total_row_count": None, "returned_row_count": 0,
+                "reported_remaining_row_count": None,
+                "first_page_covers_reported_total": None,
+                "pagination_field_coverage": {"totalRows": {"present": 0, "type_valid": 0,
+                    "missing": 1, "invalid": 0}},
+                "application_id_coverage": {"present": 0, "type_valid": 0,
+                    "missing": 0, "invalid": 0},
+                "unique_application_id_count": 0, "duplicate_application_id_count": 0,
+                "invalid_row_count": 0, "unknown_field_count": 0, "partial": True,
+                "application_identifiers_and_labels_returned": False}
+
     def read_site_gateway_supported_model_references(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_gateway_supported_model_references", site_ref))
         return {"status": "ok", "resource": "site_gateway_supported_model_references",
@@ -9168,6 +9184,27 @@ class OpenApiHttpTests(unittest.TestCase):
                          ["0", "2147483647"])
         self.assertEqual(self.fake.calls,
                          [("site_application_family_inventory", site_ref)] * 2)
+
+    def test_http_and_mcp_serialize_missing_application_catalog_total(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/application-control/application-catalog"
+        status, response = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertIsNone(response["reported_total_row_count"])
+        self.assertTrue(response["partial"])
+        request = {"jsonrpc": "2.0", "id": 160, "method": "tools/call",
+                   "params": {"name": "omada_site_application_control_application_catalog",
+                              "arguments": {"site_ref": site_ref}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        structured = rpc["result"]["structuredContent"]
+        self.assertEqual(structured["resource"], "site_application_control_application_catalog")
+        self.assertIsNone(structured["reported_total_row_count"])
+        self.assertTrue(structured["partial"])
+        json.dumps(response, allow_nan=False)
+        json.dumps(structured, allow_nan=False)
+        self.assertEqual(self.fake.calls,
+                         [("site_application_control_application_catalog", site_ref)] * 2)
 
     def test_http_and_mcp_expose_site_gateway_supported_model_references(self) -> None:
         site_ref = "a" * 24
