@@ -38,6 +38,7 @@ class FakeOpenApiClient:
             "totalRows": 0, "currentPage": 0, "currentSize": 0,
             "data": [], "supportIpAddress": False,
         }
+        self.filter_inventory_total: int | None = None
 
     def list_sites(self) -> dict[str, object]:
         self.calls.append(("sites", None))
@@ -2992,6 +2993,24 @@ class FakeOpenApiClient:
                 "unique_application_id_count": 0, "duplicate_application_id_count": 0,
                 "invalid_row_count": 0, "unknown_field_count": 0, "partial": True,
                 "application_identifiers_and_labels_returned": False}
+
+    def read_site_application_control_filter_inventory_coverage(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_application_control_filter_inventory_coverage", site_ref))
+        total = self.filter_inventory_total
+        source_state = "empty_total_unknown" if total is None else "empty"
+        return {"status": "ok", "resource": "site_application_control_filter_inventory_coverage",
+                "site_ref": site_ref, "source_state": source_state,
+                "page_number": 1, "page_size": 100, "page_state": source_state,
+                "reported_total_row_count": total, "returned_row_count": 0,
+                "reported_remaining_row_count": None if total is None else total,
+                "first_page_covers_reported_total": None if total is None else total == 0,
+                "pagination_field_coverage": {"totalRows": {"present": int(total is not None),
+                    "type_valid": int(total is not None), "missing": int(total is None), "invalid": 0}},
+                "filter_field_coverage": {name: {"present": 0, "type_valid": 0,
+                    "missing": 0, "invalid": 0} for name in ("filterId", "filterName", "description", "rules")},
+                "invalid_row_count": 0, "unknown_field_count": 0,
+                "partial": total is None,
+                "filter_values_and_rule_objects_returned": False}
 
     def read_site_gateway_supported_model_references(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_gateway_supported_model_references", site_ref))
@@ -9205,6 +9224,38 @@ class OpenApiHttpTests(unittest.TestCase):
         json.dumps(structured, allow_nan=False)
         self.assertEqual(self.fake.calls,
                          [("site_application_control_application_catalog", site_ref)] * 2)
+
+    def test_http_and_mcp_distinguish_missing_filter_total_from_explicit_zero(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/application-control/filter-inventory/coverage"
+        request = {"jsonrpc": "2.0", "id": 161, "method": "tools/call",
+                   "params": {"name": "omada_site_application_control_filter_inventory_coverage",
+                              "arguments": {"site_ref": site_ref}}}
+        status, missing = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertIsNone(missing["reported_total_row_count"])
+        self.assertTrue(missing["partial"])
+        status, missing_rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        missing_structured = missing_rpc["result"]["structuredContent"]
+        self.assertIsNone(missing_structured["reported_total_row_count"])
+        self.assertTrue(missing_structured["partial"])
+
+        self.fake.filter_inventory_total = 0
+        request["id"] = 162
+        status, zero = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(zero["reported_total_row_count"], 0)
+        self.assertFalse(zero["partial"])
+        status, zero_rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        zero_structured = zero_rpc["result"]["structuredContent"]
+        self.assertEqual(zero_structured["reported_total_row_count"], 0)
+        self.assertFalse(zero_structured["partial"])
+        for value in (missing, missing_structured, zero, zero_structured):
+            json.dumps(value, allow_nan=False)
+        self.assertEqual(self.fake.calls,
+                         [("site_application_control_filter_inventory_coverage", site_ref)] * 4)
 
     def test_http_and_mcp_expose_site_gateway_supported_model_references(self) -> None:
         site_ref = "a" * 24

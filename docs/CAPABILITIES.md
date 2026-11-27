@@ -1970,6 +1970,25 @@ Device Manager View Only and documents DPI-specific errors for updating
 protocols (`-35107`), a missing gateway (`-35112`), or a gateway without DPI
 support (`-35113`). Live support is unknown.
 
+## Site application-control filter inventory coverage
+
+`GET /v1/sites/{site_ref}/application-control/filter-inventory/coverage` reads
+only page 1 of the documented `getFilters` list with a page size capped at 100;
+it sends no search term and follows no pages or detail route. It returns
+pagination counts and presence/type coverage for `filterId`, `filterName`,
+`description` and the `rules` array. Filter IDs, names, descriptions, unknown
+field names and all rule contents are omitted; rule arrays are treated as
+opaque and are not iterated. A missing `totalRows` is emitted as null and is
+partial, while a valid empty page with an explicit total of zero remains a
+complete empty result. Incomplete pages and missing or ill-typed fields remain
+partial. The exports list Site Settings Manager, Network Config Page or Site
+Device Manager View Only and errors for a missing gateway (`-35112`) or one
+without DPI support (`-35113`). The ER7212PC 6.2.14 example pairs a zero total
+with a nonempty row; that contradictory example is rejected by the connector's
+pagination checks. In the three site exports, the `{filterId}` path has PUT and
+DELETE operations but no single-filter GET; the list GET is distinct from the
+application catalog and its POST creation operation. Live support is unknown.
+
 ## Site gateway model reference list
 
 `GET /v1/sites/{site_ref}/gateway-supported-model-references` reads the
