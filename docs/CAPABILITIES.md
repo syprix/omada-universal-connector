@@ -2078,6 +2078,24 @@ document `*/*` response media; ER7212PC documents `application/json`; all
 three agree on the route, second-based int64 filters, int64 summary counters,
 minute duration, and usage field types. Live support is unknown.
 
+## Site hotspot voucher history duration distribution coverage
+
+`GET /v1/sites/{site_ref}/hotspot/vouchers/history-duration-distribution/coverage`
+reads the separate documented `getVoucherDistributionByDuration` route with a
+fixed trailing 24-hour window. The upstream request contains only the required
+`filters.timeStart` and `filters.timeEnd` Unix-second parameters; there is no
+page parameter or follow-up request. The connector reports the delivered row
+count and presence/type/zero coverage for the documented `duration:int64`
+minutes, `durationType:int32` (0/1), `totalDuration:int64` minutes and
+`usedCount:int32` fields. It also reports redacted presence/type coverage for
+the documented Grid metadata without returning its values or inferring page
+semantics. Duration, total duration, usage counts, time bounds, identities and
+raw rows are omitted. The response is bounded to 500 rows and 262,144 bytes;
+the projection does not assert server completeness or usage semantics. The
+source requires Site Hotspot Manager View Only. Hardware Controller 6.3, CBC
+6.3 and ER7212PC 6.2.14 document the same route, required int64 Unix-second
+filters, Grid shape and four row fields. Live support is unknown.
+
 ## Controller upgrade-log summary
 
 `GET /v1/controller/firmware-upgrades/summary` reads only the first 100 rows from the authenticated controller's documented upgrade log. It reports source total and sample coverage plus counts of rollbacked entries, rows with reported failed devices, and rows with an upgrade time. It returns no dates, device/model details, site names, operator names, versions, or identifiers. It never starts or changes an upgrade. Live support is unknown.

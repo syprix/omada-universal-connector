@@ -132,6 +132,27 @@ class FullApiMatrixTests(unittest.TestCase):
             self.assertIn("No derived sums or server-completeness claim",
                           review["connector_projection"])
 
+    def test_voucher_history_duration_distribution_matches_three_source_contracts(self):
+        path = Path(__file__).resolve().parents[1] / "docs/CONTRACT_MATRIX.json"
+        matrix = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(len(matrix["sources"]), 3)
+        for source in matrix["sources"]:
+            operation = source["operations"][
+                "site_hotspot_voucher_history_duration_distribution_coverage"]
+            self.assertTrue(operation["documented"])
+            self.assertEqual(operation["live_support"], "unknown")
+            review = operation["contract_review"]
+            self.assertEqual(review["operation_id"], "getVoucherDistributionByDuration")
+            self.assertEqual(review["permission"], "Site Hotspot Manager View Only")
+            self.assertEqual(review["query"], {
+                "filters.timeStart": "required Unix seconds int64",
+                "filters.timeEnd": "required Unix seconds int64"})
+            for field in ("duration:int64 minutes", "durationType:int32 (0/1)",
+                          "totalDuration:int64 minutes", "usedCount:int32"):
+                self.assertIn(field, review["response"])
+            self.assertIn("no page parameter or follow-up", review["connector_projection"])
+            self.assertIn("no server-completeness", review["connector_projection"])
+
     def test_hotspot_voucher_group_options_coverage_matches_three_source_contracts(self):
         path = Path(__file__).resolve().parents[1] / "docs/CONTRACT_MATRIX.json"
         matrix = json.loads(path.read_text(encoding="utf-8"))

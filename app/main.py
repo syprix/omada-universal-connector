@@ -3491,6 +3491,9 @@ class Handler(BaseHTTPRequestHandler):
                 elif registry_operation == "site_hotspot_voucher_history_statistics_summary":
                     result = client.read_site_hotspot_voucher_history_statistics_summary(
                         registry_bindings["site_ref"])
+                elif registry_operation == "site_hotspot_voucher_history_duration_distribution_coverage":
+                    result = client.read_site_hotspot_voucher_history_duration_distribution_coverage(
+                        registry_bindings["site_ref"])
                 elif registry_operation == "site_voucher_currency_options":
                     result = client.read_site_voucher_currency_options(
                         registry_bindings["site_ref"])

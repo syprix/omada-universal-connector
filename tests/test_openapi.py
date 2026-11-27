@@ -820,6 +820,57 @@ class OpenApiClientTests(unittest.TestCase):
             with self.assertRaisesRegex(OpenApiError, "openapi_response_invalid"):
                 self.client.read_site_hotspot_voucher_history_statistics_summary(site_ref)
 
+    def test_voucher_duration_distribution_uses_fixed_seconds_and_only_coverage(self):
+        site_ref = "c" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-duration"
+        payload = {"errorCode": 0, "result": {
+            "totalRows": 80, "currentPage": 9, "currentSize": 1,
+            "data": [{"duration": 30, "durationType": 0,
+                      "totalDuration": 90, "usedCount": 3}]}}
+        connection = self.respond(payload)
+        with patch("time.time", return_value=1_700_086_400), \
+                patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_connection", return_value=connection):
+            projected = self.client.read_site_hotspot_voucher_history_duration_distribution_coverage(
+                site_ref)
+        sent_path = connection.calls[0][1]
+        self.assertEqual(sent_path,
+                         "/openapi/v1/controller_1/sites/site-duration/hotspot/vouchers/"
+                         "statistics/history/distribution/duration?filters.timeStart="
+                         "1700000000&filters.timeEnd=1700086400")
+        self.assertEqual(projected["window_seconds"], 86400)
+        self.assertEqual(projected["row_count"], 1)
+        self.assertEqual(projected["server_completeness"], "not_asserted")
+        self.assertFalse(projected["partial"])
+        serialized = json.dumps(projected)
+        for secret in ('"duration": 30', '"durationType": 0',
+                       '"totalDuration": 90', '"usedCount": 3',
+                       '"totalRows": 80', '"currentPage": 9'):
+            self.assertNotIn(secret, serialized)
+        self.assertTrue(
+            self.client._site_voucher_history_duration_distribution_request_valid(sent_path))
+        for rejected in (sent_path + "&page=1",
+                         sent_path.replace("1700086400", "1700086401"),
+                         sent_path.replace("1700000000", "0"),
+                         sent_path.replace("1700086400", str(2**63))):
+            self.assertFalse(
+                self.client._site_voucher_history_duration_distribution_request_valid(rejected))
+
+    def test_voucher_duration_distribution_preserves_missing_and_null_result_states(self):
+        site_ref = "d" * 24
+        self.client._site_ids_by_ref[site_ref] = "site-duration"
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={"errorCode": 0}):
+            missing = self.client.read_site_hotspot_voucher_history_duration_distribution_coverage(
+                site_ref)
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={
+                    "errorCode": 0, "result": None}):
+            null = self.client.read_site_hotspot_voucher_history_duration_distribution_coverage(
+                site_ref)
+        self.assertEqual(missing["source_state"], "result_missing")
+        self.assertEqual(null["source_state"], "result_null")
+
     def test_site_lan_network_interface_read_redacts_values_and_allows_type_zero(self):
         site_ref = "a" * 24
         self.client._site_ids_by_ref[site_ref] = "site-1"
