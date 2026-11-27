@@ -65,7 +65,7 @@ class SiteHotspotVoucherGroupOptionsCoverageTests(unittest.TestCase):
         self.assertEqual(partial["page_state"], "first_page_partial")
         self.assertEqual(partial["reported_remaining_row_count"], 1)
         self.assertTrue(partial["partial"])
-        for total in (True, -1, 1 << 63):
+        for total in (None, True, -1, 1 << 63):
             with self.subTest(total=total), self.assertRaises(SiteHotspotVoucherGroupOptionsCoverageError):
                 project_site_hotspot_voucher_group_options_coverage({
                     "totalRows": total, "currentPage": 1, "currentSize": 0, "data": []})
@@ -77,6 +77,48 @@ class SiteHotspotVoucherGroupOptionsCoverageTests(unittest.TestCase):
             project_site_hotspot_voucher_group_options_coverage({
                 "totalRows": 101, "currentPage": 1, "currentSize": 101,
                 "data": [{"groupId": "x", "name": "y"}] * 101})
+
+    def test_valid_first_page_with_rows_over_reported_total_is_explicitly_partial(self):
+        projected = project_site_hotspot_voucher_group_options_coverage({
+            "totalRows": 0, "currentPage": 1, "currentSize": 100,
+            "data": [{"groupId": "private-id", "name": "private-name"}]})
+        self.assertEqual(projected["page_state"], "first_page_inconsistent_total")
+        self.assertEqual(projected["reported_total_row_count"], 0)
+        self.assertEqual(projected["returned_row_count"], 1)
+        self.assertIsNone(projected["reported_remaining_row_count"])
+        self.assertIsNone(projected["first_page_covers_reported_total"])
+        self.assertTrue(projected["partial"])
+        self.assertEqual(projected["group_field_coverage"], {
+            "groupId": {"present": 1, "type_valid": 1, "missing": 0, "invalid": 0},
+            "name": {"present": 1, "type_valid": 1, "missing": 0, "invalid": 0},
+        })
+        for private_value in ("private-id", "private-name"):
+            self.assertNotIn(private_value, repr(projected))
+        json.dumps(projected, allow_nan=False)
+
+    def test_inconsistent_total_does_not_relax_page_or_row_validation(self):
+        valid_row = {"groupId": "x", "name": "y"}
+        rejected = (
+            {"totalRows": 0, "currentPage": 0, "currentSize": 0, "data": [valid_row]},
+            {"totalRows": 0, "currentPage": 2, "currentSize": 100, "data": [valid_row]},
+            {"totalRows": 0, "currentSize": 100, "data": [valid_row]},
+            {"totalRows": 0, "currentPage": 1, "currentSize": 2, "data": [valid_row]},
+            {"totalRows": 0, "currentPage": 1, "data": [valid_row]},
+            {"totalRows": 0, "currentPage": 1, "currentSize": 100, "data": [None]},
+            {"totalRows": 0, "currentPage": 1, "currentSize": 100,
+             "data": [{"groupId": 1, "name": "y"}]},
+        )
+        for response in rejected:
+            with self.subTest(response=response), self.assertRaises(
+                    SiteHotspotVoucherGroupOptionsCoverageError):
+                project_site_hotspot_voucher_group_options_coverage(response)
+
+    def test_er_example_with_page_zero_remains_rejected(self):
+        with self.assertRaisesRegex(SiteHotspotVoucherGroupOptionsCoverageError,
+                                    "page_number_inconsistent"):
+            project_site_hotspot_voucher_group_options_coverage({
+                "totalRows": 0, "currentPage": 0, "currentSize": 0,
+                "data": [{"groupId": "x", "name": "y"}]})
 
     def test_client_caps_first_page_and_never_adds_other_query_or_detail(self):
         client = self.client(page_size=200)

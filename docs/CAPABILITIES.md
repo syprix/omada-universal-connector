@@ -2028,10 +2028,14 @@ the documented first page of `getVoucherGroupOptions` (page 1, page size capped
 at 100). It reports row and pagination counts plus presence and string-type
 counts for `groupId` and `name`. Group IDs, names and voucher codes are never
 returned. Missing `totalRows` remains null and partial; an explicit zero with
-an empty page is complete, while an incomplete page remains partial. The source
-requires Site Hotspot Manager View Only and documents errors `-33000`, `-33004`,
-`-44111` and `-44112`. It makes no claim about group use, permissions beyond
-the documented role, or voucher behavior. Live support is unknown.
+an empty page is complete, while an incomplete page remains partial. If a
+structurally valid first page has more valid rows than its nonnegative reported
+`totalRows`, it is retained as `first_page_inconsistent_total`: the reported
+total and row/field counts remain visible, but remaining rows and the
+first-page-complete flag are null and the result is partial. First-page, page-size, row-shape and response limits remain enforced. The source requires Site Hotspot
+Manager View Only and documents errors `-33000`, `-33004`, `-44111` and `-44112`.
+It makes no claim about group use, permissions beyond the documented role, or
+voucher behavior. Live support is unknown.
 
 ## All-time hotspot voucher summary
 

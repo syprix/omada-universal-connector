@@ -90,16 +90,27 @@ def project_site_hotspot_voucher_group_options_coverage(
 
     total_value = total if type(total) is int else None
     empty_zero_page = (total_value == 0 and data == [] and current_page == 0 and current_size == 0)
-    if (total_value is not None and count is not None and
-            (count > total_value or (total_value == 0 and count > 0) or
-             (total_value > 0 and count == 0))):
-        raise SiteHotspotVoucherGroupOptionsCoverageError("total_rows_inconsistent")
     if current_page is not _MISSING and current_page != 1 and not empty_zero_page:
         raise SiteHotspotVoucherGroupOptionsCoverageError("page_number_inconsistent")
     if (current_size is not _MISSING and data is not _MISSING and
             current_size not in (count, page_size) and
             not (total_value == 0 and count == 0 and current_size == 0)):
         raise SiteHotspotVoucherGroupOptionsCoverageError("page_size_inconsistent")
+
+    inconsistent_first_page_total = (
+        total_value is not None and count is not None and count > total_value)
+    if (total_value is not None and count is not None and
+            (inconsistent_first_page_total or (total_value > 0 and count == 0))):
+        valid_documented_rows = (
+            data is not _MISSING and current_page == 1 and
+            current_size is not _MISSING and
+            current_size in (count, page_size) and
+            all(isinstance(row, Mapping) and len(row) <= 16 and
+                all(isinstance(key, str) for key in row) and
+                all(key in row and isinstance(row[key], str) for key in _OPTION_FIELDS)
+                for row in rows))
+        if not (inconsistent_first_page_total and valid_documented_rows):
+            raise SiteHotspotVoucherGroupOptionsCoverageError("total_rows_inconsistent")
 
     coverage = _empty_group_field_coverage()
     invalid_rows = 0
@@ -122,6 +133,10 @@ def project_site_hotspot_voucher_group_options_coverage(
     remaining = max(total_value - count, 0) if count is not None and total_value is not None else None
     if total_value == 0 and count == 0:
         page_state = "empty"
+    elif inconsistent_first_page_total:
+        page_state = "first_page_inconsistent_total"
+        covers_total = None
+        remaining = None
     elif total_value is None:
         page_state = "metadata_missing" if data is _MISSING else (
             "empty_total_unknown" if count == 0 else "nonempty_total_unknown")
@@ -131,7 +146,8 @@ def project_site_hotspot_voucher_group_options_coverage(
         page_state = "first_page_partial"
     else:
         page_state = "first_page_complete"
-    partial = bool(any(item["missing"] for item in pagination.values()) or
+    partial = bool(inconsistent_first_page_total or
+                   any(item["missing"] for item in pagination.values()) or
                    invalid_rows or unknown_fields or
                    any(counts["missing"] or counts["invalid"] for counts in coverage.values()) or
                    covers_total is not True)
