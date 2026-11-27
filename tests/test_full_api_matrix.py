@@ -129,6 +129,26 @@ class FullApiMatrixTests(unittest.TestCase):
             self.assertIn("values, names and voucher codes", review["connector_projection"])
             self.assertIn("Missing totalRows is null", review["connector_projection"])
 
+    def test_hotspot_voucher_group_inventory_coverage_matches_three_source_contracts(self):
+        path = Path(__file__).resolve().parents[1] / "docs/CONTRACT_MATRIX.json"
+        matrix = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(len(matrix["sources"]), 3)
+        for source in matrix["sources"]:
+            operation = source["operations"]["site_hotspot_voucher_group_inventory_coverage"]
+            self.assertTrue(operation["documented"])
+            self.assertEqual(operation["live_support"], "unknown")
+            review = operation["contract_review"]
+            self.assertEqual(review["operation_id"], "getGridVoucherGroups")
+            self.assertEqual(review["permission"], "Site Hotspot Manager View Only")
+            self.assertEqual(review["query"], {"page": 1, "pageSize": 100})
+            for field in ("unusedCount:int32", "usedCount:int32", "inUseCount:int32",
+                          "expiredCount:int32", "totalCount:int32"):
+                self.assertIn(field, review["response"])
+            self.assertIn("counter values", review["connector_projection"].lower())
+            self.assertIn("Missing totalRows is null", review["connector_projection"])
+            self.assertIn("rows greater than totalrows are rejected",
+                          review["connector_projection"].lower())
+
     def test_lan_switch_assignment_and_v2_ssid_topology_contracts_are_distinct(self):
         path = Path(__file__).resolve().parents[1] / "docs/CONTRACT_MATRIX.json"
         matrix = json.loads(path.read_text(encoding="utf-8"))

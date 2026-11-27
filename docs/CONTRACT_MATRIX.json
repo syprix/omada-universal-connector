@@ -3477,6 +3477,23 @@
             "connector_projection": "Fixed site-bound GET for page 1 only, with effective page size capped at 100 and no other query or next-page request. Returns row/pagination counts and presence/string-type counts for groupId and name. Omits all group values, names and voucher codes. Missing totalRows is null and partial; explicit zero with an empty page is complete; incomplete pages are partial. No group usage, permissions beyond the documented role, or voucher behavior is inferred."
           }
         },
+        "site_hotspot_voucher_group_inventory_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridVoucherGroups",
+            "permission": "Site Hotspot Manager View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/hotspot/voucher-groups",
+            "query": {
+              "page": 1,
+              "pageSize": 100
+            },
+            "request_body": false,
+            "response": "OperationResponseGridVOVoucherGroupOpenApiVO defines totalRows:int64, currentPage/currentSize:int32 and data[] VoucherGroupOpenApiVO rows. The optional int32 fields are unusedCount:int32, usedCount:int32, inUseCount:int32, expiredCount:int32 and totalCount:int32.",
+            "platform_difference": "The three supplied exports document the same GET, permission, pagination and five int32 fields. Hardware Controller and CBC use */* response media; ER7212PC uses application/json.",
+            "connector_projection": "Fixed site-bound first-page GET with page=1 and effective page size capped at 100; no sorting, search/time filters, next page or detail lookup. Reports paging/row counts and presence/int32-type coverage for the five documented counters only. Counter values, group identifiers/names, voucher codes, price, currency, portal values and all other field values are omitted; other fields are inspected by key name only for unknown-field counts. Missing totalRows is null and partial; a coherent empty zero-total page is complete. Rows greater than totalRows are rejected, as are other inconsistent page metadata; no options-reader exception is reused. No group-use or enforcement inference is made."
+          }
+        },
         "site_oui_profile_list_summary": {
           "documented": true,
           "live_support": "unknown",
@@ -7023,6 +7040,23 @@
             "connector_projection": "Fixed site-bound GET for page 1 only, with effective page size capped at 100 and no other query or next-page request. Returns row/pagination counts and presence/string-type counts for groupId and name. Omits all group values, names and voucher codes. Missing totalRows is null and partial; explicit zero with an empty page is complete; incomplete pages are partial. No group usage, permissions beyond the documented role, or voucher behavior is inferred."
           }
         },
+        "site_hotspot_voucher_group_inventory_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridVoucherGroups",
+            "permission": "Site Hotspot Manager View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/hotspot/voucher-groups",
+            "query": {
+              "page": 1,
+              "pageSize": 100
+            },
+            "request_body": false,
+            "response": "OperationResponseGridVOVoucherGroupOpenApiVO defines totalRows:int64, currentPage/currentSize:int32 and data[] VoucherGroupOpenApiVO rows. The optional int32 fields are unusedCount:int32, usedCount:int32, inUseCount:int32, expiredCount:int32 and totalCount:int32.",
+            "platform_difference": "The three supplied exports document the same GET, permission, pagination and five int32 fields. Hardware Controller and CBC use */* response media; ER7212PC uses application/json.",
+            "connector_projection": "Fixed site-bound first-page GET with page=1 and effective page size capped at 100; no sorting, search/time filters, next page or detail lookup. Reports paging/row counts and presence/int32-type coverage for the five documented counters only. Counter values, group identifiers/names, voucher codes, price, currency, portal values and all other field values are omitted; other fields are inspected by key name only for unknown-field counts. Missing totalRows is null and partial; a coherent empty zero-total page is complete. Rows greater than totalRows are rejected, as are other inconsistent page metadata; no options-reader exception is reused. No group-use or enforcement inference is made."
+          }
+        },
         "site_oui_profile_list_summary": {
           "documented": true,
           "live_support": "unknown",
@@ -10477,6 +10511,23 @@
             "response": "OperationResponseGridVOVoucherGroupOptionOpenApiVO defines totalRows:int64, currentPage/currentSize:int32, and data[] rows with groupId:string and name:string.",
             "platform_difference": "The three supplied exports document the same route, permission, pagination and row fields. Hardware Controller and CBC use */* response media; ER7212PC uses application/json.",
             "connector_projection": "Fixed site-bound GET for page 1 only, with effective page size capped at 100 and no other query or next-page request. Returns row/pagination counts and presence/string-type counts for groupId and name. Omits all group values, names and voucher codes. Missing totalRows is null and partial; explicit zero with an empty page is complete; incomplete pages are partial. No group usage, permissions beyond the documented role, or voucher behavior is inferred."
+          }
+        },
+        "site_hotspot_voucher_group_inventory_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getGridVoucherGroups",
+            "permission": "Site Hotspot Manager View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/hotspot/voucher-groups",
+            "query": {
+              "page": 1,
+              "pageSize": 100
+            },
+            "request_body": false,
+            "response": "OperationResponseGridVOVoucherGroupOpenApiVO defines totalRows:int64, currentPage/currentSize:int32 and data[] VoucherGroupOpenApiVO rows. The optional int32 fields are unusedCount:int32, usedCount:int32, inUseCount:int32, expiredCount:int32 and totalCount:int32.",
+            "platform_difference": "The three supplied exports document the same GET, permission, pagination and five int32 fields. Hardware Controller and CBC use */* response media; ER7212PC uses application/json.",
+            "connector_projection": "Fixed site-bound first-page GET with page=1 and effective page size capped at 100; no sorting, search/time filters, next page or detail lookup. Reports paging/row counts and presence/int32-type coverage for the five documented counters only. Counter values, group identifiers/names, voucher codes, price, currency, portal values and all other field values are omitted; other fields are inspected by key name only for unknown-field counts. Missing totalRows is null and partial; a coherent empty zero-total page is complete. Rows greater than totalRows are rejected, as are other inconsistent page metadata; no options-reader exception is reused. No group-use or enforcement inference is made."
           }
         },
         "site_oui_profile_list_summary": {

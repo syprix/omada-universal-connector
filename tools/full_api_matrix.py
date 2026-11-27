@@ -164,6 +164,7 @@ IMPLEMENTED: dict[tuple[str, str], str] = {
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/portal/setting/domain"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/hotspot/voucher-groups/currency-list"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/hotspot/voucher-group-options"): "implemented_read",
+    ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/hotspot/voucher-groups"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/categoryAppInfo/{family_id}"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/categoryUserInfo/{family_id}"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/mostActiveAppTraffic"): "implemented_read",
