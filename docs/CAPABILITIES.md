@@ -1338,6 +1338,15 @@ tokens as raw JSON and 123 tokens after projection using js-tiktoken 1.0.21 /
 serialized JSON only, excluding transport, schemas, prompts and billed agent
 usage; it is not live evidence.
 
+`omada_site_group_profiles_coverage` reads the separate fixed
+`getGroupProfiles` site list; it does not use the optional type-specific route
+or the AP-group and ACL readers. The output is bounded to 500 rows and contains
+only documented field-presence/type counts, including `type`, `count` and
+`buildIn`. It does not return identifiers, labels, setting values or list
+contents, and it does not establish list completeness, effective rules or
+enforcement. All three supplied exports document the route and view-only
+permissions. Live support is unknown.
+
 Per-network DHCP server capabilities are exposed at
 `GET /v1/sites/{site_ref}/networks/{network_ref}/dhcp-server/capabilities`.
 The network reference must come from that site's network inventory. The

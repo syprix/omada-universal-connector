@@ -33,6 +33,20 @@ class FullApiMatrixTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.tmp.cleanup()
 
+    def test_site_group_profiles_coverage_is_documented_in_all_three_sources(self):
+        path = Path(__file__).resolve().parents[1] / "docs/CONTRACT_MATRIX.json"
+        matrix = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(len(matrix["sources"]), 3)
+        for source in matrix["sources"]:
+            operation = source["operations"]["site_group_profiles_coverage"]
+            self.assertTrue(operation["documented"])
+            self.assertEqual(operation["live_support"], "unknown")
+            review = operation["contract_review"]
+            self.assertEqual(review["operation_id"], "getGroupProfiles")
+            self.assertEqual(review["query"], {})
+            self.assertIn("500 rows", review["connector_projection"])
+            self.assertIn("no completeness marker", review["connector_projection"])
+
     def test_upgrade_failure_and_stack_cable_log_reads_match_three_source_contracts(self):
         path = Path(__file__).resolve().parents[1] / "docs/CONTRACT_MATRIX.json"
         matrix = json.loads(path.read_text(encoding="utf-8"))

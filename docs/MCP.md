@@ -761,6 +761,17 @@ Hardware/CBC exports document this GET and its view-only permissions. The
 ER7212PC export labels it Omada Pro Controller only, which is recorded as a
 separate platform note; live support remains unknown.
 
+`omada_site_group_profiles_coverage` reads the fixed, site-bound group-profile
+list without a type selector or query. It inspects at most 500 rows and returns
+only row totals and documented field-presence/type counts, including counts for
+`type`, `count` and `buildIn`. Group IDs, labels, values and list elements
+(addresses, MACs, ports, countries and domains) are never returned or inspected.
+Missing results, empty lists and malformed results remain distinct. This is
+schema coverage only; the unpaged source gives no completeness marker, and the
+result says nothing about effective rules or enforcement. The three supplied
+exports document the fixed list and its read-only permission requirements;
+live support remains unknown.
+
 
 The tools `omada_controller_device_batch_adopt_summary` and
 `omada_site_pending_devices_summary` expose bounded summaries for global
