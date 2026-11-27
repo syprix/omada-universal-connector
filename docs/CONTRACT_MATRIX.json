@@ -3477,6 +3477,23 @@
             "connector_projection": "Fixed trailing 24-hour window; callers cannot select a window, add filters or request pages. Exposes only summary count/duration and field-state coverage plus bounded usage row/presence/type counts. Omits amount/currency, usage values, timestamps, interval values, identities and raw rows. Maximum 500 usage rows and 262,144 upstream response bytes. Missing/null/zero/empty remain distinct. No derived sums or server-completeness claim."
           }
         },
+        "site_hotspot_voucher_history_duration_distribution_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getVoucherDistributionByDuration",
+            "permission": "Site Hotspot Manager View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/hotspot/vouchers/statistics/history/distribution/duration",
+            "query": {
+              "filters.timeStart": "required Unix seconds int64",
+              "filters.timeEnd": "required Unix seconds int64"
+            },
+            "request_body": false,
+            "response": "GridVOVoucherDurationDistributionOpenApiVO documents totalRows:int64, currentPage:int32, currentSize:int32 and data[]. VoucherDurationDistributionOpenApiVO documents duration:int64 minutes, durationType:int32 (0/1), totalDuration:int64 minutes and usedCount:int32.",
+            "platform_difference": "Hardware Controller and CBC use */* response media; ER7212PC uses application/json. All three document the same route, required second-based int64 filters, Grid metadata and four row-field types.",
+            "connector_projection": "Fixed trailing 24-hour window; only the two required time filters are sent, with no page parameter or follow-up. Returns bounded delivered-row count and redacted presence/type/zero coverage for the four documented fields and presence/type coverage for Grid metadata. Omits all field values, time bounds, identities and rows. Grid metadata is not interpreted as paging or server completeness. Maximum 500 rows and 262,144 upstream response bytes; no server-completeness or usage-semantics claim."
+          }
+        },
         "site_hotspot_voucher_group_options_coverage": {
           "documented": true,
           "live_support": "unknown",
@@ -7057,6 +7074,23 @@
             "connector_projection": "Fixed trailing 24-hour window; callers cannot select a window, add filters or request pages. Exposes only summary count/duration and field-state coverage plus bounded usage row/presence/type counts. Omits amount/currency, usage values, timestamps, interval values, identities and raw rows. Maximum 500 usage rows and normal response-byte cap. Missing/null/zero/empty remain distinct. No derived sums or server-completeness claim."
           }
         },
+        "site_hotspot_voucher_history_duration_distribution_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getVoucherDistributionByDuration",
+            "permission": "Site Hotspot Manager View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/hotspot/vouchers/statistics/history/distribution/duration",
+            "query": {
+              "filters.timeStart": "required Unix seconds int64",
+              "filters.timeEnd": "required Unix seconds int64"
+            },
+            "request_body": false,
+            "response": "GridVOVoucherDurationDistributionOpenApiVO documents totalRows:int64, currentPage:int32, currentSize:int32 and data[]. VoucherDurationDistributionOpenApiVO documents duration:int64 minutes, durationType:int32 (0/1), totalDuration:int64 minutes and usedCount:int32.",
+            "platform_difference": "Hardware Controller and CBC use */* response media; ER7212PC uses application/json. All three document the same route, required second-based int64 filters, Grid metadata and four row-field types.",
+            "connector_projection": "Fixed trailing 24-hour window; only the two required time filters are sent, with no page parameter or follow-up. Returns bounded delivered-row count and redacted presence/type/zero coverage for the four documented fields and presence/type coverage for Grid metadata. Omits all field values, time bounds, identities and rows. Grid metadata is not interpreted as paging or server completeness. Maximum 500 rows and 262,144 upstream response bytes; no server-completeness or usage-semantics claim."
+          }
+        },
         "site_hotspot_voucher_group_options_coverage": {
           "documented": true,
           "live_support": "unknown",
@@ -10545,6 +10579,23 @@
             "response": "VoucherStatisticsHistoryOpenApiVO has summary: VoucherSummaryOpenApiVO (count:int64, duration:int64 in minutes, amount:string, currency:string) and usage[] rows with count:int32, timeInterval:int32 (unit unnamed), time:int64 (milliseconds), amount:string and currency:string.",
             "platform_difference": "Hardware Controller and CBC use */* response media; ER7212PC uses application/json. All three document the same route, second-based filters and summary/usage field types.",
             "connector_projection": "Fixed trailing 24-hour window; callers cannot select a window, add filters or request pages. Exposes only summary count/duration and field-state coverage plus bounded usage row/presence/type counts. Omits amount/currency, usage values, timestamps, interval values, identities and raw rows. Maximum 500 usage rows and normal response-byte cap. Missing/null/zero/empty remain distinct. No derived sums or server-completeness claim."
+          }
+        },
+        "site_hotspot_voucher_history_duration_distribution_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getVoucherDistributionByDuration",
+            "permission": "Site Hotspot Manager View Only",
+            "path": "/openapi/v1/{omadacId}/sites/{siteId}/hotspot/vouchers/statistics/history/distribution/duration",
+            "query": {
+              "filters.timeStart": "required Unix seconds int64",
+              "filters.timeEnd": "required Unix seconds int64"
+            },
+            "request_body": false,
+            "response": "GridVOVoucherDurationDistributionOpenApiVO documents totalRows:int64, currentPage:int32, currentSize:int32 and data[]. VoucherDurationDistributionOpenApiVO documents duration:int64 minutes, durationType:int32 (0/1), totalDuration:int64 minutes and usedCount:int32.",
+            "platform_difference": "Hardware Controller and CBC use */* response media; ER7212PC uses application/json. All three document the same route, required second-based int64 filters, Grid metadata and four row-field types.",
+            "connector_projection": "Fixed trailing 24-hour window; only the two required time filters are sent, with no page parameter or follow-up. Returns bounded delivered-row count and redacted presence/type/zero coverage for the four documented fields and presence/type coverage for Grid metadata. Omits all field values, time bounds, identities and rows. Grid metadata is not interpreted as paging or server completeness. Maximum 500 rows and 262,144 upstream response bytes; no server-completeness or usage-semantics claim."
           }
         },
         "site_hotspot_voucher_group_options_coverage": {

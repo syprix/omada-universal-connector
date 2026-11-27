@@ -281,6 +281,7 @@ IMPLEMENTED: dict[tuple[str, str], str] = {
     ("GET", "/openapi/v1/{controller_id}/hotspot/sites/{site_id}/setting/profiles/rateLimits"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/hotspot/vouchers/statistics/summary"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/hotspot/vouchers/statistics/history"): "implemented_read",
+    ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/hotspot/vouchers/statistics/history/distribution/duration"): "implemented_read",
     ("GET", "/openapi/v2/{controller_id}/sites/{site_id}/site/log-notification"): "implemented_read",
     ("GET", "/openapi/v2/{controller_id}/sites/{site_id}/lan-networks/interface"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/upgrade/overview/plans"): "implemented_read",

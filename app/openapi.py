@@ -1512,6 +1512,10 @@ class OmadaOpenApiClient:
     _SITE_VOUCHER_HISTORY_STATISTICS_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/hotspot/vouchers/statistics/history"
     )
+    _SITE_VOUCHER_HISTORY_DURATION_DISTRIBUTION_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/hotspot/vouchers/statistics/history/"
+        "distribution/duration"
+    )
     _SITE_VOUCHER_CURRENCY_OPTIONS_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/hotspot/voucher-groups/currency-list")
     _SITE_HOTSPOT_VOUCHER_GROUP_OPTIONS_PATH = (
@@ -2122,6 +2126,12 @@ class OmadaOpenApiClient:
     _SITE_VOUCHER_HISTORY_STATISTICS_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
         r"/hotspot/vouchers/statistics/history\?filters\.timeStart=([1-9][0-9]{0,18})"
+        r"&filters\.timeEnd=([1-9][0-9]{0,18})"
+    )
+    _SITE_VOUCHER_HISTORY_DURATION_DISTRIBUTION_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/hotspot/vouchers/statistics/history/distribution/duration"
+        r"\?filters\.timeStart=([1-9][0-9]{0,18})"
         r"&filters\.timeEnd=([1-9][0-9]{0,18})"
     )
     _SITE_VOUCHER_CURRENCY_OPTIONS_REQUEST = re.compile(
@@ -3349,6 +3359,7 @@ class OmadaOpenApiClient:
         ("site_log_notification_summary", "GET /v1/sites/{site_ref}/log-notification-summary"),
         ("site_voucher_all_time_summary", "GET /v1/sites/{site_ref}/hotspot/vouchers/all-time-summary"),
         ("site_hotspot_voucher_history_statistics_summary", "GET /v1/sites/{site_ref}/hotspot/vouchers/history-statistics/summary"),
+        ("site_hotspot_voucher_history_duration_distribution_coverage", "GET /v1/sites/{site_ref}/hotspot/vouchers/history-duration-distribution/coverage"),
         ("site_voucher_currency_options", "GET /v1/sites/{site_ref}/hotspot/voucher-currency-options"),
         ("site_hotspot_voucher_group_options_coverage",
          "GET /v1/sites/{site_ref}/hotspot/voucher-group-options/coverage"),
@@ -10458,6 +10469,47 @@ class OmadaOpenApiClient:
         return {"status": "ok", "resource":
                 "site_hotspot_voucher_history_statistics_summary",
                 "site_ref": site_ref, **summary}
+
+    @_track_capability("site_hotspot_voucher_history_duration_distribution_coverage")
+    def read_site_hotspot_voucher_history_duration_distribution_coverage(
+            self, site_ref: str) -> dict[str, object]:
+        """Read redacted coverage for the fixed trailing 24-hour duration distribution."""
+        import time
+        from urllib.parse import urlencode
+
+        site_id = self._resolve_site_ref(site_ref)
+        end_seconds = int(time.time())
+        start_seconds = end_seconds - 86400
+        if start_seconds <= 0 or end_seconds > 2**63 - 1:
+            raise OpenApiError("openapi_request_invalid")
+        query = urlencode({"filters.timeStart": start_seconds,
+                           "filters.timeEnd": end_seconds})
+        path = (self._SITE_VOUCHER_HISTORY_DURATION_DISTRIBUTION_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id) + "?" + query)
+        payload = self._request_json("GET", path, token=self._access_token())
+        if (not isinstance(payload, Mapping) or type(payload.get("errorCode")) is not int
+                or payload.get("errorCode") != 0):
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            from .site_hotspot_voucher_history_duration_distribution import (
+                VoucherDurationDistributionError,
+                MISSING_VOUCHER_DURATION_DISTRIBUTION_RESULT,
+                project_voucher_duration_distribution,
+            )
+        except ImportError:  # direct execution in the image
+            from site_hotspot_voucher_history_duration_distribution import (
+                VoucherDurationDistributionError,
+                MISSING_VOUCHER_DURATION_DISTRIBUTION_RESULT,
+                project_voucher_duration_distribution,
+            )
+        try:
+            coverage = project_voucher_duration_distribution(
+                payload.get("result", MISSING_VOUCHER_DURATION_DISTRIBUTION_RESULT))
+        except VoucherDurationDistributionError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource":
+                "site_hotspot_voucher_history_duration_distribution_coverage",
+                "window_seconds": 86400, **coverage}
 
     @_track_capability("site_voucher_currency_options")
     def read_site_voucher_currency_options(self, site_ref: str) -> dict[str, object]:
@@ -18820,6 +18872,7 @@ class OmadaOpenApiClient:
                                   self._site_nat_exception_request_valid(path) or
                                   self._site_voucher_all_time_request_valid(path) or
                                   self._site_voucher_history_statistics_request_valid(path) or
+                                  self._site_voucher_history_duration_distribution_request_valid(path) or
                                   self._site_voucher_currency_options_request_valid(path) or
                                   self._site_hotspot_voucher_group_options_request_valid(path) or
                                   self._site_hotspot_voucher_group_inventory_request_valid(path) or
@@ -20281,6 +20334,14 @@ class OmadaOpenApiClient:
 
     def _site_voucher_history_statistics_request_valid(self, path: str) -> bool:
         match = self._SITE_VOUCHER_HISTORY_STATISTICS_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        start, end = int(match.group(2)), int(match.group(3))
+        return (start <= 2**63 - 1 and end <= 2**63 - 1 and
+                end - start == 86400)
+
+    def _site_voucher_history_duration_distribution_request_valid(self, path: str) -> bool:
+        match = self._SITE_VOUCHER_HISTORY_DURATION_DISTRIBUTION_REQUEST.fullmatch(path)
         if not match or match.group(1) != self.config.controller_id:
             return False
         start, end = int(match.group(2)), int(match.group(3))

@@ -44,6 +44,7 @@ class FakeOpenApiClient:
         self.voucher_group_inventory_source: dict[str, object] = {
             "totalRows": 0, "currentPage": 1, "currentSize": 0, "data": []}
         self.voucher_history_statistics_result: dict[str, object] | None = None
+        self.voucher_duration_distribution_result: dict[str, object] | None = None
 
     def list_sites(self) -> dict[str, object]:
         self.calls.append(("sites", None))
@@ -1186,6 +1187,23 @@ class FakeOpenApiClient:
                 "usage_state": "empty", "usage_coverage": {"row_count": 0},
                 "missing_fields": [], "invalid_fields": [], "unknown_field_count": 0,
                 "partial": False, "server_completeness": "not_asserted"}
+
+    def read_site_hotspot_voucher_history_duration_distribution_coverage(
+            self, site_ref: str) -> dict[str, object]:
+        from app.site_hotspot_voucher_history_duration_distribution import (
+            project_voucher_duration_distribution)
+        self.calls.append(("site_hotspot_voucher_history_duration_distribution_coverage",
+                           site_ref))
+        result = self.voucher_duration_distribution_result
+        if result is not None:
+            return {"status": "ok", "resource":
+                    "site_hotspot_voucher_history_duration_distribution_coverage",
+                    "window_seconds": 86400, **result}
+        return {"status": "ok", "resource":
+                "site_hotspot_voucher_history_duration_distribution_coverage",
+                "window_seconds": 86400,
+                **project_voucher_duration_distribution({
+                    "totalRows": 0, "currentPage": 0, "currentSize": 0, "data": []})}
 
     def read_site_voucher_currency_options(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_voucher_currency_options", site_ref))
@@ -6258,6 +6276,39 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertTrue(rpc["result"]["structuredContent"]["partial"])
         self.assertEqual(self.fake.calls,
                          [("site_hotspot_voucher_history_statistics_summary", site_ref)] * 2)
+
+    def test_http_and_mcp_expose_redacted_duration_distribution_coverage(self) -> None:
+        from app.site_hotspot_voucher_history_duration_distribution import (
+            project_voucher_duration_distribution)
+
+        site_ref = "a" * 24
+        self.fake.voucher_duration_distribution_result = project_voucher_duration_distribution({
+            "totalRows": 1, "currentPage": 1, "currentSize": 1,
+            "data": [{"duration": 1440, "durationType": 1,
+                      "totalDuration": 2880, "usedCount": 2,
+                      "voucherName": "private-name"}]})
+        path = f"/v1/sites/{site_ref}/hotspot/vouchers/history-duration-distribution/coverage"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(direct["resource"],
+                         "site_hotspot_voucher_history_duration_distribution_coverage")
+        self.assertEqual(direct["row_count"], 1)
+        self.assertTrue(direct["partial"])
+        serialized = json.dumps(direct)
+        for marker in ('"duration": 1440', '"durationType": 1',
+                       '"totalDuration": 2880', '"usedCount": 2',
+                       'private-name', '"totalRows": 1', site_ref):
+            self.assertNotIn(marker, serialized)
+        request = {"jsonrpc": "2.0", "id": 279, "method": "tools/call",
+                   "params": {"name":
+                               "omada_site_hotspot_voucher_history_duration_distribution_coverage",
+                               "arguments": {"site_ref": site_ref}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("site_hotspot_voucher_history_duration_distribution_coverage",
+                           site_ref)] * 2)
 
     def test_http_and_mcp_expose_site_voucher_currency_options(self) -> None:
         site_ref = "a" * 24
