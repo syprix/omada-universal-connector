@@ -2332,3 +2332,8 @@ contract, so support is not claimed there.
 ## Site Application Control rule inventory coverage
 
 `GET /v1/sites/{site_ref}/application-control/rule-inventory/coverage` reads page 1 of the documented `getRules` list, with page size capped at 100 and no search term. It returns pagination and presence/type counts for rule fields; nested application values and rule data are not returned. Missing pagination remains partial. The endpoint requires one of the documented Application Control view permissions. Live support is unknown.
+
+
+## Site Application Control assigned restriction inventory coverage
+
+`GET /v1/sites/{site_ref}/application-control/assigned-restriction-inventory/coverage` reads page 1 of `getAssignRestrictions`, with page size capped at 100. It emits pagination and field presence/type counts only; restriction values and identifiers are omitted. Live support is unknown.
