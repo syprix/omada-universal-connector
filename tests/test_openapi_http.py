@@ -3096,6 +3096,17 @@ class FakeOpenApiClient:
                 "partial": total is None,
                 "filter_values_and_rule_objects_returned": False}
 
+    def read_site_application_control_rule_inventory_coverage(self, site_ref: str) -> dict[str, object]:
+        self.calls.append(("site_application_control_rule_inventory_coverage", site_ref))
+        return {"status": "ok", "resource": "site_application_control_rule_inventory_coverage",
+                "site_ref": site_ref, "source_state": "empty", "page_number": 1,
+                "page_size": 100, "page_state": "empty", "reported_total_row_count": 0,
+                "returned_row_count": 0, "reported_remaining_row_count": 0,
+                "first_page_covers_reported_total": True,
+                "pagination_field_coverage": {}, "rule_field_coverage": {},
+                "invalid_row_count": 0, "unknown_field_count": 0, "partial": False,
+                "applications_and_rule_values_returned": False}
+
     def read_site_gateway_supported_model_references(self, site_ref: str) -> dict[str, object]:
         self.calls.append(("site_gateway_supported_model_references", site_ref))
         return {"status": "ok", "resource": "site_gateway_supported_model_references",
@@ -9548,6 +9559,22 @@ class OpenApiHttpTests(unittest.TestCase):
             json.dumps(value, allow_nan=False)
         self.assertEqual(self.fake.calls,
                          [("site_application_control_filter_inventory_coverage", site_ref)] * 4)
+
+    def test_http_and_mcp_expose_site_application_control_rule_inventory_coverage(self) -> None:
+        site_ref = "a" * 24
+        path = f"/v1/sites/{site_ref}/application-control/rule-inventory/coverage"
+        status, response = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["resource"], "site_application_control_rule_inventory_coverage")
+        request = {"jsonrpc": "2.0", "id": 181, "method": "tools/call",
+                   "params": {"name": "omada_site_application_control_rule_inventory_coverage",
+                              "arguments": {"site_ref": site_ref}}}
+        status, rpc = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(rpc["result"]["structuredContent"]["resource"],
+                         "site_application_control_rule_inventory_coverage")
+        self.assertEqual(self.fake.calls,
+                         [("site_application_control_rule_inventory_coverage", site_ref)] * 2)
 
     def test_http_and_mcp_expose_site_gateway_supported_model_references(self) -> None:
         site_ref = "a" * 24

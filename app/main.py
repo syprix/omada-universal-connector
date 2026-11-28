@@ -3579,6 +3579,9 @@ class Handler(BaseHTTPRequestHandler):
                 elif registry_operation == "site_application_control_filter_inventory_coverage":
                     result = client.read_site_application_control_filter_inventory_coverage(
                         registry_bindings["site_ref"])
+                elif registry_operation == "site_application_control_rule_inventory_coverage":
+                    result = client.read_site_application_control_rule_inventory_coverage(
+                        registry_bindings["site_ref"])
                 elif registry_operation == "site_gateway_supported_model_references":
                     result = client.read_site_gateway_supported_model_references(
                         registry_bindings["site_ref"])

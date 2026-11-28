@@ -1645,6 +1645,8 @@ class OmadaOpenApiClient:
         "/openapi/v1/{controller_id}/sites/{site_id}/applicationControl/applications")
     _SITE_APPLICATION_CONTROL_FILTERS_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/applicationControl/filters")
+    _SITE_APPLICATION_CONTROL_RULES_PATH = (
+        "/openapi/v1/{controller_id}/sites/{site_id}/applicationControl/rules")
     _SITE_GATEWAY_SUPPORTED_MODEL_REFERENCES_PATH = (
         "/openapi/v1/{controller_id}/sites/{site_id}/internet/models")
     _SITE_CATEGORY_APPLICATION_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/dashboard/categoryAppInfo/{family_id}"
@@ -1957,6 +1959,10 @@ class OmadaOpenApiClient:
     _SITE_APPLICATION_CONTROL_FILTERS_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
         r"/applicationControl/filters\?page=1&pageSize=([1-9][0-9]{0,2})"
+    )
+    _SITE_APPLICATION_CONTROL_RULES_REQUEST = re.compile(
+        r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
+        r"/applicationControl/rules\?page=1&pageSize=([1-9][0-9]{0,2})"
     )
     _SITE_GATEWAY_SUPPORTED_MODEL_REFERENCES_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}"
@@ -3689,6 +3695,8 @@ class OmadaOpenApiClient:
          "GET /v1/sites/{site_ref}/application-control/application-catalog"),
         ("site_application_control_filter_inventory_coverage",
          "GET /v1/sites/{site_ref}/application-control/filter-inventory/coverage"),
+        ("site_application_control_rule_inventory_coverage",
+         "GET /v1/sites/{site_ref}/application-control/rule-inventory/coverage"),
         ("site_gateway_supported_model_references",
          "GET /v1/sites/{site_ref}/gateway-supported-model-references"),
         ("site_category_application_summary", "GET /v1/sites/{site_ref}/application-category-summary/{family_id}/applications"),
@@ -16606,6 +16614,34 @@ class OmadaOpenApiClient:
         return {"status": "ok", "resource": "site_application_control_filter_inventory_coverage",
                 "site_ref": site_ref, **projected}
 
+    @_track_capability("site_application_control_rule_inventory_coverage")
+    def read_site_application_control_rule_inventory_coverage(self, site_ref: str) -> dict[str, object]:
+        try:
+            from .site_application_control_rule_inventory_coverage import (
+                MAX_RULE_INVENTORY_PAGE_SIZE, MISSING_RULE_INVENTORY_RESULT,
+                SiteApplicationControlRuleInventoryError,
+                project_site_application_control_rule_inventory_coverage)
+        except ImportError:
+            from site_application_control_rule_inventory_coverage import (
+                MAX_RULE_INVENTORY_PAGE_SIZE, MISSING_RULE_INVENTORY_RESULT,
+                SiteApplicationControlRuleInventoryError,
+                project_site_application_control_rule_inventory_coverage)
+        site_id = self._resolve_site_ref(site_ref)
+        page_size = min(self.config.page_size, MAX_RULE_INVENTORY_PAGE_SIZE)
+        path = self._SITE_APPLICATION_CONTROL_RULES_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id)
+        path += f"?page=1&pageSize={page_size}"
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            projected = project_site_application_control_rule_inventory_coverage(
+                payload.get("result", MISSING_RULE_INVENTORY_RESULT), page_size=page_size)
+        except SiteApplicationControlRuleInventoryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "site_application_control_rule_inventory_coverage",
+                "site_ref": site_ref, **projected}
+
     @_track_capability("site_gateway_supported_model_references")
     def read_site_gateway_supported_model_references(
             self, site_ref: str) -> dict[str, object]:
@@ -18974,6 +19010,7 @@ class OmadaOpenApiClient:
                                   self._site_application_families_request_valid(path) or
                                   self._site_application_control_applications_request_valid(path) or
                                   self._site_application_control_filters_request_valid(path) or
+                                  self._site_application_control_rules_request_valid(path) or
                                   self._site_gateway_supported_model_references_request_valid(path) or
                                   self._site_category_application_request_valid(path) or
                                   self._site_category_client_request_valid(path) or
@@ -20573,6 +20610,16 @@ class OmadaOpenApiClient:
 
     def _site_application_control_filters_request_valid(self, path: str) -> bool:
         match = self._SITE_APPLICATION_CONTROL_FILTERS_REQUEST.fullmatch(path)
+        if not match or match.group(1) != self.config.controller_id:
+            return False
+        try:
+            page_size = int(match.group(2))
+        except ValueError:
+            return False
+        return page_size == min(self.config.page_size, 100)
+
+    def _site_application_control_rules_request_valid(self, path: str) -> bool:
+        match = self._SITE_APPLICATION_CONTROL_RULES_REQUEST.fullmatch(path)
         if not match or match.group(1) != self.config.controller_id:
             return False
         try:
