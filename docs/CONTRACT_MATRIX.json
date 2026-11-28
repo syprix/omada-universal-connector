@@ -3670,6 +3670,22 @@
             "platform_difference": "Hardware Controller and CBC use */* response media; ER7212PC uses application/json. All three document the same route, required second-based int64 filters, Grid metadata and four row-field types.",
             "connector_projection": "Fixed trailing 24-hour window; only required time filters, no page or group selector. Returns redacted Grid and delivered-row field presence/type counts. Omits price, amount, currency values, identities and rows; no arithmetic or server-completeness claim."
           }
+        },
+        "site_application_control_rule_inventory_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getRules",
+            "tag": "Application Control",
+            "permission": "Site Settings Manager View Only, Network Config Page View Only, or Site Device Manager View Only",
+            "query": {
+              "page": "required int32, starts at 1; connector fixes page 1",
+              "pageSize": "required int32, source range 1–1000; connector uses configured size capped at 100",
+              "searchKey": "optional rule-name search; omitted by connector"
+            },
+            "response": "Paged GridVORuleResultEntity: int64 totalRows, int32 currentPage/currentSize; RuleResultEntity fields ruleName string, ruleId int32, schedule string, qos bool, qosClass int32, applications array. Applications remain opaque.",
+            "connector_projection": "Fixed site-bound first page; emits pagination and per-field presence/type counts only. Does not inspect nested applications or return rule values."
+          }
         }
       }
     },
@@ -7284,6 +7300,22 @@
             "platform_difference": "Hardware Controller and CBC use */* response media; ER7212PC uses application/json. All three document the same route, required second-based int64 filters, Grid metadata and four row-field types.",
             "connector_projection": "Fixed trailing 24-hour window; only required time filters, no page or group selector. Returns redacted Grid and delivered-row field presence/type counts. Omits price, amount, currency values, identities and rows; no arithmetic or server-completeness claim."
           }
+        },
+        "site_application_control_rule_inventory_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getRules",
+            "tag": "Application Control",
+            "permission": "Site Settings Manager View Only, Network Config Page View Only, or Site Device Manager View Only",
+            "query": {
+              "page": "required int32, starts at 1; connector fixes page 1",
+              "pageSize": "required int32, source range 1–1000; connector uses configured size capped at 100",
+              "searchKey": "optional rule-name search; omitted by connector"
+            },
+            "response": "Paged GridVORuleResultEntity: int64 totalRows, int32 currentPage/currentSize; RuleResultEntity fields ruleName string, ruleId int32, schedule string, qos bool, qosClass int32, applications array. Applications remain opaque.",
+            "connector_projection": "Fixed site-bound first page; emits pagination and per-field presence/type counts only. Does not inspect nested applications or return rule values."
+          }
         }
       }
     },
@@ -10808,6 +10840,22 @@
             "response": "GridVOVoucherUnitPriceDistributionOpenApiVO documents totalRows:int64, currentPage:int32, currentSize:int32, and data[]. VoucherUnitPriceDistributionOpenApiVO documents unitPrice:string, totalAmount:string, currency:string and usedCount:int32.",
             "platform_difference": "Hardware Controller and CBC use */* response media; ER7212PC uses application/json. All three document the same route, required second-based int64 filters, Grid metadata and four row-field types.",
             "connector_projection": "Fixed trailing 24-hour window; only required time filters, no page or group selector. Returns redacted Grid and delivered-row field presence/type counts. Omits price, amount, currency values, identities and rows; no arithmetic or server-completeness claim."
+          }
+        },
+        "site_application_control_rule_inventory_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getRules",
+            "tag": "Application Control",
+            "permission": "Site Settings Manager View Only, Network Config Page View Only, or Site Device Manager View Only",
+            "query": {
+              "page": "required int32, starts at 1; connector fixes page 1",
+              "pageSize": "required int32, source range 1–1000; connector uses configured size capped at 100",
+              "searchKey": "optional rule-name search; omitted by connector"
+            },
+            "response": "Paged GridVORuleResultEntity: int64 totalRows, int32 currentPage/currentSize; RuleResultEntity fields ruleName string, ruleId int32, schedule string, qos bool, qosClass int32, applications array. Applications remain opaque.",
+            "connector_projection": "Fixed site-bound first page; emits pagination and per-field presence/type counts only. Does not inspect nested applications or return rule values."
           }
         }
       }

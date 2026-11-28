@@ -1289,3 +1289,6 @@ aggregate counts inspected structurally valid points and distinguishes
 than 64 points per series; null values remain invalid for the existing numeric
 projection, and points beyond the cap remain unclassified. These counts do
 not assign meaning to null and do not change partial status.
+
+
+`omada_site_application_control_rule_inventory_coverage` reads only page 1 of the site's documented `getRules` list, with page size capped at 100 and no search term. It returns pagination and redacted presence/type counts for documented rule fields; nested applications remain opaque. It does not assert completeness beyond the reported first-page metadata.

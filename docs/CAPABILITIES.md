@@ -2327,3 +2327,8 @@ switch match. It counts only the documented data-valid, transmit-fault and
 signal-loss flags. Port identifiers and optical readings are omitted; it does
 not diagnose switch or module health. The ER7212PC export has no effective row
 contract, so support is not claimed there.
+
+
+## Site Application Control rule inventory coverage
+
+`GET /v1/sites/{site_ref}/application-control/rule-inventory/coverage` reads page 1 of the documented `getRules` list, with page size capped at 100 and no search term. It returns pagination and presence/type counts for rule fields; nested application values and rule data are not returned. Missing pagination remains partial. The endpoint requires one of the documented Application Control view permissions. Live support is unknown.
