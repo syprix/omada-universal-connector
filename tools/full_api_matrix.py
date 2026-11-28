@@ -160,6 +160,8 @@ IMPLEMENTED: dict[tuple[str, str], str] = {
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/applicationControl/families"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/applicationControl/applications"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/applicationControl/filters"): "implemented_read",
+    ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/applicationControl/restrictions"): "implemented_read",
+    ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/applicationControl/restrictions"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/applicationControl/rules"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/internet/models"): "implemented_read",
     ("GET", "/openapi/v1/{controller_id}/sites/{site_id}/portal/setting/domain"): "implemented_read",

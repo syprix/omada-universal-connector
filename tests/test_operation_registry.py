@@ -1605,6 +1605,7 @@ class OperationRegistryTests(unittest.TestCase):
             "site_application_control_application_catalog",
             "site_application_control_filter_inventory_coverage",
             "site_application_control_rule_inventory_coverage",
+            "site_application_control_assigned_restriction_inventory_coverage",
             "site_gateway_supported_model_references",
             "site_category_application_summary",
             "site_category_client_summary",

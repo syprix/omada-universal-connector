@@ -3686,6 +3686,21 @@
             "response": "Paged GridVORuleResultEntity: int64 totalRows, int32 currentPage/currentSize; RuleResultEntity fields ruleName string, ruleId int32, schedule string, qos bool, qosClass int32, applications array. Applications remain opaque.",
             "connector_projection": "Fixed site-bound first page; emits pagination and per-field presence/type counts only. Does not inspect nested applications or return rule values."
           }
+        },
+        "site_application_control_assigned_restriction_inventory_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getAssignRestrictions",
+            "tag": "Application Control",
+            "permission": "Site Settings Manager View Only, Network Config Page View Only, or Site Device Manager View Only",
+            "query": {
+              "page": "required int32, starts at 1; connector fixes page 1",
+              "pageSize": "required int32, range 1–1000; connector caps at 100"
+            },
+            "response": "Paged GridVORestrictionResultEntity with totalRows int64, currentPage/currentSize int32. RestrictionResultEntity fields: networkName string, filterId/restrictionId/vlan int32, filter/subnet/subnetIpv6/vlans strings.",
+            "connector_projection": "Fixed site-bound first page, redacted pagination and field presence/type counts only; no values or identifiers."
+          }
         }
       }
     },
@@ -7316,6 +7331,21 @@
             "response": "Paged GridVORuleResultEntity: int64 totalRows, int32 currentPage/currentSize; RuleResultEntity fields ruleName string, ruleId int32, schedule string, qos bool, qosClass int32, applications array. Applications remain opaque.",
             "connector_projection": "Fixed site-bound first page; emits pagination and per-field presence/type counts only. Does not inspect nested applications or return rule values."
           }
+        },
+        "site_application_control_assigned_restriction_inventory_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getAssignRestrictions",
+            "tag": "Application Control",
+            "permission": "Site Settings Manager View Only, Network Config Page View Only, or Site Device Manager View Only",
+            "query": {
+              "page": "required int32, starts at 1; connector fixes page 1",
+              "pageSize": "required int32, range 1–1000; connector caps at 100"
+            },
+            "response": "Paged GridVORestrictionResultEntity with totalRows int64, currentPage/currentSize int32. RestrictionResultEntity fields: networkName string, filterId/restrictionId/vlan int32, filter/subnet/subnetIpv6/vlans strings.",
+            "connector_projection": "Fixed site-bound first page, redacted pagination and field presence/type counts only; no values or identifiers."
+          }
         }
       }
     },
@@ -10856,6 +10886,21 @@
             },
             "response": "Paged GridVORuleResultEntity: int64 totalRows, int32 currentPage/currentSize; RuleResultEntity fields ruleName string, ruleId int32, schedule string, qos bool, qosClass int32, applications array. Applications remain opaque.",
             "connector_projection": "Fixed site-bound first page; emits pagination and per-field presence/type counts only. Does not inspect nested applications or return rule values."
+          }
+        },
+        "site_application_control_assigned_restriction_inventory_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getAssignRestrictions",
+            "tag": "Application Control",
+            "permission": "Site Settings Manager View Only, Network Config Page View Only, or Site Device Manager View Only",
+            "query": {
+              "page": "required int32, starts at 1; connector fixes page 1",
+              "pageSize": "required int32, range 1–1000; connector caps at 100"
+            },
+            "response": "Paged GridVORestrictionResultEntity with totalRows int64, currentPage/currentSize int32. RestrictionResultEntity fields: networkName string, filterId/restrictionId/vlan int32, filter/subnet/subnetIpv6/vlans strings.",
+            "connector_projection": "Fixed site-bound first page, redacted pagination and field presence/type counts only; no values or identifiers."
           }
         }
       }
