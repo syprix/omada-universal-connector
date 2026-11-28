@@ -3701,6 +3701,18 @@
             "response": "Paged GridVORestrictionResultEntity with totalRows int64, currentPage/currentSize int32. RestrictionResultEntity fields: networkName string, filterId/restrictionId/vlan int32, filter/subnet/subnetIpv6/vlans strings.",
             "connector_projection": "Fixed site-bound first page, redacted pagination and field presence/type counts only; no values or identifiers."
           }
+        },
+        "device_topology_client_inventory_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getTopologyClientsByDevice",
+            "permission": "Site Map Manager View Only or Site Dashboard Manager View Only",
+            "path": "GET /openapi/v2/{omadacId}/sites/{siteId}/topology/devices/{mac}/all-clients",
+            "request": "The selected AP or gateway is bound through the current same-site device inventory. The connector requests both documented client types with the fixed filters.type=0,1 and does not fan out to other devices.",
+            "response": "Unpaginated TopologyClientNode rows. Documented properties include mac/name/ip/vendor/model strings; wireless/guest booleans; type string; devTxRate/devRxRate int64 and healthScore int32; wiredUpInfo, wirelessUpInfo, connectedNetwork, and connectedSsid objects. No event timestamp or online-state field is specified.",
+            "projection": "Returns only bounded row and known-field presence/type counts. Client/device identifiers, addresses, vendor/model values, type values, uplink/network/SSID object contents, and all row contents are omitted. This is an untimestamped topology snapshot, not a connection history or proof of persistent/current association."
+          }
         }
       }
     },
@@ -7346,6 +7358,18 @@
             "response": "Paged GridVORestrictionResultEntity with totalRows int64, currentPage/currentSize int32. RestrictionResultEntity fields: networkName string, filterId/restrictionId/vlan int32, filter/subnet/subnetIpv6/vlans strings.",
             "connector_projection": "Fixed site-bound first page, redacted pagination and field presence/type counts only; no values or identifiers."
           }
+        },
+        "device_topology_client_inventory_coverage": {
+          "documented": true,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": "getTopologyClientsByDevice",
+            "permission": "Site Map Manager View Only or Site Dashboard Manager View Only",
+            "path": "GET /openapi/v2/{omadacId}/sites/{siteId}/topology/devices/{mac}/all-clients",
+            "request": "The selected AP or gateway is bound through the current same-site device inventory. The connector requests both documented client types with the fixed filters.type=0,1 and does not fan out to other devices.",
+            "response": "Unpaginated TopologyClientNode rows. Documented properties include mac/name/ip/vendor/model strings; wireless/guest booleans; type string; devTxRate/devRxRate int64 and healthScore int32; wiredUpInfo, wirelessUpInfo, connectedNetwork, and connectedSsid objects. No event timestamp or online-state field is specified.",
+            "projection": "Returns only bounded row and known-field presence/type counts. Client/device identifiers, addresses, vendor/model values, type values, uplink/network/SSID object contents, and all row contents are omitted. This is an untimestamped topology snapshot, not a connection history or proof of persistent/current association."
+          }
         }
       }
     },
@@ -10901,6 +10925,14 @@
             },
             "response": "Paged GridVORestrictionResultEntity with totalRows int64, currentPage/currentSize int32. RestrictionResultEntity fields: networkName string, filterId/restrictionId/vlan int32, filter/subnet/subnetIpv6/vlans strings.",
             "connector_projection": "Fixed site-bound first page, redacted pagination and field presence/type counts only; no values or identifiers."
+          }
+        },
+        "device_topology_client_inventory_coverage": {
+          "documented": false,
+          "live_support": "unknown",
+          "contract_review": {
+            "operation_id": null,
+            "reason": "Operation is absent from this source export."
           }
         }
       }

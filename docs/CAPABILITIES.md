@@ -254,6 +254,20 @@ A synthetic 20-client source-shaped topology fixture measured 982 tokens
 before and 117 after projection (88.09% fewer) with `js-tiktoken` 1.0.21 /
 `o200k_base`. This is serialized payload only.
 
+## Clients attached to one adopted device
+
+`GET /v1/sites/{site_ref}/devices/{device_ref}/topology-clients/coverage`
+reads the documented `getTopologyClientsByDevice` route for one AP or gateway
+already bound to the selected site's device inventory. It requests both
+documented client types with the fixed `filters.type=0,1`; it never fans out
+across the inventory. The response is an untimestamped topology snapshot.
+Only bounded row and known-field presence/type counts are returned; client,
+device, address, vendor/model and uplink identities and values are omitted. This overlaps the AP-only
+client list for APs, while also covering a selected gateway and both client
+types. It is distinct from whole-site client inventory and device-link
+topology. Hardware Controller and CBC document this operation; ER7212PC does
+not. Live support is unknown.
+
 ## Delivery state for a selected LAN network
 
 `GET /v1/sites/{site_ref}/networks/{network_ref}/delivery-summary` and its

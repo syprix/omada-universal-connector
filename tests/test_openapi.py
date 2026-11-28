@@ -557,6 +557,52 @@ class OpenApiClientTests(unittest.TestCase):
         self.assertFalse(self.client._site_ap_topology_clients_request_valid(
             good.replace("00:11:22:33:44:55", "not-a-mac")))
 
+    def test_device_topology_client_inventory_binds_adopted_ap_or_gateway(self) -> None:
+        site_ref, ap_ref, gateway_ref, switch_ref = "a" * 24, "b" * 24, "c" * 24, "d" * 24
+        ap_mac, gateway_mac, switch_mac = "00:11:22:33:44:55", "00:11:22:33:44:66", "00:11:22:33:44:77"
+        self.client._site_ids_by_ref[site_ref] = "site-1"
+        self.client._inventory_macs_by_site_ref[site_ref] = {
+            ap_ref: ap_mac, gateway_ref: gateway_mac, switch_ref: switch_mac}
+        self.client._device_macs_by_site_ref[site_ref] = {ap_ref: ap_mac}
+        self.client._gateway_macs_by_site_ref[site_ref] = {gateway_ref: gateway_mac}
+        rows = [{"mac": "private-client", "name": "private name", "ip": "192.0.2.3",
+                 "wireless": True, "guest": False, "type": "phone", "vendor": "Acme-Lab",
+                 "model": "Model-Z", "devTxRate": 1, "devRxRate": 2, "healthScore": 3,
+                 "wiredUpInfo": {}, "wirelessUpInfo": {}, "connectedNetwork": {},
+                 "connectedSsid": {}}]
+        with patch.object(self.client, "_access_token", return_value="token"), \
+                patch.object(self.client, "_request_json", return_value={"errorCode": 0,
+                    "result": rows}) as request:
+            ap_result = self.client.read_device_topology_client_inventory_coverage(site_ref, ap_ref)
+            gateway_result = self.client.read_device_topology_client_inventory_coverage(site_ref, gateway_ref)
+        self.assertEqual(ap_result["device_class"], "ap")
+        self.assertEqual(gateway_result["device_class"], "gateway")
+        self.assertEqual(ap_result["topology_client_count"], 1)
+        for secret in (ap_mac, gateway_mac, "private-client", "private name", "phone",
+                       "192.0.2.3", "Acme-Lab", "Model-Z"):
+            self.assertNotIn(secret, json.dumps(ap_result) + json.dumps(gateway_result))
+        self.assertEqual(request.call_count, 2)
+        self.assertTrue(all(call.args[1].endswith("?filters.type=0,1") for call in request.call_args_list))
+        self.assertIn("/topology/devices/00:11:22:33:44:55/all-clients?filters.type=0,1",
+                      request.call_args_list[0].args[1])
+        self.assertIn("/topology/devices/00:11:22:33:44:66/all-clients?filters.type=0,1",
+                      request.call_args_list[1].args[1])
+        with patch.object(self.client, "_request_json") as request:
+            with self.assertRaisesRegex(OpenApiError, "device_type_unsupported"):
+                self.client.read_device_topology_client_inventory_coverage(site_ref, switch_ref)
+            with self.assertRaises(OpenApiError):
+                self.client.read_device_topology_client_inventory_coverage(site_ref, "e" * 24)
+            request.assert_not_called()
+
+    def test_device_topology_client_inventory_path_guard_fixes_both_client_types(self) -> None:
+        good = ("/openapi/v2/controller_1/sites/site-1/topology/devices/"
+                "00:11:22:33:44:55/all-clients?filters.type=0,1")
+        self.assertTrue(self.client._device_topology_clients_request_valid(good))
+        self.assertFalse(self.client._device_topology_clients_request_valid(
+            good.replace("controller_1", "other")))
+        self.assertFalse(self.client._device_topology_clients_request_valid(
+            good.replace("filters.type=0,1", "filters.type=0")))
+
     def test_network_delivery_read_binds_selected_site_network_and_redacts_ids(self):
         site_ref, network_ref = "a" * 24, "b" * 24
         self.client._site_ids_by_ref[site_ref] = "site-1"

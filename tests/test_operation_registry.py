@@ -323,6 +323,17 @@ class OperationRegistryTests(unittest.TestCase):
         self.assertEqual(route.operation_id, "site_ap_topology_clients_summary")
         self.assertEqual(dict(bindings), {"site_ref": "a" * 24, "device_ref": "b" * 24})
 
+    def test_device_topology_client_inventory_binds_selected_device(self):
+        operation = REGISTRY.get("device_topology_client_inventory_coverage")
+        self.assertEqual(_tool(operation)["inputSchema"]["required"],
+                         ["site_ref", "device_ref"])
+        route, bindings = REGISTRY.match(
+            "GET", "/v1/sites/" + "a" * 24 + "/devices/" + "b" * 24 +
+            "/topology-clients/coverage")
+        self.assertEqual(route.operation_id,
+                         "device_topology_client_inventory_coverage")
+        self.assertEqual(dict(bindings), {"site_ref": "a" * 24, "device_ref": "b" * 24})
+
     def test_site_network_delivery_summary_binds_selected_network(self):
         operation = REGISTRY.get("site_network_delivery_summary")
         self.assertEqual(_tool(operation)["inputSchema"]["required"],
@@ -1821,6 +1832,7 @@ class OperationRegistryTests(unittest.TestCase):
             "device_adopt_result",
             "device_mac_type",
             "device_link_topology",
+            "device_topology_client_inventory_coverage",
             "device_radsec_support",
             "device_upgrade_result",
             "device_timeline",

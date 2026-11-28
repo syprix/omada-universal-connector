@@ -1037,6 +1037,13 @@ class FakeOpenApiClient:
                 "topology_client_count": 2,
                 "by_connection": {"wireless": 1, "wired": 1, "unknown": 0}}
 
+    def read_device_topology_client_inventory_coverage(
+            self, site_ref: str, device_ref: str) -> dict[str, object]:
+        self.calls.append(("device_topology_client_inventory_coverage", site_ref, device_ref))
+        return {"status": "ok", "resource": "device_topology_client_inventory_coverage",
+                "site_ref": site_ref, "device_ref": device_ref, "device_class": "ap",
+                "topology_client_count": 1, "client_field_coverage": {}}
+
     def read_site_network_delivery_summary(self, site_ref: str,
                                            network_ref: str) -> dict[str, object]:
         self.calls.append(("site_network_delivery_summary", site_ref, network_ref))
@@ -6039,6 +6046,22 @@ class OpenApiHttpTests(unittest.TestCase):
         self.assertEqual(response["result"]["structuredContent"], direct)
         self.assertEqual(self.fake.calls,
                          [("site_ap_topology_clients_summary", site_ref, device_ref)] * 2)
+
+    def test_http_and_mcp_expose_adopted_device_topology_client_coverage(self) -> None:
+        site_ref, device_ref = "a" * 24, "b" * 24
+        path = f"/v1/sites/{site_ref}/devices/{device_ref}/topology-clients/coverage"
+        status, direct = self.request(path, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(direct["resource"], "device_topology_client_inventory_coverage")
+        self.assertNotIn("client-mac", json.dumps(direct))
+        request = {"jsonrpc": "2.0", "id": 243, "method": "tools/call",
+                   "params": {"name": "omada_device_topology_client_inventory_coverage",
+                              "arguments": {"site_ref": site_ref, "device_ref": device_ref}}}
+        status, response = self.request_post("/mcp", request, self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["structuredContent"], direct)
+        self.assertEqual(self.fake.calls,
+                         [("device_topology_client_inventory_coverage", site_ref, device_ref)] * 2)
 
     def test_http_and_mcp_expose_selected_network_delivery_summary(self) -> None:
         site_ref, network_ref = "a" * 24, "b" * 24

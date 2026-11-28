@@ -142,8 +142,8 @@ class OperationEvidenceTests(unittest.TestCase):
         self.assertEqual(generated, expected)
         self.assertEqual(generated["operation_count"], 2445)
         self.assertEqual(generated["connector_evidence_counts"], {
-            "not_mapped": 1900,
-            "fixed_get_registry_route": 520,
+            "not_mapped": 1899,
+            "fixed_get_registry_route": 521,
             "manual_source_map_only": 25,
         })
         registry_rows = [row for row in generated["operations"]
@@ -176,6 +176,7 @@ class OperationEvidenceTests(unittest.TestCase):
         self.assertIn("site_mdns_profile_summary", indexed)
         self.assertIn("site_ssid_topology_device_summary", indexed)
         self.assertIn("site_ap_topology_clients_summary", indexed)
+        self.assertIn("device_topology_client_inventory_coverage", indexed)
         self.assertIn("site_network_delivery_summary", indexed)
         self.assertIn("site_lan_port_profiles_summary", indexed)
         self.assertIn("controller_upgrade_plans_summary", indexed)
