@@ -499,6 +499,13 @@ serialized-payload comparison only, not billed agent usage or live data.
 connector resolves the selected site and device from inventory and returns
 bounded topology counts without device names, MAC addresses or IP addresses.
 Live support remains unknown.
+`omada_device_topology_client_inventory_coverage` reads the documented
+per-device topology client list for one inventory-bound AP or gateway. It
+requests both client types using fixed `filters.type=0,1`, makes no inventory
+fan-out, and returns only bounded row/field coverage. Client and device
+identities, addresses, vendor/model values and uplink details are omitted. This is an untimestamped snapshot,
+not a connection history. Hardware Controller and CBC document the route;
+ER7212PC does not. Live support remains unknown.
 `omada_msp_device_tags` is CBC-only. It returns tag and identifier-presence
 counts without tag names or IDs. Live support remains unknown.
 `omada_msp_mfa_status` is CBC-only and reports the documented MFA-enabled

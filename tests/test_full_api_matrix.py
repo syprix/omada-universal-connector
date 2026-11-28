@@ -33,6 +33,23 @@ class FullApiMatrixTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.tmp.cleanup()
 
+    def test_topology_clients_by_device_is_documented_in_hardware_and_cbc(self):
+        path = Path(__file__).resolve().parents[1] / "docs/CONTRACT_MATRIX.json"
+        matrix = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(len(matrix["sources"]), 3)
+        for source in matrix["sources"]:
+            operation = source["operations"]["device_topology_client_inventory_coverage"]
+            self.assertEqual(operation["live_support"], "unknown")
+            if source["label"].startswith("ER7212PC"):
+                self.assertFalse(operation["documented"])
+                continue
+            self.assertTrue(operation["documented"])
+            review = operation["contract_review"]
+            self.assertEqual(review["operation_id"], "getTopologyClientsByDevice")
+            self.assertIn("all-clients", review["path"])
+            self.assertIn("filters.type=0,1", review["request"])
+            self.assertIn("untimestamped topology snapshot", review["projection"])
+
     def test_site_group_profiles_coverage_is_documented_in_all_three_sources(self):
         path = Path(__file__).resolve().parents[1] / "docs/CONTRACT_MATRIX.json"
         matrix = json.loads(path.read_text(encoding="utf-8"))

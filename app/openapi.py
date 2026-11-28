@@ -1200,6 +1200,7 @@ class OmadaOpenApiClient:
     _DEVICE_ADOPT_RESULT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/devices/{device_mac}/adopt-result"
     _DEVICE_MAC_TYPE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/devices/{device_mac}/check-mac-type"
     _DEVICE_LINK_TOPOLOGY_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/devices/{device_mac}/device-link-topology"
+    _DEVICE_TOPOLOGY_CLIENTS_PATH = "/openapi/v2/{controller_id}/sites/{site_id}/topology/devices/{device_mac}/all-clients"
     _DEVICE_RADSEC_SUPPORT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/devices/un-support-radsec"
     _DEVICE_UPGRADE_RESULT_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/devices/{device_mac}/online-upgrade-result"
     _DEVICE_TIMELINE_PATH = "/openapi/v1/{controller_id}/sites/{site_id}/devices/{device_mac}/timeline"
@@ -2991,6 +2992,11 @@ class OmadaOpenApiClient:
         r"/openapi/v2/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/devices/"
         r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/device-link-topology"
     )
+    _DEVICE_TOPOLOGY_CLIENTS_REQUEST = re.compile(
+        r"/openapi/v2/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/topology/devices/"
+        r"(?:(?:[0-9A-Fa-f]{2}:){5}|(?:[0-9A-Fa-f]{2}-){5})[0-9A-Fa-f]{2}/all-clients"
+        r"\?filters\.type=0,1"
+    )
     _DEVICE_RADSEC_SUPPORT_REQUEST = re.compile(
         r"/openapi/v1/([A-Za-z0-9_-]{1,128})/sites/[A-Za-z0-9_-]{1,128}/devices/un-support-radsec"
     )
@@ -3558,6 +3564,7 @@ class OmadaOpenApiClient:
         ("device_adopt_result", "GET /v1/sites/{site_ref}/devices/{device_ref}/adopt-result"),
         ("device_mac_type", "GET /v1/sites/{site_ref}/devices/{device_ref}/mac-type"),
         ("device_link_topology", "GET /v1/sites/{site_ref}/devices/{device_ref}/link-topology"),
+        ("device_topology_client_inventory_coverage", "GET /v1/sites/{site_ref}/devices/{device_ref}/topology-clients/coverage"),
         ("device_radsec_support", "GET /v1/sites/{site_ref}/devices/radsec-support"),
         ("device_upgrade_result", "GET /v1/sites/{site_ref}/devices/{device_ref}/upgrade-result"),
         ("device_timeline", "GET /v1/sites/{site_ref}/devices/{device_ref}/online-timeline"),
@@ -4322,6 +4329,41 @@ class OmadaOpenApiClient:
             raise OpenApiError("openapi_response_invalid") from exc
         return {"status": "ok", "resource": "device_link_topology", "device_ref": device_ref,
                 **projected}
+
+    @_track_capability("device_topology_client_inventory_coverage")
+    def read_device_topology_client_inventory_coverage(
+            self, site_ref: str, device_ref: str) -> dict[str, object]:
+        """Count documented client-list field forms for one inventoried AP or gateway."""
+        site_id, mac = self._device_read_context(site_ref, device_ref)
+        if device_ref in self._device_macs_by_site_ref.get(site_ref, {}):
+            device_class = "ap"
+        elif device_ref in self._gateway_macs_by_site_ref.get(site_ref, {}):
+            device_class = "gateway"
+        else:
+            raise OpenApiError("device_type_unsupported")
+        path = self._DEVICE_TOPOLOGY_CLIENTS_PATH.format(
+            controller_id=self.config.controller_id, site_id=site_id, device_mac=mac)
+        path += "?filters.type=0,1"
+        payload = self._request_json("GET", path, token=self._access_token())
+        if type(payload.get("errorCode")) is not int or payload["errorCode"] != 0:
+            raise OpenApiError("openapi_response_invalid")
+        try:
+            from .device_topology_client_inventory_coverage import (
+                DeviceTopologyClientInventoryError,
+                project_device_topology_client_inventory_coverage,
+            )
+        except ImportError:  # direct execution in the image
+            from device_topology_client_inventory_coverage import (
+                DeviceTopologyClientInventoryError,
+                project_device_topology_client_inventory_coverage,
+            )
+        try:
+            projected = project_device_topology_client_inventory_coverage(payload.get("result"))
+        except DeviceTopologyClientInventoryError:
+            raise OpenApiError("openapi_response_invalid") from None
+        return {"status": "ok", "resource": "device_topology_client_inventory_coverage",
+                "site_ref": site_ref, "device_ref": device_ref,
+                "device_class": device_class, **projected}
 
     @_track_capability("olt_system_info")
     def read_olt_system_info(self, site_ref: str, device_ref: str) -> dict[str, object]:
@@ -18856,6 +18898,7 @@ class OmadaOpenApiClient:
                                   self._device_adopt_result_request_valid(path) or
                                   self._device_mac_type_request_valid(path) or
                                   self._device_link_topology_request_valid(path) or
+                                  self._device_topology_clients_request_valid(path) or
                                   self._device_radsec_support_request_valid(path) or
                                   self._device_upgrade_result_request_valid(path) or
                                   self._device_timeline_request_valid(path) or
@@ -21408,6 +21451,10 @@ class OmadaOpenApiClient:
 
     def _device_link_topology_request_valid(self, path: str) -> bool:
         match = self._DEVICE_LINK_TOPOLOGY_REQUEST.fullmatch(path)
+        return bool(match and match.group(1) == self.config.controller_id)
+
+    def _device_topology_clients_request_valid(self, path: str) -> bool:
+        match = self._DEVICE_TOPOLOGY_CLIENTS_REQUEST.fullmatch(path)
         return bool(match and match.group(1) == self.config.controller_id)
 
     def _device_radsec_support_request_valid(self, path: str) -> bool:

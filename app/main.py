@@ -3295,6 +3295,9 @@ class Handler(BaseHTTPRequestHandler):
                 elif registry_operation == "device_link_topology":
                     result = client.read_device_link_topology(
                         registry_bindings["site_ref"], registry_bindings["device_ref"])
+                elif registry_operation == "device_topology_client_inventory_coverage":
+                    result = client.read_device_topology_client_inventory_coverage(
+                        registry_bindings["site_ref"], registry_bindings["device_ref"])
                 elif registry_operation == "device_radsec_support":
                     result = client.read_device_radsec_support(registry_bindings["site_ref"])
                 elif registry_operation == "device_upgrade_result":
